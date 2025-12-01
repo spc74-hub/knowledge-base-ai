@@ -1,0 +1,47 @@
+{
+  "CreativeWork": {
+    "Article": {
+      "subtypes": [
+        "NewsArticle",
+        "BlogPosting",
+        "ScholarlyArticle",
+        "TechArticle",
+        "Report"
+      ],
+      "description": "An article, such as a news article or piece of investigative report"
+    },
+    "VideoObject": {
+      "subtypes": [],
+      "description": "A video file"
+    },
+    "SocialMediaPosting": {
+      "subtypes": [
+        "BlogPosting",
+        "DiscussionForumPosting"
+      ],
+      "description": "A post to a social media platform"
+    },
+    "WebPage": {
+      "subtypes": [
+        "AboutPage",
+        "ContactPage",
+        "FAQPage"
+      ],
+      "description": "A web page"
+    },
+    "Book": {
+      "subtypes": [],
+      "description": "A book"
+    },
+    "Course": {
+      "subtypes": [],
+      "description": "A description of an educational course"
+    },
+    "HowTo": {
+      "subtypes": [
+        "Recipe"
+      ],
+      "description": "Instructions that explain how to achieve a result"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+"""
+FastAPI main application entry point.
+"""
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
+from app.api.v1 import content, chat, search, usage
+
+app = FastAPI(
+    title="Knowledge Base AI API",
+    description="Personal knowledge base with AI-powered classification",
+    version="0.1.0"
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(content.router, prefix="/api/v1/content", tags=["content"])
+app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
+app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
+app.include_router(usage.router, prefix="/api/v1/usage", tags=["usage"])
+
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Knowledge Base AI API",
+        "version": "0.1.0",
+        "status": "running"
+    }
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}

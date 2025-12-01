@@ -1,0 +1,420 @@
+{
+  "Arts & Entertainment": {
+    "tier2": [
+      "Books & Literature",
+      "Celebrity Fan/Gossip",
+      "Fine Art",
+      "Humor",
+      "Movies",
+      "Music & Audio",
+      "Television & Video"
+    ]
+  },
+  "Automotive": {
+    "tier2": [
+      "Auto Type",
+      "Auto Body Styles",
+      "Auto Parts",
+      "Auto Repair",
+      "Buying/Selling Cars",
+      "Car Culture",
+      "Certified Pre-Owned",
+      "Motorcycles",
+      "Road-Side Assistance"
+    ]
+  },
+  "Business": {
+    "tier2": [
+      "Advertising",
+      "Agriculture",
+      "Architecture",
+      "Biotech/Biomedical",
+      "Business Software",
+      "Construction",
+      "Forestry",
+      "Government",
+      "Green Solutions",
+      "Human Resources",
+      "Logistics",
+      "Marketing",
+      "Metals"
+    ]
+  },
+  "Careers": {
+    "tier2": [
+      "Career Planning",
+      "College",
+      "Financial Aid",
+      "Job Fairs",
+      "Job Search",
+      "Resume Writing/Advice",
+      "Nursing",
+      "Scholarships",
+      "Telecommuting",
+      "U.S. Military",
+      "Career Advice"
+    ]
+  },
+  "Education": {
+    "tier2": [
+      "7-12 Education",
+      "Adult Education",
+      "Art History",
+      "College Administration",
+      "College Life",
+      "Distance Learning",
+      "English as a 2nd Language",
+      "Language Learning",
+      "Graduate School",
+      "Homeschooling",
+      "Homework/Study Tips",
+      "K-6 Educators",
+      "Private School",
+      "Special Education",
+      "Studying Business"
+    ]
+  },
+  "Family & Parenting": {
+    "tier2": [
+      "Adoption",
+      "Babies & Toddlers",
+      "Daycare/Pre School",
+      "Family Internet",
+      "Parenting - K-6 Kids",
+      "Parenting teens",
+      "Pregnancy",
+      "Special Needs Kids",
+      "Eldercare"
+    ]
+  },
+  "Food & Drink": {
+    "tier2": [
+      "American Cuisine",
+      "Barbecues & Grilling",
+      "Cajun/Creole",
+      "Chinese Cuisine",
+      "Cocktails/Beer",
+      "Coffee/Tea",
+      "Cuisine-Specific",
+      "Desserts & Baking",
+      "Dining Out",
+      "Food Allergies",
+      "French Cuisine",
+      "Health/Low-Fat Cooking",
+      "Italian Cuisine",
+      "Japanese Cuisine",
+      "Mexican Cuisine",
+      "Vegan",
+      "Vegetarian",
+      "World Cuisines"
+    ]
+  },
+  "Health & Fitness": {
+    "tier2": [
+      "Exercise",
+      "ADD",
+      "AIDS/HIV",
+      "Allergies",
+      "Alternative Medicine",
+      "Arthritis",
+      "Asthma",
+      "Autism/PDD",
+      "Bipolar Disorder",
+      "Brain Tumor",
+      "Cancer",
+      "Cholesterol",
+      "Chronic Fatigue Syndrome",
+      "Chronic Pain",
+      "Cold & Flu",
+      "Deafness",
+      "Dental Care",
+      "Depression",
+      "Dermatology",
+      "Diabetes",
+      "Epilepsy",
+      "GERD/Acid Reflux",
+      "Headaches/Migraines",
+      "Heart Disease",
+      "Herbs for Health",
+      "Holistic Healing",
+      "IBS/Crohn's Disease",
+      "Incest/Abuse Support",
+      "Incontinence",
+      "Infertility",
+      "Men's Health",
+      "Nutrition",
+      "Orthopedics",
+      "Panic/Anxiety Disorders",
+      "Pediatrics",
+      "Physical Therapy",
+      "Psychology/Psychiatry",
+      "Senior Health",
+      "Sexuality",
+      "Sleep Disorders",
+      "Smoking Cessation",
+      "Substance Abuse",
+      "Thyroid Disease",
+      "Weight Loss",
+      "Women's Health"
+    ]
+  },
+  "Hobbies & Interests": {
+    "tier2": [
+      "Art/Technology",
+      "Arts & Crafts",
+      "Beadwork",
+      "Bird-Watching",
+      "Board Games/Puzzles",
+      "Candle & Soap Making",
+      "Card Games",
+      "Chess",
+      "Cigars",
+      "Collecting",
+      "Comic Books",
+      "Drawing/Sketching",
+      "Freelance Writing",
+      "Genealogy",
+      "Getting Published",
+      "Guitar",
+      "Home Recording",
+      "Investors & Patents",
+      "Jewelry Making",
+      "Magic & Illusion",
+      "Needlework",
+      "Painting",
+      "Photography",
+      "Radio",
+      "Roleplaying Games",
+      "Sci-Fi & Fantasy",
+      "Scrapbooking",
+      "Screenwriting",
+      "Stamps & Coins",
+      "Video & Computer Games",
+      "Woodworking"
+    ]
+  },
+  "Home & Garden": {
+    "tier2": [
+      "Appliances",
+      "Entertaining",
+      "Environmental Safety",
+      "Gardening",
+      "Home Repair",
+      "Home Theater",
+      "Interior Decorating",
+      "Landscaping",
+      "Remodeling & Construction"
+    ]
+  },
+  "Law, Government & Politics": {
+    "tier2": [
+      "Immigration",
+      "Legal Issues",
+      "U.S. Government Resources",
+      "Politics",
+      "Commentary"
+    ]
+  },
+  "News": {
+    "tier2": [
+      "International News",
+      "National News",
+      "Local News"
+    ]
+  },
+  "Personal Finance": {
+    "tier2": [
+      "Beginning Investing",
+      "Credit/Debit & Loans",
+      "Financial News",
+      "Financial Planning",
+      "Hedge Fund",
+      "Insurance",
+      "Investing",
+      "Mutual Funds",
+      "Options",
+      "Retirement Planning",
+      "Stocks",
+      "Tax Planning"
+    ]
+  },
+  "Pets": {
+    "tier2": [
+      "Aquariums",
+      "Birds",
+      "Cats",
+      "Dogs",
+      "Large Animals",
+      "Reptiles",
+      "Veterinary Medicine"
+    ]
+  },
+  "Real Estate": {
+    "tier2": [
+      "Apartments",
+      "Architects",
+      "Buying/Selling Homes"
+    ]
+  },
+  "Science": {
+    "tier2": [
+      "Astrology",
+      "Biology",
+      "Chemistry",
+      "Geology",
+      "Paranormal Phenomena",
+      "Physics",
+      "Space/Astronomy",
+      "Geography",
+      "Botany",
+      "Weather"
+    ]
+  },
+  "Shopping": {
+    "tier2": [
+      "Contests & Freebies",
+      "Couponing",
+      "Comparison",
+      "Engines"
+    ]
+  },
+  "Sports": {
+    "tier2": [
+      "Auto Racing",
+      "Baseball",
+      "Bicycling",
+      "Bodybuilding",
+      "Boxing",
+      "Canoeing/Kayaking",
+      "Cheerleading",
+      "Climbing",
+      "Cricket",
+      "Figure Skating",
+      "Fly Fishing",
+      "Football",
+      "Freshwater Fishing",
+      "Game & Fish",
+      "Golf",
+      "Horse Racing",
+      "Horses",
+      "Hunting/Shooting",
+      "Inline Skating",
+      "Martial Arts",
+      "Mountain Biking",
+      "NASCAR Racing",
+      "Olympics",
+      "Paintball",
+      "Power & Motorcycles",
+      "Pro Basketball",
+      "Pro Ice Hockey",
+      "Rodeo",
+      "Rugby",
+      "Running/Jogging",
+      "Sailing",
+      "Saltwater Fishing",
+      "Scuba Diving",
+      "Skateboarding",
+      "Skiing",
+      "Snowboarding",
+      "Surfing/Body-Boarding",
+      "Swimming",
+      "Table Tennis/Ping-Pong",
+      "Tennis",
+      "Volleyball",
+      "Walking",
+      "Waterski/Wakeboard",
+      "World Soccer"
+    ]
+  },
+  "Style & Fashion": {
+    "tier2": [
+      "Beauty",
+      "Body Art",
+      "Fashion",
+      "Jewelry",
+      "Clothing",
+      "Accessories"
+    ]
+  },
+  "Technology & Computing": {
+    "tier2": [
+      "3-D Graphics",
+      "Animation",
+      "Antivirus Software",
+      "C/C++",
+      "Cameras & Camcorders",
+      "Cell Phones",
+      "Computer Certification",
+      "Computer Networking",
+      "Computer Peripherals",
+      "Computer Reviews",
+      "Data Centers",
+      "Databases",
+      "Desktop Publishing",
+      "Desktop Video",
+      "Email",
+      "Graphics Software",
+      "Home Video/DVD",
+      "Internet Technology",
+      "Java",
+      "JavaScript",
+      "Mac Support",
+      "MP3/MIDI",
+      "Net Conferencing",
+      "Net for Beginners",
+      "Network Security",
+      "Palmtops/PDAs",
+      "PC Support",
+      "Portable",
+      "Entertainment",
+      "Programming",
+      "Shareware/Freeware",
+      "Unix",
+      "Visual Basic",
+      "Web Clip Art",
+      "Web Design/HTML",
+      "Web Search",
+      "Windows"
+    ]
+  },
+  "Travel": {
+    "tier2": [
+      "Adventure Travel",
+      "Africa",
+      "Air Travel",
+      "Australia & New Zealand",
+      "Bed & Breakfasts",
+      "Budget Travel",
+      "Business Travel",
+      "By US Locale",
+      "Camping",
+      "Canada",
+      "Caribbean",
+      "Cruises",
+      "Eastern Europe",
+      "Europe",
+      "France",
+      "Greece",
+      "Honeymoons/Getaways",
+      "Hotels",
+      "Italy",
+      "Japan",
+      "Mexico & Central America",
+      "National Parks",
+      "South America",
+      "Spas",
+      "Theme Parks",
+      "Traveling with Kids",
+      "United Kingdom"
+    ]
+  },
+  "Video Gaming": {
+    "tier2": [
+      "Console Games",
+      "MMOs",
+      "PC Games",
+      "Mobile Gaming",
+      "eSports"
+    ]
+  }
+}
