@@ -13,8 +13,9 @@ export default function QuickSavePage() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
   const FRONTEND_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
 
-  // Bookmarklet code - minified
-  const bookmarkletCode = `javascript:(function(){var t=localStorage.getItem('supabase.auth.token');if(!t){try{var s=Object.keys(localStorage).find(k=>k.includes('supabase')&&k.includes('auth'));if(s)t=JSON.parse(localStorage.getItem(s)).access_token;}catch(e){}}if(!t){alert('Please login to Knowledge Base first');return;}var u=encodeURIComponent(location.href);var p=window.open('','kbase','width=420,height=320');p.document.write('<html><head><title>Saving...</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:linear-gradient(135deg,rgb(249 250 251) 0%,rgb(243 244 246) 100%)}.card{background:white;padding:2rem;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);text-align:center;max-width:320px}.spinner{width:48px;height:48px;border:4px solid rgb(229 231 235);border-top-color:rgb(59 130 246);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem}@keyframes spin{to{transform:rotate(360deg)}}h2{margin:0 0 0.5rem;color:rgb(17 24 39);font-size:1.25rem}p{margin:0;color:rgb(107 114 128);font-size:0.875rem}</style></head><body><div class="card"><div class="spinner"></div><h2>Saving to Knowledge Base</h2><p>Processing your content...</p></div></body></html>');fetch('${API_URL}/api/v1/quick-save/',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({url:decodeURIComponent(u)})}).then(r=>r.json()).then(d=>{if(d.success){p.document.body.innerHTML='<div class="card"><div style="width:48px;height:48px;background:rgb(34 197 94);border-radius:50%;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" fill="none" stroke="white" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div><h2>Saved!</h2><p style="color:rgb(17 24 39);font-weight:500;margin-bottom:0.5rem">'+d.title.substring(0,60)+(d.title.length>60?'...':'')+'</p><button onclick="window.close()" style="margin-top:1rem;background:rgb(59 130 246);color:white;border:none;padding:0.75rem 1.5rem;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:500">Close</button></div>';}else{p.document.body.innerHTML='<div class="card"><div style="width:48px;height:48px;background:rgb(239 68 68);border-radius:50%;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" fill="none" stroke="white" stroke-width="3"><path d="M6 6l12 12M6 18L18 6"/></svg></div><h2>Error</h2><p>'+d.message+'</p><button onclick="window.close()" style="margin-top:1rem;background:rgb(107 114 128);color:white;border:none;padding:0.75rem 1.5rem;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:500">Close</button></div>';}}).catch(e=>{p.document.body.innerHTML='<div class="card"><div style="width:48px;height:48px;background:rgb(239 68 68);border-radius:50%;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" fill="none" stroke="white" stroke-width="3"><path d="M6 6l12 12M6 18L18 6"/></svg></div><h2>Error</h2><p>Connection failed. Please try again.</p><button onclick="window.close()" style="margin-top:1rem;background:rgb(107 114 128);color:white;border:none;padding:0.75rem 1.5rem;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:500">Close</button></div>';});})();`
+  // Bookmarklet code - token is embedded directly (personalized per user)
+  // This is necessary because localStorage is domain-specific
+  const bookmarkletCode = token ? `javascript:(function(){var t='${token}';var u=encodeURIComponent(location.href);var p=window.open('','kbase','width=420,height=320');p.document.write('<html><head><title>Saving...</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:linear-gradient(135deg,rgb(249 250 251) 0%,rgb(243 244 246) 100%)}.card{background:white;padding:2rem;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.1);text-align:center;max-width:320px}.spinner{width:48px;height:48px;border:4px solid rgb(229 231 235);border-top-color:rgb(59 130 246);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem}@keyframes spin{to{transform:rotate(360deg)}}h2{margin:0 0 0.5rem;color:rgb(17 24 39);font-size:1.25rem}p{margin:0;color:rgb(107 114 128);font-size:0.875rem}</style></head><body><div class="card"><div class="spinner"></div><h2>Saving to Knowledge Base</h2><p>Processing your content...</p></div></body></html>');fetch('${API_URL}/api/v1/quick-save/',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({url:decodeURIComponent(u)})}).then(r=>r.json()).then(d=>{if(d.success){p.document.body.innerHTML='<div class="card"><div style="width:48px;height:48px;background:rgb(34 197 94);border-radius:50%;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" fill="none" stroke="white" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg></div><h2>Saved!</h2><p style="color:rgb(17 24 39);font-weight:500;margin-bottom:0.5rem">'+d.title.substring(0,60)+(d.title.length>60?'...':'')+'</p><button onclick="window.close()" style="margin-top:1rem;background:rgb(59 130 246);color:white;border:none;padding:0.75rem 1.5rem;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:500">Close</button></div>';}else{p.document.body.innerHTML='<div class="card"><div style="width:48px;height:48px;background:rgb(239 68 68);border-radius:50%;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" fill="none" stroke="white" stroke-width="3"><path d="M6 6l12 12M6 18L18 6"/></svg></div><h2>Error</h2><p>'+d.message+'</p><button onclick="window.close()" style="margin-top:1rem;background:rgb(107 114 128);color:white;border:none;padding:0.75rem 1.5rem;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:500">Close</button></div>';}}).catch(e=>{p.document.body.innerHTML='<div class="card"><div style="width:48px;height:48px;background:rgb(239 68 68);border-radius:50%;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" fill="none" stroke="white" stroke-width="3"><path d="M6 6l12 12M6 18L18 6"/></svg></div><h2>Error</h2><p>Connection failed. Please try again.</p><button onclick="window.close()" style="margin-top:1rem;background:rgb(107 114 128);color:white;border:none;padding:0.75rem 1.5rem;border-radius:8px;font-size:0.875rem;cursor:pointer;font-weight:500">Close</button></div>';});})();` : ''
 
   // iOS Shortcut URL (opens Shortcuts app to create)
   const shortcutCallbackUrl = `${API_URL}/api/v1/quick-save/callback`
@@ -68,21 +69,36 @@ export default function QuickSavePage() {
             </div>
 
             <div className="p-6">
-              <div className="mb-6">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Quick Setup:</h3>
-                <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
-                  Drag this button to your bookmarks bar:
-                </p>
-                <a
-                  href={bookmarkletCode}
-                  onClick={(e) => e.preventDefault()}
-                  draggable="true"
-                  className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition cursor-grab active:cursor-grabbing"
-                >
-                  <Bookmark className="w-5 h-5" />
-                  Save to KBase
-                </a>
-              </div>
+              {!token ? (
+                <div className="mb-6 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
+                  <p className="text-amber-800 dark:text-amber-200 text-sm">
+                    Loading your personalized bookmarklet...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                    <p className="text-amber-800 dark:text-amber-200 text-xs">
+                      <strong>Note:</strong> This bookmarklet contains your personal token. If it stops working, come back here to get a new one.
+                    </p>
+                  </div>
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Quick Setup:</h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
+                      Drag this button to your bookmarks bar:
+                    </p>
+                    <a
+                      href={bookmarkletCode}
+                      onClick={(e) => e.preventDefault()}
+                      draggable="true"
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition cursor-grab active:cursor-grabbing"
+                    >
+                      <Bookmark className="w-5 h-5" />
+                      Save to KBase
+                    </a>
+                  </div>
+                </>
+              )}
 
               <button
                 onClick={() => setShowBookmarkletInstructions(!showBookmarkletInstructions)}

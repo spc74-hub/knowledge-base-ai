@@ -143,13 +143,13 @@ export default function NoteEditor({
     }, []);
 
     return (
-        <div className="border rounded-lg overflow-hidden bg-white">
+        <div className="border dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
             <EditorToolbar
                 editor={editor}
                 onInsertBacklink={handleInsertBacklink}
             />
             <div className="relative">
-                <EditorContent editor={editor} />
+                <EditorContent editor={editor} className="prose-editor" />
             </div>
 
             <BacklinkModal
@@ -163,14 +163,23 @@ export default function NoteEditor({
             <style jsx global>{`
                 .ProseMirror {
                     min-height: 300px;
+                    color: #111827;
+                }
+
+                .dark .ProseMirror {
+                    color: #f3f4f6;
                 }
 
                 .ProseMirror p.is-editor-empty:first-child::before {
-                    color: #adb5bd;
+                    color: #9ca3af;
                     content: attr(data-placeholder);
                     float: left;
                     height: 0;
                     pointer-events: none;
+                }
+
+                .dark .ProseMirror p.is-editor-empty:first-child::before {
+                    color: #6b7280;
                 }
 
                 /* Headers */
@@ -179,6 +188,11 @@ export default function NoteEditor({
                     font-weight: 700;
                     margin: 1.5rem 0 1rem 0;
                     line-height: 1.2;
+                    color: #111827;
+                }
+
+                .dark .ProseMirror h1 {
+                    color: #f9fafb;
                 }
 
                 .ProseMirror h2 {
@@ -186,6 +200,11 @@ export default function NoteEditor({
                     font-weight: 600;
                     margin: 1.25rem 0 0.75rem 0;
                     line-height: 1.3;
+                    color: #111827;
+                }
+
+                .dark .ProseMirror h2 {
+                    color: #f9fafb;
                 }
 
                 .ProseMirror h3 {
@@ -193,12 +212,22 @@ export default function NoteEditor({
                     font-weight: 600;
                     margin: 1rem 0 0.5rem 0;
                     line-height: 1.4;
+                    color: #111827;
+                }
+
+                .dark .ProseMirror h3 {
+                    color: #f9fafb;
                 }
 
                 .ProseMirror h4 {
                     font-size: 1.125rem;
                     font-weight: 600;
                     margin: 1rem 0 0.5rem 0;
+                    color: #111827;
+                }
+
+                .dark .ProseMirror h4 {
+                    color: #f9fafb;
                 }
 
                 /* Bullet List */
@@ -262,9 +291,18 @@ export default function NoteEditor({
                     vertical-align: top;
                 }
 
+                .dark .ProseMirror table td,
+                .dark .ProseMirror table th {
+                    border-color: #4b5563;
+                }
+
                 .ProseMirror table th {
                     background-color: #f3f4f6;
                     font-weight: bold;
+                }
+
+                .dark .ProseMirror table th {
+                    background-color: #374151;
                 }
 
                 .ProseMirror table .selectedCell:after {
@@ -304,11 +342,20 @@ export default function NoteEditor({
                     color: #9ca3af;
                 }
 
+                .dark .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+                    color: #6b7280;
+                }
+
                 .ProseMirror blockquote {
                     border-left: 3px solid #d1d5db;
                     margin: 1rem 0;
                     padding-left: 1rem;
                     color: #6b7280;
+                }
+
+                .dark .ProseMirror blockquote {
+                    border-left-color: #4b5563;
+                    color: #9ca3af;
                 }
 
                 .ProseMirror pre {
@@ -328,6 +375,11 @@ export default function NoteEditor({
                     padding: 0.25rem 0.5rem;
                 }
 
+                .dark .ProseMirror code {
+                    background-color: #374151;
+                    color: #f87171;
+                }
+
                 .ProseMirror pre code {
                     background: none;
                     color: inherit;
@@ -341,6 +393,10 @@ export default function NoteEditor({
                     margin: 2rem 0;
                 }
 
+                .dark .ProseMirror hr {
+                    border-top-color: #4b5563;
+                }
+
                 .ProseMirror mark {
                     border-radius: 0.25rem;
                     padding: 0.125rem 0;
@@ -352,8 +408,16 @@ export default function NoteEditor({
                     text-decoration: underline;
                 }
 
+                .dark .ProseMirror a {
+                    color: #60a5fa;
+                }
+
                 .ProseMirror a:hover {
                     color: #1d4ed8;
+                }
+
+                .dark .ProseMirror a:hover {
+                    color: #93c5fd;
                 }
 
                 .ProseMirror .backlink {
@@ -364,8 +428,17 @@ export default function NoteEditor({
                     cursor: pointer;
                 }
 
+                .dark .ProseMirror .backlink {
+                    background-color: #1e3a5f;
+                    color: #93c5fd;
+                }
+
                 .ProseMirror .backlink:hover {
                     background-color: #bfdbfe;
+                }
+
+                .dark .ProseMirror .backlink:hover {
+                    background-color: #1e4976;
                 }
             `}</style>
         </div>

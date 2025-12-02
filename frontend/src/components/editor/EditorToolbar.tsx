@@ -57,18 +57,18 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
             onClick={onClick}
             disabled={disabled}
             title={title}
-            className={`p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                isActive ? 'bg-gray-200 text-gray-900' : 'text-gray-600'
+            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                isActive ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'
             }`}
         >
             {children}
         </button>
     );
 
-    const Divider = () => <div className="w-px h-6 bg-gray-300 mx-1" />;
+    const Divider = () => <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />;
 
     return (
-        <div className="border-b bg-gray-50 p-2 flex flex-wrap items-center gap-1">
+        <div className="border-b dark:border-gray-600 bg-gray-50 dark:bg-gray-700 p-2 flex flex-wrap items-center gap-1">
             {/* Text Style Group */}
             <ToolbarButton
                 onClick={() => editor.chain().focus().toggleBold().run()}
@@ -253,7 +253,7 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
                     />
                 </ToolbarButton>
                 {showColorPicker && (
-                    <div className="absolute top-full left-0 mt-1 p-3 bg-white border rounded-lg shadow-lg z-50 grid grid-cols-6 gap-2" style={{ minWidth: '200px' }}>
+                    <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg shadow-lg z-50 grid grid-cols-6 gap-2" style={{ minWidth: '200px' }}>
                         {colors.map((color) => (
                             <button
                                 key={color}
@@ -262,7 +262,7 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
                                     editor.chain().focus().setColor(color).run();
                                     setShowColorPicker(false);
                                 }}
-                                className="w-7 h-7 rounded-md border-2 border-gray-200 hover:scale-110 hover:border-gray-400 transition-all"
+                                className="w-7 h-7 rounded-md border-2 border-gray-200 dark:border-gray-600 hover:scale-110 hover:border-gray-400 transition-all"
                                 style={{ backgroundColor: color }}
                                 title={color}
                             />
@@ -273,7 +273,7 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
                                 editor.chain().focus().unsetColor().run();
                                 setShowColorPicker(false);
                             }}
-                            className="col-span-6 mt-2 py-1 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                            className="col-span-6 mt-2 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                         >
                             Quitar color
                         </button>
@@ -296,7 +296,7 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
                     </svg>
                 </ToolbarButton>
                 {showHighlightPicker && (
-                    <div className="absolute top-full left-0 mt-1 p-3 bg-white border rounded-lg shadow-lg z-50 grid grid-cols-5 gap-2" style={{ minWidth: '180px' }}>
+                    <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg shadow-lg z-50 grid grid-cols-5 gap-2" style={{ minWidth: '180px' }}>
                         {highlightColors.map((color) => (
                             <button
                                 key={color}
@@ -305,7 +305,7 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
                                     editor.chain().focus().toggleHighlight({ color }).run();
                                     setShowHighlightPicker(false);
                                 }}
-                                className="w-7 h-7 rounded-md border-2 border-gray-200 hover:scale-110 hover:border-gray-400 transition-all"
+                                className="w-7 h-7 rounded-md border-2 border-gray-200 dark:border-gray-600 hover:scale-110 hover:border-gray-400 transition-all"
                                 style={{ backgroundColor: color }}
                                 title={color}
                             />
@@ -316,7 +316,7 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
                                 editor.chain().focus().unsetHighlight().run();
                                 setShowHighlightPicker(false);
                             }}
-                            className="col-span-5 mt-2 py-1 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                            className="col-span-5 mt-2 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                         >
                             Quitar resaltado
                         </button>
@@ -377,13 +377,13 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
                     </svg>
                 </ToolbarButton>
                 {showLinkInput && (
-                    <div className="absolute top-full left-0 mt-1 p-2 bg-white border rounded-lg shadow-lg z-50 flex gap-2">
+                    <div className="absolute top-full left-0 mt-1 p-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg shadow-lg z-50 flex gap-2">
                         <input
                             type="text"
                             value={linkUrl}
                             onChange={(e) => setLinkUrl(e.target.value)}
                             placeholder="https://..."
-                            className="px-2 py-1 border rounded text-sm w-48"
+                            className="px-2 py-1 border dark:border-gray-600 rounded text-sm w-48 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                     setLink();
@@ -393,7 +393,7 @@ export default function EditorToolbar({ editor, onInsertBacklink }: EditorToolba
                         <button
                             type="button"
                             onClick={setLink}
-                            className="px-2 py-1 bg-gray-900 text-white rounded text-sm hover:bg-gray-800"
+                            className="px-2 py-1 bg-gray-900 dark:bg-gray-600 text-white rounded text-sm hover:bg-gray-800 dark:hover:bg-gray-500"
                         >
                             OK
                         </button>
