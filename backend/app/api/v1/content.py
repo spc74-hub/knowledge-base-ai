@@ -12,6 +12,7 @@ from app.services.classifier import classifier_service
 from app.services.summarizer import summarizer_service
 from app.services.embeddings import embeddings_service
 from app.services.usage_tracker import usage_tracker
+from app.services.url_normalizer import normalize_url
 
 router = APIRouter()
 
@@ -247,8 +248,13 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
     Set process_async=True to process immediately.
     """
     try:
-        # Check if URL already exists for user
-        existing = db.table("contents").select("id").eq("user_id", current_user["id"]).eq("url", str(data.url)).execute()
+        # Keep original URL for fetching, normalize for storage/dedup
+        original_url = str(data.url)
+        url_str = normalize_url(original_url)
+        user_id = current_user["id"]
+
+        # Check if normalized URL already exists for user
+        existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
 
         if existing.data:
             raise HTTPException(
@@ -256,11 +262,8 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
                 detail="URL already saved"
             )
 
-        url_str = str(data.url)
-        user_id = current_user["id"]
-
-        # Step 1: Fetch content from URL (always done)
-        fetch_result = await fetcher_service.fetch(url_str)
+        # Step 1: Fetch content from ORIGINAL URL (yt-dlp needs full URL)
+        fetch_result = await fetcher_service.fetch(original_url)
 
         if not fetch_result.success:
             raise HTTPException(
@@ -638,36 +641,40 @@ async def bulk_import_urls(
     results: List[BulkImportResult] = []
     user_id = current_user["id"]
 
-    for url_str in data.urls:
-        url_str = url_str.strip()
+    for raw_url in data.urls:
+        raw_url = raw_url.strip()
 
         # Skip empty lines
-        if not url_str:
+        if not raw_url:
             continue
 
         # Validate URL format
-        if not url_str.startswith(('http://', 'https://')):
+        if not raw_url.startswith(('http://', 'https://')):
             results.append(BulkImportResult(
-                url=url_str,
+                url=raw_url,
                 success=False,
                 error="Invalid URL format (must start with http:// or https://)"
             ))
             continue
 
+        # Normalize URL to prevent duplicates from tracking params
+        url_str = normalize_url(raw_url)
+
         try:
-            # Check if URL already exists
+            # Check if normalized URL already exists
             existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
 
             if existing.data:
                 results.append(BulkImportResult(
-                    url=url_str,
+                    url=raw_url,
                     success=False,
                     error="URL already saved"
                 ))
                 continue
 
-            # Fetch content (no AI processing)
-            fetch_result = await fetcher_service.fetch(url_str)
+            # Fetch content using ORIGINAL URL (yt-dlp needs full URL)
+            # but store normalized URL to prevent duplicates
+            fetch_result = await fetcher_service.fetch(raw_url)
 
             if not fetch_result.success:
                 results.append(BulkImportResult(

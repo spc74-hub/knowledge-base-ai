@@ -166,18 +166,26 @@ async def _import_single_note(
                 error="Note has no text content"
             )
 
-        # Check for duplicate (by title and type)
+        # Check for duplicate by title + folder combination
+        # This allows same title in different folders
         existing = db.table("contents").select("id").eq(
             "user_id", user_id
         ).eq("type", "note").eq("title", note.name).execute()
 
+        # Check if any existing note has the same folder
         if existing.data:
-            return ImportResult(
-                note_id=note.id,
-                note_name=note.name,
-                success=False,
-                error="Note with this title already exists"
-            )
+            for ex in existing.data:
+                # Get the existing note's metadata to check folder
+                ex_full = db.table("contents").select("metadata").eq("id", ex["id"]).single().execute()
+                if ex_full.data:
+                    ex_folder = ex_full.data.get("metadata", {}).get("apple_notes_folder")
+                    if ex_folder == note.folder:
+                        return ImportResult(
+                            note_id=note.id,
+                            note_name=note.name,
+                            success=False,
+                            error=f"Note already exists in folder '{note.folder}'"
+                        )
 
         # Calculate reading time
         word_count = len(text_content.split())

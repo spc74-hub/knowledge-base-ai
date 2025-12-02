@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime
 from supabase import Client
 
-# Pricing per 1M tokens (as of 2024)
+# Pricing per 1M tokens (as of 2024-2025)
 PRICING = {
     "openai": {
         "text-embedding-3-small": {"input": 0.02, "output": 0.0},  # $0.02 per 1M tokens
@@ -16,6 +16,7 @@ PRICING = {
         "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},  # $3/$15 per 1M tokens
         "claude-3-5-sonnet-20241022": {"input": 3.0, "output": 15.0},
         "claude-3-haiku-20240307": {"input": 0.25, "output": 1.25},
+        "claude-3-5-haiku-20241022": {"input": 1.0, "output": 5.0},  # $1/$5 per 1M tokens
     }
 }
 

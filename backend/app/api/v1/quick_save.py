@@ -13,6 +13,7 @@ from app.services.classifier import classifier_service
 from app.services.summarizer import summarizer_service
 from app.services.embeddings import embeddings_service
 from app.services.usage_tracker import usage_tracker
+from app.services.url_normalizer import normalize_url
 
 router = APIRouter()
 
@@ -43,10 +44,12 @@ async def quick_save_url(
     Set process_now=True to process immediately.
     """
     try:
-        url_str = str(data.url)
+        # Keep original URL for fetching, normalize for storage/dedup
+        original_url = str(data.url)
+        url_str = normalize_url(original_url)
         user_id = current_user["id"]
 
-        # Check if URL already exists
+        # Check if normalized URL already exists
         existing = db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
 
         if existing.data:
@@ -58,8 +61,8 @@ async def quick_save_url(
                 error="duplicate"
             )
 
-        # Fetch content (always needed to get title and content)
-        fetch_result = await fetcher_service.fetch(url_str)
+        # Fetch content using ORIGINAL URL (yt-dlp needs full URL)
+        fetch_result = await fetcher_service.fetch(original_url)
 
         if not fetch_result.success:
             return QuickSaveResponse(
