@@ -270,6 +270,7 @@ async def get_facets(
         concepts = {}
         organizations = {}
         products = {}
+        persons = {}
 
         for item in response.data or []:
             # Count types
@@ -312,6 +313,18 @@ async def get_facets(
                 if prod_name:
                     products[prod_name] = products.get(prod_name, 0) + 1
 
+            persons_list = entities.get("persons") or []
+            for person in persons_list:
+                # Handle dict format
+                if isinstance(person, dict):
+                    person_name = person.get("name")
+                elif isinstance(person, str):
+                    person_name = person
+                else:
+                    continue
+                if person_name:
+                    persons[person_name] = persons.get(person_name, 0) + 1
+
         # Sort by count and convert to list format
         def to_facet_list(d, limit=30):
             sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)
@@ -323,6 +336,7 @@ async def get_facets(
             "concepts": to_facet_list(concepts, limit=50),
             "organizations": to_facet_list(organizations),
             "products": to_facet_list(products),
+            "persons": to_facet_list(persons),
             "total_contents": len(response.data or [])
         }
 
@@ -343,6 +357,7 @@ class FacetedSearchRequest(BaseModel):
     concepts: Optional[List[str]] = None
     organizations: Optional[List[str]] = None
     products: Optional[List[str]] = None
+    persons: Optional[List[str]] = None
     limit: int = 50
     offset: int = 0
 
@@ -385,7 +400,7 @@ async def search_faceted(
         results = response.data or []
 
         # Post-filter by entities (Supabase doesn't support JSONB array contains easily)
-        if data.organizations or data.products:
+        if data.organizations or data.products or data.persons:
             filtered_results = []
             for item in results:
                 entities = item.get("entities") or {}
@@ -404,13 +419,23 @@ async def search_faceted(
                     if prod_name:
                         item_prods.append(prod_name)
 
+                # Extract person names (handle dict format)
+                item_persons = []
+                for person in entities.get("persons") or []:
+                    person_name = person.get("name") if isinstance(person, dict) else person
+                    if person_name:
+                        item_persons.append(person_name)
+
                 org_match = not data.organizations or any(
                     org in item_orgs for org in data.organizations
                 )
                 prod_match = not data.products or any(
                     prod in item_prods for prod in data.products
                 )
-                if org_match and prod_match:
+                person_match = not data.persons or any(
+                    person in item_persons for person in data.persons
+                )
+                if org_match and prod_match and person_match:
                     filtered_results.append(item)
             results = filtered_results
 
@@ -447,7 +472,8 @@ async def search_faceted(
                     "categories": data.categories,
                     "concepts": data.concepts,
                     "organizations": data.organizations,
-                    "products": data.products
+                    "products": data.products,
+                    "persons": data.persons
                 },
                 "total_results": len(results),
                 "search_time_ms": search_time,
@@ -457,6 +483,160 @@ async def search_faceted(
         }
 
     except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+class GraphRequest(BaseModel):
+    include_persons: bool = True
+    include_organizations: bool = True
+    include_products: bool = True
+    include_concepts: bool = False
+    min_connections: int = 1
+
+
+@router.post("/graph")
+async def get_knowledge_graph(
+    data: GraphRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Generate a knowledge graph from entities.
+    Returns nodes and edges for visualization.
+    """
+    try:
+        # Get all contents with entities
+        response = db.table("contents").select(
+            "id, title, entities, concepts"
+        ).eq("user_id", current_user["id"]).execute()
+
+        # Build graph data
+        nodes = {}  # id -> {id, label, type, count, contents}
+        edges = {}  # "source-target" -> {source, target, weight, contents}
+        content_titles = {}  # content_id -> title (for frontend to resolve)
+
+        def get_entity_name(entity):
+            if isinstance(entity, dict):
+                return entity.get("name")
+            return entity
+
+        def add_node(name: str, node_type: str, content_id: str):
+            if not name:
+                return None
+            node_id = f"{node_type}:{name}"
+            if node_id not in nodes:
+                nodes[node_id] = {
+                    "id": node_id,
+                    "label": name,
+                    "type": node_type,
+                    "count": 0,
+                    "contents": []
+                }
+            nodes[node_id]["count"] += 1
+            if content_id not in nodes[node_id]["contents"]:
+                nodes[node_id]["contents"].append(content_id)
+            return node_id
+
+        def add_edge(source_id: str, target_id: str, content_id: str):
+            if not source_id or not target_id or source_id == target_id:
+                return
+            # Ensure consistent ordering for edge key
+            edge_key = tuple(sorted([source_id, target_id]))
+            edge_key_str = f"{edge_key[0]}||{edge_key[1]}"
+            if edge_key_str not in edges:
+                edges[edge_key_str] = {
+                    "source": edge_key[0],
+                    "target": edge_key[1],
+                    "weight": 0,
+                    "contents": []
+                }
+            edges[edge_key_str]["weight"] += 1
+            if content_id not in edges[edge_key_str]["contents"]:
+                edges[edge_key_str]["contents"].append(content_id)
+
+        # Process each content
+        for item in response.data or []:
+            content_id = item["id"]
+            content_title = item.get("title", "Sin titulo")
+            content_titles[content_id] = content_title
+            entities = item.get("entities") or {}
+            concepts = item.get("concepts") or []
+
+            # Collect all entity IDs for this content
+            content_entities = []
+
+            # Persons
+            if data.include_persons:
+                for person in entities.get("persons") or []:
+                    name = get_entity_name(person)
+                    node_id = add_node(name, "person", content_id)
+                    if node_id:
+                        content_entities.append(node_id)
+
+            # Organizations
+            if data.include_organizations:
+                for org in entities.get("organizations") or []:
+                    name = get_entity_name(org)
+                    node_id = add_node(name, "organization", content_id)
+                    if node_id:
+                        content_entities.append(node_id)
+
+            # Products
+            if data.include_products:
+                for prod in entities.get("products") or []:
+                    name = get_entity_name(prod)
+                    node_id = add_node(name, "product", content_id)
+                    if node_id:
+                        content_entities.append(node_id)
+
+            # Concepts
+            if data.include_concepts:
+                for concept in concepts[:5]:  # Limit concepts per content
+                    node_id = add_node(concept, "concept", content_id)
+                    if node_id:
+                        content_entities.append(node_id)
+
+            # Create edges between all entities in this content
+            for i, entity1 in enumerate(content_entities):
+                for entity2 in content_entities[i + 1:]:
+                    add_edge(entity1, entity2, content_id)
+
+        # Filter by min_connections
+        if data.min_connections > 1:
+            # Find nodes that have at least min_connections edges
+            node_edge_count = {}
+            for edge in edges.values():
+                node_edge_count[edge["source"]] = node_edge_count.get(edge["source"], 0) + 1
+                node_edge_count[edge["target"]] = node_edge_count.get(edge["target"], 0) + 1
+
+            valid_nodes = {n for n, c in node_edge_count.items() if c >= data.min_connections}
+            nodes = {k: v for k, v in nodes.items() if k in valid_nodes}
+            edges = {k: v for k, v in edges.items()
+                     if v["source"] in valid_nodes and v["target"] in valid_nodes}
+
+        return {
+            "nodes": list(nodes.values()),
+            "edges": list(edges.values()),
+            "content_titles": content_titles,
+            "stats": {
+                "total_nodes": len(nodes),
+                "total_edges": len(edges),
+                "node_types": {
+                    "persons": len([n for n in nodes.values() if n["type"] == "person"]),
+                    "organizations": len([n for n in nodes.values() if n["type"] == "organization"]),
+                    "products": len([n for n in nodes.values() if n["type"] == "product"]),
+                    "concepts": len([n for n in nodes.values() if n["type"] == "concept"])
+                }
+            }
+        }
+
+    except Exception as e:
+        import traceback
+        print(f"Graph error: {e}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)

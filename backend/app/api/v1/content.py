@@ -420,6 +420,143 @@ async def delete_content(content_id: str, current_user: CurrentUser, db: Databas
         )
 
 
+class BulkActionRequest(BaseModel):
+    content_ids: List[str]
+
+
+class BulkActionResponse(BaseModel):
+    success: bool
+    affected_count: int
+    message: str
+
+
+@router.post("/bulk/archive", response_model=BulkActionResponse)
+async def bulk_archive_contents(
+    data: BulkActionRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Archive multiple contents at once.
+    """
+    try:
+        if not data.content_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No content IDs provided"
+            )
+
+        # Update all contents that belong to the user
+        response = db.table("contents")\
+            .update({"is_archived": True})\
+            .eq("user_id", current_user["id"])\
+            .in_("id", data.content_ids)\
+            .execute()
+
+        affected_count = len(response.data) if response.data else 0
+
+        return BulkActionResponse(
+            success=True,
+            affected_count=affected_count,
+            message=f"{affected_count} contenido(s) archivado(s)"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/bulk/unarchive", response_model=BulkActionResponse)
+async def bulk_unarchive_contents(
+    data: BulkActionRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Unarchive (restore) multiple contents at once.
+    """
+    try:
+        if not data.content_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No content IDs provided"
+            )
+
+        # Update all contents that belong to the user
+        response = db.table("contents")\
+            .update({"is_archived": False})\
+            .eq("user_id", current_user["id"])\
+            .in_("id", data.content_ids)\
+            .execute()
+
+        affected_count = len(response.data) if response.data else 0
+
+        return BulkActionResponse(
+            success=True,
+            affected_count=affected_count,
+            message=f"{affected_count} contenido(s) restaurado(s)"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/bulk/delete", response_model=BulkActionResponse)
+async def bulk_delete_contents(
+    data: BulkActionRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Delete multiple contents at once.
+    """
+    try:
+        if not data.content_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No content IDs provided"
+            )
+
+        # First count how many will be deleted (for accurate count)
+        count_response = db.table("contents")\
+            .select("id", count="exact")\
+            .eq("user_id", current_user["id"])\
+            .in_("id", data.content_ids)\
+            .execute()
+
+        affected_count = count_response.count or 0
+
+        # Delete all contents that belong to the user
+        db.table("contents")\
+            .delete()\
+            .eq("user_id", current_user["id"])\
+            .in_("id", data.content_ids)\
+            .execute()
+
+        return BulkActionResponse(
+            success=True,
+            affected_count=affected_count,
+            message=f"{affected_count} contenido(s) eliminado(s)"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.post("/{content_id}/reprocess")
 async def reprocess_content(
     content_id: str,

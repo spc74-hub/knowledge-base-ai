@@ -208,8 +208,8 @@ export default function ChatPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
     }
@@ -219,7 +219,7 @@ export default function ChatPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 flex">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
             {/* Sidebar */}
             <div className={`${showSidebar ? 'w-64' : 'w-0'} bg-gray-900 text-white flex flex-col transition-all duration-300 overflow-hidden`}>
                 <div className="p-4 border-b border-gray-700">
@@ -268,19 +268,19 @@ export default function ChatPage() {
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col">
                 {/* Header */}
-                <header className="bg-white shadow-sm p-4 flex items-center justify-between">
+                <header className="bg-white dark:bg-gray-800 shadow-sm p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => setShowSidebar(!showSidebar)}
-                            className="text-gray-500 hover:text-gray-700"
+                            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                         >
                             {showSidebar ? '<' : '>'}
                         </button>
-                        <h1 className="text-lg font-semibold text-gray-900">
+                        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
                             {activeSession?.title || 'Chat con tu Knowledge Base'}
                         </h1>
                     </div>
-                    <span className="text-sm text-gray-500">{user.email}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{user.email}</span>
                 </header>
 
                 {/* Messages */}
@@ -288,10 +288,10 @@ export default function ChatPage() {
                     {messages.length === 0 && !activeSession && (
                         <div className="flex flex-col items-center justify-center h-full text-center">
                             <div className="text-6xl mb-4">💬</div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                                 Chat con tu Knowledge Base
                             </h2>
-                            <p className="text-gray-500 max-w-md mb-6">
+                            <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
                                 Preguntame sobre cualquier contenido que hayas guardado.
                                 Usare busqueda semantica para encontrar informacion relevante
                                 y te respondere basandome en tu base de conocimiento personal.
@@ -299,19 +299,19 @@ export default function ChatPage() {
                             <div className="flex gap-2 flex-wrap justify-center">
                                 <button
                                     onClick={() => setNewMessage('Que tengo guardado sobre')}
-                                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"
+                                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm dark:text-white"
                                 >
                                     Que tengo guardado sobre...
                                 </button>
                                 <button
                                     onClick={() => setNewMessage('Resume el contenido sobre')}
-                                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"
+                                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm dark:text-white"
                                 >
                                     Resume el contenido sobre...
                                 </button>
                                 <button
                                     onClick={() => setNewMessage('Cuales son los temas principales en mi knowledge base?')}
-                                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"
+                                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm dark:text-white"
                                 >
                                     Temas principales
                                 </button>
@@ -327,20 +327,20 @@ export default function ChatPage() {
                             <div
                                 className={`max-w-3xl rounded-lg p-4 ${message.role === 'user'
                                         ? 'bg-gray-900 text-white'
-                                        : 'bg-white shadow-sm border'
+                                        : 'bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-600 dark:text-white'
                                     }`}
                             >
                                 <p className="whitespace-pre-wrap">{message.content}</p>
 
                                 {/* Sources */}
                                 {message.sources && message.sources.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-gray-200">
-                                        <p className="text-xs text-gray-500 mb-2">Fuentes utilizadas:</p>
+                                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Fuentes utilizadas:</p>
                                         <div className="flex flex-wrap gap-2">
                                             {message.sources.map((source, i) => (
                                                 <span
                                                     key={i}
-                                                    className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded"
+                                                    className="text-xs bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded"
                                                     title={`Relevancia: ${(source.relevance_score * 100).toFixed(0)}%`}
                                                 >
                                                     {source.title}
@@ -359,11 +359,11 @@ export default function ChatPage() {
 
                     {sending && (
                         <div className="flex justify-start">
-                            <div className="bg-white shadow-sm border rounded-lg p-4">
+                            <div className="bg-white dark:bg-gray-800 shadow-sm border dark:border-gray-600 rounded-lg p-4">
                                 <div className="flex gap-1">
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce"></div>
+                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                                 </div>
                             </div>
                         </div>
@@ -373,20 +373,20 @@ export default function ChatPage() {
                 </div>
 
                 {/* Input */}
-                <div className="p-4 bg-white border-t">
+                <div className="p-4 bg-white dark:bg-gray-800 border-t dark:border-gray-600">
                     <form onSubmit={sendMessage} className="max-w-4xl mx-auto flex gap-2">
                         <input
                             type="text"
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             placeholder="Pregunta algo sobre tu knowledge base..."
-                            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+                            className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
                             disabled={sending}
                         />
                         <button
                             type="submit"
                             disabled={sending || !newMessage.trim()}
-                            className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-6 py-3 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Enviar
                         </button>

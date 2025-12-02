@@ -100,7 +100,7 @@ export default function ImportPage() {
     if (authLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
     }
@@ -110,25 +110,25 @@ export default function ImportPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             {/* Header */}
-            <header className="bg-white shadow-sm">
+            <header className="bg-white dark:bg-gray-800 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
+                        <Link href="/dashboard" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                             ← Volver
                         </Link>
-                        <h1 className="text-2xl font-bold text-gray-900">Importar URLs</h1>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Importar URLs</h1>
                     </div>
                 </div>
             </header>
 
             {/* Main content */}
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
                     <div className="mb-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-2">Importacion masiva de URLs</h2>
-                        <p className="text-gray-600">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Importacion masiva de URLs</h2>
+                        <p className="text-gray-600 dark:text-gray-300">
                             Pega multiples URLs (una por linea) para importarlas todas a la vez.
                             Cada URL sera procesada automaticamente: se extraera el contenido,
                             se clasificara y se generara un resumen.
@@ -137,13 +137,13 @@ export default function ImportPage() {
 
                     <form onSubmit={handleImport}>
                         {error && (
-                            <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
+                            <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
                                 {error}
                             </div>
                         )}
 
                         <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 URLs (una por linea)
                             </label>
                             <textarea
@@ -151,16 +151,16 @@ export default function ImportPage() {
                                 onChange={(e) => setUrls(e.target.value)}
                                 placeholder="https://example.com/article1&#10;https://example.com/article2&#10;https://youtube.com/watch?v=..."
                                 rows={10}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono text-sm"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 font-mono text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 disabled={importing}
                             />
-                            <p className="mt-1 text-sm text-gray-500">
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                 {urls.split('\n').filter(u => u.trim()).length} URLs detectadas
                             </p>
                         </div>
 
                         <div className="mb-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Tags (opcional, separados por coma)
                             </label>
                             <input
@@ -168,7 +168,7 @@ export default function ImportPage() {
                                 value={tags}
                                 onChange={(e) => setTags(e.target.value)}
                                 placeholder="trabajo, investigacion, referencia"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 disabled={importing}
                             />
                         </div>
@@ -177,13 +177,13 @@ export default function ImportPage() {
                             <button
                                 type="submit"
                                 disabled={importing || !urls.trim()}
-                                className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-6 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {importing ? 'Importando...' : 'Importar URLs'}
                             </button>
                             <Link
                                 href="/dashboard"
-                                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white"
                             >
                                 Cancelar
                             </Link>
@@ -192,10 +192,10 @@ export default function ImportPage() {
 
                     {/* Progress */}
                     {progress && (
-                        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                             <div className="flex items-center gap-3">
-                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                                <span className="text-blue-800">{progress}</span>
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                                <span className="text-blue-800 dark:text-blue-400">{progress}</span>
                             </div>
                         </div>
                     )}
@@ -203,52 +203,52 @@ export default function ImportPage() {
                     {/* Results */}
                     {results && (
                         <div className="mt-6">
-                            <h3 className="text-lg font-semibold mb-4">Resultados</h3>
+                            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Resultados</h3>
 
                             {/* Summary */}
                             <div className="grid grid-cols-3 gap-4 mb-6">
-                                <div className="bg-gray-50 p-4 rounded-lg text-center">
-                                    <p className="text-2xl font-bold text-gray-900">{results.total}</p>
-                                    <p className="text-sm text-gray-600">Total</p>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-center">
+                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{results.total}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
                                 </div>
-                                <div className="bg-green-50 p-4 rounded-lg text-center">
-                                    <p className="text-2xl font-bold text-green-600">{results.successful}</p>
-                                    <p className="text-sm text-green-700">Exitosas</p>
+                                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg text-center">
+                                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{results.successful}</p>
+                                    <p className="text-sm text-green-700 dark:text-green-400">Exitosas</p>
                                 </div>
-                                <div className="bg-red-50 p-4 rounded-lg text-center">
-                                    <p className="text-2xl font-bold text-red-600">{results.failed}</p>
-                                    <p className="text-sm text-red-700">Fallidas</p>
+                                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
+                                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">{results.failed}</p>
+                                    <p className="text-sm text-red-700 dark:text-red-400">Fallidas</p>
                                 </div>
                             </div>
 
                             {/* Detailed results */}
-                            <div className="border rounded-lg overflow-hidden">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
+                            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+                                    <thead className="bg-gray-50 dark:bg-gray-700">
                                         <tr>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                                                 Estado
                                             </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                                                 URL
                                             </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                                                 Detalle
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-200">
+                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
                                         {results.results.map((result, idx) => (
-                                            <tr key={idx} className={result.success ? 'bg-green-50' : 'bg-red-50'}>
+                                            <tr key={idx} className={result.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}>
                                                 <td className="px-4 py-3 whitespace-nowrap">
                                                     {result.success ? (
-                                                        <span className="text-green-600 text-lg">✓</span>
+                                                        <span className="text-green-600 dark:text-green-400 text-lg">✓</span>
                                                     ) : (
-                                                        <span className="text-red-600 text-lg">✗</span>
+                                                        <span className="text-red-600 dark:text-red-400 text-lg">✗</span>
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <span className="text-sm font-mono break-all">
+                                                    <span className="text-sm font-mono break-all text-gray-900 dark:text-white">
                                                         {result.url.length > 60
                                                             ? result.url.substring(0, 60) + '...'
                                                             : result.url}
@@ -256,9 +256,9 @@ export default function ImportPage() {
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {result.success ? (
-                                                        <span className="text-sm text-green-700">Importado correctamente</span>
+                                                        <span className="text-sm text-green-700 dark:text-green-400">Importado correctamente</span>
                                                     ) : (
-                                                        <span className="text-sm text-red-700">{result.error}</span>
+                                                        <span className="text-sm text-red-700 dark:text-red-400">{result.error}</span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -271,7 +271,7 @@ export default function ImportPage() {
                                 <div className="mt-4">
                                     <Link
                                         href="/dashboard"
-                                        className="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                                        className="inline-flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200"
                                     >
                                         Ver contenidos importados →
                                     </Link>
