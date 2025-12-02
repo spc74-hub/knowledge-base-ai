@@ -22,6 +22,7 @@ class Settings(BaseSettings):
         "http://localhost:3004",
         "http://localhost:3005",
         "https://dazzling-dream-production-c973.up.railway.app",
+        "https://kbai.up.railway.app",
     ]
 
     # Supabase
