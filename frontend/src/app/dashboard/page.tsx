@@ -77,6 +77,7 @@ export default function DashboardPage() {
     const [deletingContents, setDeletingContents] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
     const [archivedCount, setArchivedCount] = useState(0);
+    const [showAddMenu, setShowAddMenu] = useState(false);
 
     // Filters
     const [filterType, setFilterType] = useState<string>('all');
@@ -585,75 +586,139 @@ export default function DashboardPage() {
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-                    <div className="flex justify-between items-center">
-                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Knowledge Base AI</h1>
+            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between items-center h-14">
+                        {/* Logo */}
+                        <Link href="/dashboard" className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                                <span className="text-white text-sm font-bold">K</span>
+                            </div>
+                            <span className="font-semibold text-gray-900 dark:text-white hidden sm:block">KBase</span>
+                        </Link>
 
-                        {/* Navigation buttons */}
-                        <nav className="flex items-center gap-2">
-                            <Link
-                                href="/notes/new"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-                            >
-                                <span>📝</span> Nueva Nota
-                            </Link>
-                            <Link
-                                href="/import"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                            >
-                                <span>📥</span> Importar
-                            </Link>
-                            <Link
-                                href="/import-apple-notes"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                            >
-                                <span>🍎</span> Apple Notes
-                            </Link>
-                            <Link
-                                href="/quick-save"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors"
-                            >
-                                <span>🔖</span> Quick Save
-                            </Link>
+                        {/* Center Navigation */}
+                        <nav className="flex items-center gap-1">
+                            {/* Add Button with Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowAddMenu(!showAddMenu)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Añadir
+                                    <svg className={`w-3 h-3 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
 
-                            <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                                {showAddMenu && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
+                                        <div className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                                            <Link
+                                                href="/notes/new"
+                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                onClick={() => setShowAddMenu(false)}
+                                            >
+                                                <span className="w-5 text-center">📝</span>
+                                                Nueva Nota
+                                            </Link>
+                                            <Link
+                                                href="/import"
+                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                onClick={() => setShowAddMenu(false)}
+                                            >
+                                                <span className="w-5 text-center">🔗</span>
+                                                Importar URLs
+                                            </Link>
+                                            <Link
+                                                href="/import-apple-notes"
+                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                onClick={() => setShowAddMenu(false)}
+                                            >
+                                                <span className="w-5 text-center">🍎</span>
+                                                Apple Notes
+                                            </Link>
+                                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                                            <Link
+                                                href="/quick-save"
+                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                onClick={() => setShowAddMenu(false)}
+                                            >
+                                                <span className="w-5 text-center">🔖</span>
+                                                Configurar Quick Save
+                                            </Link>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
 
+                            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-2" />
+
+                            {/* Main Nav Links */}
                             <Link
                                 href="/explore"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             >
-                                <span>🔍</span> Explorar
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <span className="hidden md:inline">Explorar</span>
                             </Link>
                             <Link
                                 href="/knowledge-graph"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             >
-                                <span>🕸️</span> Grafo
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                                <span className="hidden md:inline">Grafo</span>
                             </Link>
                             <Link
                                 href="/chat"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             >
-                                <span>💬</span> Chat RAG
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                <span className="hidden md:inline">Chat</span>
                             </Link>
                             <Link
                                 href="/usage"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             >
-                                <span>📊</span> API
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                                <span className="hidden md:inline">API</span>
                             </Link>
                         </nav>
 
-                        {/* User section */}
-                        <div className="flex items-center gap-3">
+                        {/* Right section */}
+                        <div className="flex items-center gap-2">
                             <ThemeToggle />
-                            <span className="text-sm text-gray-600 dark:text-gray-300">{user.email}</span>
+                            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600" />
+                            <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+                                    <span className="text-white text-xs font-medium">
+                                        {user.email?.charAt(0).toUpperCase()}
+                                    </span>
+                                </div>
+                                <span className="text-sm text-gray-600 dark:text-gray-300 hidden lg:block max-w-[150px] truncate">
+                                    {user.email}
+                                </span>
+                            </div>
                             <button
                                 onClick={handleSignOut}
-                                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                                title="Cerrar sesión"
                             >
-                                Salir
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
                             </button>
                         </div>
                     </div>

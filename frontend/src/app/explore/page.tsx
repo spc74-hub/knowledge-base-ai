@@ -17,6 +17,7 @@ interface Facets {
     concepts: Facet[];
     organizations: Facet[];
     products: Facet[];
+    persons: Facet[];
     total_contents: number;
 }
 
@@ -178,7 +179,8 @@ export default function ExplorePage() {
             categories: [],
             concepts: [],
             organizations: [],
-            products: []
+            products: [],
+            persons: []
         });
         setSearchQuery('');
     };

@@ -15,6 +15,7 @@ interface User {
 interface UseAuthReturn {
     user: User | null;
     loading: boolean;
+    token: string | null;
     signIn: (email: string, password: string) => Promise<{ error?: string }>;
     signUp: (email: string, password: string, name?: string) => Promise<{ error?: string }>;
     signOut: () => Promise<void>;
@@ -22,6 +23,7 @@ interface UseAuthReturn {
 
 export function useAuth(): UseAuthReturn {
     const [user, setUser] = useState<User | null>(null);
+    const [token, setToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -32,6 +34,7 @@ export function useAuth(): UseAuthReturn {
                     id: session.user.id,
                     email: session.user.email || '',
                 });
+                setToken(session.access_token);
             }
             setLoading(false);
         });
@@ -45,8 +48,10 @@ export function useAuth(): UseAuthReturn {
                     id: session.user.id,
                     email: session.user.email || '',
                 });
+                setToken(session.access_token);
             } else {
                 setUser(null);
+                setToken(null);
             }
         });
 
@@ -97,6 +102,7 @@ export function useAuth(): UseAuthReturn {
     return {
         user,
         loading,
+        token,
         signIn,
         signUp,
         signOut,
