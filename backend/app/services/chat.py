@@ -97,35 +97,45 @@ class ChatService:
 
         # 2. Entity search - search in organizations, products, persons
         try:
-            import json as json_module
             query_lower = query.lower()
+            print(f"[Entity Search] Looking for '{query_lower}' in entities...")
 
-            # Search in entity names using JSONB
+            # Fetch all user contents with entities
+            entity_response = db.table("contents").select(
+                "id, title, summary, url, type, iab_tier1, concepts, entities"
+            ).eq("user_id", user_id).execute()
+
+            print(f"[Entity Search] Found {len(entity_response.data or [])} contents to search")
+
+            # Search in entity names
             entity_fields = ['organizations', 'products', 'persons']
-            for field in entity_fields:
-                # Search for query in entity names
-                entity_response = db.table("contents").select(
-                    "id, title, summary, url, type, iab_tier1, concepts, entities"
-                ).eq("user_id", user_id).execute()
+            for item in entity_response.data or []:
+                if item['id'] in results:
+                    continue  # Already found via semantic
 
-                for item in entity_response.data or []:
-                    if item['id'] in results:
-                        continue  # Already found via semantic
+                entities = item.get('entities') or {}
 
-                    entities = item.get('entities') or {}
+                for field in entity_fields:
                     entity_list = entities.get(field) or []
 
                     for entity in entity_list:
                         name = entity.get('name') if isinstance(entity, dict) else entity
-                        if name and query_lower in name.lower():
+                        # Check if entity name appears in the query (not the other way around)
+                        if name and name.lower() in query_lower:
+                            print(f"[Entity Search] MATCH! Found '{name}' in {field} for '{item['title']}'")
                             results[item['id']] = {
                                 **item,
                                 'similarity': 0.75,  # Good relevance for entity match
                                 'match_type': f'entity_{field}'
                             }
                             break
+                    if item['id'] in results:
+                        break
+
         except Exception as e:
+            import traceback
             print(f"Entity search failed: {e}")
+            print(traceback.format_exc())
 
         # 3. Text search in title/summary as fallback
         try:
