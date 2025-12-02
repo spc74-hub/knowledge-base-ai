@@ -79,6 +79,11 @@ export default function DashboardPage() {
     const [archivedCount, setArchivedCount] = useState(0);
     const [showAddMenu, setShowAddMenu] = useState(false);
 
+    // Processing state
+    const [processingStats, setProcessingStats] = useState({ pending: 0, processing: 0, completed: 0, failed: 0 });
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [processingContentId, setProcessingContentId] = useState<string | null>(null);
+
     // Filters
     const [filterType, setFilterType] = useState<string>('all');
     const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -128,6 +133,102 @@ export default function DashboardPage() {
         }
     };
 
+    const fetchProcessingStats = async () => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch('http://localhost:8000/api/v1/process/stats', {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setProcessingStats(data);
+            }
+        } catch (error) {
+            console.error('Error fetching processing stats:', error);
+        }
+    };
+
+    const handleProcessSingle = async (contentId: string) => {
+        setProcessingContentId(contentId);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`http://localhost:8000/api/v1/process/${contentId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                fetchContents();
+                fetchProcessingStats();
+            } else {
+                const error = await response.json();
+                alert(`Error: ${error.detail}`);
+            }
+        } catch (error) {
+            console.error('Error processing content:', error);
+        } finally {
+            setProcessingContentId(null);
+        }
+    };
+
+    const handleProcessAllPending = async () => {
+        setIsProcessing(true);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch('http://localhost:8000/api/v1/process/', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                alert(`Procesado: ${result.processed} exitosos, ${result.failed} fallidos`);
+                fetchContents();
+                fetchProcessingStats();
+            }
+        } catch (error) {
+            console.error('Error processing all pending:', error);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleRetryFailed = async () => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch('http://localhost:8000/api/v1/process/retry-failed', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                alert(result.message);
+                fetchContents();
+                fetchProcessingStats();
+            }
+        } catch (error) {
+            console.error('Error retrying failed:', error);
+        }
+    };
+
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
@@ -138,6 +239,7 @@ export default function DashboardPage() {
         if (user) {
             fetchContents();
             fetchFolders();
+            fetchProcessingStats();
         }
     }, [user, showArchived]);
 
@@ -795,6 +897,59 @@ export default function DashboardPage() {
 
                 {/* Main content area */}
                 <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
+                    {/* Processing Banner */}
+                    {(processingStats.pending > 0 || processingStats.failed > 0) && (
+                        <div className="mb-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
+                            <div className="flex items-center justify-between flex-wrap gap-3">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-amber-500">⏳</span>
+                                        <span className="text-amber-800 dark:text-amber-200 font-medium">
+                                            {processingStats.pending} pendiente{processingStats.pending !== 1 ? 's' : ''}
+                                        </span>
+                                    </div>
+                                    {processingStats.failed > 0 && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-red-500">❌</span>
+                                            <span className="text-red-700 dark:text-red-300">
+                                                {processingStats.failed} fallido{processingStats.failed !== 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {processingStats.failed > 0 && (
+                                        <button
+                                            onClick={handleRetryFailed}
+                                            className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-800/40 transition-colors"
+                                        >
+                                            🔄 Reintentar fallidos
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={handleProcessAllPending}
+                                        disabled={isProcessing || processingStats.pending === 0}
+                                        className="px-4 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                    >
+                                        {isProcessing ? (
+                                            <>
+                                                <span className="animate-spin">⚙️</span>
+                                                Procesando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                ⚡ Procesar todo ({processingStats.pending})
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                                El procesamiento automático se ejecuta cada hora. También puedes procesar manualmente.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
@@ -1028,10 +1183,22 @@ export default function DashboardPage() {
                                                 {content.iab_tier1 || '-'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadge(content.processing_status)}`}>
-                                                {content.processing_status}
-                                            </span>
+                                        <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadge(content.processing_status)}`}>
+                                                    {content.processing_status}
+                                                </span>
+                                                {(content.processing_status === 'pending' || content.processing_status === 'failed') && (
+                                                    <button
+                                                        onClick={() => handleProcessSingle(content.id)}
+                                                        disabled={processingContentId === content.id}
+                                                        className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/40 disabled:opacity-50"
+                                                        title="Procesar ahora"
+                                                    >
+                                                        {processingContentId === content.id ? '⏳' : '⚡'}
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                             {new Date(content.created_at).toLocaleDateString()}

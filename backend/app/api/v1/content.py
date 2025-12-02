@@ -243,7 +243,8 @@ async def get_content(content_id: str, current_user: CurrentUser, db: Database):
 async def create_content(data: ContentCreate, current_user: CurrentUser, db: Database):
     """
     Create new content from URL.
-    Fetches content, classifies it, and generates a summary.
+    By default, only fetches content and saves as pending for later processing.
+    Set process_async=True to process immediately.
     """
     try:
         # Check if URL already exists for user
@@ -258,10 +259,7 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
         url_str = str(data.url)
         user_id = current_user["id"]
 
-        # Set up usage tracker with database
-        usage_tracker.set_db(db)
-
-        # Step 1: Fetch content from URL
+        # Step 1: Fetch content from URL (always done)
         fetch_result = await fetcher_service.fetch(url_str)
 
         if not fetch_result.success:
@@ -270,66 +268,97 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
                 detail=f"Failed to fetch content: {fetch_result.error}"
             )
 
-        # Step 2: Classify content using Claude (with usage tracking)
-        classification = await classifier_service.classify(
-            title=fetch_result.title,
-            content=fetch_result.content,
-            url=url_str,
-            user_id=user_id
-        )
-
-        # Step 3: Generate summary using Claude (with usage tracking)
-        summary = await summarizer_service.summarize(
-            title=fetch_result.title,
-            content=fetch_result.content,
-            language=classification.language,
-            user_id=user_id
-        )
-
         # Estimate reading time (average 200 words per minute)
         word_count = len(fetch_result.content.split())
         reading_time = max(1, word_count // 200)
 
-        # Step 4: Generate embedding for semantic search (with usage tracking)
-        embedding_text = embeddings_service.prepare_content_for_embedding(
-            title=fetch_result.title,
-            summary=summary,
-            content=fetch_result.content,
-            concepts=classification.concepts,
-            entities=classification.entities.model_dump() if classification.entities else None,
-            metadata=fetch_result.metadata
-        )
-        embedding = await embeddings_service.generate_embedding(
-            embedding_text,
-            user_id=user_id,
-            operation="content_embedding"
-        )
+        # If process_async is True, process immediately
+        if data.process_async:
+            # Set up usage tracker with database
+            usage_tracker.set_db(db)
 
-        # Create content record with all processed data
-        content_data = {
-            "user_id": current_user["id"],
-            "url": url_str,
-            "type": fetch_result.type,
-            "title": fetch_result.title,
-            "raw_content": fetch_result.content[:50000],  # Limit stored content
-            "summary": summary,
-            "schema_type": classification.schema_type,
-            "schema_subtype": classification.schema_subtype,
-            "iab_tier1": classification.iab_tier1,
-            "iab_tier2": classification.iab_tier2,
-            "iab_tier3": classification.iab_tier3,
-            "concepts": classification.concepts,
-            "entities": classification.entities.model_dump() if classification.entities else {},
-            "language": classification.language,
-            "sentiment": classification.sentiment,
-            "technical_level": classification.technical_level,
-            "content_format": classification.content_format,
-            "reading_time_minutes": reading_time,
-            "metadata": fetch_result.metadata,
-            "user_tags": data.tags,
-            "processing_status": "completed",
-            "embedding": embedding
-        }
+            # Step 2: Classify content using Claude (with usage tracking)
+            classification = await classifier_service.classify(
+                title=fetch_result.title,
+                content=fetch_result.content,
+                url=url_str,
+                user_id=user_id
+            )
+
+            # Step 3: Generate summary using Claude (with usage tracking)
+            summary = await summarizer_service.summarize(
+                title=fetch_result.title,
+                content=fetch_result.content,
+                language=classification.language,
+                user_id=user_id
+            )
+
+            # Step 4: Generate embedding for semantic search (with usage tracking)
+            embedding_text = embeddings_service.prepare_content_for_embedding(
+                title=fetch_result.title,
+                summary=summary,
+                content=fetch_result.content,
+                concepts=classification.concepts,
+                entities=classification.entities.model_dump() if classification.entities else None,
+                metadata=fetch_result.metadata
+            )
+            embedding = await embeddings_service.generate_embedding(
+                embedding_text,
+                user_id=user_id,
+                operation="content_embedding"
+            )
+
+            # Create content record with all processed data
+            content_data = {
+                "user_id": user_id,
+                "url": url_str,
+                "type": fetch_result.type,
+                "title": fetch_result.title,
+                "raw_content": fetch_result.content[:50000],
+                "summary": summary,
+                "schema_type": classification.schema_type,
+                "schema_subtype": classification.schema_subtype,
+                "iab_tier1": classification.iab_tier1,
+                "iab_tier2": classification.iab_tier2,
+                "iab_tier3": classification.iab_tier3,
+                "concepts": classification.concepts,
+                "entities": classification.entities.model_dump() if classification.entities else {},
+                "language": classification.language,
+                "sentiment": classification.sentiment,
+                "technical_level": classification.technical_level,
+                "content_format": classification.content_format,
+                "reading_time_minutes": reading_time,
+                "metadata": fetch_result.metadata,
+                "user_tags": data.tags,
+                "processing_status": "completed",
+                "embedding": embedding
+            }
+        else:
+            # Save as pending - only fetch was done
+            content_data = {
+                "user_id": user_id,
+                "url": url_str,
+                "type": fetch_result.type,
+                "title": fetch_result.title,
+                "raw_content": fetch_result.content[:50000],
+                "summary": None,
+                "schema_type": None,
+                "schema_subtype": None,
+                "iab_tier1": None,
+                "iab_tier2": None,
+                "iab_tier3": None,
+                "concepts": [],
+                "entities": {},
+                "language": None,
+                "sentiment": None,
+                "technical_level": None,
+                "content_format": None,
+                "reading_time_minutes": reading_time,
+                "metadata": fetch_result.metadata,
+                "user_tags": data.tags,
+                "processing_status": "pending",
+                "embedding": None
+            }
 
         response = db.table("contents").insert(content_data).execute()
 
@@ -603,14 +632,11 @@ async def bulk_import_urls(
     db: Database
 ):
     """
-    Import multiple URLs at once.
-    Processes each URL sequentially and returns results for all.
+    Import multiple URLs at once (deferred processing).
+    Only fetches content, AI processing happens later.
     """
     results: List[BulkImportResult] = []
     user_id = current_user["id"]
-
-    # Set up usage tracker
-    usage_tracker.set_db(db)
 
     for url_str in data.urls:
         url_str = url_str.strip()
@@ -640,7 +666,7 @@ async def bulk_import_urls(
                 ))
                 continue
 
-            # Fetch content
+            # Fetch content (no AI processing)
             fetch_result = await fetcher_service.fetch(url_str)
 
             if not fetch_result.success:
@@ -651,65 +677,34 @@ async def bulk_import_urls(
                 ))
                 continue
 
-            # Classify content
-            classification = await classifier_service.classify(
-                title=fetch_result.title,
-                content=fetch_result.content,
-                url=url_str,
-                user_id=user_id
-            )
-
-            # Generate summary
-            summary = await summarizer_service.summarize(
-                title=fetch_result.title,
-                content=fetch_result.content,
-                language=classification.language,
-                user_id=user_id
-            )
-
             # Estimate reading time
             word_count = len(fetch_result.content.split())
             reading_time = max(1, word_count // 200)
 
-            # Generate embedding
-            embedding_text = embeddings_service.prepare_content_for_embedding(
-                title=fetch_result.title,
-                summary=summary,
-                content=fetch_result.content,
-                concepts=classification.concepts,
-                entities=classification.entities.model_dump() if classification.entities else None,
-                metadata=fetch_result.metadata
-            )
-            embedding = await embeddings_service.generate_embedding(
-                embedding_text,
-                user_id=user_id,
-                operation="content_embedding"
-            )
-
-            # Create content record
+            # Create content record WITHOUT AI processing (deferred)
             content_data = {
                 "user_id": user_id,
                 "url": url_str,
                 "type": fetch_result.type,
                 "title": fetch_result.title,
                 "raw_content": fetch_result.content[:50000],
-                "summary": summary,
-                "schema_type": classification.schema_type,
-                "schema_subtype": classification.schema_subtype,
-                "iab_tier1": classification.iab_tier1,
-                "iab_tier2": classification.iab_tier2,
-                "iab_tier3": classification.iab_tier3,
-                "concepts": classification.concepts,
-                "entities": classification.entities.model_dump() if classification.entities else {},
-                "language": classification.language,
-                "sentiment": classification.sentiment,
-                "technical_level": classification.technical_level,
-                "content_format": classification.content_format,
+                "summary": None,
+                "schema_type": None,
+                "schema_subtype": None,
+                "iab_tier1": None,
+                "iab_tier2": None,
+                "iab_tier3": None,
+                "concepts": [],
+                "entities": {},
+                "language": None,
+                "sentiment": None,
+                "technical_level": None,
+                "content_format": None,
                 "reading_time_minutes": reading_time,
                 "metadata": fetch_result.metadata,
                 "user_tags": data.tags,
-                "processing_status": "completed",
-                "embedding": embedding
+                "processing_status": "pending",  # Deferred processing
+                "embedding": None
             }
 
             response = db.table("contents").insert(content_data).execute()
@@ -748,73 +743,39 @@ async def bulk_import_urls(
 async def create_note(data: NoteCreate, current_user: CurrentUser, db: Database):
     """
     Create a new note directly (not from URL).
-    The note will be classified, summarized, and embedded like any other content.
+    Saves immediately, AI processing happens later (deferred).
     """
     try:
         user_id = current_user["id"]
-
-        # Set up usage tracker with database
-        usage_tracker.set_db(db)
-
-        # Step 1: Classify content using Claude
-        classification = await classifier_service.classify(
-            title=data.title,
-            content=data.content,
-            url="",  # No URL for notes
-            user_id=user_id
-        )
-
-        # Step 2: Generate summary using Claude
-        summary = await summarizer_service.summarize(
-            title=data.title,
-            content=data.content,
-            language=classification.language,
-            user_id=user_id
-        )
 
         # Estimate reading time (average 200 words per minute)
         word_count = len(data.content.split())
         reading_time = max(1, word_count // 200)
 
-        # Step 3: Generate embedding for semantic search
-        embedding_text = embeddings_service.prepare_content_for_embedding(
-            title=data.title,
-            summary=summary,
-            content=data.content,
-            concepts=classification.concepts,
-            entities=classification.entities.model_dump() if classification.entities else None,
-            metadata=None
-        )
-        embedding = await embeddings_service.generate_embedding(
-            embedding_text,
-            user_id=user_id,
-            operation="content_embedding"
-        )
-
-        # Create content record with type "note"
+        # Create content record WITHOUT AI processing (deferred)
         content_data = {
             "user_id": user_id,
             "url": f"note://{user_id}/{data.title[:50].replace(' ', '-').lower()}",  # Pseudo-URL for notes
             "type": "note",
             "title": data.title,
             "raw_content": data.content[:50000],  # Limit stored content
-            "summary": summary,
-            "schema_type": classification.schema_type,
-            "schema_subtype": classification.schema_subtype,
-            "iab_tier1": classification.iab_tier1,
-            "iab_tier2": classification.iab_tier2,
-            "iab_tier3": classification.iab_tier3,
-            "concepts": classification.concepts,
-            "entities": classification.entities.model_dump() if classification.entities else {},
-            "language": classification.language,
-            "sentiment": classification.sentiment,
-            "technical_level": classification.technical_level,
-            "content_format": classification.content_format,
+            "summary": None,
+            "schema_type": None,
+            "schema_subtype": None,
+            "iab_tier1": None,
+            "iab_tier2": None,
+            "iab_tier3": None,
+            "concepts": [],
+            "entities": {},
+            "language": None,
+            "sentiment": None,
+            "technical_level": None,
+            "content_format": None,
             "reading_time_minutes": reading_time,
             "metadata": {"source": "manual_note", "created_via": "editor"},
             "user_tags": data.tags,
-            "processing_status": "completed",
-            "embedding": embedding
+            "processing_status": "pending",  # Deferred processing
+            "embedding": None
         }
 
         response = db.table("contents").insert(content_data).execute()
@@ -844,7 +805,7 @@ async def update_note(
     db: Database
 ):
     """
-    Update a note's content and re-process AI (classify, summarize, embed).
+    Update a note's content. If content/title changed, marks as pending for re-processing.
     """
     try:
         user_id = current_user["id"]
@@ -865,64 +826,31 @@ async def update_note(
         new_content = data.content if data.content is not None else note["raw_content"]
         new_tags = data.tags if data.tags is not None else note["user_tags"]
 
-        # If content or title changed, re-process AI
+        # If content or title changed, mark as pending for re-processing
         if data.title is not None or data.content is not None:
-            # Set up usage tracker
-            usage_tracker.set_db(db)
-
-            # Re-classify
-            classification = await classifier_service.classify(
-                title=new_title,
-                content=new_content,
-                url="",
-                user_id=user_id
-            )
-
-            # Re-summarize
-            summary = await summarizer_service.summarize(
-                title=new_title,
-                content=new_content,
-                language=classification.language,
-                user_id=user_id
-            )
-
             # Re-calculate reading time
             word_count = len(new_content.split())
             reading_time = max(1, word_count // 200)
 
-            # Re-generate embedding
-            embedding_text = embeddings_service.prepare_content_for_embedding(
-                title=new_title,
-                summary=summary,
-                content=new_content,
-                concepts=classification.concepts,
-                entities=classification.entities.model_dump() if classification.entities else None,
-                metadata=None
-            )
-            embedding = await embeddings_service.generate_embedding(
-                embedding_text,
-                user_id=user_id,
-                operation="content_embedding"
-            )
-
             update_data = {
                 "title": new_title,
                 "raw_content": new_content[:50000],
-                "summary": summary,
-                "schema_type": classification.schema_type,
-                "schema_subtype": classification.schema_subtype,
-                "iab_tier1": classification.iab_tier1,
-                "iab_tier2": classification.iab_tier2,
-                "iab_tier3": classification.iab_tier3,
-                "concepts": classification.concepts,
-                "entities": classification.entities.model_dump() if classification.entities else {},
-                "language": classification.language,
-                "sentiment": classification.sentiment,
-                "technical_level": classification.technical_level,
-                "content_format": classification.content_format,
+                "summary": None,  # Clear for re-processing
+                "schema_type": None,
+                "schema_subtype": None,
+                "iab_tier1": None,
+                "iab_tier2": None,
+                "iab_tier3": None,
+                "concepts": [],
+                "entities": {},
+                "language": None,
+                "sentiment": None,
+                "technical_level": None,
+                "content_format": None,
                 "reading_time_minutes": reading_time,
                 "user_tags": new_tags,
-                "embedding": embedding
+                "embedding": None,
+                "processing_status": "pending"  # Mark for re-processing
             }
         else:
             # Only tags changed, no AI reprocessing needed

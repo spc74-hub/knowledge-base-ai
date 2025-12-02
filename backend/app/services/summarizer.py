@@ -38,7 +38,7 @@ class SummarizerService:
 
     def __init__(self):
         self.client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        self.model = "claude-sonnet-4-20250514"
+        self.model = "claude-3-5-haiku-20241022"
 
     async def summarize(
         self,

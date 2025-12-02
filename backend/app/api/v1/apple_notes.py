@@ -137,7 +137,7 @@ async def _import_single_note(
     db,
     tags: List[str]
 ) -> ImportResult:
-    """Import a single Apple Note to the knowledge base."""
+    """Import a single Apple Note to the knowledge base (deferred processing)."""
     original_id = note.id
     original_name = note.name
     original_folder = note.folder
@@ -179,63 +179,32 @@ async def _import_single_note(
                 error="Note with this title already exists"
             )
 
-        # Classify content
-        classification = await classifier_service.classify(
-            title=note.name,
-            content=text_content,
-            url="",
-            user_id=user_id
-        )
-
-        # Generate summary
-        summary = await summarizer_service.summarize(
-            title=note.name,
-            content=text_content,
-            language=classification.language,
-            user_id=user_id
-        )
-
         # Calculate reading time
         word_count = len(text_content.split())
         reading_time = max(1, word_count // 200)
 
-        # Generate embedding
-        embedding_text = embeddings_service.prepare_content_for_embedding(
-            title=note.name,
-            summary=summary,
-            content=text_content,
-            concepts=classification.concepts,
-            entities=classification.entities.model_dump() if classification.entities else None,
-            metadata=None
-        )
-        embedding = await embeddings_service.generate_embedding(
-            embedding_text,
-            user_id=user_id,
-            operation="content_embedding"
-        )
-
         # Add Apple Notes folder as a tag
         all_tags = list(set(tags + [f"apple-notes:{note.folder}"]))
 
-        # Create content record
+        # Create content record WITHOUT AI processing (deferred)
         content_data = {
             "user_id": user_id,
             "url": f"apple-notes://{note.id}",
             "type": "note",
             "title": note.name,
             "raw_content": note.body or text_content,  # Keep HTML for rich content
-            "summary": summary,
-            "schema_type": classification.schema_type,
-            "schema_subtype": classification.schema_subtype,
-            "iab_tier1": classification.iab_tier1,
-            "iab_tier2": classification.iab_tier2,
-            "iab_tier3": classification.iab_tier3,
-            "concepts": classification.concepts,
-            "entities": classification.entities.model_dump() if classification.entities else {},
-            "language": classification.language,
-            "sentiment": classification.sentiment,
-            "technical_level": classification.technical_level,
-            "content_format": classification.content_format,
+            "summary": None,
+            "schema_type": None,
+            "schema_subtype": None,
+            "iab_tier1": None,
+            "iab_tier2": None,
+            "iab_tier3": None,
+            "concepts": [],
+            "entities": {},
+            "language": None,
+            "sentiment": None,
+            "technical_level": None,
+            "content_format": None,
             "reading_time_minutes": reading_time,
             "metadata": {
                 "source": "apple_notes",
@@ -245,8 +214,8 @@ async def _import_single_note(
                 "modification_date": note.modification_date
             },
             "user_tags": all_tags,
-            "processing_status": "completed",
-            "embedding": embedding
+            "processing_status": "pending",  # Deferred processing
+            "embedding": None
         }
 
         response = db.table("contents").insert(content_data).execute()

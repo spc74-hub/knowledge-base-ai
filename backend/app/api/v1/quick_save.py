@@ -20,6 +20,7 @@ router = APIRouter()
 class QuickSaveRequest(BaseModel):
     url: HttpUrl
     tags: list[str] = []
+    process_now: bool = False  # If True, process immediately; if False, just save for later
 
 
 class QuickSaveResponse(BaseModel):
@@ -38,7 +39,8 @@ async def quick_save_url(
 ):
     """
     Quick save a URL - simplified endpoint for bookmarklet and iOS Shortcut.
-    Processes the URL in the background and returns immediately.
+    By default, only fetches and saves content without AI processing (instant).
+    Set process_now=True to process immediately.
     """
     try:
         url_str = str(data.url)
@@ -56,10 +58,7 @@ async def quick_save_url(
                 error="duplicate"
             )
 
-        # Set up usage tracker
-        usage_tracker.set_db(db)
-
-        # Fetch content
+        # Fetch content (always needed to get title and content)
         fetch_result = await fetcher_service.fetch(url_str)
 
         if not fetch_result.success:
@@ -69,69 +68,78 @@ async def quick_save_url(
                 error=fetch_result.error
             )
 
-        # Classify content
-        classification = await classifier_service.classify(
-            title=fetch_result.title,
-            content=fetch_result.content,
-            url=url_str,
-            user_id=user_id
-        )
-
-        # Generate summary
-        summary = await summarizer_service.summarize(
-            title=fetch_result.title,
-            content=fetch_result.content,
-            language=classification.language,
-            user_id=user_id
-        )
-
         # Calculate reading time
         word_count = len(fetch_result.content.split())
         reading_time = max(1, word_count // 200)
 
-        # Generate embedding
-        embedding_text = embeddings_service.prepare_content_for_embedding(
-            title=fetch_result.title,
-            summary=summary,
-            content=fetch_result.content,
-            concepts=classification.concepts,
-            entities=classification.entities.model_dump() if classification.entities else None,
-            metadata=fetch_result.metadata
-        )
-        embedding = await embeddings_service.generate_embedding(
-            embedding_text,
-            user_id=user_id,
-            operation="content_embedding"
-        )
-
-        # Create content record
+        # Base content data (without AI processing)
         content_data = {
             "user_id": user_id,
             "url": url_str,
             "type": fetch_result.type,
             "title": fetch_result.title,
             "raw_content": fetch_result.content[:50000],
-            "summary": summary,
-            "schema_type": classification.schema_type,
-            "schema_subtype": classification.schema_subtype,
-            "iab_tier1": classification.iab_tier1,
-            "iab_tier2": classification.iab_tier2,
-            "iab_tier3": classification.iab_tier3,
-            "concepts": classification.concepts,
-            "entities": classification.entities.model_dump() if classification.entities else {},
-            "language": classification.language,
-            "sentiment": classification.sentiment,
-            "technical_level": classification.technical_level,
-            "content_format": classification.content_format,
             "reading_time_minutes": reading_time,
             "metadata": {
                 **fetch_result.metadata,
                 "saved_via": "quick_save"
             },
             "user_tags": data.tags,
-            "processing_status": "completed",
-            "embedding": embedding
+            "processing_status": "pending"  # Mark as pending for later processing
         }
+
+        # If process_now is True, do full AI processing
+        if data.process_now:
+            usage_tracker.set_db(db)
+
+            # Classify content
+            classification = await classifier_service.classify(
+                title=fetch_result.title,
+                content=fetch_result.content,
+                url=url_str,
+                user_id=user_id
+            )
+
+            # Generate summary
+            summary = await summarizer_service.summarize(
+                title=fetch_result.title,
+                content=fetch_result.content,
+                language=classification.language,
+                user_id=user_id
+            )
+
+            # Generate embedding
+            embedding_text = embeddings_service.prepare_content_for_embedding(
+                title=fetch_result.title,
+                summary=summary,
+                content=fetch_result.content,
+                concepts=classification.concepts,
+                entities=classification.entities.model_dump() if classification.entities else None,
+                metadata=fetch_result.metadata
+            )
+            embedding = await embeddings_service.generate_embedding(
+                embedding_text,
+                user_id=user_id,
+                operation="content_embedding"
+            )
+
+            # Add AI-processed fields
+            content_data.update({
+                "summary": summary,
+                "schema_type": classification.schema_type,
+                "schema_subtype": classification.schema_subtype,
+                "iab_tier1": classification.iab_tier1,
+                "iab_tier2": classification.iab_tier2,
+                "iab_tier3": classification.iab_tier3,
+                "concepts": classification.concepts,
+                "entities": classification.entities.model_dump() if classification.entities else {},
+                "language": classification.language,
+                "sentiment": classification.sentiment,
+                "technical_level": classification.technical_level,
+                "content_format": classification.content_format,
+                "embedding": embedding,
+                "processing_status": "completed"
+            })
 
         response = db.table("contents").insert(content_data).execute()
 
@@ -142,9 +150,11 @@ async def quick_save_url(
                 error="database_error"
             )
 
+        status_msg = "saved and processed" if data.process_now else "saved (pending processing)"
+
         return QuickSaveResponse(
             success=True,
-            message="URL saved successfully!",
+            message=f"URL {status_msg}!",
             content_id=response.data[0]["id"],
             title=fetch_result.title
         )
