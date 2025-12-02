@@ -362,6 +362,18 @@ class FacetedSearchRequest(BaseModel):
     offset: int = 0
 
 
+import json as json_module
+
+
+def _build_jsonb_contains_filter(entity_type: str, values: List[str]) -> str:
+    """
+    Build a JSONB contains filter pattern for Supabase.
+    Format: [{"name": "Value1"}, {"name": "Value2"}] - matches ANY of the values
+    """
+    patterns = [{"name": v} for v in values]
+    return json_module.dumps(patterns)
+
+
 @router.post("/faceted")
 async def search_faceted(
     data: FacetedSearchRequest,
@@ -371,73 +383,101 @@ async def search_faceted(
     """
     Search with facet filters.
     Combines text search with facet filtering.
+    Uses PostgreSQL JSONB contains operator for efficient entity filtering.
     """
     try:
         import time
         start_time = time.time()
 
-        # Start with base query
-        query = db.table("contents").select(
-            "id, title, summary, url, type, iab_tier1, concepts, entities, created_at"
-        ).eq("user_id", current_user["id"])
+        # Check if we need entity filtering (requires separate queries for OR logic)
+        has_entity_filters = data.organizations or data.products or data.persons
 
-        # Apply facet filters
-        if data.types:
-            query = query.in_("type", data.types)
+        if has_entity_filters:
+            # For entity filters, we need to do multiple queries and combine results
+            # because Supabase doesn't support OR across different JSONB paths easily
+            all_ids = set()
 
-        if data.categories:
-            query = query.in_("iab_tier1", data.categories)
+            # Query for each entity type filter
+            if data.organizations:
+                for org in data.organizations:
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"])
+                    if data.types:
+                        q = q.in_("type", data.types)
+                    if data.categories:
+                        q = q.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        q = q.overlaps("concepts", data.concepts)
+                    # Use filter with 'cs' (contains) for JSONB array matching
+                    pattern = json_module.dumps([{"name": org}])
+                    q = q.filter("entities->organizations", "cs", pattern)
+                    resp = q.execute()
+                    all_ids.update(item["id"] for item in resp.data or [])
 
-        # For concepts, we need to check if any of the filter concepts are in the array
-        if data.concepts:
-            query = query.overlaps("concepts", data.concepts)
+            if data.products:
+                for prod in data.products:
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"])
+                    if data.types:
+                        q = q.in_("type", data.types)
+                    if data.categories:
+                        q = q.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        q = q.overlaps("concepts", data.concepts)
+                    pattern = json_module.dumps([{"name": prod}])
+                    q = q.filter("entities->products", "cs", pattern)
+                    resp = q.execute()
+                    all_ids.update(item["id"] for item in resp.data or [])
 
-        # Execute query
-        response = query.order("created_at", desc=True).range(
-            data.offset, data.offset + data.limit - 1
-        ).execute()
+            if data.persons:
+                for person in data.persons:
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"])
+                    if data.types:
+                        q = q.in_("type", data.types)
+                    if data.categories:
+                        q = q.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        q = q.overlaps("concepts", data.concepts)
+                    pattern = json_module.dumps([{"name": person}])
+                    q = q.filter("entities->persons", "cs", pattern)
+                    resp = q.execute()
+                    all_ids.update(item["id"] for item in resp.data or [])
 
-        results = response.data or []
+            # If we have matching IDs, fetch full content
+            if all_ids:
+                response = db.table("contents").select(
+                    "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
+                    "schema_type, content_format, technical_level, language, sentiment, "
+                    "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
+                ).in_("id", list(all_ids)).order("created_at", desc=True).range(
+                    data.offset, data.offset + data.limit - 1
+                ).execute()
+                results = response.data or []
+            else:
+                results = []
+        else:
+            # Standard query without entity filters
+            query = db.table("contents").select(
+                "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
+                "schema_type, content_format, technical_level, language, sentiment, "
+                "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
+            ).eq("user_id", current_user["id"])
 
-        # Post-filter by entities (Supabase doesn't support JSONB array contains easily)
-        if data.organizations or data.products or data.persons:
-            filtered_results = []
-            for item in results:
-                entities = item.get("entities") or {}
+            # Apply facet filters
+            if data.types:
+                query = query.in_("type", data.types)
 
-                # Extract organization names (handle dict format)
-                item_orgs = []
-                for org in entities.get("organizations") or []:
-                    org_name = org.get("name") if isinstance(org, dict) else org
-                    if org_name:
-                        item_orgs.append(org_name)
+            if data.categories:
+                query = query.in_("iab_tier1", data.categories)
 
-                # Extract product names (handle dict format)
-                item_prods = []
-                for prod in entities.get("products") or []:
-                    prod_name = prod.get("name") if isinstance(prod, dict) else prod
-                    if prod_name:
-                        item_prods.append(prod_name)
+            # For concepts, check if any of the filter concepts are in the array
+            if data.concepts:
+                query = query.overlaps("concepts", data.concepts)
 
-                # Extract person names (handle dict format)
-                item_persons = []
-                for person in entities.get("persons") or []:
-                    person_name = person.get("name") if isinstance(person, dict) else person
-                    if person_name:
-                        item_persons.append(person_name)
+            # Execute query with proper pagination
+            response = query.order("created_at", desc=True).range(
+                data.offset, data.offset + data.limit - 1
+            ).execute()
 
-                org_match = not data.organizations or any(
-                    org in item_orgs for org in data.organizations
-                )
-                prod_match = not data.products or any(
-                    prod in item_prods for prod in data.products
-                )
-                person_match = not data.persons or any(
-                    person in item_persons for person in data.persons
-                )
-                if org_match and prod_match and person_match:
-                    filtered_results.append(item)
-            results = filtered_results
+            results = response.data or []
 
         # If text query provided, filter and score results
         if data.query:

@@ -83,6 +83,7 @@ export default function DashboardPage() {
     const [processingStats, setProcessingStats] = useState({ pending: 0, processing: 0, completed: 0, failed: 0 });
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingContentId, setProcessingContentId] = useState<string | null>(null);
+    const [processLimit, setProcessLimit] = useState<string>('all'); // 'all', '50', '100', '500'
 
     // Filters
     const [filterType, setFilterType] = useState<string>('all');
@@ -186,7 +187,8 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch('http://localhost:8000/api/v1/process/', {
+            const limitParam = processLimit === 'all' ? '' : `?limit=${processLimit}`;
+            const response = await fetch(`http://localhost:8000/api/v1/process/${limitParam}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -926,6 +928,17 @@ export default function DashboardPage() {
                                             🔄 Reintentar fallidos
                                         </button>
                                     )}
+                                    <select
+                                        value={processLimit}
+                                        onChange={(e) => setProcessLimit(e.target.value)}
+                                        className="px-2 py-1.5 text-sm border border-amber-300 dark:border-amber-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                                        disabled={isProcessing}
+                                    >
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                        <option value="500">500</option>
+                                        <option value="all">Todos</option>
+                                    </select>
                                     <button
                                         onClick={handleProcessAllPending}
                                         disabled={isProcessing || processingStats.pending === 0}
@@ -938,7 +951,7 @@ export default function DashboardPage() {
                                             </>
                                         ) : (
                                             <>
-                                                ⚡ Procesar todo ({processingStats.pending})
+                                                ⚡ Procesar ({processLimit === 'all' ? processingStats.pending : Math.min(parseInt(processLimit), processingStats.pending)})
                                             </>
                                         )}
                                     </button>

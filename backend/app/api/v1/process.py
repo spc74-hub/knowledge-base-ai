@@ -75,10 +75,11 @@ async def process_single_content(
 async def process_all_pending(
     current_user: CurrentUser,
     db: Database,
-    limit: int = Query(default=50, ge=1, le=100, description="Maximum items to process")
+    limit: Optional[int] = Query(default=None, ge=1, description="Maximum items to process (None = all)")
 ):
     """
     Process all pending content for the current user.
+    If limit is not specified, processes all pending content.
     """
     result = await processor_service.process_pending(
         db=db,

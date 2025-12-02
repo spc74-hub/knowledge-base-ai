@@ -154,7 +154,7 @@ class ProcessorService:
         self,
         db: Client,
         user_id: str,
-        limit: int = 50
+        limit: Optional[int] = None
     ) -> dict:
         """
         Process all pending content for a user.
@@ -162,14 +162,17 @@ class ProcessorService:
         Args:
             db: Supabase client
             user_id: User ID
-            limit: Maximum items to process in one batch
+            limit: Maximum items to process (None = all pending)
 
         Returns:
             dict with processing results
         """
         try:
             # Get pending content
-            response = db.table("contents").select("id, title").eq("user_id", user_id).eq("processing_status", "pending").limit(limit).execute()
+            query = db.table("contents").select("id, title").eq("user_id", user_id).eq("processing_status", "pending")
+            if limit is not None:
+                query = query.limit(limit)
+            response = query.execute()
 
             if not response.data:
                 return {
