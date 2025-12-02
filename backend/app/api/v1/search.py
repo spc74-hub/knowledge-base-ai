@@ -384,7 +384,8 @@ async def get_dynamic_facets(
             has_apple_notes = "apple_notes" in types
             other_types = [t for t in types if t != "apple_notes"]
             if has_apple_notes and not other_types:
-                return query.eq("type", "note").filter("metadata->source", "eq", "apple_notes")
+                # Use ->> operator for text comparison (extracts as text, not JSON)
+                return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
             elif not has_apple_notes:
                 return query.in_("type", types)
             return query.in_("type", other_types + ["note"])
@@ -525,7 +526,7 @@ async def search_faceted(
             other_types = [t for t in types if t != "apple_notes"]
             if has_apple_notes and not other_types:
                 # Only apple_notes
-                return query.eq("type", "note").filter("metadata->source", "eq", "apple_notes")
+                return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
             elif not has_apple_notes:
                 return query.in_("type", types)
             # Both apple_notes and other types - can't handle in single query for ID fetch
@@ -624,7 +625,7 @@ async def search_faceted(
                         "schema_type, content_format, technical_level, language, sentiment, "
                         "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
                     ).eq("user_id", current_user["id"]).eq("type", "note").filter(
-                        "metadata->source", "eq", "apple_notes"
+                        "metadata->>source", "eq", "apple_notes"
                     )
                     if data.categories:
                         query2 = query2.in_("iab_tier1", data.categories)
@@ -648,7 +649,7 @@ async def search_faceted(
 
                 elif has_apple_notes:
                     # Only apple_notes filter
-                    query = query.eq("type", "note").filter("metadata->source", "eq", "apple_notes")
+                    query = query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
                     if data.categories:
                         query = query.in_("iab_tier1", data.categories)
                     if data.concepts:

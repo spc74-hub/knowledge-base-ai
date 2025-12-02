@@ -63,7 +63,7 @@ class ChatService:
         threshold: float = 0.5
     ) -> List[dict]:
         """
-        Search for similar content using semantic search.
+        Search for similar content using hybrid search (semantic + entity matching).
 
         Args:
             query: User's search query
@@ -75,11 +75,11 @@ class ChatService:
         Returns:
             List of matching content items with similarity scores
         """
-        try:
-            # Generate embedding for the query
-            query_embedding = await embeddings_service.generate_embedding(query)
+        results = {}  # Use dict to dedupe by ID
 
-            # Call the match_contents function in Supabase
+        # 1. Semantic search
+        try:
+            query_embedding = await embeddings_service.generate_embedding(query)
             response = db.rpc(
                 'match_contents',
                 {
@@ -90,22 +90,69 @@ class ChatService:
                 }
             ).execute()
 
-            return response.data or []
+            for item in response.data or []:
+                results[item['id']] = {**item, 'match_type': 'semantic'}
         except Exception as e:
             print(f"Semantic search failed: {e}")
-            # Fallback: return recent contents without semantic search
-            try:
-                fallback = db.table("contents").select(
-                    "id, title, summary, url, type, iab_tier1, concepts"
-                ).eq("user_id", user_id).limit(limit).execute()
 
-                # Add a fake similarity score
-                return [
-                    {**item, "similarity": 0.5}
-                    for item in (fallback.data or [])
-                ]
-            except Exception:
-                return []
+        # 2. Entity search - search in organizations, products, persons
+        try:
+            import json as json_module
+            query_lower = query.lower()
+
+            # Search in entity names using JSONB
+            entity_fields = ['organizations', 'products', 'persons']
+            for field in entity_fields:
+                # Search for query in entity names
+                entity_response = db.table("contents").select(
+                    "id, title, summary, url, type, iab_tier1, concepts, entities"
+                ).eq("user_id", user_id).execute()
+
+                for item in entity_response.data or []:
+                    if item['id'] in results:
+                        continue  # Already found via semantic
+
+                    entities = item.get('entities') or {}
+                    entity_list = entities.get(field) or []
+
+                    for entity in entity_list:
+                        name = entity.get('name') if isinstance(entity, dict) else entity
+                        if name and query_lower in name.lower():
+                            results[item['id']] = {
+                                **item,
+                                'similarity': 0.75,  # Good relevance for entity match
+                                'match_type': f'entity_{field}'
+                            }
+                            break
+        except Exception as e:
+            print(f"Entity search failed: {e}")
+
+        # 3. Text search in title/summary as fallback
+        try:
+            text_response = db.table("contents").select(
+                "id, title, summary, url, type, iab_tier1, concepts, entities"
+            ).eq("user_id", user_id).or_(
+                f"title.ilike.%{query}%,summary.ilike.%{query}%"
+            ).limit(limit).execute()
+
+            for item in text_response.data or []:
+                if item['id'] not in results:
+                    results[item['id']] = {
+                        **item,
+                        'similarity': 0.6,  # Medium relevance for text match
+                        'match_type': 'text'
+                    }
+        except Exception as e:
+            print(f"Text search failed: {e}")
+
+        # Sort by similarity and return top results
+        sorted_results = sorted(
+            results.values(),
+            key=lambda x: x.get('similarity', 0),
+            reverse=True
+        )[:limit]
+
+        return sorted_results
 
     async def chat(
         self,
@@ -141,7 +188,33 @@ class ChatService:
         context_parts = []
         sources = []
 
+        def extract_entity_names(entity_list):
+            """Extract names from entity list (handles both str and dict)."""
+            names = []
+            for item in entity_list or []:
+                if isinstance(item, dict):
+                    name = item.get("name")
+                    if name:
+                        names.append(name)
+                elif isinstance(item, str):
+                    names.append(item)
+            return names
+
         for i, content in enumerate(similar_contents, 1):
+            # Build entities string
+            entities = content.get('entities') or {}
+            entities_parts = []
+            orgs = extract_entity_names(entities.get('organizations'))
+            if orgs:
+                entities_parts.append(f"Organizaciones: {', '.join(orgs)}")
+            persons = extract_entity_names(entities.get('persons'))
+            if persons:
+                entities_parts.append(f"Personas: {', '.join(persons)}")
+            products = extract_entity_names(entities.get('products'))
+            if products:
+                entities_parts.append(f"Productos: {', '.join(products)}")
+            entities_str = "; ".join(entities_parts) if entities_parts else "N/A"
+
             context_parts.append(f"""
 --- Fuente {i}: {content['title']} ---
 URL: {content['url']}
@@ -149,6 +222,7 @@ Tipo: {content['type']}
 Categoría: {content.get('iab_tier1', 'N/A')}
 Resumen: {content.get('summary', 'Sin resumen')}
 Conceptos: {', '.join(content.get('concepts', []))}
+Entidades: {entities_str}
 """)
             sources.append(ChatSource(
                 id=content['id'],
