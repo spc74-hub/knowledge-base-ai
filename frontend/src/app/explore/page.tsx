@@ -242,7 +242,7 @@ export default function ExplorePage() {
                 <div className="flex gap-6">
                     {/* Sidebar with Facets */}
                     <div className="w-64 flex-shrink-0">
-                        <div className="bg-white rounded-lg shadow p-4 sticky top-24">
+                        <div className="bg-white rounded-lg shadow p-4 sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
                             <h2 className="font-semibold text-gray-900 mb-4">Filtros</h2>
 
                             {facets && (

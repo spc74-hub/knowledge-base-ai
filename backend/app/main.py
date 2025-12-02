@@ -4,7 +4,7 @@ FastAPI main application entry point.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import content, chat, search, usage
+from app.api.v1 import content, chat, search, usage, folders
 
 app = FastAPI(
     title="Knowledge Base AI API",
@@ -26,6 +26,7 @@ app.include_router(content.router, prefix="/api/v1/content", tags=["content"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
 app.include_router(usage.router, prefix="/api/v1/usage", tags=["usage"])
+app.include_router(folders.router, prefix="/api/v1/folders", tags=["folders"])
 
 
 @app.get("/")

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
@@ -34,6 +34,18 @@ interface Content {
     is_archived: boolean;
     processing_status: string;
     created_at: string;
+    folder_id: string | null;
+}
+
+interface Folder {
+    id: string;
+    name: string;
+    parent_id: string | null;
+    color: string;
+    icon: string;
+    position: number;
+    children: Folder[];
+    content_count: number;
 }
 
 export default function DashboardPage() {
@@ -49,10 +61,59 @@ export default function DashboardPage() {
     const [addingUrl, setAddingUrl] = useState(false);
     const [addError, setAddError] = useState('');
 
+    // Folders
+    const [folders, setFolders] = useState<Folder[]>([]);
+    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+    const [showFolderModal, setShowFolderModal] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+    const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
+    const [creatingFolder, setCreatingFolder] = useState(false);
+    const [showMoveModal, setShowMoveModal] = useState(false);
+    const [selectedContentIds, setSelectedContentIds] = useState<Set<string>>(new Set());
+    const [movingContents, setMovingContents] = useState(false);
+
     // Filters
     const [filterType, setFilterType] = useState<string>('all');
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
+
+    const fetchContents = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('contents')
+                .select('*')
+                .eq('is_archived', false)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setContents(data || []);
+        } catch (error) {
+            console.error('Error fetching contents:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchFolders = async () => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch('http://localhost:8000/api/v1/folders/tree', {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setFolders(data);
+            }
+        } catch (error) {
+            console.error('Error fetching folders:', error);
+        }
+    };
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -63,12 +124,142 @@ export default function DashboardPage() {
     useEffect(() => {
         if (user) {
             fetchContents();
+            fetchFolders();
         }
     }, [user]);
+
+    const handleCreateFolder = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newFolderName.trim()) return;
+
+        setCreatingFolder(true);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) throw new Error('No session');
+
+            const response = await fetch('http://localhost:8000/api/v1/folders/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({
+                    name: newFolderName.trim(),
+                    parent_id: newFolderParentId,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Error creating folder');
+            }
+
+            setNewFolderName('');
+            setNewFolderParentId(null);
+            setShowFolderModal(false);
+            fetchFolders();
+        } catch (error: any) {
+            console.error('Error creating folder:', error);
+        } finally {
+            setCreatingFolder(false);
+        }
+    };
+
+    const handleDeleteFolder = async (folderId: string) => {
+        if (!confirm('¿Estas seguro de eliminar esta carpeta? El contenido se movera a la raiz.')) return;
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`http://localhost:8000/api/v1/folders/${folderId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                if (selectedFolderId === folderId) {
+                    setSelectedFolderId(null);
+                }
+                fetchFolders();
+                fetchContents();
+            }
+        } catch (error) {
+            console.error('Error deleting folder:', error);
+        }
+    };
+
+    const handleMoveContents = async (targetFolderId: string | null) => {
+        if (selectedContentIds.size === 0) return;
+
+        setMovingContents(true);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) throw new Error('No session');
+
+            const response = await fetch('http://localhost:8000/api/v1/folders/move-contents', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({
+                    content_ids: Array.from(selectedContentIds),
+                    folder_id: targetFolderId,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error moving contents');
+            }
+
+            setSelectedContentIds(new Set());
+            setShowMoveModal(false);
+            fetchContents();
+            fetchFolders();
+        } catch (error) {
+            console.error('Error moving contents:', error);
+        } finally {
+            setMovingContents(false);
+        }
+    };
+
+    const toggleFolderExpand = (folderId: string) => {
+        setExpandedFolders(prev => {
+            const next = new Set(prev);
+            if (next.has(folderId)) {
+                next.delete(folderId);
+            } else {
+                next.add(folderId);
+            }
+            return next;
+        });
+    };
+
+    const toggleContentSelection = (contentId: string) => {
+        setSelectedContentIds(prev => {
+            const next = new Set(prev);
+            if (next.has(contentId)) {
+                next.delete(contentId);
+            } else {
+                next.add(contentId);
+            }
+            return next;
+        });
+    };
 
     // Apply filters
     useEffect(() => {
         let result = contents;
+
+        // Filter by folder
+        if (selectedFolderId === 'root') {
+            result = result.filter(c => c.folder_id === null);
+        } else if (selectedFolderId) {
+            result = result.filter(c => c.folder_id === selectedFolderId);
+        }
 
         if (filterType !== 'all') {
             result = result.filter(c => c.type === filterType);
@@ -88,24 +279,69 @@ export default function DashboardPage() {
         }
 
         setFilteredContents(result);
-    }, [contents, filterType, filterCategory, searchQuery]);
+    }, [contents, filterType, filterCategory, searchQuery, selectedFolderId]);
 
-    const fetchContents = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('contents')
-                .select('*')
-                .eq('is_archived', false)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            setContents(data || []);
-        } catch (error) {
-            console.error('Error fetching contents:', error);
-        } finally {
-            setLoading(false);
-        }
+    // Helper to render folder tree recursively
+    const renderFolderTree = (folderList: Folder[], depth = 0) => {
+        return folderList.map(folder => (
+            <div key={folder.id}>
+                <div
+                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 rounded-lg group ${
+                        selectedFolderId === folder.id ? 'bg-gray-100' : ''
+                    }`}
+                    style={{ paddingLeft: `${12 + depth * 16}px` }}
+                >
+                    {folder.children.length > 0 && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFolderExpand(folder.id);
+                            }}
+                            className="text-gray-400 hover:text-gray-600 w-4"
+                        >
+                            {expandedFolders.has(folder.id) ? '▼' : '▶'}
+                        </button>
+                    )}
+                    {folder.children.length === 0 && <span className="w-4" />}
+                    <span
+                        onClick={() => setSelectedFolderId(folder.id)}
+                        className="flex-1 flex items-center gap-2"
+                    >
+                        <span>{folder.icon}</span>
+                        <span className="truncate">{folder.name}</span>
+                        <span className="text-xs text-gray-400">({folder.content_count})</span>
+                    </span>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setNewFolderParentId(folder.id);
+                            setShowFolderModal(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600"
+                        title="Crear subcarpeta"
+                    >
+                        +
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFolder(folder.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"
+                        title="Eliminar carpeta"
+                    >
+                        ×
+                    </button>
+                </div>
+                {expandedFolders.has(folder.id) && folder.children.length > 0 && (
+                    <div>{renderFolderTree(folder.children, depth + 1)}</div>
+                )}
+            </div>
+        ));
     };
+
+    // Count contents without folder
+    const rootContentCount = contents.filter(c => c.folder_id === null).length;
 
     const handleAddUrl = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -239,6 +475,12 @@ export default function DashboardPage() {
                     <h1 className="text-2xl font-bold text-gray-900">Knowledge Base AI</h1>
                     <div className="flex items-center gap-4">
                         <Link
+                            href="/notes/new"
+                            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                        >
+                            📝 Nueva Nota
+                        </Link>
+                        <Link
                             href="/import"
                             className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                         >
@@ -273,30 +515,86 @@ export default function DashboardPage() {
                 </div>
             </header>
 
-            {/* Main content */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-white p-6 rounded-lg shadow-sm">
-                        <p className="text-sm text-gray-600">Total contenidos</p>
-                        <p className="text-3xl font-bold">{contents.length}</p>
+            {/* Main content with sidebar */}
+            <div className="flex">
+                {/* Sidebar - Folders */}
+                <aside className="w-64 bg-white shadow-sm min-h-[calc(100vh-64px)] p-4 flex-shrink-0">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="font-semibold text-gray-700">Carpetas</h2>
+                        <button
+                            onClick={() => {
+                                setNewFolderParentId(null);
+                                setShowFolderModal(true);
+                            }}
+                            className="text-gray-500 hover:text-gray-700 text-xl"
+                            title="Nueva carpeta"
+                        >
+                            +
+                        </button>
                     </div>
-                    <div className="bg-white p-6 rounded-lg shadow-sm">
-                        <p className="text-sm text-gray-600">Web</p>
-                        <p className="text-3xl font-bold">{contents.filter(c => c.type === 'web').length}</p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-sm">
-                        <p className="text-sm text-gray-600">Videos</p>
-                        <p className="text-3xl font-bold">{contents.filter(c => ['youtube', 'tiktok'].includes(c.type)).length}</p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-sm">
-                        <p className="text-sm text-gray-600">Favoritos</p>
-                        <p className="text-3xl font-bold">{contents.filter(c => c.is_favorite).length}</p>
-                    </div>
-                </div>
 
-                {/* Filters and Actions */}
-                <div className="flex flex-wrap gap-4 mb-6 items-center">
+                    {/* All content */}
+                    <div
+                        onClick={() => setSelectedFolderId(null)}
+                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 rounded-lg mb-1 ${
+                            selectedFolderId === null ? 'bg-gray-100' : ''
+                        }`}
+                    >
+                        <span>📚</span>
+                        <span>Todo el contenido</span>
+                        <span className="text-xs text-gray-400">({contents.length})</span>
+                    </div>
+
+                    {/* Root content (no folder) */}
+                    <div
+                        onClick={() => setSelectedFolderId('root')}
+                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 rounded-lg mb-2 ${
+                            selectedFolderId === 'root' ? 'bg-gray-100' : ''
+                        }`}
+                    >
+                        <span>📄</span>
+                        <span>Sin carpeta</span>
+                        <span className="text-xs text-gray-400">({rootContentCount})</span>
+                    </div>
+
+                    <div className="border-t my-2"></div>
+
+                    {/* Folder tree */}
+                    <div className="space-y-1">
+                        {renderFolderTree(folders)}
+                    </div>
+
+                    {folders.length === 0 && (
+                        <p className="text-sm text-gray-400 text-center py-4">
+                            No hay carpetas. Crea una!
+                        </p>
+                    )}
+                </aside>
+
+                {/* Main content area */}
+                <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
+                    {/* Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                        <div className="bg-white p-6 rounded-lg shadow-sm">
+                            <p className="text-sm text-gray-600">Total contenidos</p>
+                            <p className="text-3xl font-bold">{contents.length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-sm">
+                            <p className="text-sm text-gray-600">Web</p>
+                            <p className="text-3xl font-bold">{contents.filter(c => c.type === 'web').length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-sm">
+                            <p className="text-sm text-gray-600">Videos</p>
+                            <p className="text-3xl font-bold">{contents.filter(c => ['youtube', 'tiktok'].includes(c.type)).length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-sm">
+                            <p className="text-sm text-gray-600">Favoritos</p>
+                            <p className="text-3xl font-bold">{contents.filter(c => c.is_favorite).length}</p>
+                        </div>
+                    </div>
+
+                    {/* Filters and Actions */}
+                    <div className="flex flex-wrap gap-4 mb-6 items-center">
                     <button
                         onClick={() => setShowAddModal(true)}
                         className="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
@@ -350,6 +648,16 @@ export default function DashboardPage() {
                             Limpiar filtros
                         </button>
                     )}
+
+                    {/* Move selected button */}
+                    {selectedContentIds.size > 0 && (
+                        <button
+                            onClick={() => setShowMoveModal(true)}
+                            className="ml-auto inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                        >
+                            Mover {selectedContentIds.size} elemento(s)
+                        </button>
+                    )}
                 </div>
 
                 {/* Content list */}
@@ -375,6 +683,20 @@ export default function DashboardPage() {
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                                        <input
+                                            type="checkbox"
+                                            checked={filteredContents.length > 0 && selectedContentIds.size === filteredContents.length}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedContentIds(new Set(filteredContents.map(c => c.id)));
+                                                } else {
+                                                    setSelectedContentIds(new Set());
+                                                }
+                                            }}
+                                            className="rounded border-gray-300"
+                                        />
+                                    </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Contenido
                                     </th>
@@ -402,6 +724,14 @@ export default function DashboardPage() {
                                         className="hover:bg-gray-50 cursor-pointer"
                                         onClick={() => openDetail(content)}
                                     >
+                                        <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedContentIds.has(content.id)}
+                                                onChange={() => toggleContentSelection(content.id)}
+                                                className="rounded border-gray-300"
+                                            />
+                                        </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-start">
                                                 <span className="text-2xl mr-3">{getTypeIcon(content.type)}</span>
@@ -458,7 +788,8 @@ export default function DashboardPage() {
                         </table>
                     </div>
                 )}
-            </main>
+                </main>
+            </div>
 
             {/* Add URL Modal */}
             {showAddModal && (
@@ -730,20 +1061,125 @@ export default function DashboardPage() {
                                 >
                                     {selectedContent.is_favorite ? '⭐ Favorito' : '☆ Añadir a favoritos'}
                                 </button>
-                                <a
-                                    href={selectedContent.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50"
-                                >
-                                    🔗 Abrir original
-                                </a>
+                                {selectedContent.type === 'note' ? (
+                                    <Link
+                                        href={`/notes/${selectedContent.id}/edit`}
+                                        className="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50"
+                                    >
+                                        ✏️ Editar nota
+                                    </Link>
+                                ) : (
+                                    <a
+                                        href={selectedContent.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50"
+                                    >
+                                        🔗 Abrir original
+                                    </a>
+                                )}
                             </div>
                             <button
                                 onClick={() => handleDelete(selectedContent.id)}
                                 className="px-4 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
                             >
                                 🗑 Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Folder Modal */}
+            {showFolderModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h2 className="text-xl font-bold mb-4">
+                            {newFolderParentId ? 'Nueva subcarpeta' : 'Nueva carpeta'}
+                        </h2>
+                        <form onSubmit={handleCreateFolder}>
+                            <input
+                                type="text"
+                                value={newFolderName}
+                                onChange={(e) => setNewFolderName(e.target.value)}
+                                placeholder="Nombre de la carpeta"
+                                required
+                                autoFocus
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                            />
+                            <div className="flex justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowFolderModal(false);
+                                        setNewFolderName('');
+                                        setNewFolderParentId(null);
+                                    }}
+                                    className="px-4 py-2 text-gray-600 hover:text-gray-900"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={creatingFolder}
+                                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                                >
+                                    {creatingFolder ? 'Creando...' : 'Crear'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Move Content Modal */}
+            {showMoveModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h2 className="text-xl font-bold mb-4">
+                            Mover {selectedContentIds.size} elemento(s)
+                        </h2>
+                        <p className="text-gray-600 mb-4">Selecciona la carpeta destino:</p>
+
+                        <div className="max-h-64 overflow-y-auto border rounded-lg mb-4">
+                            {/* Root option */}
+                            <button
+                                onClick={() => handleMoveContents(null)}
+                                disabled={movingContents}
+                                className="w-full text-left px-4 py-3 hover:bg-gray-100 border-b flex items-center gap-2"
+                            >
+                                <span>📄</span>
+                                <span>Sin carpeta (raiz)</span>
+                            </button>
+
+                            {/* Folder options */}
+                            {folders.map(folder => (
+                                <button
+                                    key={folder.id}
+                                    onClick={() => handleMoveContents(folder.id)}
+                                    disabled={movingContents}
+                                    className="w-full text-left px-4 py-3 hover:bg-gray-100 border-b last:border-b-0 flex items-center gap-2"
+                                >
+                                    <span>{folder.icon}</span>
+                                    <span>{folder.name}</span>
+                                </button>
+                            ))}
+
+                            {folders.length === 0 && (
+                                <p className="px-4 py-3 text-gray-500">
+                                    No hay carpetas. Crea una primero.
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end">
+                            <button
+                                onClick={() => {
+                                    setShowMoveModal(false);
+                                }}
+                                className="px-4 py-2 text-gray-600 hover:text-gray-900"
+                            >
+                                Cancelar
                             </button>
                         </div>
                     </div>

@@ -28,6 +28,18 @@ class BulkUrlImport(BaseModel):
     tags: List[str] = []
 
 
+class NoteCreate(BaseModel):
+    title: str
+    content: str
+    tags: List[str] = []
+
+
+class NoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
 class BulkImportResult(BaseModel):
     url: str
     success: bool
@@ -593,3 +605,200 @@ async def bulk_import_urls(
         failed=len(results) - successful,
         results=results
     )
+
+
+@router.post("/note", response_model=ContentResponse, status_code=status.HTTP_201_CREATED)
+async def create_note(data: NoteCreate, current_user: CurrentUser, db: Database):
+    """
+    Create a new note directly (not from URL).
+    The note will be classified, summarized, and embedded like any other content.
+    """
+    try:
+        user_id = current_user["id"]
+
+        # Set up usage tracker with database
+        usage_tracker.set_db(db)
+
+        # Step 1: Classify content using Claude
+        classification = await classifier_service.classify(
+            title=data.title,
+            content=data.content,
+            url="",  # No URL for notes
+            user_id=user_id
+        )
+
+        # Step 2: Generate summary using Claude
+        summary = await summarizer_service.summarize(
+            title=data.title,
+            content=data.content,
+            language=classification.language,
+            user_id=user_id
+        )
+
+        # Estimate reading time (average 200 words per minute)
+        word_count = len(data.content.split())
+        reading_time = max(1, word_count // 200)
+
+        # Step 3: Generate embedding for semantic search
+        embedding_text = embeddings_service.prepare_content_for_embedding(
+            title=data.title,
+            summary=summary,
+            content=data.content,
+            concepts=classification.concepts,
+            entities=classification.entities.model_dump() if classification.entities else None,
+            metadata=None
+        )
+        embedding = await embeddings_service.generate_embedding(
+            embedding_text,
+            user_id=user_id,
+            operation="content_embedding"
+        )
+
+        # Create content record with type "note"
+        content_data = {
+            "user_id": user_id,
+            "url": f"note://{user_id}/{data.title[:50].replace(' ', '-').lower()}",  # Pseudo-URL for notes
+            "type": "note",
+            "title": data.title,
+            "raw_content": data.content[:50000],  # Limit stored content
+            "summary": summary,
+            "schema_type": classification.schema_type,
+            "schema_subtype": classification.schema_subtype,
+            "iab_tier1": classification.iab_tier1,
+            "iab_tier2": classification.iab_tier2,
+            "iab_tier3": classification.iab_tier3,
+            "concepts": classification.concepts,
+            "entities": classification.entities.model_dump() if classification.entities else {},
+            "language": classification.language,
+            "sentiment": classification.sentiment,
+            "technical_level": classification.technical_level,
+            "content_format": classification.content_format,
+            "reading_time_minutes": reading_time,
+            "metadata": {"source": "manual_note", "created_via": "editor"},
+            "user_tags": data.tags,
+            "processing_status": "completed",
+            "embedding": embedding
+        }
+
+        response = db.table("contents").insert(content_data).execute()
+
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create note"
+            )
+
+        return response.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.put("/note/{content_id}", response_model=ContentResponse)
+async def update_note(
+    content_id: str,
+    data: NoteUpdate,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Update a note's content and re-process AI (classify, summarize, embed).
+    """
+    try:
+        user_id = current_user["id"]
+
+        # Check ownership and get existing note
+        existing = db.table("contents").select("*").eq("id", content_id).eq("user_id", user_id).eq("type", "note").single().execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Note not found"
+            )
+
+        note = existing.data
+
+        # Determine what changed
+        new_title = data.title if data.title is not None else note["title"]
+        new_content = data.content if data.content is not None else note["raw_content"]
+        new_tags = data.tags if data.tags is not None else note["user_tags"]
+
+        # If content or title changed, re-process AI
+        if data.title is not None or data.content is not None:
+            # Set up usage tracker
+            usage_tracker.set_db(db)
+
+            # Re-classify
+            classification = await classifier_service.classify(
+                title=new_title,
+                content=new_content,
+                url="",
+                user_id=user_id
+            )
+
+            # Re-summarize
+            summary = await summarizer_service.summarize(
+                title=new_title,
+                content=new_content,
+                language=classification.language,
+                user_id=user_id
+            )
+
+            # Re-calculate reading time
+            word_count = len(new_content.split())
+            reading_time = max(1, word_count // 200)
+
+            # Re-generate embedding
+            embedding_text = embeddings_service.prepare_content_for_embedding(
+                title=new_title,
+                summary=summary,
+                content=new_content,
+                concepts=classification.concepts,
+                entities=classification.entities.model_dump() if classification.entities else None,
+                metadata=None
+            )
+            embedding = await embeddings_service.generate_embedding(
+                embedding_text,
+                user_id=user_id,
+                operation="content_embedding"
+            )
+
+            update_data = {
+                "title": new_title,
+                "raw_content": new_content[:50000],
+                "summary": summary,
+                "schema_type": classification.schema_type,
+                "schema_subtype": classification.schema_subtype,
+                "iab_tier1": classification.iab_tier1,
+                "iab_tier2": classification.iab_tier2,
+                "iab_tier3": classification.iab_tier3,
+                "concepts": classification.concepts,
+                "entities": classification.entities.model_dump() if classification.entities else {},
+                "language": classification.language,
+                "sentiment": classification.sentiment,
+                "technical_level": classification.technical_level,
+                "content_format": classification.content_format,
+                "reading_time_minutes": reading_time,
+                "user_tags": new_tags,
+                "embedding": embedding
+            }
+        else:
+            # Only tags changed, no AI reprocessing needed
+            update_data = {"user_tags": new_tags}
+
+        response = db.table("contents").update(update_data).eq("id", content_id).execute()
+
+        return response.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
