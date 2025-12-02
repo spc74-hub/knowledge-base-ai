@@ -40,7 +40,7 @@ export default function ChatPage() {
     const [showSidebar, setShowSidebar] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const API_URL = 'http://localhost:8000/api/v1';
+    const API_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1`;
 
     useEffect(() => {
         if (!authLoading && !user) {

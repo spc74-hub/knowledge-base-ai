@@ -49,6 +49,8 @@ interface Folder {
     content_count: number;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function DashboardPage() {
     const router = useRouter();
     const { user, loading: authLoading, signOut } = useAuth();
@@ -119,7 +121,7 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch('http://localhost:8000/api/v1/folders/tree', {
+            const response = await fetch(`${API_URL}/api/v1/folders/tree`, {
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
                 },
@@ -139,7 +141,7 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch('http://localhost:8000/api/v1/process/stats', {
+            const response = await fetch(`${API_URL}/api/v1/process/stats`, {
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
                 },
@@ -160,7 +162,7 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch(`http://localhost:8000/api/v1/process/${contentId}`, {
+            const response = await fetch(`${API_URL}/api/v1/process/${contentId}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -188,7 +190,7 @@ export default function DashboardPage() {
             if (!session.data.session) return;
 
             const limitParam = processLimit === 'all' ? '' : `?limit=${processLimit}`;
-            const response = await fetch(`http://localhost:8000/api/v1/process/${limitParam}`, {
+            const response = await fetch(`${API_URL}/api/v1/process/${limitParam}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -213,7 +215,7 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch('http://localhost:8000/api/v1/process/retry-failed', {
+            const response = await fetch(`${API_URL}/api/v1/process/retry-failed`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -254,7 +256,7 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) throw new Error('No session');
 
-            const response = await fetch('http://localhost:8000/api/v1/folders/', {
+            const response = await fetch(`${API_URL}/api/v1/folders/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -289,7 +291,7 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch(`http://localhost:8000/api/v1/folders/${folderId}`, {
+            const response = await fetch(`${API_URL}/api/v1/folders/${folderId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -316,7 +318,7 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) throw new Error('No session');
 
-            const response = await fetch('http://localhost:8000/api/v1/folders/move-contents', {
+            const response = await fetch(`${API_URL}/api/v1/folders/move-contents`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -355,7 +357,7 @@ export default function DashboardPage() {
             if (!session.data.session) throw new Error('No session');
 
             const endpoint = showArchived ? 'unarchive' : 'archive';
-            const response = await fetch(`http://localhost:8000/api/v1/content/bulk/${endpoint}`, {
+            const response = await fetch(`${API_URL}/api/v1/content/bulk/${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -389,7 +391,7 @@ export default function DashboardPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) throw new Error('No session');
 
-            const response = await fetch('http://localhost:8000/api/v1/content/bulk/delete', {
+            const response = await fetch(`${API_URL}/api/v1/content/bulk/delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -423,7 +425,7 @@ export default function DashboardPage() {
             if (!session.data.session) throw new Error('No session');
 
             const endpoint = showArchived ? 'unarchive' : 'archive';
-            const response = await fetch(`http://localhost:8000/api/v1/content/bulk/${endpoint}`, {
+            const response = await fetch(`${API_URL}/api/v1/content/bulk/${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -569,7 +571,7 @@ export default function DashboardPage() {
         setAddingUrl(true);
 
         try {
-            const response = await fetch('http://localhost:8000/api/v1/content', {
+            const response = await fetch(`${API_URL}/api/v1/content`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

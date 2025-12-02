@@ -6,6 +6,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface ImportResult {
     url: string;
     success: boolean;
@@ -62,7 +64,7 @@ export default function ImportPage() {
                 throw new Error('No session');
             }
 
-            const response = await fetch('http://localhost:8000/api/v1/content/bulk-import', {
+            const response = await fetch(`${API_URL}/api/v1/content/bulk-import`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

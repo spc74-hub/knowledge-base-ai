@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { NoteEditor } from '@/components/editor';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface NoteContent {
     id: string;
     title: string;
@@ -92,7 +94,7 @@ export default function EditNotePage() {
                 throw new Error('No session');
             }
 
-            const response = await fetch(`http://localhost:8000/api/v1/content/note/${noteId}`, {
+            const response = await fetch(`${API_URL}/api/v1/content/note/${noteId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

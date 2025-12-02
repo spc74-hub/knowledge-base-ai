@@ -66,6 +66,8 @@ const NODE_TYPE_LABELS: Record<string, string> = {
     concept: 'Concepto',
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function KnowledgeGraphPage() {
     const router = useRouter();
     const { user, loading: authLoading, signOut } = useAuth();
@@ -103,7 +105,7 @@ export default function KnowledgeGraphPage() {
 
         try {
             const headers = await getAuthHeaders();
-            const response = await fetch('http://localhost:8000/api/v1/search/graph', {
+            const response = await fetch(`${API_URL}/api/v1/search/graph`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(filters),

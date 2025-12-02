@@ -6,6 +6,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface AppleNotesFolder {
     id: string;
     name: string;
@@ -90,7 +92,7 @@ export default function ImportAppleNotesPage() {
 
         try {
             const headers = await getAuthHeaders();
-            const response = await fetch('http://localhost:8000/api/v1/apple-notes/folders', {
+            const response = await fetch(`${API_URL}/api/v1/apple-notes/folders`, {
                 headers,
             });
 
@@ -117,7 +119,7 @@ export default function ImportAppleNotesPage() {
 
         try {
             const headers = await getAuthHeaders();
-            const response = await fetch('http://localhost:8000/api/v1/apple-notes/notes', {
+            const response = await fetch(`${API_URL}/api/v1/apple-notes/notes`, {
                 headers,
             });
 
@@ -143,7 +145,7 @@ export default function ImportAppleNotesPage() {
         try {
             const headers = await getAuthHeaders();
             const response = await fetch(
-                `http://localhost:8000/api/v1/apple-notes/notes/${encodeURIComponent(folderName)}`,
+                `${API_URL}/api/v1/apple-notes/notes/${encodeURIComponent(folderName)}`,
                 { headers }
             );
 
@@ -210,7 +212,7 @@ export default function ImportAppleNotesPage() {
             let body: any;
 
             if (importMode === 'all') {
-                endpoint = 'http://localhost:8000/api/v1/apple-notes/import-all';
+                endpoint = `${API_URL}/api/v1/apple-notes/import-all`;
                 body = { tags: tagsList };
                 setProgress('Importando todas las notas...');
             } else if (importMode === 'folders' && selectedFolders.size > 0) {
@@ -222,7 +224,7 @@ export default function ImportAppleNotesPage() {
                 for (const folderName of selectedFolders) {
                     setProgress(`Importando carpeta: ${folderName}...`);
 
-                    const response = await fetch('http://localhost:8000/api/v1/apple-notes/import-folder', {
+                    const response = await fetch(`${API_URL}/api/v1/apple-notes/import-folder`, {
                         method: 'POST',
                         headers,
                         body: JSON.stringify({ folder_name: folderName, tags: tagsList }),
@@ -247,7 +249,7 @@ export default function ImportAppleNotesPage() {
                 return;
 
             } else if (importMode === 'notes' && selectedNotes.size > 0) {
-                endpoint = 'http://localhost:8000/api/v1/apple-notes/import';
+                endpoint = `${API_URL}/api/v1/apple-notes/import`;
                 body = { note_ids: Array.from(selectedNotes), tags: tagsList };
                 setProgress(`Importando ${selectedNotes.size} notas seleccionadas...`);
             } else {

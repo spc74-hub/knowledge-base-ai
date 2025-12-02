@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { NoteEditor } from '@/components/editor';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function NewNotePage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
@@ -48,7 +50,7 @@ export default function NewNotePage() {
                 throw new Error('No session');
             }
 
-            const response = await fetch('http://localhost:8000/api/v1/content/note', {
+            const response = await fetch(`${API_URL}/api/v1/content/note`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

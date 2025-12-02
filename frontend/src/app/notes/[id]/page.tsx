@@ -6,6 +6,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface ContentDetail {
     id: string;
     title: string;
@@ -124,7 +126,7 @@ export default function ContentDetailPage() {
             if (!session.data.session) throw new Error('No session');
 
             const endpoint = content.is_archived ? 'unarchive' : 'archive';
-            const response = await fetch(`http://localhost:8000/api/v1/content/bulk/${endpoint}`, {
+            const response = await fetch(`${API_URL}/api/v1/content/bulk/${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -152,7 +154,7 @@ export default function ContentDetailPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) throw new Error('No session');
 
-            const response = await fetch(`http://localhost:8000/api/v1/content/bulk/delete`, {
+            const response = await fetch(`${API_URL}/api/v1/content/bulk/delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
