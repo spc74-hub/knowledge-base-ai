@@ -4,7 +4,7 @@ FastAPI main application entry point.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import content, chat, search, usage, folders, apple_notes
+from app.api.v1 import content, chat, search, usage, folders, apple_notes, quick_save
 
 app = FastAPI(
     title="Knowledge Base AI API",
@@ -28,6 +28,7 @@ app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
 app.include_router(usage.router, prefix="/api/v1/usage", tags=["usage"])
 app.include_router(folders.router, prefix="/api/v1/folders", tags=["folders"])
 app.include_router(apple_notes.router, prefix="/api/v1/apple-notes", tags=["apple-notes"])
+app.include_router(quick_save.router, prefix="/api/v1/quick-save", tags=["quick-save"])
 
 
 @app.get("/")
