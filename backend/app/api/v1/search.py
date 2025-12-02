@@ -249,100 +249,225 @@ async def get_suggestions(
         )
 
 
+def _aggregate_facets(items: list) -> dict:
+    """Helper function to aggregate facets from a list of content items."""
+    types = {}
+    categories = {}
+    concepts = {}
+    organizations = {}
+    products = {}
+    persons = {}
+
+    for item in items:
+        # Count types - distinguish apple_notes from regular notes
+        t = item.get("type")
+        if t:
+            # Check if it's an Apple Note
+            if t == "note":
+                metadata = item.get("metadata") or {}
+                if metadata.get("source") == "apple_notes":
+                    types["apple_notes"] = types.get("apple_notes", 0) + 1
+                else:
+                    types[t] = types.get(t, 0) + 1
+            else:
+                types[t] = types.get(t, 0) + 1
+
+        # Count categories (IAB tier1)
+        cat = item.get("iab_tier1")
+        if cat:
+            categories[cat] = categories.get(cat, 0) + 1
+
+        # Count concepts
+        for concept in item.get("concepts") or []:
+            concepts[concept] = concepts.get(concept, 0) + 1
+
+        # Count entities - handle both string and dict formats
+        entities = item.get("entities") or {}
+        orgs_list = entities.get("organizations") or []
+        for org in orgs_list:
+            if isinstance(org, dict):
+                org_name = org.get("name")
+            elif isinstance(org, str):
+                org_name = org
+            else:
+                continue
+            if org_name:
+                organizations[org_name] = organizations.get(org_name, 0) + 1
+
+        prods_list = entities.get("products") or []
+        for prod in prods_list:
+            if isinstance(prod, dict):
+                prod_name = prod.get("name")
+            elif isinstance(prod, str):
+                prod_name = prod
+            else:
+                continue
+            if prod_name:
+                products[prod_name] = products.get(prod_name, 0) + 1
+
+        persons_list = entities.get("persons") or []
+        for person in persons_list:
+            if isinstance(person, dict):
+                person_name = person.get("name")
+            elif isinstance(person, str):
+                person_name = person
+            else:
+                continue
+            if person_name:
+                persons[person_name] = persons.get(person_name, 0) + 1
+
+    def to_facet_list(d, limit=30):
+        sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)
+        return [{"value": k, "count": v} for k, v in sorted_items[:limit]]
+
+    return {
+        "types": to_facet_list(types),
+        "categories": to_facet_list(categories),
+        "concepts": to_facet_list(concepts, limit=50),
+        "organizations": to_facet_list(organizations),
+        "products": to_facet_list(products),
+        "persons": to_facet_list(persons),
+        "total_contents": len(items)
+    }
+
+
 @router.get("/facets")
 async def get_facets(
     current_user: CurrentUser,
     db: Database
 ):
     """
-    Get available facets for filtering.
+    Get available facets for filtering (no filters applied).
     Returns counts for each category, type, concept, and entity.
     """
     try:
-        # Get all contents for the user
         response = db.table("contents").select(
-            "type, iab_tier1, concepts, entities"
+            "type, iab_tier1, concepts, entities, metadata"
         ).eq("user_id", current_user["id"]).execute()
 
-        # Aggregate facets
-        types = {}
-        categories = {}
-        concepts = {}
-        organizations = {}
-        products = {}
-        persons = {}
-
-        for item in response.data or []:
-            # Count types
-            t = item.get("type")
-            if t:
-                types[t] = types.get(t, 0) + 1
-
-            # Count categories (IAB tier1)
-            cat = item.get("iab_tier1")
-            if cat:
-                categories[cat] = categories.get(cat, 0) + 1
-
-            # Count concepts
-            for concept in item.get("concepts") or []:
-                concepts[concept] = concepts.get(concept, 0) + 1
-
-            # Count entities - handle both string and dict formats
-            entities = item.get("entities") or {}
-            orgs_list = entities.get("organizations") or []
-            for org in orgs_list:
-                # Handle dict format (e.g., {"name": "...", "type": "..."})
-                if isinstance(org, dict):
-                    org_name = org.get("name")
-                elif isinstance(org, str):
-                    org_name = org
-                else:
-                    continue
-                if org_name:
-                    organizations[org_name] = organizations.get(org_name, 0) + 1
-
-            prods_list = entities.get("products") or []
-            for prod in prods_list:
-                # Handle dict format
-                if isinstance(prod, dict):
-                    prod_name = prod.get("name")
-                elif isinstance(prod, str):
-                    prod_name = prod
-                else:
-                    continue
-                if prod_name:
-                    products[prod_name] = products.get(prod_name, 0) + 1
-
-            persons_list = entities.get("persons") or []
-            for person in persons_list:
-                # Handle dict format
-                if isinstance(person, dict):
-                    person_name = person.get("name")
-                elif isinstance(person, str):
-                    person_name = person
-                else:
-                    continue
-                if person_name:
-                    persons[person_name] = persons.get(person_name, 0) + 1
-
-        # Sort by count and convert to list format
-        def to_facet_list(d, limit=30):
-            sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)
-            return [{"value": k, "count": v} for k, v in sorted_items[:limit]]
-
-        return {
-            "types": to_facet_list(types),
-            "categories": to_facet_list(categories),
-            "concepts": to_facet_list(concepts, limit=50),
-            "organizations": to_facet_list(organizations),
-            "products": to_facet_list(products),
-            "persons": to_facet_list(persons),
-            "total_contents": len(response.data or [])
-        }
+        return _aggregate_facets(response.data or [])
 
     except Exception as e:
         import traceback
         print(f"Facets error: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+class DynamicFacetsRequest(BaseModel):
+    types: Optional[List[str]] = None
+    categories: Optional[List[str]] = None
+    concepts: Optional[List[str]] = None
+    organizations: Optional[List[str]] = None
+    products: Optional[List[str]] = None
+    persons: Optional[List[str]] = None
+
+
+@router.post("/facets/dynamic")
+async def get_dynamic_facets(
+    data: DynamicFacetsRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Get facets filtered by current selections.
+    Returns counts that reflect what's available given the current filters.
+    """
+    try:
+        # Helper to apply type filter including apple_notes handling
+        def apply_type_filter_dynamic(query, types):
+            if not types:
+                return query
+            has_apple_notes = "apple_notes" in types
+            other_types = [t for t in types if t != "apple_notes"]
+            if has_apple_notes and not other_types:
+                return query.eq("type", "note").filter("metadata->source", "eq", "apple_notes")
+            elif not has_apple_notes:
+                return query.in_("type", types)
+            return query.in_("type", other_types + ["note"])
+
+        # Check if we have any entity filters
+        has_entity_filters = data.organizations or data.products or data.persons
+
+        if has_entity_filters:
+            # For entity filters, we need to get IDs first
+            all_ids = set()
+
+            if data.organizations:
+                for org in data.organizations:
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"])
+                    if data.types:
+                        q = apply_type_filter_dynamic(q, data.types)
+                    if data.categories:
+                        q = q.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        q = q.overlaps("concepts", data.concepts)
+                    pattern = json_module.dumps([{"name": org}])
+                    q = q.filter("entities->organizations", "cs", pattern)
+                    resp = q.execute()
+                    all_ids.update(item["id"] for item in resp.data or [])
+
+            if data.products:
+                for prod in data.products:
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"])
+                    if data.types:
+                        q = apply_type_filter_dynamic(q, data.types)
+                    if data.categories:
+                        q = q.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        q = q.overlaps("concepts", data.concepts)
+                    pattern = json_module.dumps([{"name": prod}])
+                    q = q.filter("entities->products", "cs", pattern)
+                    resp = q.execute()
+                    all_ids.update(item["id"] for item in resp.data or [])
+
+            if data.persons:
+                for person in data.persons:
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"])
+                    if data.types:
+                        q = apply_type_filter_dynamic(q, data.types)
+                    if data.categories:
+                        q = q.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        q = q.overlaps("concepts", data.concepts)
+                    pattern = json_module.dumps([{"name": person}])
+                    q = q.filter("entities->persons", "cs", pattern)
+                    resp = q.execute()
+                    all_ids.update(item["id"] for item in resp.data or [])
+
+            if all_ids:
+                response = db.table("contents").select(
+                    "type, iab_tier1, concepts, entities, metadata"
+                ).in_("id", list(all_ids)).execute()
+                items = response.data or []
+            else:
+                items = []
+        else:
+            # Standard query without entity filters
+            query = db.table("contents").select(
+                "type, iab_tier1, concepts, entities, metadata"
+            ).eq("user_id", current_user["id"])
+
+            if data.types:
+                query = apply_type_filter_dynamic(query, data.types)
+
+            if data.categories:
+                query = query.in_("iab_tier1", data.categories)
+
+            if data.concepts:
+                query = query.overlaps("concepts", data.concepts)
+
+            response = query.execute()
+            items = response.data or []
+
+        return _aggregate_facets(items)
+
+    except Exception as e:
+        import traceback
+        print(f"Dynamic facets error: {e}")
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -392,6 +517,20 @@ async def search_faceted(
         # Check if we need entity filtering (requires separate queries for OR logic)
         has_entity_filters = data.organizations or data.products or data.persons
 
+        # Helper to apply type filter including apple_notes handling
+        def apply_type_filter(query, types):
+            if not types:
+                return query
+            has_apple_notes = "apple_notes" in types
+            other_types = [t for t in types if t != "apple_notes"]
+            if has_apple_notes and not other_types:
+                # Only apple_notes
+                return query.eq("type", "note").filter("metadata->source", "eq", "apple_notes")
+            elif not has_apple_notes:
+                return query.in_("type", types)
+            # Both apple_notes and other types - can't handle in single query for ID fetch
+            return query.in_("type", other_types + ["note"])
+
         if has_entity_filters:
             # For entity filters, we need to do multiple queries and combine results
             # because Supabase doesn't support OR across different JSONB paths easily
@@ -402,7 +541,7 @@ async def search_faceted(
                 for org in data.organizations:
                     q = db.table("contents").select("id").eq("user_id", current_user["id"])
                     if data.types:
-                        q = q.in_("type", data.types)
+                        q = apply_type_filter(q, data.types)
                     if data.categories:
                         q = q.in_("iab_tier1", data.categories)
                     if data.concepts:
@@ -417,7 +556,7 @@ async def search_faceted(
                 for prod in data.products:
                     q = db.table("contents").select("id").eq("user_id", current_user["id"])
                     if data.types:
-                        q = q.in_("type", data.types)
+                        q = apply_type_filter(q, data.types)
                     if data.categories:
                         q = q.in_("iab_tier1", data.categories)
                     if data.concepts:
@@ -431,7 +570,7 @@ async def search_faceted(
                 for person in data.persons:
                     q = db.table("contents").select("id").eq("user_id", current_user["id"])
                     if data.types:
-                        q = q.in_("type", data.types)
+                        q = apply_type_filter(q, data.types)
                     if data.categories:
                         q = q.in_("iab_tier1", data.categories)
                     if data.concepts:
@@ -461,23 +600,88 @@ async def search_faceted(
                 "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
             ).eq("user_id", current_user["id"])
 
-            # Apply facet filters
+            # Apply facet filters - handle apple_notes as special case
             if data.types:
-                query = query.in_("type", data.types)
+                # Check if apple_notes is in the filter
+                has_apple_notes = "apple_notes" in data.types
+                other_types = [t for t in data.types if t != "apple_notes"]
 
-            if data.categories:
-                query = query.in_("iab_tier1", data.categories)
+                if has_apple_notes and other_types:
+                    # Need to combine: (type in other_types) OR (type=note AND metadata.source=apple_notes)
+                    # Supabase doesn't support complex OR, so we do two queries
+                    query1 = db.table("contents").select(
+                        "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
+                        "schema_type, content_format, technical_level, language, sentiment, "
+                        "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
+                    ).eq("user_id", current_user["id"]).in_("type", other_types)
+                    if data.categories:
+                        query1 = query1.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        query1 = query1.overlaps("concepts", data.concepts)
 
-            # For concepts, check if any of the filter concepts are in the array
-            if data.concepts:
-                query = query.overlaps("concepts", data.concepts)
+                    query2 = db.table("contents").select(
+                        "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
+                        "schema_type, content_format, technical_level, language, sentiment, "
+                        "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
+                    ).eq("user_id", current_user["id"]).eq("type", "note").filter(
+                        "metadata->source", "eq", "apple_notes"
+                    )
+                    if data.categories:
+                        query2 = query2.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        query2 = query2.overlaps("concepts", data.concepts)
 
-            # Execute query with proper pagination
-            response = query.order("created_at", desc=True).range(
-                data.offset, data.offset + data.limit - 1
-            ).execute()
+                    resp1 = query1.order("created_at", desc=True).execute()
+                    resp2 = query2.order("created_at", desc=True).execute()
 
-            results = response.data or []
+                    # Combine and dedupe
+                    seen_ids = set()
+                    combined = []
+                    for item in (resp1.data or []) + (resp2.data or []):
+                        if item["id"] not in seen_ids:
+                            seen_ids.add(item["id"])
+                            combined.append(item)
+
+                    # Sort by created_at and paginate
+                    combined.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                    results = combined[data.offset:data.offset + data.limit]
+
+                elif has_apple_notes:
+                    # Only apple_notes filter
+                    query = query.eq("type", "note").filter("metadata->source", "eq", "apple_notes")
+                    if data.categories:
+                        query = query.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        query = query.overlaps("concepts", data.concepts)
+                    response = query.order("created_at", desc=True).range(
+                        data.offset, data.offset + data.limit - 1
+                    ).execute()
+                    results = response.data or []
+                else:
+                    # No apple_notes, use standard in_ filter
+                    query = query.in_("type", data.types)
+                    if data.categories:
+                        query = query.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        query = query.overlaps("concepts", data.concepts)
+                    response = query.order("created_at", desc=True).range(
+                        data.offset, data.offset + data.limit - 1
+                    ).execute()
+                    results = response.data or []
+            else:
+                if data.categories:
+                    query = query.in_("iab_tier1", data.categories)
+
+                # For concepts, check if any of the filter concepts are in the array
+                if data.concepts:
+                    query = query.overlaps("concepts", data.concepts)
+
+                # Execute query with proper pagination
+                response = query.order("created_at", desc=True).range(
+                    data.offset, data.offset + data.limit - 1
+                ).execute()
+
+                results = response.data or []
 
         # If text query provided, filter and score results
         if data.query:

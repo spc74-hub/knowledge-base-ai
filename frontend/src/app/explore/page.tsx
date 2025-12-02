@@ -103,13 +103,37 @@ export default function ExplorePage() {
         };
     };
 
-    const fetchFacets = async () => {
+    const fetchFacets = async (currentFilters?: Filters) => {
         try {
             const headers = await getAuthHeader();
-            const response = await fetch(`${API_URL}/search/facets`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setFacets(data);
+            const filtersToUse = currentFilters || filters;
+            const hasFilters = Object.values(filtersToUse).some(arr => arr.length > 0);
+
+            if (hasFilters) {
+                // Use dynamic facets when filters are active
+                const response = await fetch(`${API_URL}/search/facets/dynamic`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        types: filtersToUse.types.length > 0 ? filtersToUse.types : null,
+                        categories: filtersToUse.categories.length > 0 ? filtersToUse.categories : null,
+                        concepts: filtersToUse.concepts.length > 0 ? filtersToUse.concepts : null,
+                        organizations: filtersToUse.organizations.length > 0 ? filtersToUse.organizations : null,
+                        products: filtersToUse.products.length > 0 ? filtersToUse.products : null,
+                        persons: filtersToUse.persons.length > 0 ? filtersToUse.persons : null,
+                    }),
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setFacets(data);
+                }
+            } else {
+                // Use regular facets when no filters
+                const response = await fetch(`${API_URL}/search/facets`, { headers });
+                if (response.ok) {
+                    const data = await response.json();
+                    setFacets(data);
+                }
             }
         } catch (error) {
             console.error('Error fetching facets:', error);
@@ -157,6 +181,7 @@ export default function ExplorePage() {
         if (user) {
             const debounce = setTimeout(() => {
                 searchWithFilters();
+                fetchFacets(filters);
             }, 300);
             return () => clearTimeout(debounce);
         }
@@ -199,6 +224,7 @@ export default function ExplorePage() {
             case 'web': return '🌐';
             case 'tiktok': return '🎵';
             case 'note': return '📝';
+            case 'apple_notes': return '🍎';
             default: return '📎';
         }
     };
