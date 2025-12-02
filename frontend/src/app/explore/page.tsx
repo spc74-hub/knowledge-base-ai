@@ -87,7 +87,8 @@ export default function ExplorePage() {
     const [archivingContents, setArchivingContents] = useState(false);
     const [deletingContents, setDeletingContents] = useState(false);
 
-    const API_URL = 'http://localhost:8000/api/v1';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_BASE = `${API_URL}/api/v1`;
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -111,7 +112,7 @@ export default function ExplorePage() {
 
             if (hasFilters) {
                 // Use dynamic facets when filters are active
-                const response = await fetch(`${API_URL}/search/facets/dynamic`, {
+                const response = await fetch(`${API_BASE}/search/facets/dynamic`, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({
@@ -129,7 +130,7 @@ export default function ExplorePage() {
                 }
             } else {
                 // Use regular facets when no filters
-                const response = await fetch(`${API_URL}/search/facets`, { headers });
+                const response = await fetch(`${API_BASE}/search/facets`, { headers });
                 if (response.ok) {
                     const data = await response.json();
                     setFacets(data);
@@ -144,7 +145,7 @@ export default function ExplorePage() {
         setSearching(true);
         try {
             const headers = await getAuthHeader();
-            const response = await fetch(`${API_URL}/search/faceted`, {
+            const response = await fetch(`${API_BASE}/search/faceted`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -294,7 +295,7 @@ export default function ExplorePage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) throw new Error('No session');
 
-            const response = await fetch(`${API_URL}/content/bulk/archive`, {
+            const response = await fetch(`${API_BASE}/content/bulk/archive`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -329,7 +330,7 @@ export default function ExplorePage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) throw new Error('No session');
 
-            const response = await fetch(`${API_URL}/content/bulk/delete`, {
+            const response = await fetch(`${API_BASE}/content/bulk/delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
