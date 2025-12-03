@@ -489,7 +489,7 @@ export default function ExplorePage() {
                                         </button>
                                         {expandedSections.concepts && (
                                             <div className="space-y-1 ml-1 max-h-64 overflow-y-auto">
-                                                {facets.concepts.slice(0, 30).map(facet => (
+                                                {facets.concepts.map(facet => (
                                                     <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
                                                         <input
                                                             type="checkbox"

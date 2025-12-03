@@ -316,14 +316,14 @@ def _aggregate_facets(items: list) -> dict:
             if person_name:
                 persons[person_name] = persons.get(person_name, 0) + 1
 
-    def to_facet_list(d, limit=30):
+    def to_facet_list(d):
         sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)
-        return [{"value": k, "count": v} for k, v in sorted_items[:limit]]
+        return [{"value": k, "count": v} for k, v in sorted_items]
 
     return {
         "types": to_facet_list(types),
         "categories": to_facet_list(categories),
-        "concepts": to_facet_list(concepts, limit=50),
+        "concepts": to_facet_list(concepts),
         "organizations": to_facet_list(organizations),
         "products": to_facet_list(products),
         "persons": to_facet_list(persons),
