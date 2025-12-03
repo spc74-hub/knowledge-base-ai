@@ -44,7 +44,7 @@ async def list_taxonomy_tags(
     taxonomy_value: Optional[str] = None,
 ):
     """List all taxonomy tag rules for the current user."""
-    query = db.table("taxonomy_tags").select("*").eq("user_id", current_user.id)
+    query = db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"])
 
     if taxonomy_type:
         query = query.eq("taxonomy_type", taxonomy_type)
@@ -84,7 +84,7 @@ async def create_taxonomy_tag(
 
     # Check if already exists
     existing = db.table("taxonomy_tags").select("id").eq(
-        "user_id", current_user.id
+        "user_id", current_user["id"]
     ).eq(
         "taxonomy_type", data.taxonomy_type
     ).eq(
@@ -101,7 +101,7 @@ async def create_taxonomy_tag(
 
     # Create the tag rule
     result = db.table("taxonomy_tags").insert({
-        "user_id": current_user.id,
+        "user_id": current_user["id"],
         "taxonomy_type": data.taxonomy_type,
         "taxonomy_value": data.taxonomy_value,
         "tag": data.tag,
@@ -131,7 +131,7 @@ async def update_taxonomy_tag(
     existing = db.table("taxonomy_tags").select("*").eq(
         "id", tag_id
     ).eq(
-        "user_id", current_user.id
+        "user_id", current_user["id"]
     ).execute()
 
     if not existing.data:
@@ -181,7 +181,7 @@ async def delete_taxonomy_tag(
     existing = db.table("taxonomy_tags").select("id").eq(
         "id", tag_id
     ).eq(
-        "user_id", current_user.id
+        "user_id", current_user["id"]
     ).execute()
 
     if not existing.data:
@@ -203,7 +203,7 @@ async def get_inherited_tags_for_content(
     # Get content
     content_result = db.table("contents").select(
         "iab_tier1, iab_tier2, iab_tier3, concepts, entities"
-    ).eq("id", content_id).eq("user_id", current_user.id).execute()
+    ).eq("id", content_id).eq("user_id", current_user["id"]).execute()
 
     if not content_result.data:
         raise HTTPException(
@@ -216,7 +216,7 @@ async def get_inherited_tags_for_content(
     tag_sources = []  # Track where each tag comes from
 
     # Get all taxonomy tags for this user
-    tags_result = db.table("taxonomy_tags").select("*").eq("user_id", current_user.id).execute()
+    tags_result = db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).execute()
     taxonomy_tags = tags_result.data
 
     for tt in taxonomy_tags:
@@ -286,7 +286,7 @@ async def get_taxonomy_values(
         # Get unique IAB categories
         result = db.table("contents").select(
             "iab_tier1, iab_tier2, iab_tier3"
-        ).eq("user_id", current_user.id).execute()
+        ).eq("user_id", current_user["id"]).execute()
 
         for row in result.data:
             if row.get("iab_tier1"):
@@ -298,7 +298,7 @@ async def get_taxonomy_values(
 
     elif taxonomy_type == "concept":
         # Get unique concepts
-        result = db.table("contents").select("concepts").eq("user_id", current_user.id).execute()
+        result = db.table("contents").select("concepts").eq("user_id", current_user["id"]).execute()
         for row in result.data:
             concepts = row.get("concepts") or []
             for c in concepts:
@@ -307,7 +307,7 @@ async def get_taxonomy_values(
     else:
         # Get entities (person, organization, product)
         entity_key = taxonomy_type + "s"  # person -> persons
-        result = db.table("contents").select("entities").eq("user_id", current_user.id).execute()
+        result = db.table("contents").select("entities").eq("user_id", current_user["id"]).execute()
         for row in result.data:
             entities = row.get("entities") or {}
             entity_list = entities.get(entity_key) or []
