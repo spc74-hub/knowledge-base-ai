@@ -31,6 +31,8 @@ interface Content {
     content_format: string | null;
     reading_time_minutes: number | null;
     metadata: Record<string, any> | null;
+    user_tags: string[];
+    notes: string | null;
     is_favorite: boolean;
     is_archived: boolean;
     processing_status: string;
@@ -779,6 +781,14 @@ export default function DashboardPage() {
                                                 <span className="w-5 text-center">🔖</span>
                                                 Configurar Quick Save
                                             </Link>
+                                            <Link
+                                                href="/tags"
+                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                onClick={() => setShowAddMenu(false)}
+                                            >
+                                                <span className="w-5 text-center">🏷️</span>
+                                                Reglas de Tags
+                                            </Link>
                                         </div>
                                     </>
                                 )}
@@ -1473,6 +1483,47 @@ export default function DashboardPage() {
                                                 </div>
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* User Tags */}
+                            <div className="mb-6">
+                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">
+                                    Mis Tags
+                                </h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {selectedContent.user_tags && selectedContent.user_tags.length > 0 ? (
+                                        selectedContent.user_tags.map((tag, i) => (
+                                            <span
+                                                key={i}
+                                                className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm"
+                                            >
+                                                {tag}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-gray-400 dark:text-gray-500 text-sm">Sin tags</span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                                    Gestiona los tags heredados en{' '}
+                                    <Link href="/tags" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+                                        Reglas de Tags
+                                    </Link>
+                                </p>
+                            </div>
+
+                            {/* User Notes */}
+                            {selectedContent.notes && (
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">
+                                        Mis Notas
+                                    </h3>
+                                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-lg">
+                                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm">
+                                            {selectedContent.notes}
+                                        </p>
                                     </div>
                                 </div>
                             )}

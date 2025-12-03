@@ -68,6 +68,7 @@ class ContentUpdate(BaseModel):
     title: Optional[str] = None
     summary: Optional[str] = None
     user_tags: Optional[List[str]] = None
+    notes: Optional[str] = None
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
 
@@ -89,6 +90,7 @@ class ContentInDB(ContentBase):
     content_format: Optional[str] = None
     reading_time_minutes: Optional[int] = None
     user_tags: List[str] = []
+    notes: Optional[str] = None
     is_favorite: bool = False
     is_archived: bool = False
     processing_status: str = "pending"
@@ -126,6 +128,8 @@ class ContentDetailResponse(ContentResponse):
     technical_level: Optional[str] = None
     content_format: Optional[str] = None
     reading_time_minutes: Optional[int] = None
+    notes: Optional[str] = None
+    inherited_tags: List[str] = []
     is_archived: bool = False
     metadata: Optional[dict] = None
     updated_at: str
