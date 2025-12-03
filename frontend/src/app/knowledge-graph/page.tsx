@@ -91,9 +91,12 @@ export default function KnowledgeGraphPage() {
 
     const getAuthHeaders = async () => {
         const session = await supabase.auth.getSession();
+        if (!session.data.session?.access_token) {
+            throw new Error('No hay sesion activa');
+        }
         return {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.data.session?.access_token}`,
+            'Authorization': `Bearer ${session.data.session.access_token}`,
         };
     };
 
@@ -109,11 +112,11 @@ export default function KnowledgeGraphPage() {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(filters),
-                credentials: 'include',
             });
 
             if (!response.ok) {
-                throw new Error('Error al cargar el grafo');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al cargar el grafo');
             }
 
             const data = await response.json();
@@ -123,6 +126,7 @@ export default function KnowledgeGraphPage() {
             setEgoMode(false);
             setFilteredNodeIds([]);
         } catch (err) {
+            console.error('Graph fetch error:', err);
             setError(err instanceof Error ? err.message : 'Error desconocido');
         } finally {
             setLoading(false);
