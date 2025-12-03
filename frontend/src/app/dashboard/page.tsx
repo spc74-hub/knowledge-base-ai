@@ -625,6 +625,23 @@ export default function DashboardPage() {
         }
     };
 
+    const handleUpdateTags = async (contentId: string, newTags: string[]) => {
+        try {
+            const { error } = await supabase
+                .from('contents')
+                .update({ user_tags: newTags })
+                .eq('id', contentId);
+
+            if (error) throw error;
+            fetchContents();
+            if (selectedContent?.id === contentId) {
+                setSelectedContent({ ...selectedContent, user_tags: newTags });
+            }
+        } catch (error) {
+            console.error('Error updating tags:', error);
+        }
+    };
+
     const handleDelete = async (contentId: string) => {
         if (!confirm('¿Estas seguro de eliminar este contenido?')) return;
 
@@ -1492,22 +1509,61 @@ export default function DashboardPage() {
                                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">
                                     Mis Tags
                                 </h3>
-                                <div className="flex flex-wrap gap-2">
-                                    {selectedContent.user_tags && selectedContent.user_tags.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 items-center">
+                                    {selectedContent.user_tags && selectedContent.user_tags.length > 0 && (
                                         selectedContent.user_tags.map((tag, i) => (
                                             <span
                                                 key={i}
-                                                className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm"
+                                                className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm flex items-center gap-1 group"
                                             >
                                                 {tag}
+                                                <button
+                                                    onClick={() => {
+                                                        const newTags = selectedContent.user_tags.filter((_, idx) => idx !== i);
+                                                        handleUpdateTags(selectedContent.id, newTags);
+                                                    }}
+                                                    className="ml-1 text-purple-600 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-100 opacity-60 hover:opacity-100"
+                                                    title="Eliminar tag"
+                                                >
+                                                    ×
+                                                </button>
                                             </span>
                                         ))
-                                    ) : (
-                                        <span className="text-gray-400 dark:text-gray-500 text-sm">Sin tags</span>
                                     )}
+                                    <form
+                                        onSubmit={(e) => {
+                                            e.preventDefault();
+                                            const input = e.currentTarget.querySelector('input') as HTMLInputElement;
+                                            const newTag = input.value.trim();
+                                            if (newTag && !selectedContent.user_tags?.includes(newTag)) {
+                                                const newTags = [...(selectedContent.user_tags || []), newTag];
+                                                handleUpdateTags(selectedContent.id, newTags);
+                                                input.value = '';
+                                            }
+                                        }}
+                                        className="inline-flex"
+                                    >
+                                        <input
+                                            type="text"
+                                            placeholder="+ Añadir tag"
+                                            className="px-2 py-1 text-sm border border-dashed border-gray-300 dark:border-gray-600 rounded-full bg-transparent dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-purple-400 dark:focus:border-purple-500 w-24 focus:w-32 transition-all"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    const input = e.currentTarget;
+                                                    const newTag = input.value.trim();
+                                                    if (newTag && !selectedContent.user_tags?.includes(newTag)) {
+                                                        const newTags = [...(selectedContent.user_tags || []), newTag];
+                                                        handleUpdateTags(selectedContent.id, newTags);
+                                                        input.value = '';
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </form>
                                 </div>
                                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                                    Gestiona los tags heredados en{' '}
+                                    Pulsa Enter para añadir. Gestiona tags heredados en{' '}
                                     <Link href="/tags" className="text-indigo-600 dark:text-indigo-400 hover:underline">
                                         Reglas de Tags
                                     </Link>
