@@ -56,7 +56,7 @@ export default function TaxonomyExplorerPage() {
 
     // State
     const [rootType, setRootType] = useState<RootType>('category');
-    const [typeFilter, setTypeFilter] = useState<string | null>(null);
+    const [typeFilters, setTypeFilters] = useState<Set<string>>(new Set());
     const [availableTypes, setAvailableTypes] = useState<{ value: string; label: string; count: number }[]>([]);
     const [nodes, setNodes] = useState<TaxonomyNode[]>([]);
     const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
@@ -116,7 +116,7 @@ export default function TaxonomyExplorerPage() {
                 headers,
                 body: JSON.stringify({
                     root_type: rootTypeParam,
-                    type_filter: typeFilter,
+                    type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
                     parent_type: parentType,
                     parent_value: parentValue,
                 }),
@@ -146,7 +146,7 @@ export default function TaxonomyExplorerPage() {
         } finally {
             setLoading(false);
         }
-    }, [user, typeFilter]);
+    }, [user, typeFilters]);
 
     // Fetch contents for current filters
     const fetchContents = useCallback(async () => {
@@ -167,7 +167,7 @@ export default function TaxonomyExplorerPage() {
                 headers,
                 body: JSON.stringify({
                     filters,
-                    type_filter: typeFilter,
+                    type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
                     limit: 50,
                     offset: 0,
                 }),
@@ -185,7 +185,7 @@ export default function TaxonomyExplorerPage() {
         } finally {
             setLoading(false);
         }
-    }, [user, breadcrumb, typeFilter]);
+    }, [user, breadcrumb, typeFilters]);
 
     // Initial load
     useEffect(() => {
@@ -217,9 +217,26 @@ export default function TaxonomyExplorerPage() {
         fetchNodes(newType);
     };
 
-    // Handle type filter change
-    const handleTypeFilterChange = (newFilter: string | null) => {
-        setTypeFilter(newFilter);
+    // Toggle a type filter
+    const toggleTypeFilter = (typeValue: string) => {
+        setTypeFilters(prev => {
+            const next = new Set(prev);
+            if (next.has(typeValue)) {
+                next.delete(typeValue);
+            } else {
+                next.add(typeValue);
+            }
+            return next;
+        });
+        setBreadcrumb([]);
+        setShowContents(false);
+        setExpandedNodes(new Set());
+        setNodeChildren({});
+    };
+
+    // Clear all type filters
+    const clearTypeFilters = () => {
+        setTypeFilters(new Set());
         setBreadcrumb([]);
         setShowContents(false);
         setExpandedNodes(new Set());
@@ -230,7 +247,7 @@ export default function TaxonomyExplorerPage() {
         if (user) {
             fetchNodes(rootType);
         }
-    }, [typeFilter]);
+    }, [typeFilters]);
 
     // Handle node click - toggle expand/collapse
     const handleNodeClick = async (node: TaxonomyNode) => {
@@ -497,35 +514,45 @@ export default function TaxonomyExplorerPage() {
 
                             {/* Type Filter */}
                             <div>
-                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                                    Filtrar por tipo
-                                </h3>
-                                <div className="space-y-1">
-                                    <button
-                                        onClick={() => handleTypeFilterChange(null)}
-                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors ${
-                                            typeFilter === null
-                                                ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                                                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                        }`}
-                                    >
-                                        <span>Todos</span>
-                                    </button>
-                                    {availableTypes.map((t) => (
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                        Filtrar por tipo
+                                    </h3>
+                                    {typeFilters.size > 0 && (
                                         <button
-                                            key={t.value}
-                                            onClick={() => handleTypeFilterChange(t.value)}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors ${
-                                                typeFilter === t.value
-                                                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                                                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                            }`}
+                                            onClick={clearTypeFilters}
+                                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                                         >
-                                            <span>{t.label}</span>
+                                            Limpiar
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                    {typeFilters.size === 0 ? 'Todos los tipos' : `${typeFilters.size} seleccionado${typeFilters.size > 1 ? 's' : ''}`}
+                                </p>
+                                <div className="space-y-1">
+                                    {availableTypes.map((t) => (
+                                        <label
+                                            key={t.value}
+                                            className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={typeFilters.has(t.value)}
+                                                onChange={() => toggleTypeFilter(t.value)}
+                                                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className={`flex-1 text-sm ${
+                                                typeFilters.has(t.value)
+                                                    ? 'text-gray-900 dark:text-white font-medium'
+                                                    : 'text-gray-700 dark:text-gray-300'
+                                            }`}>
+                                                {t.label}
+                                            </span>
                                             <span className="text-xs text-gray-500 dark:text-gray-400">
                                                 {t.count}
                                             </span>
-                                        </button>
+                                        </label>
                                     ))}
                                 </div>
                             </div>

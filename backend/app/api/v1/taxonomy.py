@@ -22,7 +22,8 @@ class TaxonomyNode(BaseModel):
 class TaxonomyRequest(BaseModel):
     """Request for taxonomy data."""
     root_type: str = "category"  # category, person, organization, product, concept
-    type_filter: Optional[str] = None  # Filter by content type (article, video, note, etc.)
+    type_filter: Optional[str] = None  # DEPRECATED: Single filter (kept for backwards compatibility)
+    type_filters: Optional[List[str]] = None  # Filter by multiple content types
     parent_type: Optional[str] = None  # Type of parent node when drilling down
     parent_value: Optional[str] = None  # Value of parent node when drilling down
 
@@ -37,7 +38,8 @@ class TaxonomyResponse(BaseModel):
 class ContentListRequest(BaseModel):
     """Request for content list at leaf level."""
     filters: dict  # All accumulated filters from drill-down
-    type_filter: Optional[str] = None
+    type_filter: Optional[str] = None  # DEPRECATED: Single filter (kept for backwards compatibility)
+    type_filters: Optional[List[str]] = None  # Filter by multiple content types
     limit: int = 50
     offset: int = 0
 
@@ -60,12 +62,11 @@ async def get_taxonomy_nodes(
             "id, title, type, iab_tier1, concepts, entities, metadata"
         ).eq("user_id", user_id).eq("is_archived", False)
 
-        # Apply type filter if specified
-        if data.type_filter:
-            if data.type_filter == "apple_notes":
-                query = query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
-            else:
-                query = query.eq("type", data.type_filter)
+        # Determine which type filters to use (support both old and new format)
+        active_type_filters = data.type_filters or ([data.type_filter] if data.type_filter else None)
+
+        # We'll filter by type in Python since Supabase doesn't support complex OR conditions easily
+        # For now, get all data and filter after
 
         # Apply parent filter if drilling down
         if data.parent_type and data.parent_value:
@@ -83,6 +84,20 @@ async def get_taxonomy_nodes(
 
         response = query.execute()
         items = response.data or []
+
+        # Filter by type if specified (supports multiple types)
+        if active_type_filters:
+            def matches_type_filter(item, type_filters):
+                item_type = item.get("type")
+                metadata = item.get("metadata") or {}
+                # Check for apple_notes special case
+                if item_type == "note" and metadata.get("source") == "apple_notes":
+                    effective_type = "apple_notes"
+                else:
+                    effective_type = item_type
+                return effective_type in type_filters
+
+            items = [item for item in items if matches_type_filter(item, active_type_filters)]
 
         # Aggregate based on root_type
         nodes = []
@@ -165,12 +180,8 @@ async def get_taxonomy_contents(
             "id, title, type, url, iab_tier1, summary, created_at, metadata"
         ).eq("user_id", user_id).eq("is_archived", False)
 
-        # Apply type filter
-        if data.type_filter:
-            if data.type_filter == "apple_notes":
-                query = query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
-            else:
-                query = query.eq("type", data.type_filter)
+        # Determine which type filters to use (support both old and new format)
+        active_type_filters = data.type_filters or ([data.type_filter] if data.type_filter else None)
 
         # Apply accumulated filters
         filters = data.filters
@@ -188,17 +199,45 @@ async def get_taxonomy_contents(
                 pattern = json.dumps([{"name": filters[entity_type]}])
                 query = query.filter(f"entities->{entity_key}", "cs", pattern)
 
-        # Execute with pagination
-        response = query.order("created_at", desc=True).range(
-            data.offset, data.offset + data.limit - 1
-        ).execute()
+        # Execute query (without pagination first if we need to filter by type)
+        if active_type_filters:
+            # Get all results first, then filter and paginate in Python
+            response = query.order("created_at", desc=True).execute()
+            all_items = response.data or []
 
-        return {
-            "contents": response.data or [],
-            "total": len(response.data or []),
-            "offset": data.offset,
-            "limit": data.limit
-        }
+            # Filter by type
+            def matches_type_filter(item, type_filters):
+                item_type = item.get("type")
+                metadata = item.get("metadata") or {}
+                if item_type == "note" and metadata.get("source") == "apple_notes":
+                    effective_type = "apple_notes"
+                else:
+                    effective_type = item_type
+                return effective_type in type_filters
+
+            filtered_items = [item for item in all_items if matches_type_filter(item, active_type_filters)]
+
+            # Apply pagination
+            paginated_items = filtered_items[data.offset:data.offset + data.limit]
+
+            return {
+                "contents": paginated_items,
+                "total": len(filtered_items),
+                "offset": data.offset,
+                "limit": data.limit
+            }
+        else:
+            # No type filter, use DB pagination
+            response = query.order("created_at", desc=True).range(
+                data.offset, data.offset + data.limit - 1
+            ).execute()
+
+            return {
+                "contents": response.data or [],
+                "total": len(response.data or []),
+                "offset": data.offset,
+                "limit": data.limit
+            }
 
     except Exception as e:
         import traceback
