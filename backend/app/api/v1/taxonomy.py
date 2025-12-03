@@ -133,7 +133,7 @@ async def get_taxonomy_nodes(
             })
 
         return TaxonomyResponse(
-            nodes=nodes[:100],  # Limit to top 100
+            nodes=nodes,
             path=path,
             total_contents=len(items)
         )
