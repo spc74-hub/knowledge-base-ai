@@ -94,6 +94,10 @@ export default function DashboardPage() {
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Inherited tags
+    const [inheritedTags, setInheritedTags] = useState<Array<{ tag: string; from_type: string; from_value: string; color: string }>>([]);
+    const [loadingInheritedTags, setLoadingInheritedTags] = useState(false);
+
     const fetchContents = async () => {
         try {
             const { data, error } = await supabase
@@ -642,6 +646,30 @@ export default function DashboardPage() {
         }
     };
 
+    const fetchInheritedTags = async (contentId: string) => {
+        setLoadingInheritedTags(true);
+        setInheritedTags([]);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/tags/inherited/${contentId}`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setInheritedTags(data.tag_sources || []);
+            }
+        } catch (error) {
+            console.error('Error fetching inherited tags:', error);
+        } finally {
+            setLoadingInheritedTags(false);
+        }
+    };
+
     const handleDelete = async (contentId: string) => {
         if (!confirm('¿Estas seguro de eliminar este contenido?')) return;
 
@@ -668,6 +696,7 @@ export default function DashboardPage() {
     const openDetail = (content: Content) => {
         setSelectedContent(content);
         setShowDetailModal(true);
+        fetchInheritedTags(content.id);
     };
 
     const getTypeIcon = (type: string) => {
@@ -1501,6 +1530,37 @@ export default function DashboardPage() {
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Inherited Tags */}
+                            {(inheritedTags.length > 0 || loadingInheritedTags) && (
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">
+                                        Tags Heredados
+                                    </h3>
+                                    {loadingInheritedTags ? (
+                                        <span className="text-gray-400 dark:text-gray-500 text-sm">Cargando...</span>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                            {inheritedTags.map((tagInfo, i) => (
+                                                <span
+                                                    key={i}
+                                                    className="px-3 py-1 rounded-full text-sm text-white"
+                                                    style={{ backgroundColor: tagInfo.color || '#6366f1' }}
+                                                    title={`Heredado de ${tagInfo.from_type}: ${tagInfo.from_value}`}
+                                                >
+                                                    {tagInfo.tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                                        Estos tags se heredan de las{' '}
+                                        <Link href="/tags" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+                                            reglas de taxonomía
+                                        </Link>
+                                    </p>
                                 </div>
                             )}
 
