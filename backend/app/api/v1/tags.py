@@ -270,7 +270,6 @@ async def get_taxonomy_values(
     current_user: CurrentUser,
     db: Database,
     search: Optional[str] = None,
-    limit: int = 50,
 ):
     """Get available values for a taxonomy type from user's contents."""
     valid_types = ["category", "person", "organization", "product", "concept"]
@@ -320,8 +319,8 @@ async def get_taxonomy_values(
         search_lower = search.lower()
         values = {v for v in values if search_lower in v.lower()}
 
-    # Sort and limit
-    sorted_values = sorted(values)[:limit]
+    # Sort values
+    sorted_values = sorted(values)
 
     return {
         "taxonomy_type": taxonomy_type,
