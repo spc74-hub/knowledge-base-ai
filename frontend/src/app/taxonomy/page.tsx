@@ -68,6 +68,11 @@ export default function TaxonomyExplorerPage() {
     const [nodeChildren, setNodeChildren] = useState<Record<string, TaxonomyNode[]>>({});
     const [totalContents, setTotalContents] = useState(0);
 
+    // Enabled drill-down levels (all enabled by default)
+    const [enabledLevels, setEnabledLevels] = useState<Set<RootType>>(
+        new Set(['category', 'person', 'organization', 'product', 'concept'])
+    );
+
     const getAuthHeaders = async () => {
         const session = await supabase.auth.getSession();
         if (!session.data.session?.access_token) {
@@ -203,6 +208,12 @@ export default function TaxonomyExplorerPage() {
         setShowContents(false);
         setExpandedNodes(new Set());
         setNodeChildren({});
+        // Ensure the new root type is always enabled
+        setEnabledLevels(prev => {
+            const next = new Set(prev);
+            next.add(newType);
+            return next;
+        });
         fetchNodes(newType);
     };
 
@@ -244,7 +255,7 @@ export default function TaxonomyExplorerPage() {
         }
     };
 
-    // Get next level type for drill-down
+    // Get next level type for drill-down (only enabled levels)
     const getNextLevelType = (currentType: RootType): RootType | null => {
         // Define drill-down order based on starting point
         const drillDownOrder: Record<RootType, RootType[]> = {
@@ -255,14 +266,34 @@ export default function TaxonomyExplorerPage() {
             concept: ['category', 'person', 'organization', 'product'],
         };
 
-        const order = drillDownOrder[rootType];
+        // Filter to only include enabled levels
+        const order = drillDownOrder[rootType].filter(level => enabledLevels.has(level));
         const currentIndex = order.indexOf(currentType);
 
         if (currentIndex === -1) {
-            return order[0];
+            return order.length > 0 ? order[0] : null;
         }
 
         return currentIndex < order.length - 1 ? order[currentIndex + 1] : null;
+    };
+
+    // Toggle a drill-down level
+    const toggleLevel = (level: RootType) => {
+        // Don't allow disabling the root type
+        if (level === rootType) return;
+
+        setEnabledLevels(prev => {
+            const next = new Set(prev);
+            if (next.has(level)) {
+                next.delete(level);
+            } else {
+                next.add(level);
+            }
+            return next;
+        });
+        // Reset expanded nodes when levels change
+        setExpandedNodes(new Set());
+        setNodeChildren({});
     };
 
     // View contents for a node
@@ -418,6 +449,49 @@ export default function TaxonomyExplorerPage() {
                                             <span>{ROOT_TYPE_LABELS[type]}</span>
                                         </button>
                                     ))}
+                                </div>
+                            </div>
+
+                            {/* Drill-down Levels */}
+                            <div className="mb-6">
+                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                    Niveles de drill-down
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                    Selecciona qué niveles mostrar al expandir
+                                </p>
+                                <div className="space-y-1">
+                                    {(Object.keys(ROOT_TYPE_LABELS) as RootType[]).map((type) => {
+                                        const isRootType = type === rootType;
+                                        const isEnabled = enabledLevels.has(type);
+                                        return (
+                                            <label
+                                                key={type}
+                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                                                    isRootType
+                                                        ? 'bg-blue-50 dark:bg-blue-900/30 cursor-not-allowed'
+                                                        : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isEnabled}
+                                                    disabled={isRootType}
+                                                    onChange={() => toggleLevel(type)}
+                                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                                                />
+                                                <span className="text-sm">{ROOT_TYPE_ICONS[type]}</span>
+                                                <span className={`text-sm ${
+                                                    isRootType
+                                                        ? 'text-blue-700 dark:text-blue-300 font-medium'
+                                                        : 'text-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                    {ROOT_TYPE_LABELS[type]}
+                                                    {isRootType && <span className="text-xs ml-1">(raíz)</span>}
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
