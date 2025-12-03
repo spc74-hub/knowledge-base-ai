@@ -36,9 +36,20 @@ interface Content {
     is_favorite: boolean;
     is_archived: boolean;
     processing_status: string;
+    maturity_level: string;
     created_at: string;
     folder_id: string | null;
 }
+
+// Maturity level configuration
+const MATURITY_LEVELS = {
+    captured: { label: 'Capturado', color: 'bg-gray-400', textColor: 'text-gray-600 dark:text-gray-400', icon: '○' },
+    processed: { label: 'Procesado', color: 'bg-blue-400', textColor: 'text-blue-600 dark:text-blue-400', icon: '◐' },
+    connected: { label: 'Conectado', color: 'bg-purple-400', textColor: 'text-purple-600 dark:text-purple-400', icon: '◑' },
+    integrated: { label: 'Integrado', color: 'bg-green-400', textColor: 'text-green-600 dark:text-green-400', icon: '●' },
+} as const;
+
+type MaturityLevel = keyof typeof MATURITY_LEVELS;
 
 interface Folder {
     id: string;
@@ -92,6 +103,7 @@ export default function DashboardPage() {
     // Filters
     const [filterType, setFilterType] = useState<string>('all');
     const [filterCategory, setFilterCategory] = useState<string>('all');
+    const [filterMaturity, setFilterMaturity] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
 
     // Inherited tags
@@ -497,6 +509,10 @@ export default function DashboardPage() {
             result = result.filter(c => c.iab_tier1 === filterCategory);
         }
 
+        if (filterMaturity !== 'all') {
+            result = result.filter(c => (c.maturity_level || 'captured') === filterMaturity);
+        }
+
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             result = result.filter(c =>
@@ -507,7 +523,7 @@ export default function DashboardPage() {
         }
 
         setFilteredContents(result);
-    }, [contents, filterType, filterCategory, searchQuery, selectedFolderId]);
+    }, [contents, filterType, filterCategory, filterMaturity, searchQuery, selectedFolderId]);
 
     // Helper to render folder tree recursively
     const renderFolderTree = (folderList: Folder[], depth = 0) => {
@@ -626,6 +642,31 @@ export default function DashboardPage() {
             }
         } catch (error) {
             console.error('Error toggling favorite:', error);
+        }
+    };
+
+    const handleUpdateMaturity = async (contentId: string, newLevel: MaturityLevel) => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/content/${contentId}/maturity`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({ maturity_level: newLevel }),
+            });
+
+            if (!response.ok) throw new Error('Error updating maturity');
+
+            fetchContents();
+            if (selectedContent?.id === contentId) {
+                setSelectedContent({ ...selectedContent, maturity_level: newLevel });
+            }
+        } catch (error) {
+            console.error('Error updating maturity:', error);
         }
     };
 
@@ -1124,11 +1165,24 @@ export default function DashboardPage() {
                         ))}
                     </select>
 
-                    {(filterType !== 'all' || filterCategory !== 'all' || searchQuery) && (
+                    {/* Maturity filter */}
+                    <select
+                        value={filterMaturity}
+                        onChange={(e) => setFilterMaturity(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
+                    >
+                        <option value="all">Todos los niveles</option>
+                        {(Object.keys(MATURITY_LEVELS) as MaturityLevel[]).map(level => (
+                            <option key={level} value={level}>{MATURITY_LEVELS[level].icon} {MATURITY_LEVELS[level].label}</option>
+                        ))}
+                    </select>
+
+                    {(filterType !== 'all' || filterCategory !== 'all' || filterMaturity !== 'all' || searchQuery) && (
                         <button
                             onClick={() => {
                                 setFilterType('all');
                                 setFilterCategory('all');
+                                setFilterMaturity('all');
                                 setSearchQuery('');
                             }}
                             className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
@@ -1239,6 +1293,9 @@ export default function DashboardPage() {
                                         Estado
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Nivel
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                         Fecha
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -1310,6 +1367,18 @@ export default function DashboardPage() {
                                                     </button>
                                                 )}
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {(() => {
+                                                const level = (content.maturity_level || 'captured') as MaturityLevel;
+                                                const config = MATURITY_LEVELS[level];
+                                                return (
+                                                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${config.color} bg-opacity-20 ${config.textColor}`}>
+                                                        <span>{config.icon}</span>
+                                                        <span>{config.label}</span>
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                             {new Date(content.created_at).toLocaleDateString()}
@@ -1418,6 +1487,32 @@ export default function DashboardPage() {
 
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto p-6">
+                            {/* Maturity Level Selector */}
+                            <div className="mb-6">
+                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Nivel de madurez</h3>
+                                <div className="flex gap-2">
+                                    {(Object.keys(MATURITY_LEVELS) as MaturityLevel[]).map(level => {
+                                        const config = MATURITY_LEVELS[level];
+                                        const isSelected = (selectedContent.maturity_level || 'captured') === level;
+                                        return (
+                                            <button
+                                                key={level}
+                                                onClick={() => handleUpdateMaturity(selectedContent.id, level)}
+                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                                                    isSelected
+                                                        ? `${config.color} border-current ${config.textColor} font-medium`
+                                                        : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                                                }`}
+                                                title={`Marcar como ${config.label}`}
+                                            >
+                                                <span className="text-lg">{config.icon}</span>
+                                                <span className="text-sm">{config.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             {/* Classification */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                 <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">

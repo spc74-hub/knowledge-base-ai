@@ -60,6 +60,11 @@ class ContentUpdate(BaseModel):
     user_tags: Optional[List[str]] = None
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
+    maturity_level: Optional[str] = None  # captured, processed, connected, integrated
+
+
+class MaturityUpdate(BaseModel):
+    maturity_level: str  # captured, processed, connected, integrated
 
 
 class ContentResponse(BaseModel):
@@ -77,6 +82,7 @@ class ContentResponse(BaseModel):
     is_favorite: bool = False
     is_archived: bool = False
     processing_status: str = "pending"
+    maturity_level: str = "captured"
     created_at: str
 
 
@@ -866,6 +872,173 @@ async def update_note(
         response = db.table("contents").update(update_data).eq("id", content_id).execute()
 
         return response.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+# =====================================================
+# MATURITY LEVEL ENDPOINTS
+# =====================================================
+
+VALID_MATURITY_LEVELS = ["captured", "processed", "connected", "integrated"]
+
+MATURITY_LABELS = {
+    "captured": "Capturado",
+    "processed": "Procesado",
+    "connected": "Conectado",
+    "integrated": "Integrado",
+}
+
+
+@router.put("/{content_id}/maturity")
+async def update_maturity_level(
+    content_id: str,
+    data: MaturityUpdate,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Update the maturity level of a content.
+    Valid levels: captured, processed, connected, integrated
+    """
+    try:
+        # Validate maturity level
+        if data.maturity_level not in VALID_MATURITY_LEVELS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid maturity level. Must be one of: {', '.join(VALID_MATURITY_LEVELS)}"
+            )
+
+        # Check ownership
+        existing = db.table("contents").select("id, maturity_level").eq(
+            "id", content_id
+        ).eq(
+            "user_id", current_user["id"]
+        ).execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Content not found"
+            )
+
+        from datetime import datetime, timezone
+
+        # Update maturity level and last_reviewed_at
+        response = db.table("contents").update({
+            "maturity_level": data.maturity_level,
+            "last_reviewed_at": datetime.now(timezone.utc).isoformat()
+        }).eq("id", content_id).execute()
+
+        return {
+            "id": content_id,
+            "maturity_level": data.maturity_level,
+            "previous_level": existing.data[0].get("maturity_level", "captured"),
+            "message": f"Nivel actualizado a {MATURITY_LABELS.get(data.maturity_level, data.maturity_level)}"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.get("/maturity/stats")
+async def get_maturity_stats(
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Get statistics about content maturity levels.
+    """
+    try:
+        user_id = current_user["id"]
+
+        # Get all non-archived contents with their maturity level
+        response = db.table("contents").select(
+            "maturity_level"
+        ).eq("user_id", user_id).eq("is_archived", False).execute()
+
+        # Count by level
+        stats = {level: 0 for level in VALID_MATURITY_LEVELS}
+        total = 0
+
+        for item in response.data or []:
+            level = item.get("maturity_level") or "captured"
+            if level in stats:
+                stats[level] += 1
+            else:
+                stats["captured"] += 1  # Default for old content
+            total += 1
+
+        return {
+            "total": total,
+            "by_level": stats,
+            "levels": [
+                {"value": level, "label": MATURITY_LABELS[level], "count": stats[level]}
+                for level in VALID_MATURITY_LEVELS
+            ]
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/maturity/bulk")
+async def bulk_update_maturity(
+    content_ids: List[str],
+    maturity_level: str,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Update maturity level for multiple contents at once.
+    """
+    try:
+        if maturity_level not in VALID_MATURITY_LEVELS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid maturity level. Must be one of: {', '.join(VALID_MATURITY_LEVELS)}"
+            )
+
+        if not content_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No content IDs provided"
+            )
+
+        from datetime import datetime, timezone
+
+        updated = 0
+        for content_id in content_ids:
+            try:
+                result = db.table("contents").update({
+                    "maturity_level": maturity_level,
+                    "last_reviewed_at": datetime.now(timezone.utc).isoformat()
+                }).eq("id", content_id).eq("user_id", current_user["id"]).execute()
+
+                if result.data:
+                    updated += 1
+            except Exception:
+                continue  # Skip failed updates
+
+        return {
+            "updated": updated,
+            "total": len(content_ids),
+            "maturity_level": maturity_level
+        }
 
     except HTTPException:
         raise
