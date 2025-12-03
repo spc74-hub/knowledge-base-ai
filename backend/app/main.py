@@ -26,11 +26,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS
+# CORS - allow all origins for bookmarklet support
+# Note: allow_credentials must be False when using "*" for origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
