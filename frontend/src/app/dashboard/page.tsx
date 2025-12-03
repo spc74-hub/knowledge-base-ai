@@ -571,23 +571,34 @@ export default function DashboardPage() {
         setAddingUrl(true);
 
         try {
-            const response = await fetch(`${API_URL}/api/v1/content`, {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) {
+                throw new Error('No hay sesión activa');
+            }
+
+            // Use quick-save endpoint for faster saves (no AI processing, will be processed later)
+            const response = await fetch(`${API_URL}/api/v1/quick-save/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
                 },
                 body: JSON.stringify({ url: newUrl }),
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Error adding URL');
+            const data = await response.json();
+
+            if (!data.success) {
+                if (data.error === 'duplicate') {
+                    throw new Error(`Esta URL ya está guardada: "${data.title}"`);
+                }
+                throw new Error(data.error || data.message || 'Error al guardar URL');
             }
 
             setNewUrl('');
             setShowAddModal(false);
             fetchContents();
+            fetchProcessingStats(); // Update pending count
         } catch (error: any) {
             setAddError(error.message || 'Error adding URL');
         } finally {
@@ -724,6 +735,16 @@ export default function DashboardPage() {
                                     <>
                                         <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
                                         <div className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                                            <button
+                                                onClick={() => {
+                                                    setShowAddMenu(false);
+                                                    setShowAddModal(true);
+                                                }}
+                                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                            >
+                                                <span className="w-5 text-center">🔗</span>
+                                                Añadir URL
+                                            </button>
                                             <Link
                                                 href="/notes/new"
                                                 className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -732,13 +753,14 @@ export default function DashboardPage() {
                                                 <span className="w-5 text-center">📝</span>
                                                 Nueva Nota
                                             </Link>
+                                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                                             <Link
                                                 href="/import"
                                                 className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                                 onClick={() => setShowAddMenu(false)}
                                             >
-                                                <span className="w-5 text-center">🔗</span>
-                                                Importar URLs
+                                                <span className="w-5 text-center">📥</span>
+                                                Importar URLs (masivo)
                                             </Link>
                                             <Link
                                                 href="/import-apple-notes"
@@ -1240,7 +1262,10 @@ export default function DashboardPage() {
             {showAddModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">Anadir URL</h2>
+                        <h2 className="text-xl font-bold mb-2 dark:text-white">Añadir URL</h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            La URL se guardará rápidamente y se procesará con AI en segundo plano.
+                        </p>
                         <form onSubmit={handleAddUrl}>
                             {addError && (
                                 <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
@@ -1253,6 +1278,7 @@ export default function DashboardPage() {
                                 onChange={(e) => setNewUrl(e.target.value)}
                                 placeholder="https://example.com/article"
                                 required
+                                autoFocus
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
                             />
                             <div className="flex justify-end gap-2">
@@ -1272,7 +1298,7 @@ export default function DashboardPage() {
                                     disabled={addingUrl}
                                     className="px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50"
                                 >
-                                    {addingUrl ? 'Procesando...' : 'Anadir'}
+                                    {addingUrl ? 'Guardando...' : 'Guardar'}
                                 </button>
                             </div>
                         </form>

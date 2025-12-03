@@ -77,6 +77,14 @@ export default function QuickSavePage() {
                 </div>
               ) : (
                 <>
+                  <div className="mb-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg p-3">
+                    <p className="text-green-800 dark:text-green-200 text-xs mb-1">
+                      <strong>API URL:</strong> <code className="bg-green-100 dark:bg-green-800 px-1 rounded">{API_URL}</code>
+                    </p>
+                    <p className="text-green-700 dark:text-green-300 text-xs">
+                      Si cambiaste de servidor (ej: de localhost a producción), debes arrastrar este bookmarklet de nuevo.
+                    </p>
+                  </div>
                   <div className="mb-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
                     <p className="text-amber-800 dark:text-amber-200 text-xs">
                       <strong>Note:</strong> This bookmarklet contains your personal token. If it stops working, come back here to get a new one.
@@ -159,6 +167,27 @@ export default function QuickSavePage() {
             <div className="p-6">
               <div className="mb-6">
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Setup Instructions:</h3>
+
+                <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    <strong>API URL base:</strong>
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <code className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded text-xs overflow-x-auto text-gray-700 dark:text-gray-300">
+                      {shortcutCallbackUrl}
+                    </code>
+                    <button
+                      onClick={() => copyToClipboard(shortcutCallbackUrl, 'apiurl')}
+                      className="p-2 bg-white dark:bg-gray-700 rounded shadow hover:bg-gray-50 dark:hover:bg-gray-600"
+                    >
+                      {copied === 'apiurl' ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-gray-500" />
+                      )}
+                    </button>
+                  </div>
+                </div>
 
                 <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-4 mb-4">
                   <p className="text-sm text-amber-800 dark:text-amber-200">
