@@ -13,7 +13,7 @@ from app.services.batch_processor import batch_processor
 async def lifespan(app: FastAPI):
     """Manage application lifecycle events."""
     # Startup: Start the batch processor
-    await batch_processor.start(interval_seconds=3600)  # Every hour
+    await batch_processor.start(interval_seconds=900)  # Every 15 minutes
     yield
     # Shutdown: Stop the batch processor
     await batch_processor.stop()

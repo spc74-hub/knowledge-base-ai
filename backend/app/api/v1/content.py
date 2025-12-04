@@ -3,8 +3,10 @@ Content management endpoints.
 """
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, status, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, HttpUrl
+import csv
+import io
 
 from app.api.deps import Database, CurrentUser
 from app.services.fetcher import fetcher_service
@@ -657,104 +659,135 @@ async def bulk_import_urls(
     """
     Import multiple URLs at once (deferred processing).
     Only fetches content, AI processing happens later.
+    Processes URLs in parallel with concurrency limit.
     """
+    import asyncio
+
     results: List[BulkImportResult] = []
     user_id = current_user["id"]
 
+    # Filter valid URLs first
+    valid_urls = []
     for raw_url in data.urls:
         raw_url = raw_url.strip()
-
-        # Skip empty lines
         if not raw_url:
             continue
-
-        # Validate URL format
         if not raw_url.startswith(('http://', 'https://')):
             results.append(BulkImportResult(
                 url=raw_url,
                 success=False,
-                error="Invalid URL format (must start with http:// or https://)"
+                error="URL invalida (debe empezar con http:// o https://)"
             ))
-            continue
+        else:
+            valid_urls.append(raw_url)
 
-        # Normalize URL to prevent duplicates from tracking params
+    # Semaphore for concurrency control (max 5 concurrent fetches)
+    semaphore = asyncio.Semaphore(5)
+
+    async def process_single_url(raw_url: str) -> BulkImportResult:
+        """Process a single URL with timeout and error handling."""
         url_str = normalize_url(raw_url)
 
-        try:
-            # Check if normalized URL already exists
-            existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
+        async with semaphore:
+            try:
+                # Check if normalized URL already exists
+                existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
 
-            if existing.data:
-                results.append(BulkImportResult(
+                if existing.data:
+                    return BulkImportResult(
+                        url=raw_url,
+                        success=False,
+                        error="URL ya guardada"
+                    )
+
+                # Fetch with timeout (30 seconds per URL)
+                try:
+                    fetch_result = await asyncio.wait_for(
+                        fetcher_service.fetch(raw_url),
+                        timeout=30.0
+                    )
+                except asyncio.TimeoutError:
+                    return BulkImportResult(
+                        url=raw_url,
+                        success=False,
+                        error="Timeout al obtener contenido (>30s)"
+                    )
+
+                if not fetch_result.success:
+                    return BulkImportResult(
+                        url=raw_url,
+                        success=False,
+                        error=f"Error al obtener: {fetch_result.error}"
+                    )
+
+                # Estimate reading time
+                word_count = len(fetch_result.content.split())
+                reading_time = max(1, word_count // 200)
+
+                # Create content record WITHOUT AI processing (deferred)
+                content_data = {
+                    "user_id": user_id,
+                    "url": url_str,
+                    "type": fetch_result.type,
+                    "title": fetch_result.title,
+                    "raw_content": fetch_result.content[:50000],
+                    "summary": None,
+                    "schema_type": None,
+                    "schema_subtype": None,
+                    "iab_tier1": None,
+                    "iab_tier2": None,
+                    "iab_tier3": None,
+                    "concepts": [],
+                    "entities": {},
+                    "language": None,
+                    "sentiment": None,
+                    "technical_level": None,
+                    "content_format": None,
+                    "reading_time_minutes": reading_time,
+                    "metadata": fetch_result.metadata,
+                    "user_tags": data.tags,
+                    "processing_status": "pending",
+                    "embedding": None
+                }
+
+                response = db.table("contents").insert(content_data).execute()
+
+                if response.data:
+                    return BulkImportResult(
+                        url=raw_url,
+                        success=True,
+                        content_id=response.data[0]["id"]
+                    )
+                else:
+                    return BulkImportResult(
+                        url=raw_url,
+                        success=False,
+                        error="Error al guardar contenido"
+                    )
+
+            except Exception as e:
+                return BulkImportResult(
                     url=raw_url,
                     success=False,
-                    error="URL already saved"
-                ))
-                continue
+                    error=str(e)[:100]  # Truncate long errors
+                )
 
-            # Fetch content using ORIGINAL URL (yt-dlp needs full URL)
-            # but store normalized URL to prevent duplicates
-            fetch_result = await fetcher_service.fetch(raw_url)
+    # Process all URLs concurrently
+    if valid_urls:
+        url_results = await asyncio.gather(
+            *[process_single_url(url) for url in valid_urls],
+            return_exceptions=True
+        )
 
-            if not fetch_result.success:
+        for i, result in enumerate(url_results):
+            if isinstance(result, Exception):
                 results.append(BulkImportResult(
-                    url=url_str,
+                    url=valid_urls[i],
                     success=False,
-                    error=f"Failed to fetch: {fetch_result.error}"
-                ))
-                continue
-
-            # Estimate reading time
-            word_count = len(fetch_result.content.split())
-            reading_time = max(1, word_count // 200)
-
-            # Create content record WITHOUT AI processing (deferred)
-            content_data = {
-                "user_id": user_id,
-                "url": url_str,
-                "type": fetch_result.type,
-                "title": fetch_result.title,
-                "raw_content": fetch_result.content[:50000],
-                "summary": None,
-                "schema_type": None,
-                "schema_subtype": None,
-                "iab_tier1": None,
-                "iab_tier2": None,
-                "iab_tier3": None,
-                "concepts": [],
-                "entities": {},
-                "language": None,
-                "sentiment": None,
-                "technical_level": None,
-                "content_format": None,
-                "reading_time_minutes": reading_time,
-                "metadata": fetch_result.metadata,
-                "user_tags": data.tags,
-                "processing_status": "pending",  # Deferred processing
-                "embedding": None
-            }
-
-            response = db.table("contents").insert(content_data).execute()
-
-            if response.data:
-                results.append(BulkImportResult(
-                    url=url_str,
-                    success=True,
-                    content_id=response.data[0]["id"]
+                    error=f"Error inesperado: {str(result)[:100]}"
                 ))
             else:
-                results.append(BulkImportResult(
-                    url=url_str,
-                    success=False,
-                    error="Failed to save content"
-                ))
-
-        except Exception as e:
-            results.append(BulkImportResult(
-                url=url_str,
-                success=False,
-                error=str(e)
-            ))
+                results.append(result)
 
     successful = sum(1 for r in results if r.success)
 
@@ -764,6 +797,258 @@ async def bulk_import_urls(
         failed=len(results) - successful,
         results=results
     )
+
+
+# ==========================================
+# Queue-based URL import (for large batches)
+# ==========================================
+
+class QueueUrlsRequest(BaseModel):
+    """Request to add URLs to queue (no fetch, just save to DB)."""
+    urls: List[str]
+    tags: List[str] = []
+
+
+class QueueUrlsResponse(BaseModel):
+    """Response from queue operation."""
+    queued: int
+    duplicates: int
+    invalid: int
+    details: List[dict]  # List of {url, status, error?}
+
+
+@router.post("/queue-urls", response_model=QueueUrlsResponse)
+async def queue_urls_for_import(
+    data: QueueUrlsRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Queue URLs for background import (no fetch yet).
+    Creates placeholder records with fetch_status='queued'.
+    The background processor will fetch them later.
+    Use this for large batches (1000+ URLs).
+    """
+    user_id = current_user["id"]
+    details = []
+    queued = 0
+    duplicates = 0
+    invalid = 0
+
+    for raw_url in data.urls:
+        raw_url = raw_url.strip()
+        if not raw_url:
+            continue
+
+        # Validate URL format
+        if not raw_url.startswith(('http://', 'https://')):
+            details.append({"url": raw_url, "status": "invalid", "error": "URL invalida"})
+            invalid += 1
+            continue
+
+        # Normalize URL
+        url_str = normalize_url(raw_url)
+
+        try:
+            # Check if already exists
+            existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
+
+            if existing.data:
+                details.append({"url": raw_url, "status": "duplicate"})
+                duplicates += 1
+                continue
+
+            # Create placeholder record (no fetch yet)
+            content_data = {
+                "user_id": user_id,
+                "url": url_str,
+                "type": "web",  # Default, will be updated after fetch
+                "title": url_str[:100],  # Placeholder title
+                "raw_content": None,
+                "summary": None,
+                "user_tags": data.tags,
+                "processing_status": "queued",  # New status for unfetched URLs
+                "metadata": {"original_url": raw_url}
+            }
+
+            response = db.table("contents").insert(content_data).execute()
+
+            if response.data:
+                details.append({"url": raw_url, "status": "queued", "content_id": response.data[0]["id"]})
+                queued += 1
+            else:
+                details.append({"url": raw_url, "status": "error", "error": "Error al guardar"})
+                invalid += 1
+
+        except Exception as e:
+            details.append({"url": raw_url, "status": "error", "error": str(e)[:50]})
+            invalid += 1
+
+    return QueueUrlsResponse(
+        queued=queued,
+        duplicates=duplicates,
+        invalid=invalid,
+        details=details
+    )
+
+
+class ImportStatusResponse(BaseModel):
+    """Status of import queue."""
+    queued: int  # URLs waiting to be fetched
+    pending: int  # Fetched, waiting for AI processing
+    processing: int  # Currently being processed
+    completed: int  # Fully processed
+    failed: int  # Failed processing
+    total: int
+
+
+@router.get("/import-status", response_model=ImportStatusResponse)
+async def get_import_status(
+    current_user: CurrentUser,
+    db: Database
+):
+    """Get status of URL import queue for current user."""
+    user_id = current_user["id"]
+
+    try:
+        # Count by status
+        all_content = db.table("contents").select(
+            "processing_status",
+            count="exact"
+        ).eq("user_id", user_id).execute()
+
+        status_counts = {
+            "queued": 0,
+            "pending": 0,
+            "processing": 0,
+            "completed": 0,
+            "failed": 0
+        }
+
+        for item in all_content.data:
+            s = item.get("processing_status", "pending")
+            if s in status_counts:
+                status_counts[s] += 1
+            elif s == "error":
+                status_counts["failed"] += 1
+            else:
+                status_counts["pending"] += 1
+
+        return ImportStatusResponse(
+            queued=status_counts["queued"],
+            pending=status_counts["pending"],
+            processing=status_counts["processing"],
+            completed=status_counts["completed"],
+            failed=status_counts["failed"],
+            total=sum(status_counts.values())
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/import-csv")
+async def import_from_csv(
+    file: UploadFile = File(...),
+    tags: str = Query("", description="Tags separados por coma"),
+    current_user: CurrentUser = None,
+    db: Database = None
+):
+    """
+    Import URLs from CSV file.
+    CSV format: url (required), tags (optional, comma-separated)
+    First row can be header (url,tags) or data.
+    """
+    user_id = current_user["id"]
+
+    # Read file
+    content = await file.read()
+    try:
+        text = content.decode('utf-8')
+    except UnicodeDecodeError:
+        text = content.decode('latin-1')
+
+    # Parse CSV
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSV vacio"
+        )
+
+    # Detect if first row is header
+    first_row = rows[0]
+    start_idx = 0
+    if first_row and first_row[0].lower() in ['url', 'urls', 'link', 'links']:
+        start_idx = 1
+
+    # Parse global tags
+    global_tags = [t.strip() for t in tags.split(',') if t.strip()]
+
+    results = {
+        "queued": 0,
+        "duplicates": 0,
+        "invalid": 0
+    }
+
+    for row in rows[start_idx:]:
+        if not row or not row[0].strip():
+            continue
+
+        raw_url = row[0].strip()
+
+        # Get row-specific tags if present
+        row_tags = []
+        if len(row) > 1 and row[1].strip():
+            row_tags = [t.strip() for t in row[1].split(',') if t.strip()]
+
+        all_tags = list(set(global_tags + row_tags))
+
+        # Validate URL
+        if not raw_url.startswith(('http://', 'https://')):
+            results["invalid"] += 1
+            continue
+
+        url_str = normalize_url(raw_url)
+
+        try:
+            # Check duplicate
+            existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
+
+            if existing.data:
+                results["duplicates"] += 1
+                continue
+
+            # Queue URL
+            content_data = {
+                "user_id": user_id,
+                "url": url_str,
+                "type": "web",
+                "title": url_str[:100],
+                "raw_content": None,
+                "user_tags": all_tags,
+                "processing_status": "queued",
+                "metadata": {"original_url": raw_url, "source": "csv_import"}
+            }
+
+            db.table("contents").insert(content_data).execute()
+            results["queued"] += 1
+
+        except Exception:
+            results["invalid"] += 1
+
+    return {
+        "message": f"CSV procesado: {results['queued']} URLs en cola",
+        "queued": results["queued"],
+        "duplicates": results["duplicates"],
+        "invalid": results["invalid"],
+        "total_rows": len(rows) - start_idx
+    }
 
 
 @router.post("/note", response_model=ContentResponse, status_code=status.HTTP_201_CREATED)

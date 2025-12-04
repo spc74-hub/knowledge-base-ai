@@ -31,6 +31,7 @@ export default function ImportPage() {
     const [progress, setProgress] = useState<string | null>(null);
     const [results, setResults] = useState<ImportResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [showOnlyFailed, setShowOnlyFailed] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -217,16 +218,57 @@ export default function ImportPage() {
                                     <p className="text-2xl font-bold text-green-600 dark:text-green-400">{results.successful}</p>
                                     <p className="text-sm text-green-700 dark:text-green-400">Exitosas</p>
                                 </div>
-                                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
+                                <div
+                                    className={`p-4 rounded-lg text-center cursor-pointer transition-colors ${
+                                        showOnlyFailed
+                                            ? 'bg-red-200 dark:bg-red-800/40 ring-2 ring-red-500'
+                                            : 'bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
+                                    }`}
+                                    onClick={() => setShowOnlyFailed(!showOnlyFailed)}
+                                    title="Clic para filtrar solo fallidas"
+                                >
                                     <p className="text-2xl font-bold text-red-600 dark:text-red-400">{results.failed}</p>
-                                    <p className="text-sm text-red-700 dark:text-red-400">Fallidas</p>
+                                    <p className="text-sm text-red-700 dark:text-red-400">
+                                        Fallidas {showOnlyFailed && '(filtrado)'}
+                                    </p>
                                 </div>
                             </div>
 
+                            {/* Filter toggle */}
+                            {results.failed > 0 && (
+                                <div className="mb-4 flex items-center gap-4">
+                                    <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={showOnlyFailed}
+                                            onChange={(e) => setShowOnlyFailed(e.target.checked)}
+                                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                        />
+                                        Mostrar solo URLs fallidas ({results.failed})
+                                    </label>
+                                    {showOnlyFailed && results.failed > 0 && (
+                                        <button
+                                            onClick={() => {
+                                                const failedUrls = results.results
+                                                    .filter(r => !r.success)
+                                                    .map(r => r.url)
+                                                    .join('\n');
+                                                setUrls(failedUrls);
+                                                setResults(null);
+                                                setShowOnlyFailed(false);
+                                            }}
+                                            className="text-sm px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/50"
+                                        >
+                                            Reintentar fallidas
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Detailed results */}
-                            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden max-h-96 overflow-y-auto">
                                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
-                                    <thead className="bg-gray-50 dark:bg-gray-700">
+                                    <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
                                         <tr>
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                                                 Estado
@@ -240,7 +282,9 @@ export default function ImportPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
-                                        {results.results.map((result, idx) => (
+                                        {results.results
+                                            .filter(result => !showOnlyFailed || !result.success)
+                                            .map((result, idx) => (
                                             <tr key={idx} className={result.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}>
                                                 <td className="px-4 py-3 whitespace-nowrap">
                                                     {result.success ? (
@@ -250,11 +294,17 @@ export default function ImportPage() {
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <span className="text-sm font-mono break-all text-gray-900 dark:text-white">
+                                                    <a
+                                                        href={result.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-sm font-mono break-all text-blue-600 dark:text-blue-400 hover:underline"
+                                                        title={result.url}
+                                                    >
                                                         {result.url.length > 60
                                                             ? result.url.substring(0, 60) + '...'
                                                             : result.url}
-                                                    </span>
+                                                    </a>
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {result.success ? (
@@ -269,16 +319,32 @@ export default function ImportPage() {
                                 </table>
                             </div>
 
-                            {results.successful > 0 && (
-                                <div className="mt-4">
+                            {/* Actions */}
+                            <div className="mt-4 flex gap-4 flex-wrap">
+                                {results.successful > 0 && (
                                     <Link
                                         href="/dashboard"
                                         className="inline-flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200"
                                     >
                                         Ver contenidos importados →
                                     </Link>
-                                </div>
-                            )}
+                                )}
+                                {results.failed > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            const failedUrls = results.results
+                                                .filter(r => !r.success)
+                                                .map(r => r.url)
+                                                .join('\n');
+                                            navigator.clipboard.writeText(failedUrls);
+                                            alert(`${results.failed} URLs copiadas al portapapeles`);
+                                        }}
+                                        className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                    >
+                                        Copiar URLs fallidas
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
