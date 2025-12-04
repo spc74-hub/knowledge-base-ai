@@ -1180,69 +1180,96 @@ export default function DashboardPage() {
 
                 {/* Main content area */}
                 <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
-                    {/* Processing Banner */}
-                    {(processingStats.pending > 0 || processingStats.failed > 0) && (
-                        <div className="mb-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
-                            <div className="flex items-center justify-between flex-wrap gap-3">
-                                <div className="flex items-center gap-4">
+                    {/* Processing Banner - Always visible */}
+                    <div className={`mb-4 border rounded-lg p-4 ${
+                        processingStats.pending > 0 || processingStats.failed > 0
+                            ? 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-700'
+                            : 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-700'
+                    }`}>
+                        <div className="flex items-center justify-between flex-wrap gap-3">
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    {processingStats.pending > 0 ? (
+                                        <>
+                                            <span className="text-amber-500">⏳</span>
+                                            <span className="text-amber-800 dark:text-amber-200 font-medium">
+                                                {processingStats.pending} pendiente{processingStats.pending !== 1 ? 's' : ''}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-green-500">✓</span>
+                                            <span className="text-green-800 dark:text-green-200 font-medium">
+                                                Todo procesado
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                    <span>✓ {processingStats.completed}</span>
+                                </div>
+                                {processingStats.failed > 0 && (
                                     <div className="flex items-center gap-2">
-                                        <span className="text-amber-500">⏳</span>
-                                        <span className="text-amber-800 dark:text-amber-200 font-medium">
-                                            {processingStats.pending} pendiente{processingStats.pending !== 1 ? 's' : ''}
+                                        <span className="text-red-500">✗</span>
+                                        <span className="text-red-700 dark:text-red-300">
+                                            {processingStats.failed} fallido{processingStats.failed !== 1 ? 's' : ''}
                                         </span>
                                     </div>
-                                    {processingStats.failed > 0 && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-red-500">❌</span>
-                                            <span className="text-red-700 dark:text-red-300">
-                                                {processingStats.failed} fallido{processingStats.failed !== 1 ? 's' : ''}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {processingStats.failed > 0 && (
-                                        <button
-                                            onClick={handleRetryFailed}
-                                            className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-800/40 transition-colors"
-                                        >
-                                            🔄 Reintentar fallidos
-                                        </button>
-                                    )}
-                                    <select
-                                        value={processLimit}
-                                        onChange={(e) => setProcessLimit(e.target.value)}
-                                        className="px-2 py-1.5 text-sm border border-amber-300 dark:border-amber-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                                        disabled={isProcessing}
-                                    >
-                                        <option value="50">50</option>
-                                        <option value="100">100</option>
-                                        <option value="500">500</option>
-                                        <option value="all">Todos</option>
-                                    </select>
-                                    <button
-                                        onClick={handleProcessAllPending}
-                                        disabled={isProcessing || processingStats.pending === 0}
-                                        className="px-4 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                                    >
-                                        {isProcessing ? (
-                                            <>
-                                                <span className="animate-spin">⚙️</span>
-                                                Procesando...
-                                            </>
-                                        ) : (
-                                            <>
-                                                ⚡ Procesar ({processLimit === 'all' ? processingStats.pending : Math.min(parseInt(processLimit), processingStats.pending)})
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
+                                )}
                             </div>
-                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                                El procesamiento automático se ejecuta cada hora. También puedes procesar manualmente.
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={fetchProcessingStats}
+                                    className="px-2 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                                    title="Refrescar estadísticas"
+                                >
+                                    🔄
+                                </button>
+                                {processingStats.failed > 0 && (
+                                    <button
+                                        onClick={handleRetryFailed}
+                                        className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-800/40 transition-colors"
+                                    >
+                                        Reintentar fallidos
+                                    </button>
+                                )}
+                                {processingStats.pending > 0 && (
+                                    <>
+                                        <select
+                                            value={processLimit}
+                                            onChange={(e) => setProcessLimit(e.target.value)}
+                                            className="px-2 py-1.5 text-sm border border-amber-300 dark:border-amber-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                                            disabled={isProcessing}
+                                        >
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                            <option value="500">500</option>
+                                            <option value="all">Todos</option>
+                                        </select>
+                                        <button
+                                            onClick={handleProcessAllPending}
+                                            disabled={isProcessing || processingStats.pending === 0}
+                                            className="px-4 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                        >
+                                            {isProcessing ? (
+                                                <>
+                                                    <span className="animate-spin">⚙️</span>
+                                                    Procesando...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    ⚡ Procesar ({processLimit === 'all' ? processingStats.pending : Math.min(parseInt(processLimit), processingStats.pending)})
+                                                </>
+                                            )}
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
-                    )}
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            El procesamiento automático se ejecuta cada 15 minutos. También puedes procesar manualmente.
+                        </p>
+                    </div>
 
                     {/* Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
