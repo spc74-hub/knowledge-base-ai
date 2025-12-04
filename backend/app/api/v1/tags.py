@@ -264,6 +264,34 @@ async def get_inherited_tags_for_content(
     }
 
 
+@router.get("/available")
+async def get_available_tags(
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Get all available tags: user_tags + taxonomy_tags (inherited)."""
+    # 1. Get unique user_tags from all contents
+    contents_result = db.table("contents").select("user_tags").eq("user_id", current_user["id"]).execute()
+    user_tags = set()
+    for c in contents_result.data:
+        for tag in (c.get("user_tags") or []):
+            if tag:
+                user_tags.add(tag)
+
+    # 2. Get taxonomy_tags (rules for inherited tags)
+    taxonomy_result = db.table("taxonomy_tags").select("tag, color").eq("user_id", current_user["id"]).execute()
+    inherited_tags_dict = {}
+    for t in taxonomy_result.data:
+        tag_name = t.get("tag")
+        if tag_name and tag_name not in inherited_tags_dict:
+            inherited_tags_dict[tag_name] = t.get("color", "#6366f1")
+
+    return {
+        "user_tags": sorted(list(user_tags)),
+        "inherited_tags": [{"tag": k, "color": v} for k, v in sorted(inherited_tags_dict.items())],
+    }
+
+
 @router.get("/values/{taxonomy_type}")
 async def get_taxonomy_values(
     taxonomy_type: str,

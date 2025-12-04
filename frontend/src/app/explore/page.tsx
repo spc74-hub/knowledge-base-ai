@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { TagFilter } from '@/components/tag-filter';
 
 interface Facet {
     value: string;
@@ -18,6 +19,7 @@ interface Facets {
     organizations: Facet[];
     products: Facet[];
     persons: Facet[];
+    user_tags: Facet[];
     total_contents: number;
 }
 
@@ -54,6 +56,8 @@ interface Filters {
     organizations: string[];
     products: string[];
     persons: string[];
+    user_tags: string[];
+    inherited_tags: string[];
 }
 
 export default function ExplorePage() {
@@ -70,8 +74,11 @@ export default function ExplorePage() {
         concepts: [],
         organizations: [],
         products: [],
-        persons: []
+        persons: [],
+        user_tags: [],
+        inherited_tags: []
     });
+    const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
         types: true,
         categories: true,
@@ -156,6 +163,8 @@ export default function ExplorePage() {
                     organizations: filters.organizations.length > 0 ? filters.organizations : null,
                     products: filters.products.length > 0 ? filters.products : null,
                     persons: filters.persons.length > 0 ? filters.persons : null,
+                    user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
+                    inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
                     limit: 50
                 }),
             });
@@ -171,10 +180,24 @@ export default function ExplorePage() {
         }
     }, [searchQuery, filters]);
 
+    const fetchAvailableTags = async () => {
+        try {
+            const headers = await getAuthHeader();
+            const response = await fetch(`${API_BASE}/tags/available`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setAvailableTags(data);
+            }
+        } catch (error) {
+            console.error('Error fetching available tags:', error);
+        }
+    };
+
     useEffect(() => {
         if (user) {
             fetchFacets();
             searchWithFilters();
+            fetchAvailableTags();
         }
     }, [user]);
 
@@ -206,7 +229,9 @@ export default function ExplorePage() {
             concepts: [],
             organizations: [],
             products: [],
-            persons: []
+            persons: [],
+            user_tags: [],
+            inherited_tags: []
         });
         setSearchQuery('');
     };
@@ -591,6 +616,21 @@ export default function ExplorePage() {
                                             )}
                                         </div>
                                     )}
+
+                                    {/* Tags Section */}
+                                    {(availableTags.user_tags.length > 0 || availableTags.inherited_tags.length > 0) && (
+                                        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                                            <TagFilter
+                                                userTags={availableTags.user_tags}
+                                                inheritedTags={availableTags.inherited_tags}
+                                                selectedUserTags={filters.user_tags}
+                                                selectedInheritedTags={filters.inherited_tags}
+                                                onUserTagsChange={(tags) => setFilters(prev => ({ ...prev, user_tags: tags }))}
+                                                onInheritedTagsChange={(tags) => setFilters(prev => ({ ...prev, inherited_tags: tags }))}
+                                                compact
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -635,6 +675,18 @@ export default function ExplorePage() {
                                     <span key={p} className="inline-flex items-center gap-1 px-3 py-1 bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-300 rounded-full text-sm">
                                         {p}
                                         <button onClick={() => toggleFilter('persons', p)} className="hover:text-teal-600 dark:hover:text-teal-400">×</button>
+                                    </span>
+                                ))}
+                                {filters.user_tags.map(t => (
+                                    <span key={`ut-${t}`} className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-300 rounded-full text-sm">
+                                        {t}
+                                        <button onClick={() => setFilters(prev => ({ ...prev, user_tags: prev.user_tags.filter(x => x !== t) }))} className="hover:text-indigo-600 dark:hover:text-indigo-400">×</button>
+                                    </span>
+                                ))}
+                                {filters.inherited_tags.map(t => (
+                                    <span key={`it-${t}`} className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 dark:bg-violet-900 text-violet-800 dark:text-violet-300 rounded-full text-sm">
+                                        {t}
+                                        <button onClick={() => setFilters(prev => ({ ...prev, inherited_tags: prev.inherited_tags.filter(x => x !== t) }))} className="hover:text-violet-600 dark:hover:text-violet-400">×</button>
                                     </span>
                                 ))}
                             </div>

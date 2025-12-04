@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { TagFilter } from '@/components/tag-filter';
 
 interface Content {
     id: string;
@@ -131,8 +132,13 @@ export default function DashboardPage() {
     const [filterMaturity, setFilterMaturity] = useState<string>('all');
     const [filterAsset, setFilterAsset] = useState<string>('all'); // all, true, false
     const [searchQuery, setSearchQuery] = useState('');
+    const [filterUserTags, setFilterUserTags] = useState<string[]>([]);
+    const [filterInheritedTags, setFilterInheritedTags] = useState<string[]>([]);
 
-    // Inherited tags
+    // Available tags for filtering
+    const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
+
+    // Inherited tags for content detail
     const [inheritedTags, setInheritedTags] = useState<Array<{ tag: string; from_type: string; from_value: string; color: string }>>([]);
     const [loadingInheritedTags, setLoadingInheritedTags] = useState(false);
 
@@ -384,12 +390,33 @@ export default function DashboardPage() {
         }
     }, [authLoading, user, router]);
 
+    const fetchAvailableTags = async () => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/tags/available`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setAvailableTags(data);
+            }
+        } catch (error) {
+            console.error('Error fetching available tags:', error);
+        }
+    };
+
     useEffect(() => {
         if (user) {
             fetchContents();
             fetchFolders();
             fetchProcessingStats();
             fetchProjects();
+            fetchAvailableTags();
         }
     }, [user, showArchived]);
 
@@ -655,8 +682,19 @@ export default function DashboardPage() {
             );
         }
 
+        // Filter by user_tags
+        if (filterUserTags.length > 0) {
+            result = result.filter(c =>
+                filterUserTags.some(tag => (c.user_tags || []).includes(tag))
+            );
+        }
+
+        // Note: inherited_tags filtering requires backend calculation
+        // For now, we only filter by user_tags on the client side
+        // inherited_tags filtering will work in Explore view which uses backend search
+
         setFilteredContents(result);
-    }, [contents, filterType, filterCategory, filterMaturity, filterAsset, searchQuery, selectedFolderId]);
+    }, [contents, filterType, filterCategory, filterMaturity, filterAsset, searchQuery, selectedFolderId, filterUserTags, filterInheritedTags, availableTags]);
 
     // Helper to render folder tree recursively
     const renderFolderTree = (folderList: Folder[], depth = 0) => {
@@ -1391,19 +1429,26 @@ export default function DashboardPage() {
                         <option value="false">No activos</option>
                     </select>
 
-                    {(filterType !== 'all' || filterCategory !== 'all' || filterMaturity !== 'all' || filterAsset !== 'all' || searchQuery) && (
-                        <button
-                            onClick={() => {
-                                setFilterType('all');
-                                setFilterCategory('all');
-                                setFilterMaturity('all');
-                                setFilterAsset('all');
-                                setSearchQuery('');
-                            }}
-                            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                        >
-                            Limpiar filtros
-                        </button>
+                    {(filterType !== 'all' || filterCategory !== 'all' || filterMaturity !== 'all' || filterAsset !== 'all' || searchQuery || filterUserTags.length > 0 || filterInheritedTags.length > 0) && (
+                        <>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                {filteredContents.length} de {contents.length}
+                            </span>
+                            <button
+                                onClick={() => {
+                                    setFilterType('all');
+                                    setFilterCategory('all');
+                                    setFilterMaturity('all');
+                                    setFilterAsset('all');
+                                    setSearchQuery('');
+                                    setFilterUserTags([]);
+                                    setFilterInheritedTags([]);
+                                }}
+                                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            >
+                                Limpiar filtros
+                            </button>
+                        </>
                     )}
 
                     {/* Bulk action buttons */}
@@ -1441,6 +1486,20 @@ export default function DashboardPage() {
                         </div>
                     )}
                 </div>
+
+                {/* Tag filters */}
+                {(availableTags.user_tags.length > 0 || availableTags.inherited_tags.length > 0) && (
+                    <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                        <TagFilter
+                            userTags={availableTags.user_tags}
+                            inheritedTags={availableTags.inherited_tags}
+                            selectedUserTags={filterUserTags}
+                            selectedInheritedTags={filterInheritedTags}
+                            onUserTagsChange={setFilterUserTags}
+                            onInheritedTagsChange={setFilterInheritedTags}
+                        />
+                    </div>
+                )}
 
                 {/* Archived banner */}
                 {showArchived && (

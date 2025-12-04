@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { TagFilter } from '@/components/tag-filter';
 
 // Dynamic import for react-force-graph-2d (SSR issues)
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
@@ -50,6 +51,8 @@ interface GraphFilters {
     include_products: boolean;
     include_concepts: boolean;
     min_connections: number;
+    user_tags?: string[];
+    inherited_tags?: string[];
 }
 
 const NODE_COLORS: Record<string, string> = {
@@ -87,7 +90,10 @@ export default function KnowledgeGraphPage() {
         include_products: true,
         include_concepts: false,
         min_connections: 1,
+        user_tags: [],
+        inherited_tags: [],
     });
+    const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
 
     const getAuthHeaders = async () => {
         const session = await supabase.auth.getSession();
@@ -133,6 +139,19 @@ export default function KnowledgeGraphPage() {
         }
     }, [user, filters]);
 
+    const fetchAvailableTags = useCallback(async () => {
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/tags/available`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setAvailableTags(data);
+            }
+        } catch (err) {
+            console.error('Error fetching available tags:', err);
+        }
+    }, []);
+
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
@@ -142,8 +161,9 @@ export default function KnowledgeGraphPage() {
     useEffect(() => {
         if (user) {
             fetchGraphData();
+            fetchAvailableTags();
         }
-    }, [user, fetchGraphData]);
+    }, [user, fetchGraphData, fetchAvailableTags]);
 
     // Filter nodes by search query
     const filteredNodes = useMemo(() => {
@@ -563,6 +583,22 @@ export default function KnowledgeGraphPage() {
                             <span>10</span>
                         </div>
                     </div>
+
+                    {/* Tag filters */}
+                    {(availableTags.user_tags.length > 0 || availableTags.inherited_tags.length > 0) && (
+                        <div className="mb-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Filtrar por Tags</h2>
+                            <TagFilter
+                                userTags={availableTags.user_tags}
+                                inheritedTags={availableTags.inherited_tags}
+                                selectedUserTags={filters.user_tags || []}
+                                selectedInheritedTags={filters.inherited_tags || []}
+                                onUserTagsChange={(tags) => setFilters(prev => ({ ...prev, user_tags: tags }))}
+                                onInheritedTagsChange={(tags) => setFilters(prev => ({ ...prev, inherited_tags: tags }))}
+                                compact
+                            />
+                        </div>
+                    )}
 
                     {/* Stats */}
                     {graphData && (

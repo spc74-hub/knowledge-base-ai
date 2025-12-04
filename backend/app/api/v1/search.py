@@ -257,6 +257,7 @@ def _aggregate_facets(items: list) -> dict:
     organizations = {}
     products = {}
     persons = {}
+    user_tags = {}
 
     for item in items:
         # Count types - distinguish apple_notes from regular notes
@@ -316,6 +317,11 @@ def _aggregate_facets(items: list) -> dict:
             if person_name:
                 persons[person_name] = persons.get(person_name, 0) + 1
 
+        # Count user_tags
+        for tag in item.get("user_tags") or []:
+            if tag:
+                user_tags[tag] = user_tags.get(tag, 0) + 1
+
     def to_facet_list(d):
         sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)
         return [{"value": k, "count": v} for k, v in sorted_items]
@@ -327,6 +333,7 @@ def _aggregate_facets(items: list) -> dict:
         "organizations": to_facet_list(organizations),
         "products": to_facet_list(products),
         "persons": to_facet_list(persons),
+        "user_tags": to_facet_list(user_tags),
         "total_contents": len(items)
     }
 
@@ -342,7 +349,7 @@ async def get_facets(
     """
     try:
         response = db.table("contents").select(
-            "type, iab_tier1, concepts, entities, metadata"
+            "type, iab_tier1, concepts, entities, metadata, user_tags"
         ).eq("user_id", current_user["id"]).execute()
 
         return _aggregate_facets(response.data or [])
@@ -484,6 +491,8 @@ class FacetedSearchRequest(BaseModel):
     organizations: Optional[List[str]] = None
     products: Optional[List[str]] = None
     persons: Optional[List[str]] = None
+    user_tags: Optional[List[str]] = None
+    inherited_tags: Optional[List[str]] = None
     limit: int = 50
     offset: int = 0
 
@@ -684,6 +693,45 @@ async def search_faceted(
 
                 results = response.data or []
 
+        # Filter by user_tags (post-query for simplicity)
+        if data.user_tags:
+            results = [
+                r for r in results
+                if any(tag in (r.get("user_tags") or []) for tag in data.user_tags)
+            ]
+
+        # Filter by inherited_tags (requires checking taxonomy rules)
+        if data.inherited_tags:
+            # Get taxonomy_tags rules for current user
+            taxonomy_result = db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
+            taxonomy_rules = taxonomy_result.data or []
+
+            def content_matches_inherited_tag(content: dict) -> bool:
+                """Check if content matches any inherited tag rule."""
+                for rule in taxonomy_rules:
+                    rule_type = rule.get("taxonomy_type")
+                    rule_value = rule.get("taxonomy_value")
+
+                    if rule_type == "category":
+                        if content.get("iab_tier1") == rule_value or \
+                           content.get("iab_tier2") == rule_value or \
+                           content.get("iab_tier3") == rule_value:
+                            return True
+                    elif rule_type == "concept":
+                        concepts = content.get("concepts") or []
+                        if rule_value in concepts:
+                            return True
+                    elif rule_type in ["person", "organization", "product"]:
+                        entities = content.get("entities") or {}
+                        entity_key = rule_type + "s"
+                        entity_list = entities.get(entity_key) or []
+                        for entity in entity_list:
+                            if entity.get("name") == rule_value:
+                                return True
+                return False
+
+            results = [r for r in results if content_matches_inherited_tag(r)]
+
         # If text query provided, filter and score results
         if data.query:
             query_lower = data.query.lower()
@@ -718,7 +766,9 @@ async def search_faceted(
                     "concepts": data.concepts,
                     "organizations": data.organizations,
                     "products": data.products,
-                    "persons": data.persons
+                    "persons": data.persons,
+                    "user_tags": data.user_tags,
+                    "inherited_tags": data.inherited_tags
                 },
                 "total_results": len(results),
                 "search_time_ms": search_time,
@@ -740,6 +790,8 @@ class GraphRequest(BaseModel):
     include_products: bool = True
     include_concepts: bool = False
     min_connections: int = 1
+    user_tags: Optional[List[str]] = None
+    inherited_tags: Optional[List[str]] = None
 
 
 @router.post("/graph")
@@ -755,8 +807,49 @@ async def get_knowledge_graph(
     try:
         # Get all contents with entities
         response = db.table("contents").select(
-            "id, title, entities, concepts"
+            "id, title, entities, concepts, user_tags, iab_tier1, iab_tier2, iab_tier3"
         ).eq("user_id", current_user["id"]).execute()
+
+        contents = response.data or []
+
+        # Filter by user_tags if provided
+        if data.user_tags:
+            contents = [
+                c for c in contents
+                if any(tag in (c.get("user_tags") or []) for tag in data.user_tags)
+            ]
+
+        # Filter by inherited_tags if provided
+        if data.inherited_tags:
+            taxonomy_result = db.table("taxonomy_tags").select("*").eq(
+                "user_id", current_user["id"]
+            ).in_("tag", data.inherited_tags).execute()
+            taxonomy_rules = taxonomy_result.data or []
+
+            def content_matches_inherited_tag(content: dict) -> bool:
+                for rule in taxonomy_rules:
+                    rule_type = rule.get("taxonomy_type")
+                    rule_value = rule.get("taxonomy_value")
+
+                    if rule_type == "category":
+                        if content.get("iab_tier1") == rule_value or \
+                           content.get("iab_tier2") == rule_value or \
+                           content.get("iab_tier3") == rule_value:
+                            return True
+                    elif rule_type == "concept":
+                        concepts = content.get("concepts") or []
+                        if rule_value in concepts:
+                            return True
+                    elif rule_type in ["person", "organization", "product"]:
+                        entities = content.get("entities") or {}
+                        entity_key = rule_type + "s"
+                        entity_list = entities.get(entity_key) or []
+                        for entity in entity_list:
+                            if entity.get("name") == rule_value:
+                                return True
+                return False
+
+            contents = [c for c in contents if content_matches_inherited_tag(c)]
 
         # Build graph data
         nodes = {}  # id -> {id, label, type, count, contents}
@@ -803,7 +896,7 @@ async def get_knowledge_graph(
                 edges[edge_key_str]["contents"].append(content_id)
 
         # Process each content
-        for item in response.data or []:
+        for item in contents:
             content_id = item["id"]
             content_title = item.get("title", "Sin titulo")
             content_titles[content_id] = content_title
