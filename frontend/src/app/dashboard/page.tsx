@@ -116,6 +116,7 @@ export default function DashboardPage() {
     const [deletingContents, setDeletingContents] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
     const [archivedCount, setArchivedCount] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
     const [showAddMenu, setShowAddMenu] = useState(false);
 
     // Processing state
@@ -223,12 +224,13 @@ export default function DashboardPage() {
             if (error) throw error;
             setContents(data || []);
 
-            // Also fetch archived count for the sidebar
-            const { count } = await supabase
-                .from('contents')
-                .select('*', { count: 'exact', head: true })
-                .eq('is_archived', true);
-            setArchivedCount(count || 0);
+            // Fetch counts for sidebar and stats
+            const [archivedResult, totalResult] = await Promise.all([
+                supabase.from('contents').select('*', { count: 'exact', head: true }).eq('is_archived', true),
+                supabase.from('contents').select('*', { count: 'exact', head: true }).eq('is_archived', false)
+            ]);
+            setArchivedCount(archivedResult.count || 0);
+            setTotalCount(totalResult.count || 0);
         } catch (error) {
             console.error('Error fetching contents:', error);
         } finally {
@@ -1287,7 +1289,7 @@ export default function DashboardPage() {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
                             <p className="text-sm text-gray-600 dark:text-gray-400">Total contenidos</p>
-                            <p className="text-3xl font-bold dark:text-white">{contents.length}</p>
+                            <p className="text-3xl font-bold dark:text-white">{totalCount}</p>
                         </div>
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
                             <p className="text-sm text-gray-600 dark:text-gray-400">Web</p>
