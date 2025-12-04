@@ -169,7 +169,7 @@ export default function TaxonomyExplorerPage() {
                 body: JSON.stringify({
                     filters,
                     type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
-                    limit: 50,
+                    limit: 10000,
                     offset: 0,
                 }),
             });

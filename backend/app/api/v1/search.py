@@ -493,7 +493,7 @@ class FacetedSearchRequest(BaseModel):
     persons: Optional[List[str]] = None
     user_tags: Optional[List[str]] = None
     inherited_tags: Optional[List[str]] = None
-    limit: int = 50
+    limit: int = 10000
     offset: int = 0
 
 

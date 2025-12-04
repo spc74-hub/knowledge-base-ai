@@ -40,7 +40,7 @@ class ContentListRequest(BaseModel):
     filters: dict  # All accumulated filters from drill-down
     type_filter: Optional[str] = None  # DEPRECATED: Single filter (kept for backwards compatibility)
     type_filters: Optional[List[str]] = None  # Filter by multiple content types
-    limit: int = 50
+    limit: int = 10000
     offset: int = 0
 
 

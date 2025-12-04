@@ -165,7 +165,7 @@ export default function ExplorePage() {
                     persons: filters.persons.length > 0 ? filters.persons : null,
                     user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
                     inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
-                    limit: 50
+                    limit: 10000
                 }),
             });
 
