@@ -69,16 +69,14 @@ export default function UsagePage() {
         'Content-Type': 'application/json'
       }
 
-      // Fetch all data in parallel with error handling
-      const [summaryRes, dailyRes, operationRes] = await Promise.all([
-        fetch(`${API_URL}/usage/summary?days=${days}`, { headers }).catch(() => null),
-        fetch(`${API_URL}/usage/daily?days=${days}`, { headers }).catch(() => null),
-        fetch(`${API_URL}/usage/by-operation?days=${days}`, { headers }).catch(() => null)
-      ])
+      // Fetch all data in a single optimized request
+      const response = await fetch(`${API_URL}/usage/all?days=${days}`, { headers })
 
-      if (summaryRes?.ok) {
-        const summaryData = await summaryRes.json()
-        setSummary(summaryData)
+      if (response.ok) {
+        const data = await response.json()
+        setSummary(data.summary)
+        setDailyUsage(data.daily_usage || [])
+        setOperationUsage(data.by_operation || [])
       } else {
         // Set empty summary so page renders
         setSummary({
@@ -91,16 +89,6 @@ export default function UsagePage() {
           anthropic_cost_usd: 0,
           total_calls: 0
         })
-      }
-
-      if (dailyRes?.ok) {
-        const dailyData = await dailyRes.json()
-        setDailyUsage(dailyData.daily_usage || [])
-      }
-
-      if (operationRes?.ok) {
-        const operationData = await operationRes.json()
-        setOperationUsage(operationData.by_operation || [])
       }
 
     } catch (err) {
@@ -173,6 +161,17 @@ export default function UsagePage() {
             >
               Back to Dashboard
             </button>
+          </div>
+        </div>
+
+        {/* Data completeness warning */}
+        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">Datos incompletos</p>
+            <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">Los datos de consumo pueden estar incompletos para contenidos procesados antes del 2 de diciembre de 2025.</p>
           </div>
         </div>
 

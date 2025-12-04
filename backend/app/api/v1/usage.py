@@ -32,6 +32,74 @@ class UsageSummaryResponse(BaseModel):
     total_calls: int
 
 
+class UsageAllResponse(BaseModel):
+    """Combined response with all usage data to reduce API calls."""
+    summary: UsageSummaryResponse
+    daily_usage: list
+    by_operation: list
+    data_note: str = "Los datos de consumo pueden estar incompletos para contenidos procesados antes del 2 de diciembre de 2025."
+
+
+@router.get("/all")
+async def get_all_usage_data(
+    current_user: CurrentUser,
+    db: Database,
+    days: int = Query(30, ge=1, le=365, description="Number of days to look back")
+):
+    """
+    Get all usage data in a single request (optimized for frontend).
+    """
+    try:
+        stats = await usage_tracker.get_usage_stats(
+            user_id=current_user["id"],
+            db=db,
+            days=days
+        )
+
+        # Extract provider-specific stats
+        openai_stats = stats.get("by_provider", {}).get("openai", {"tokens": 0, "cost_usd": 0.0, "calls": 0})
+        anthropic_stats = stats.get("by_provider", {}).get("anthropic", {"tokens": 0, "cost_usd": 0.0, "calls": 0})
+
+        # Build summary
+        summary = {
+            "period": f"last_{days}_days",
+            "total_tokens": stats.get("total_tokens", 0),
+            "total_cost_usd": stats.get("total_cost_usd", 0.0),
+            "openai_tokens": openai_stats.get("tokens", 0),
+            "openai_cost_usd": openai_stats.get("cost_usd", 0.0),
+            "anthropic_tokens": anthropic_stats.get("tokens", 0),
+            "anthropic_cost_usd": anthropic_stats.get("cost_usd", 0.0),
+            "total_calls": stats.get("record_count", 0)
+        }
+
+        # Build daily usage list
+        daily = stats.get("daily_usage", {})
+        daily_list = [
+            {"date": date, **data}
+            for date, data in sorted(daily.items())
+        ]
+
+        # Build operation list
+        operations = stats.get("by_operation", {})
+        operation_list = [
+            {"operation": op, **data}
+            for op, data in operations.items()
+        ]
+
+        return {
+            "summary": summary,
+            "daily_usage": daily_list,
+            "by_operation": operation_list,
+            "data_note": "Los datos de consumo pueden estar incompletos para contenidos procesados antes del 2 de diciembre de 2025."
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.get("/stats", response_model=UsageStatsResponse)
 async def get_usage_stats(
     current_user: CurrentUser,
