@@ -213,16 +213,36 @@ export default function DashboardPage() {
 
     const fetchContents = async () => {
         try {
-            // Use range to override Supabase default 1000 row limit
-            const { data, error } = await supabase
-                .from('contents')
-                .select('*')
-                .eq('is_archived', showArchived)
-                .order('created_at', { ascending: false })
-                .range(0, 9999);
+            // Fetch all contents using pagination to overcome Supabase 1000 row limit
+            const PAGE_SIZE = 1000;
+            let allData: Content[] = [];
+            let page = 0;
+            let hasMore = true;
 
-            if (error) throw error;
-            setContents(data || []);
+            while (hasMore) {
+                const from = page * PAGE_SIZE;
+                const to = from + PAGE_SIZE - 1;
+
+                const { data, error } = await supabase
+                    .from('contents')
+                    .select('*')
+                    .eq('is_archived', showArchived)
+                    .order('created_at', { ascending: false })
+                    .range(from, to);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    allData = [...allData, ...data];
+                    page++;
+                    // If we got less than PAGE_SIZE, we've reached the end
+                    hasMore = data.length === PAGE_SIZE;
+                } else {
+                    hasMore = false;
+                }
+            }
+
+            setContents(allData);
 
             // Fetch counts for sidebar and stats
             const [archivedResult, totalResult] = await Promise.all([
