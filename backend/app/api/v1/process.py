@@ -29,6 +29,7 @@ class BulkProcessResponse(BaseModel):
 
 
 class ProcessingStatsResponse(BaseModel):
+    queued: int = 0
     pending: int
     processing: int
     completed: int

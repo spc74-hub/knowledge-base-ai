@@ -119,7 +119,7 @@ export default function DashboardPage() {
     const [showAddMenu, setShowAddMenu] = useState(false);
 
     // Processing state
-    const [processingStats, setProcessingStats] = useState({ pending: 0, processing: 0, completed: 0, failed: 0 });
+    const [processingStats, setProcessingStats] = useState({ queued: 0, pending: 0, processing: 0, completed: 0, failed: 0 });
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingContentId, setProcessingContentId] = useState<string | null>(null);
     const [processLimit, setProcessLimit] = useState<string>('all'); // 'all', '50', '100', '500'
@@ -1182,29 +1182,36 @@ export default function DashboardPage() {
                 <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
                     {/* Processing Banner - Always visible */}
                     <div className={`mb-4 border rounded-lg p-4 ${
-                        processingStats.pending > 0 || processingStats.failed > 0
+                        processingStats.queued > 0 || processingStats.pending > 0 || processingStats.failed > 0
                             ? 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-700'
                             : 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-700'
                     }`}>
                         <div className="flex items-center justify-between flex-wrap gap-3">
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                    {processingStats.pending > 0 ? (
-                                        <>
-                                            <span className="text-amber-500">⏳</span>
-                                            <span className="text-amber-800 dark:text-amber-200 font-medium">
-                                                {processingStats.pending} pendiente{processingStats.pending !== 1 ? 's' : ''}
-                                            </span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className="text-green-500">✓</span>
-                                            <span className="text-green-800 dark:text-green-200 font-medium">
-                                                Todo procesado
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
+                            <div className="flex items-center gap-4 flex-wrap">
+                                {processingStats.queued > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-500">📥</span>
+                                        <span className="text-blue-800 dark:text-blue-200 font-medium">
+                                            {processingStats.queued} en cola
+                                        </span>
+                                    </div>
+                                )}
+                                {processingStats.pending > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-amber-500">⏳</span>
+                                        <span className="text-amber-800 dark:text-amber-200 font-medium">
+                                            {processingStats.pending} pendiente{processingStats.pending !== 1 ? 's' : ''}
+                                        </span>
+                                    </div>
+                                )}
+                                {processingStats.queued === 0 && processingStats.pending === 0 && processingStats.failed === 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-green-500">✓</span>
+                                        <span className="text-green-800 dark:text-green-200 font-medium">
+                                            Todo procesado
+                                        </span>
+                                    </div>
+                                )}
                                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <span>✓ {processingStats.completed}</span>
                                 </div>
@@ -1267,7 +1274,7 @@ export default function DashboardPage() {
                             </div>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                            El procesamiento automático se ejecuta cada 15 minutos. También puedes procesar manualmente.
+                            📥 En cola = URLs por descargar | ⏳ Pendiente = Listos para clasificar/resumir con IA
                         </p>
                     </div>
 

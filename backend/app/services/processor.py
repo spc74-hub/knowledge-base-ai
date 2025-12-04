@@ -228,12 +228,14 @@ class ProcessorService:
     async def get_processing_stats(self, db: Client, user_id: str) -> dict:
         """Get processing statistics for a user."""
         try:
+            queued = db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("processing_status", "queued").execute()
             pending = db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("processing_status", "pending").execute()
             processing = db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("processing_status", "processing").execute()
             completed = db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("processing_status", "completed").execute()
             failed = db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("processing_status", "failed").execute()
 
             return {
+                "queued": queued.count or 0,
                 "pending": pending.count or 0,
                 "processing": processing.count or 0,
                 "completed": completed.count or 0,
@@ -241,6 +243,7 @@ class ProcessorService:
             }
         except Exception as e:
             return {
+                "queued": 0,
                 "pending": 0,
                 "processing": 0,
                 "completed": 0,
