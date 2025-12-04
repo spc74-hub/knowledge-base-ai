@@ -36,6 +36,12 @@ class ProcessingStatsResponse(BaseModel):
     failed: int
 
 
+class RetryFailedResponse(BaseModel):
+    success: bool
+    message: str
+    retried: int
+
+
 @router.get("/stats", response_model=ProcessingStatsResponse)
 async def get_processing_stats(
     current_user: CurrentUser,
@@ -48,49 +54,6 @@ async def get_processing_stats(
     return stats
 
 
-@router.post("/{content_id}", response_model=ProcessResponse)
-async def process_single_content(
-    content_id: str,
-    current_user: CurrentUser,
-    db: Database
-):
-    """
-    Process a single content item (classify, summarize, generate embedding).
-    """
-    result = await processor_service.process_content(
-        db=db,
-        content_id=content_id,
-        user_id=current_user["id"]
-    )
-
-    if not result["success"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.get("error", "Processing failed")
-        )
-
-    return result
-
-
-@router.post("/", response_model=BulkProcessResponse)
-async def process_all_pending(
-    current_user: CurrentUser,
-    db: Database,
-    limit: Optional[int] = Query(default=None, ge=1, description="Maximum items to process (None = all)")
-):
-    """
-    Process all pending content for the current user.
-    If limit is not specified, processes all pending content.
-    """
-    result = await processor_service.process_pending(
-        db=db,
-        user_id=current_user["id"],
-        limit=limit
-    )
-
-    return result
-
-
 @router.get("/pending/count")
 async def get_pending_count(
     current_user: CurrentUser,
@@ -101,12 +64,6 @@ async def get_pending_count(
     """
     count = await processor_service.get_pending_count(db, current_user["id"])
     return {"count": count}
-
-
-class RetryFailedResponse(BaseModel):
-    success: bool
-    message: str
-    retried: int
 
 
 @router.post("/retry-failed", response_model=RetryFailedResponse)
@@ -147,3 +104,46 @@ async def retry_failed_content(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.post("/bulk", response_model=BulkProcessResponse)
+async def process_all_pending(
+    current_user: CurrentUser,
+    db: Database,
+    limit: Optional[int] = Query(default=None, ge=1, description="Maximum items to process (None = all)")
+):
+    """
+    Process all pending content for the current user.
+    If limit is not specified, processes all pending content.
+    """
+    result = await processor_service.process_pending(
+        db=db,
+        user_id=current_user["id"],
+        limit=limit
+    )
+
+    return result
+
+
+@router.post("/{content_id}", response_model=ProcessResponse)
+async def process_single_content(
+    content_id: str,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Process a single content item (classify, summarize, generate embedding).
+    """
+    result = await processor_service.process_content(
+        db=db,
+        content_id=content_id,
+        user_id=current_user["id"]
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error", "Processing failed")
+        )
+
+    return result

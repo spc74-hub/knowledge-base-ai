@@ -342,7 +342,7 @@ export default function DashboardPage() {
             if (!session.data.session) return;
 
             const limitParam = processLimit === 'all' ? '' : `?limit=${processLimit}`;
-            const response = await fetch(`${API_URL}/api/v1/process${limitParam}`, {
+            const response = await fetch(`${API_URL}/api/v1/process/bulk${limitParam}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
