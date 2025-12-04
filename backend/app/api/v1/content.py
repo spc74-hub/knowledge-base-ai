@@ -879,7 +879,7 @@ async def queue_urls_for_import(
                 "raw_content": None,
                 "summary": None,
                 "user_tags": data.tags,
-                "processing_status": "queued",  # New status for unfetched URLs
+                "processing_status": "pending",  # URLs waiting to be fetched
                 "metadata": {"original_url": raw_url}
             }
 
@@ -1047,7 +1047,7 @@ async def import_from_csv(
                 "title": url_str[:100],
                 "raw_content": None,
                 "user_tags": all_tags,
-                "processing_status": "queued",
+                "processing_status": "pending",
                 "metadata": {"original_url": raw_url, "source": "csv_import"}
             }
 

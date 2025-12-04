@@ -92,7 +92,7 @@ class BatchProcessorService:
             queued = db.table("contents").select(
                 "id, url, user_id, metadata"
             ).eq(
-                "processing_status", "queued"
+                "processing_status", "pending"
             ).limit(self._batch_size).execute()
 
             if not queued.data:
