@@ -14,7 +14,7 @@ from app.services.classifier import classifier_service
 from app.services.summarizer import summarizer_service
 from app.services.embeddings import embeddings_service
 from app.services.usage_tracker import usage_tracker
-from app.services.url_normalizer import normalize_url
+from app.services.url_normalizer import normalize_url, extract_content_id
 
 router = APIRouter()
 
@@ -849,14 +849,26 @@ async def queue_urls_for_import(
         # Normalize URL
         url_str = normalize_url(raw_url)
 
+        # Extract content ID for better duplicate detection
+        content_info = extract_content_id(raw_url)
+
         try:
-            # Check if already exists
+            # Check if already exists by normalized URL
             existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
 
             if existing.data:
                 details.append({"url": raw_url, "status": "duplicate"})
                 duplicates += 1
                 continue
+
+            # Also check by content_id if available (e.g., TikTok video ID)
+            if content_info.get("content_id"):
+                # Search for same content ID in URL (covers different URL formats for same video)
+                existing_by_id = db.table("contents").select("id, url").eq("user_id", user_id).like("url", f"%{content_info['content_id']}%").execute()
+                if existing_by_id.data:
+                    details.append({"url": raw_url, "status": "duplicate", "existing_url": existing_by_id.data[0]["url"]})
+                    duplicates += 1
+                    continue
 
             # Create placeholder record (no fetch yet)
             content_data = {
@@ -881,7 +893,10 @@ async def queue_urls_for_import(
                 invalid += 1
 
         except Exception as e:
-            details.append({"url": raw_url, "status": "error", "error": str(e)[:50]})
+            error_msg = str(e)
+            # Log full error for debugging
+            print(f"Queue URL error for {raw_url}: {error_msg}")
+            details.append({"url": raw_url, "status": "error", "error": error_msg[:100]})
             invalid += 1
 
     return QueueUrlsResponse(
