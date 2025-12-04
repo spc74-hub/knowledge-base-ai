@@ -212,11 +212,13 @@ export default function DashboardPage() {
 
     const fetchContents = async () => {
         try {
+            // Use range to override Supabase default 1000 row limit
             const { data, error } = await supabase
                 .from('contents')
                 .select('*')
                 .eq('is_archived', showArchived)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .range(0, 9999);
 
             if (error) throw error;
             setContents(data || []);
