@@ -119,6 +119,7 @@ export default function DashboardPage() {
     const [archivedCount, setArchivedCount] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
     const [showAddMenu, setShowAddMenu] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     // Processing state
     const [processingStats, setProcessingStats] = useState({ queued: 0, pending: 0, processing: 0, completed: 0, failed: 0 });
@@ -341,7 +342,7 @@ export default function DashboardPage() {
             if (!session.data.session) return;
 
             const limitParam = processLimit === 'all' ? '' : `?limit=${processLimit}`;
-            const response = await fetch(`${API_URL}/api/v1/process/${limitParam}`, {
+            const response = await fetch(`${API_URL}/api/v1/process${limitParam}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -353,9 +354,13 @@ export default function DashboardPage() {
                 alert(`Procesado: ${result.processed} exitosos, ${result.failed} fallidos`);
                 fetchContents();
                 fetchProcessingStats();
+            } else {
+                const error = await response.json().catch(() => ({}));
+                alert(`Error: ${error.detail || 'Error desconocido al procesar'}`);
             }
         } catch (error) {
             console.error('Error processing all pending:', error);
+            alert('Error de conexion al procesar');
         } finally {
             setIsProcessing(false);
         }
@@ -1177,69 +1182,116 @@ export default function DashboardPage() {
 
             {/* Main content with sidebar */}
             <div className="flex">
-                {/* Sidebar - Folders */}
-                <aside className="w-64 bg-white dark:bg-gray-800 shadow-sm min-h-[calc(100vh-64px)] p-4 flex-shrink-0">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="font-semibold text-gray-700 dark:text-gray-200">Carpetas</h2>
-                        <button
-                            onClick={() => {
-                                setNewFolderParentId(null);
-                                setShowFolderModal(true);
-                            }}
-                            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl"
-                            title="Nueva carpeta"
-                        >
-                            +
-                        </button>
-                    </div>
-
-                    {/* All content */}
-                    <div
-                        onClick={() => { setSelectedFolderId(null); setShowArchived(false); }}
-                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-1 ${
-                            selectedFolderId === null && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
-                        }`}
+                {/* Sidebar - Folders (collapsible) */}
+                <aside className={`${sidebarCollapsed ? 'w-12' : 'w-64'} bg-white dark:bg-gray-800 shadow-sm min-h-[calc(100vh-64px)] flex-shrink-0 transition-all duration-300 relative`}>
+                    {/* Toggle button */}
+                    <button
+                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        className="absolute -right-3 top-4 z-10 w-6 h-6 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                        title={sidebarCollapsed ? 'Expandir carpetas' : 'Colapsar carpetas'}
                     >
-                        <span>📚</span>
-                        <span className="dark:text-gray-200">Todo el contenido</span>
-                        <span className="text-xs text-gray-400">({contents.length})</span>
-                    </div>
+                        <svg className={`w-3 h-3 text-gray-600 dark:text-gray-300 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
 
-                    {/* Root content (no folder) */}
-                    <div
-                        onClick={() => { setSelectedFolderId('root'); setShowArchived(false); }}
-                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-1 ${
-                            selectedFolderId === 'root' && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
-                        }`}
-                    >
-                        <span>📄</span>
-                        <span className="dark:text-gray-200">Sin carpeta</span>
-                        <span className="text-xs text-gray-400">({rootContentCount})</span>
-                    </div>
+                    {sidebarCollapsed ? (
+                        /* Collapsed view - only icons */
+                        <div className="p-2 pt-4 space-y-2">
+                            <div
+                                onClick={() => { setSelectedFolderId(null); setShowArchived(false); }}
+                                className={`p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg ${
+                                    selectedFolderId === null && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
+                                }`}
+                                title="Todo el contenido"
+                            >
+                                <span className="text-lg">📚</span>
+                            </div>
+                            <div
+                                onClick={() => { setSelectedFolderId('root'); setShowArchived(false); }}
+                                className={`p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg ${
+                                    selectedFolderId === 'root' && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
+                                }`}
+                                title="Sin carpeta"
+                            >
+                                <span className="text-lg">📄</span>
+                            </div>
+                            <div
+                                onClick={() => { setShowArchived(true); setSelectedFolderId(null); }}
+                                className={`p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg ${
+                                    showArchived ? 'bg-yellow-50 dark:bg-yellow-900/30' : ''
+                                }`}
+                                title="Archivados"
+                            >
+                                <span className="text-lg">📦</span>
+                            </div>
+                        </div>
+                    ) : (
+                        /* Expanded view - full content */
+                        <div className="p-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="font-semibold text-gray-700 dark:text-gray-200">Carpetas</h2>
+                                <button
+                                    onClick={() => {
+                                        setNewFolderParentId(null);
+                                        setShowFolderModal(true);
+                                    }}
+                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl"
+                                    title="Nueva carpeta"
+                                >
+                                    +
+                                </button>
+                            </div>
 
-                    {/* Archived content */}
-                    <div
-                        onClick={() => { setShowArchived(true); setSelectedFolderId(null); }}
-                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-2 ${
-                            showArchived ? 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700' : ''
-                        }`}
-                    >
-                        <span>📦</span>
-                        <span className="dark:text-gray-200">Archivados</span>
-                        <span className="text-xs text-gray-400">({archivedCount})</span>
-                    </div>
+                            {/* All content */}
+                            <div
+                                onClick={() => { setSelectedFolderId(null); setShowArchived(false); }}
+                                className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-1 ${
+                                    selectedFolderId === null && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
+                                }`}
+                            >
+                                <span>📚</span>
+                                <span className="dark:text-gray-200">Todo el contenido</span>
+                                <span className="text-xs text-gray-400">({contents.length})</span>
+                            </div>
 
-                    <div className="border-t dark:border-gray-700 my-2"></div>
+                            {/* Root content (no folder) */}
+                            <div
+                                onClick={() => { setSelectedFolderId('root'); setShowArchived(false); }}
+                                className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-1 ${
+                                    selectedFolderId === 'root' && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
+                                }`}
+                            >
+                                <span>📄</span>
+                                <span className="dark:text-gray-200">Sin carpeta</span>
+                                <span className="text-xs text-gray-400">({rootContentCount})</span>
+                            </div>
 
-                    {/* Folder tree */}
-                    <div className="space-y-1">
-                        {renderFolderTree(folders)}
-                    </div>
+                            {/* Archived content */}
+                            <div
+                                onClick={() => { setShowArchived(true); setSelectedFolderId(null); }}
+                                className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-2 ${
+                                    showArchived ? 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700' : ''
+                                }`}
+                            >
+                                <span>📦</span>
+                                <span className="dark:text-gray-200">Archivados</span>
+                                <span className="text-xs text-gray-400">({archivedCount})</span>
+                            </div>
 
-                    {folders.length === 0 && (
-                        <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
-                            No hay carpetas. Crea una!
-                        </p>
+                            <div className="border-t dark:border-gray-700 my-2"></div>
+
+                            {/* Folder tree */}
+                            <div className="space-y-1">
+                                {renderFolderTree(folders)}
+                            </div>
+
+                            {folders.length === 0 && (
+                                <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
+                                    No hay carpetas. Crea una!
+                                </p>
+                            )}
+                        </div>
                     )}
                 </aside>
 
