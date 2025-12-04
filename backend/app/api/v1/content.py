@@ -870,11 +870,14 @@ async def queue_urls_for_import(
                     duplicates += 1
                     continue
 
+            # Determine content type from URL (tiktok, youtube, twitter, instagram, or web)
+            content_type = content_info.get("platform") or "web"
+
             # Create placeholder record (no fetch yet)
             content_data = {
                 "user_id": user_id,
                 "url": url_str,
-                "type": "web",  # Default, will be updated after fetch
+                "type": content_type,
                 "title": url_str[:100],  # Placeholder title
                 "raw_content": None,
                 "summary": None,
@@ -1039,11 +1042,15 @@ async def import_from_csv(
                 results["duplicates"] += 1
                 continue
 
+            # Determine content type from URL
+            content_info = extract_content_id(raw_url)
+            content_type = content_info.get("platform") or "web"
+
             # Queue URL
             content_data = {
                 "user_id": user_id,
                 "url": url_str,
-                "type": "web",
+                "type": content_type,
                 "title": url_str[:100],
                 "raw_content": None,
                 "user_tags": all_tags,
