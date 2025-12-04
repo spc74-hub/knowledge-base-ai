@@ -514,6 +514,45 @@ export default function ImportPage() {
                                     Las URLs se procesaran automaticamente en segundo plano. Puedes ver el progreso en el panel de estado.
                                 </p>
                             )}
+
+                            {/* Show invalid/error URLs with details */}
+                            {queueResults.details && queueResults.details.filter(d => d.status === 'error' || d.status === 'invalid').length > 0 && (
+                                <div className="mt-4">
+                                    <h4 className="text-sm font-medium text-red-700 dark:text-red-400 mb-2">
+                                        URLs con errores ({queueResults.details.filter(d => d.status === 'error' || d.status === 'invalid').length}):
+                                    </h4>
+                                    <div className="max-h-48 overflow-y-auto border border-red-200 dark:border-red-800 rounded-lg">
+                                        <table className="min-w-full text-xs">
+                                            <thead className="bg-red-50 dark:bg-red-900/30 sticky top-0">
+                                                <tr>
+                                                    <th className="px-2 py-1 text-left text-red-700 dark:text-red-400">URL</th>
+                                                    <th className="px-2 py-1 text-left text-red-700 dark:text-red-400">Error</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-red-100 dark:divide-red-900">
+                                                {queueResults.details
+                                                    .filter(d => d.status === 'error' || d.status === 'invalid')
+                                                    .slice(0, 50)
+                                                    .map((detail, idx) => (
+                                                        <tr key={idx} className="bg-red-50/50 dark:bg-red-900/10">
+                                                            <td className="px-2 py-1 font-mono text-red-600 dark:text-red-400 break-all max-w-xs">
+                                                                {detail.url.length > 50 ? detail.url.substring(0, 50) + '...' : detail.url}
+                                                            </td>
+                                                            <td className="px-2 py-1 text-red-700 dark:text-red-300">
+                                                                {detail.error || 'Error desconocido'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                            </tbody>
+                                        </table>
+                                        {queueResults.details.filter(d => d.status === 'error' || d.status === 'invalid').length > 50 && (
+                                            <p className="px-2 py-1 text-xs text-red-500 bg-red-50 dark:bg-red-900/30">
+                                                ... y {queueResults.details.filter(d => d.status === 'error' || d.status === 'invalid').length - 50} mas
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
