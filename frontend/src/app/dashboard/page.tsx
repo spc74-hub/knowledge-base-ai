@@ -127,6 +127,15 @@ export default function DashboardPage() {
     const [processingContentId, setProcessingContentId] = useState<string | null>(null);
     const [processLimit, setProcessLimit] = useState<string>('all'); // 'all', '50', '100', '500'
 
+    // Progress tracking for bulk processing
+    const [processingProgress, setProcessingProgress] = useState({
+        total: 0,
+        processed: 0,
+        failed: 0,
+        startTime: 0,
+        currentItem: ''
+    });
+
     // Filters
     const [filterType, setFilterType] = useState<string>('all');
     const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -337,9 +346,60 @@ export default function DashboardPage() {
 
     const handleProcessAllPending = async () => {
         setIsProcessing(true);
+
+        // Initialize progress tracking
+        const totalToProcess = processLimit === 'all'
+            ? processingStats.pending
+            : Math.min(parseInt(processLimit), processingStats.pending);
+
+        setProcessingProgress({
+            total: totalToProcess,
+            processed: 0,
+            failed: 0,
+            startTime: Date.now(),
+            currentItem: 'Iniciando...'
+        });
+
+        // Start polling for progress updates
+        const initialCompleted = processingStats.completed;
+        const initialFailed = processingStats.failed;
+
+        const pollInterval = setInterval(async () => {
+            try {
+                const session = await supabase.auth.getSession();
+                if (!session.data.session) return;
+
+                const statsResponse = await fetch(`${API_URL}/api/v1/process/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${session.data.session.access_token}`,
+                    },
+                });
+
+                if (statsResponse.ok) {
+                    const stats = await statsResponse.json();
+                    const newCompleted = stats.completed - initialCompleted;
+                    const newFailed = stats.failed - initialFailed;
+
+                    setProcessingProgress(prev => ({
+                        ...prev,
+                        processed: newCompleted,
+                        failed: newFailed,
+                        currentItem: stats.processing > 0 ? `Procesando ${stats.processing} item(s)...` : 'Esperando...'
+                    }));
+
+                    setProcessingStats(stats);
+                }
+            } catch (e) {
+                console.error('Error polling stats:', e);
+            }
+        }, 2000); // Poll every 2 seconds
+
         try {
             const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
+            if (!session.data.session) {
+                clearInterval(pollInterval);
+                return;
+            }
 
             const limitParam = processLimit === 'all' ? '' : `?limit=${processLimit}`;
             const response = await fetch(`${API_URL}/api/v1/process/bulk${limitParam}`, {
@@ -349,9 +409,21 @@ export default function DashboardPage() {
                 },
             });
 
+            clearInterval(pollInterval);
+
             if (response.ok) {
                 const result = await response.json();
-                alert(`Procesado: ${result.processed} exitosos, ${result.failed} fallidos`);
+                setProcessingProgress(prev => ({
+                    ...prev,
+                    processed: result.processed,
+                    failed: result.failed,
+                    currentItem: 'Completado!'
+                }));
+
+                // Show completion message
+                const duration = Math.round((Date.now() - processingProgress.startTime) / 1000);
+                alert(`Procesamiento completado!\n\nExitosos: ${result.processed}\nFallidos: ${result.failed}\nTiempo: ${formatDuration(duration)}`);
+
                 fetchContents();
                 fetchProcessingStats();
             } else {
@@ -359,11 +431,30 @@ export default function DashboardPage() {
                 alert(`Error: ${error.detail || 'Error desconocido al procesar'}`);
             }
         } catch (error) {
+            clearInterval(pollInterval);
             console.error('Error processing all pending:', error);
             alert('Error de conexion al procesar');
         } finally {
             setIsProcessing(false);
+            setProcessingProgress({
+                total: 0,
+                processed: 0,
+                failed: 0,
+                startTime: 0,
+                currentItem: ''
+            });
         }
+    };
+
+    // Helper function to format duration
+    const formatDuration = (seconds: number): string => {
+        if (seconds < 60) return `${seconds}s`;
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        if (mins < 60) return `${mins}m ${secs}s`;
+        const hours = Math.floor(mins / 60);
+        const remainingMins = mins % 60;
+        return `${hours}h ${remainingMins}m`;
     };
 
     const handleRetryFailed = async () => {
@@ -1423,6 +1514,67 @@ export default function DashboardPage() {
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                             📥 En cola = URLs por descargar | ⏳ Pendiente = Listos para clasificar/resumir con IA
                         </p>
+
+                        {/* Progress bar during processing */}
+                        {isProcessing && processingProgress.total > 0 && (
+                            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                        Procesando contenidos...
+                                    </span>
+                                    <span className="text-sm text-amber-600 dark:text-amber-300">
+                                        {processingProgress.processed + processingProgress.failed} / {processingProgress.total}
+                                        {' '}({Math.round(((processingProgress.processed + processingProgress.failed) / processingProgress.total) * 100)}%)
+                                    </span>
+                                </div>
+
+                                {/* Progress bar */}
+                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                    <div className="h-full flex">
+                                        <div
+                                            className="bg-green-500 h-full transition-all duration-500"
+                                            style={{ width: `${(processingProgress.processed / processingProgress.total) * 100}%` }}
+                                        />
+                                        <div
+                                            className="bg-red-500 h-full transition-all duration-500"
+                                            style={{ width: `${(processingProgress.failed / processingProgress.total) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Stats */}
+                                <div className="flex justify-between mt-2 text-xs">
+                                    <div className="flex gap-4">
+                                        <span className="text-green-600 dark:text-green-400">
+                                            ✓ {processingProgress.processed} exitosos
+                                        </span>
+                                        {processingProgress.failed > 0 && (
+                                            <span className="text-red-600 dark:text-red-400">
+                                                ✗ {processingProgress.failed} fallidos
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-gray-600 dark:text-gray-400">
+                                        {(() => {
+                                            const elapsed = Math.round((Date.now() - processingProgress.startTime) / 1000);
+                                            const processed = processingProgress.processed + processingProgress.failed;
+                                            if (processed > 0) {
+                                                const rate = processed / elapsed; // items per second
+                                                const remaining = processingProgress.total - processed;
+                                                const eta = Math.round(remaining / rate);
+                                                return `Tiempo: ${formatDuration(elapsed)} | ETA: ${formatDuration(eta)}`;
+                                            }
+                                            return `Tiempo: ${formatDuration(elapsed)}`;
+                                        })()}
+                                    </div>
+                                </div>
+
+                                {/* Current item */}
+                                <div className="mt-2 text-xs text-amber-700 dark:text-amber-300 truncate">
+                                    {processingProgress.currentItem}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Stats */}
