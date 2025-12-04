@@ -12,11 +12,17 @@ from app.services.batch_processor import batch_processor
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle events."""
-    # Startup: Start the batch processor
-    await batch_processor.start(interval_seconds=900)  # Every 15 minutes
+    # Startup: Start the batch processor (with error handling)
+    try:
+        await batch_processor.start(interval_seconds=900)  # Every 15 minutes
+    except Exception as e:
+        print(f"Warning: Failed to start batch processor: {e}")
     yield
     # Shutdown: Stop the batch processor
-    await batch_processor.stop()
+    try:
+        await batch_processor.stop()
+    except Exception as e:
+        print(f"Warning: Error stopping batch processor: {e}")
 
 
 app = FastAPI(
