@@ -196,7 +196,8 @@ class ProcessorService:
         limit: Optional[int] = None
     ) -> dict:
         """
-        Process all pending content for a user that has raw_content.
+        Process all pending content for a user.
+        Now processes ALL pending content - process_content will fetch if needed.
 
         Args:
             db: Supabase client
@@ -207,9 +208,8 @@ class ProcessorService:
             dict with processing results
         """
         try:
-            # Get pending content that has raw_content (already fetched)
-            # This prevents race condition where content is pending but not yet fetched
-            query = db.table("contents").select("id, title").eq("user_id", user_id).eq("processing_status", "pending").not_.is_("raw_content", "null")
+            # Get ALL pending content - process_content will fetch content if needed
+            query = db.table("contents").select("id, title, url").eq("user_id", user_id).eq("processing_status", "pending")
             if limit is not None:
                 query = query.limit(limit)
             response = query.execute()
