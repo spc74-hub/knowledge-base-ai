@@ -57,32 +57,48 @@ export default function UsagePage() {
   const fetchUsageData = async () => {
     try {
       setLoading(true)
+      setError(null)
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
+      if (!session) {
+        setLoading(false)
+        return
+      }
 
       const headers = {
         'Authorization': `Bearer ${session.access_token}`,
         'Content-Type': 'application/json'
       }
 
-      // Fetch all data in parallel
+      // Fetch all data in parallel with error handling
       const [summaryRes, dailyRes, operationRes] = await Promise.all([
-        fetch(`${API_URL}/usage/summary?days=${days}`, { headers }),
-        fetch(`${API_URL}/usage/daily?days=${days}`, { headers }),
-        fetch(`${API_URL}/usage/by-operation?days=${days}`, { headers })
+        fetch(`${API_URL}/usage/summary?days=${days}`, { headers }).catch(() => null),
+        fetch(`${API_URL}/usage/daily?days=${days}`, { headers }).catch(() => null),
+        fetch(`${API_URL}/usage/by-operation?days=${days}`, { headers }).catch(() => null)
       ])
 
-      if (summaryRes.ok) {
+      if (summaryRes?.ok) {
         const summaryData = await summaryRes.json()
         setSummary(summaryData)
+      } else {
+        // Set empty summary so page renders
+        setSummary({
+          period: `last_${days}_days`,
+          total_tokens: 0,
+          total_cost_usd: 0,
+          openai_tokens: 0,
+          openai_cost_usd: 0,
+          anthropic_tokens: 0,
+          anthropic_cost_usd: 0,
+          total_calls: 0
+        })
       }
 
-      if (dailyRes.ok) {
+      if (dailyRes?.ok) {
         const dailyData = await dailyRes.json()
         setDailyUsage(dailyData.daily_usage || [])
       }
 
-      if (operationRes.ok) {
+      if (operationRes?.ok) {
         const operationData = await operationRes.json()
         setOperationUsage(operationData.by_operation || [])
       }
@@ -90,6 +106,17 @@ export default function UsagePage() {
     } catch (err) {
       setError('Error loading usage data')
       console.error(err)
+      // Set empty summary so page doesn't hang
+      setSummary({
+        period: `last_${days}_days`,
+        total_tokens: 0,
+        total_cost_usd: 0,
+        openai_tokens: 0,
+        openai_cost_usd: 0,
+        anthropic_tokens: 0,
+        anthropic_cost_usd: 0,
+        total_calls: 0
+      })
     } finally {
       setLoading(false)
     }
