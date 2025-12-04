@@ -61,6 +61,80 @@ async def get_processing_stats(
     return stats
 
 
+@router.get("/errors")
+async def get_processing_errors(
+    current_user: CurrentUser,
+    db: Database,
+    limit: int = Query(default=50, ge=1, le=200)
+):
+    """
+    Get failed content with their error messages for debugging.
+    Returns error summary grouped by error type.
+    """
+    try:
+        # Get failed content with errors
+        response = db.table("contents").select(
+            "id, title, url, processing_error, created_at"
+        ).eq(
+            "user_id", current_user["id"]
+        ).eq(
+            "processing_status", "failed"
+        ).order("created_at", desc=True).limit(limit).execute()
+
+        failed_items = response.data or []
+
+        # Group errors by type
+        error_groups = {}
+        for item in failed_items:
+            error = item.get("processing_error") or "Unknown error"
+            # Simplify error message for grouping
+            if "Timeout" in error:
+                error_key = "Timeout al obtener contenido"
+            elif "Fetch error" in error:
+                error_key = "Error al descargar URL"
+            elif "No content" in error:
+                error_key = "Sin contenido para procesar"
+            elif "rate_limit" in error.lower() or "rate limit" in error.lower():
+                error_key = "Rate limit de API"
+            elif "credit" in error.lower():
+                error_key = "Sin creditos de API"
+            elif "connection" in error.lower():
+                error_key = "Error de conexion"
+            else:
+                # Truncate long errors
+                error_key = error[:100] if len(error) > 100 else error
+
+            if error_key not in error_groups:
+                error_groups[error_key] = {"count": 0, "examples": []}
+            error_groups[error_key]["count"] += 1
+            if len(error_groups[error_key]["examples"]) < 3:
+                error_groups[error_key]["examples"].append({
+                    "id": item["id"],
+                    "title": item.get("title", "Sin titulo")[:50],
+                    "url": item.get("url", "")[:80]
+                })
+
+        # Sort by count
+        sorted_errors = sorted(
+            [{"error": k, **v} for k, v in error_groups.items()],
+            key=lambda x: x["count"],
+            reverse=True
+        )
+
+        return {
+            "total_failed": len(failed_items),
+            "error_types": len(error_groups),
+            "errors": sorted_errors,
+            "raw_items": failed_items[:10]  # First 10 raw items for detailed inspection
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.get("/pending/count")
 async def get_pending_count(
     current_user: CurrentUser,
