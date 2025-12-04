@@ -42,6 +42,13 @@ class RetryFailedResponse(BaseModel):
     retried: int
 
 
+class RetryErroredResponse(BaseModel):
+    success: bool
+    message: str
+    found: int
+    reset: int
+
+
 @router.get("/stats", response_model=ProcessingStatsResponse)
 async def get_processing_stats(
     current_user: CurrentUser,
@@ -97,6 +104,72 @@ async def retry_failed_content(
             success=True,
             message=f"{count} items reset to pending",
             retried=count
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/retry-errored", response_model=RetryErroredResponse)
+async def retry_errored_content(
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Find and reset completed content that has error messages in summary field.
+    This handles cases where processing was marked complete but actually failed
+    (e.g., API credit errors stored in summary).
+    """
+    try:
+        # Get completed content where summary contains error indicators
+        response = db.table("contents").select(
+            "id, summary"
+        ).eq(
+            "user_id", current_user["id"]
+        ).eq(
+            "processing_status", "completed"
+        ).execute()
+
+        # Filter for error patterns in summary
+        error_patterns = [
+            "Error generating summary",
+            "Error code:",
+            "credit balance is too low",
+            "invalid_request_error",
+            "API error",
+            "Error:",
+        ]
+
+        errored_ids = []
+        for content in response.data:
+            summary = content.get("summary") or ""
+            if any(pattern in summary for pattern in error_patterns):
+                errored_ids.append(content["id"])
+
+        if not errored_ids:
+            return RetryErroredResponse(
+                success=True,
+                message="No errored content found",
+                found=0,
+                reset=0
+            )
+
+        # Reset these to pending and clear the error summary
+        for content_id in errored_ids:
+            db.table("contents").update({
+                "processing_status": "pending",
+                "summary": None,
+                "processing_error": None
+            }).eq("id", content_id).execute()
+
+        return RetryErroredResponse(
+            success=True,
+            message=f"Found {len(errored_ids)} items with errors, reset to pending",
+            found=len(errored_ids),
+            reset=len(errored_ids)
         )
 
     except Exception as e:

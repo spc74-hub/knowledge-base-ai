@@ -389,6 +389,29 @@ export default function DashboardPage() {
         }
     };
 
+    const handleRetryErrored = async () => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/process/retry-errored`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                alert(`${result.message}\nEncontrados: ${result.found}, Reseteados: ${result.reset}`);
+                fetchContents();
+                fetchProcessingStats();
+            }
+        } catch (error) {
+            console.error('Error retrying errored:', error);
+        }
+    };
+
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
@@ -1345,9 +1368,16 @@ export default function DashboardPage() {
                                 <button
                                     onClick={fetchProcessingStats}
                                     className="px-2 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                                    title="Refrescar estadísticas"
+                                    title="Refrescar estadisticas"
                                 >
                                     🔄
+                                </button>
+                                <button
+                                    onClick={handleRetryErrored}
+                                    className="px-3 py-1.5 text-sm bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-800/40 transition-colors"
+                                    title="Busca contenidos completados que tengan errores en el resumen y los resetea para reprocesar"
+                                >
+                                    Reparar errores
                                 </button>
                                 {processingStats.failed > 0 && (
                                     <button
