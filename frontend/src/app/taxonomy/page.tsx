@@ -69,6 +69,11 @@ export default function TaxonomyExplorerPage() {
     const [nodeChildren, setNodeChildren] = useState<Record<string, TaxonomyNode[]>>({});
     const [totalContents, setTotalContents] = useState(0);
 
+    // Pagination state
+    const PAGE_SIZE = 100;
+    const [hasMoreContents, setHasMoreContents] = useState(true);
+    const [loadingMoreContents, setLoadingMoreContents] = useState(false);
+
     // Enabled drill-down levels (all enabled by default)
     const [enabledLevels, setEnabledLevels] = useState<Set<RootType>>(
         new Set(['category', 'person', 'organization', 'product', 'concept'])
@@ -150,9 +155,12 @@ export default function TaxonomyExplorerPage() {
     }, [user, typeFilters]);
 
     // Fetch contents for current filters
-    const fetchContents = useCallback(async () => {
+    const fetchContents = useCallback(async (reset: boolean = true) => {
         if (!user) return;
-        setLoading(true);
+        if (reset) {
+            setLoading(true);
+            setContents([]);
+        }
 
         try {
             const headers = await getAuthHeaders();
@@ -169,7 +177,7 @@ export default function TaxonomyExplorerPage() {
                 body: JSON.stringify({
                     filters,
                     type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
-                    limit: 10000,
+                    limit: PAGE_SIZE,
                     offset: 0,
                 }),
             });
@@ -180,6 +188,8 @@ export default function TaxonomyExplorerPage() {
 
             const data = await response.json();
             setContents(data.contents || []);
+            setTotalContents(data.total || data.contents?.length || 0);
+            setHasMoreContents((data.contents?.length || 0) === PAGE_SIZE);
             setShowContents(true);
         } catch (err) {
             console.error('Contents fetch error:', err);
@@ -187,6 +197,49 @@ export default function TaxonomyExplorerPage() {
             setLoading(false);
         }
     }, [user, breadcrumb, typeFilters]);
+
+    // Load more contents
+    const loadMoreContents = async () => {
+        if (loadingMoreContents || !hasMoreContents) return;
+
+        setLoadingMoreContents(true);
+        try {
+            const headers = await getAuthHeaders();
+
+            // Build filters from breadcrumb
+            const filters: Record<string, string> = {};
+            breadcrumb.forEach(item => {
+                filters[item.type] = item.value;
+            });
+
+            const response = await fetch(`${API_URL}/api/v1/taxonomy/contents`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    filters,
+                    type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
+                    limit: PAGE_SIZE,
+                    offset: contents.length,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al cargar mas contenidos');
+            }
+
+            const data = await response.json();
+            if (data.contents && data.contents.length > 0) {
+                setContents(prev => [...prev, ...data.contents]);
+                setHasMoreContents(data.contents.length === PAGE_SIZE);
+            } else {
+                setHasMoreContents(false);
+            }
+        } catch (err) {
+            console.error('Load more contents error:', err);
+        } finally {
+            setLoadingMoreContents(false);
+        }
+    };
 
     // Initial load
     useEffect(() => {
@@ -654,6 +707,29 @@ export default function TaxonomyExplorerPage() {
                                                 </div>
                                             </Link>
                                         ))
+                                    )}
+
+                                    {/* Botón Cargar más */}
+                                    {hasMoreContents && contents.length > 0 && (
+                                        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                            <button
+                                                onClick={loadMoreContents}
+                                                disabled={loadingMoreContents}
+                                                className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                {loadingMoreContents ? (
+                                                    <span className="flex items-center justify-center gap-2">
+                                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                        </svg>
+                                                        Cargando...
+                                                    </span>
+                                                ) : (
+                                                    `Cargar más contenidos`
+                                                )}
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>

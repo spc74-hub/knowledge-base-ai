@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { TagFilter } from '@/components/tag-filter';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface Content {
     id: string;
@@ -121,6 +122,11 @@ export default function DashboardPage() {
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+    // Pagination state
+    const PAGE_SIZE = 100;
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+
     // Processing state
     const [processingStats, setProcessingStats] = useState({ queued: 0, pending: 0, processing: 0, completed: 0, failed: 0 });
     const [isProcessing, setIsProcessing] = useState(false);
@@ -159,6 +165,15 @@ export default function DashboardPage() {
     // Related notes (from journal)
     const [relatedNotes, setRelatedNotes] = useState<RelatedNote[]>([]);
     const [loadingRelatedNotes, setLoadingRelatedNotes] = useState(false);
+
+    // Virtualization for table
+    const tableContainerRef = useRef<HTMLDivElement>(null);
+    const rowVirtualizer = useVirtualizer({
+        count: filteredContents.length,
+        getScrollElement: () => tableContainerRef.current,
+        estimateSize: () => 72, // Estimated row height in pixels
+        overscan: 10, // Render 10 extra rows above/below visible area
+    });
 
     const fetchProjects = async () => {
         try {
@@ -227,38 +242,25 @@ export default function DashboardPage() {
         }
     };
 
-    const fetchContents = async () => {
+    const fetchContents = async (reset: boolean = true) => {
         try {
-            // Fetch all contents using pagination to overcome Supabase 1000 row limit
-            const PAGE_SIZE = 1000;
-            let allData: Content[] = [];
-            let page = 0;
-            let hasMore = true;
-
-            while (hasMore) {
-                const from = page * PAGE_SIZE;
-                const to = from + PAGE_SIZE - 1;
-
-                const { data, error } = await supabase
-                    .from('contents')
-                    .select('*')
-                    .eq('is_archived', showArchived)
-                    .order('created_at', { ascending: false })
-                    .range(from, to);
-
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-                    allData = [...allData, ...data];
-                    page++;
-                    // If we got less than PAGE_SIZE, we've reached the end
-                    hasMore = data.length === PAGE_SIZE;
-                } else {
-                    hasMore = false;
-                }
+            if (reset) {
+                setLoading(true);
+                setContents([]);
             }
 
-            setContents(allData);
+            // Fetch first page only for fast initial load
+            const { data, error } = await supabase
+                .from('contents')
+                .select('*')
+                .eq('is_archived', showArchived)
+                .order('created_at', { ascending: false })
+                .range(0, PAGE_SIZE - 1);
+
+            if (error) throw error;
+
+            setContents(data || []);
+            setHasMore((data?.length || 0) === PAGE_SIZE);
 
             // Fetch counts for sidebar and stats
             const [archivedResult, totalResult] = await Promise.all([
@@ -271,6 +273,36 @@ export default function DashboardPage() {
             console.error('Error fetching contents:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadMoreContents = async () => {
+        if (loadingMore || !hasMore) return;
+
+        setLoadingMore(true);
+        try {
+            const from = contents.length;
+            const to = from + PAGE_SIZE - 1;
+
+            const { data, error } = await supabase
+                .from('contents')
+                .select('*')
+                .eq('is_archived', showArchived)
+                .order('created_at', { ascending: false })
+                .range(from, to);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                setContents(prev => [...prev, ...data]);
+                setHasMore(data.length === PAGE_SIZE);
+            } else {
+                setHasMore(false);
+            }
+        } catch (error) {
+            console.error('Error loading more contents:', error);
+        } finally {
+            setLoadingMore(false);
         }
     };
 
@@ -1771,148 +1803,202 @@ export default function DashboardPage() {
                     </div>
                 ) : (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead className="bg-gray-50 dark:bg-gray-900">
-                                <tr>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10">
-                                        <input
-                                            type="checkbox"
-                                            checked={filteredContents.length > 0 && selectedContentIds.size === filteredContents.length}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setSelectedContentIds(new Set(filteredContents.map(c => c.id)));
-                                                } else {
-                                                    setSelectedContentIds(new Set());
-                                                }
+                        {/* Results count */}
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400">
+                            Mostrando {filteredContents.length} de {contents.length} contenidos
+                        </div>
+                        {/* Fixed header */}
+                        <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                            <div className="flex">
+                                <div className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10 flex-shrink-0">
+                                    <input
+                                        type="checkbox"
+                                        checked={filteredContents.length > 0 && selectedContentIds.size === filteredContents.length}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedContentIds(new Set(filteredContents.map(c => c.id)));
+                                            } else {
+                                                setSelectedContentIds(new Set());
+                                            }
+                                        }}
+                                        className="rounded border-gray-300 dark:border-gray-600"
+                                    />
+                                </div>
+                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1 min-w-[300px]">
+                                    Contenido
+                                </div>
+                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24 flex-shrink-0">
+                                    Tipo
+                                </div>
+                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32 flex-shrink-0">
+                                    Categoria
+                                </div>
+                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32 flex-shrink-0">
+                                    Estado
+                                </div>
+                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28 flex-shrink-0">
+                                    Nivel
+                                </div>
+                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24 flex-shrink-0">
+                                    Fecha
+                                </div>
+                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20 flex-shrink-0">
+                                    Acciones
+                                </div>
+                            </div>
+                        </div>
+                        {/* Virtualized scrollable body */}
+                        <div
+                            ref={tableContainerRef}
+                            className="overflow-auto"
+                            style={{ height: 'calc(100vh - 400px)', minHeight: '400px' }}
+                        >
+                            <div
+                                style={{
+                                    height: `${rowVirtualizer.getTotalSize()}px`,
+                                    width: '100%',
+                                    position: 'relative',
+                                }}
+                            >
+                                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                    const content = filteredContents[virtualRow.index];
+                                    return (
+                                        <div
+                                            key={content.id}
+                                            className="flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700"
+                                            style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                width: '100%',
+                                                height: `${virtualRow.size}px`,
+                                                transform: `translateY(${virtualRow.start}px)`,
                                             }}
-                                            className="rounded border-gray-300 dark:border-gray-600"
-                                        />
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Contenido
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Tipo
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Categoria
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Estado
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Nivel
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Fecha
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Acciones
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                {filteredContents.map((content) => (
-                                    <tr
-                                        key={content.id}
-                                        className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                                        onClick={() => openDetail(content)}
-                                    >
-                                        <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedContentIds.has(content.id)}
-                                                onChange={() => toggleContentSelection(content.id)}
-                                                className="rounded border-gray-300 dark:border-gray-600"
-                                            />
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-start">
-                                                <span className="text-2xl mr-3">{getTypeIcon(content.type)}</span>
-                                                <div>
-                                                    <p className="font-medium text-gray-900 dark:text-white line-clamp-1">
-                                                        {content.title || 'Sin titulo'}
-                                                    </p>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
-                                                        {content.summary || content.url}
-                                                    </p>
-                                                    {content.concepts && content.concepts.length > 0 && (
-                                                        <div className="flex gap-1 mt-1">
-                                                            {content.concepts.slice(0, 3).map((concept, i) => (
-                                                                <span
-                                                                    key={i}
-                                                                    className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded"
-                                                                >
-                                                                    {concept}
-                                                                </span>
-                                                            ))}
-                                                        </div>
+                                            onClick={() => openDetail(content)}
+                                        >
+                                            <div className="px-3 py-4 w-10 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedContentIds.has(content.id)}
+                                                    onChange={() => toggleContentSelection(content.id)}
+                                                    className="rounded border-gray-300 dark:border-gray-600"
+                                                />
+                                            </div>
+                                            <div className="px-6 py-4 flex-1 min-w-[300px]">
+                                                <div className="flex items-start">
+                                                    <span className="text-2xl mr-3">{getTypeIcon(content.type)}</span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-medium text-gray-900 dark:text-white line-clamp-1">
+                                                            {content.title || 'Sin titulo'}
+                                                        </p>
+                                                        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
+                                                            {content.summary || content.url}
+                                                        </p>
+                                                        {content.concepts && content.concepts.length > 0 && (
+                                                            <div className="flex gap-1 mt-1">
+                                                                {content.concepts.slice(0, 3).map((concept, i) => (
+                                                                    <span
+                                                                        key={i}
+                                                                        className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded"
+                                                                    >
+                                                                        {concept}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="px-6 py-4 w-24 flex-shrink-0">
+                                                <span className="text-sm text-gray-600 dark:text-gray-300 capitalize">{content.type}</span>
+                                            </div>
+                                            <div className="px-6 py-4 w-32 flex-shrink-0">
+                                                <span className="text-sm text-gray-600 dark:text-gray-300 truncate block">
+                                                    {content.iab_tier1 || '-'}
+                                                </span>
+                                            </div>
+                                            <div className="px-6 py-4 w-32 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadge(content.processing_status)}`}>
+                                                        {content.processing_status}
+                                                    </span>
+                                                    {(content.processing_status === 'pending' || content.processing_status === 'failed') && (
+                                                        <button
+                                                            onClick={() => handleProcessSingle(content.id)}
+                                                            disabled={processingContentId === content.id}
+                                                            className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/40 disabled:opacity-50"
+                                                            title="Procesar ahora"
+                                                        >
+                                                            {processingContentId === content.id ? '⏳' : '⚡'}
+                                                        </button>
                                                     )}
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="text-sm text-gray-600 dark:text-gray-300 capitalize">{content.type}</span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="text-sm text-gray-600 dark:text-gray-300">
-                                                {content.iab_tier1 || '-'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex items-center gap-2">
-                                                <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadge(content.processing_status)}`}>
-                                                    {content.processing_status}
-                                                </span>
-                                                {(content.processing_status === 'pending' || content.processing_status === 'failed') && (
+                                            <div className="px-6 py-4 w-28 flex-shrink-0">
+                                                {(() => {
+                                                    const level = (content.maturity_level || 'captured') as MaturityLevel;
+                                                    const config = MATURITY_LEVELS[level];
+                                                    return (
+                                                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${config.color} bg-opacity-20 ${config.textColor}`}>
+                                                            <span>{config.icon}</span>
+                                                            <span>{config.label}</span>
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </div>
+                                            <div className="px-6 py-4 w-24 flex-shrink-0 text-sm text-gray-500 dark:text-gray-400">
+                                                {new Date(content.created_at).toLocaleDateString()}
+                                            </div>
+                                            <div className="px-6 py-4 w-20 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex gap-1">
                                                     <button
-                                                        onClick={() => handleProcessSingle(content.id)}
-                                                        disabled={processingContentId === content.id}
-                                                        className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/40 disabled:opacity-50"
-                                                        title="Procesar ahora"
+                                                        onClick={() => handleToggleFavorite(content)}
+                                                        className="text-xl hover:scale-110 transition-transform"
+                                                        title={content.is_favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
                                                     >
-                                                        {processingContentId === content.id ? '⏳' : '⚡'}
+                                                        {content.is_favorite ? '⭐' : '☆'}
                                                     </button>
-                                                )}
+                                                    <button
+                                                        onClick={() => handleToggleAsset(content)}
+                                                        className={`text-xl hover:scale-110 transition-transform ${content.is_asset ? 'opacity-100' : 'opacity-30'}`}
+                                                        title={content.is_asset ? 'Quitar de activos' : 'Marcar como activo'}
+                                                    >
+                                                        📦
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {(() => {
-                                                const level = (content.maturity_level || 'captured') as MaturityLevel;
-                                                const config = MATURITY_LEVELS[level];
-                                                return (
-                                                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${config.color} bg-opacity-20 ${config.textColor}`}>
-                                                        <span>{config.icon}</span>
-                                                        <span>{config.label}</span>
-                                                    </span>
-                                                );
-                                            })()}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            {new Date(content.created_at).toLocaleDateString()}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex gap-1">
-                                                <button
-                                                    onClick={() => handleToggleFavorite(content)}
-                                                    className="text-xl hover:scale-110 transition-transform"
-                                                    title={content.is_favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
-                                                >
-                                                    {content.is_favorite ? '⭐' : '☆'}
-                                                </button>
-                                                <button
-                                                    onClick={() => handleToggleAsset(content)}
-                                                    className={`text-xl hover:scale-110 transition-transform ${content.is_asset ? 'opacity-100' : 'opacity-30'}`}
-                                                    title={content.is_asset ? 'Quitar de activos' : 'Marcar como activo'}
-                                                >
-                                                    📦
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        {/* Load more button */}
+                        {hasMore && (
+                            <div className="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
+                                <button
+                                    onClick={loadMoreContents}
+                                    disabled={loadingMore}
+                                    className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                                >
+                                    {loadingMore ? (
+                                        <span className="flex items-center gap-2">
+                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            </svg>
+                                            Cargando...
+                                        </span>
+                                    ) : (
+                                        `Cargar mas (${contents.length} de ${totalCount})`
+                                    )}
+                                </button>
+                            </div>
+                        )}
+                        {!hasMore && contents.length > 0 && (
+                            <div className="p-3 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
+                                Mostrando todos los {contents.length} contenidos
+                            </div>
+                        )}
                     </div>
                 )}
                 </main>

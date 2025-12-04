@@ -94,6 +94,12 @@ export default function ExplorePage() {
     const [archivingContents, setArchivingContents] = useState(false);
     const [deletingContents, setDeletingContents] = useState(false);
 
+    // Pagination state
+    const PAGE_SIZE = 100;
+    const [totalResults, setTotalResults] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const API_BASE = `${API_URL}/api/v1`;
 
@@ -148,8 +154,11 @@ export default function ExplorePage() {
         }
     };
 
-    const searchWithFilters = useCallback(async () => {
-        setSearching(true);
+    const searchWithFilters = useCallback(async (reset: boolean = true) => {
+        if (reset) {
+            setSearching(true);
+            setResults([]);
+        }
         try {
             const headers = await getAuthHeader();
             const response = await fetch(`${API_BASE}/search/faceted`, {
@@ -165,13 +174,16 @@ export default function ExplorePage() {
                     persons: filters.persons.length > 0 ? filters.persons : null,
                     user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
                     inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
-                    limit: 10000
+                    limit: PAGE_SIZE,
+                    offset: 0
                 }),
             });
 
             if (response.ok) {
                 const data = await response.json();
                 setResults(data.data);
+                setTotalResults(data.total || data.data.length);
+                setHasMore(data.data.length === PAGE_SIZE);
             }
         } catch (error) {
             console.error('Error searching:', error);
@@ -179,6 +191,42 @@ export default function ExplorePage() {
             setSearching(false);
         }
     }, [searchQuery, filters]);
+
+    const loadMoreResults = async () => {
+        if (loadingMore || !hasMore) return;
+
+        setLoadingMore(true);
+        try {
+            const headers = await getAuthHeader();
+            const response = await fetch(`${API_BASE}/search/faceted`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    query: searchQuery || null,
+                    types: filters.types.length > 0 ? filters.types : null,
+                    categories: filters.categories.length > 0 ? filters.categories : null,
+                    concepts: filters.concepts.length > 0 ? filters.concepts : null,
+                    organizations: filters.organizations.length > 0 ? filters.organizations : null,
+                    products: filters.products.length > 0 ? filters.products : null,
+                    persons: filters.persons.length > 0 ? filters.persons : null,
+                    user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
+                    inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
+                    limit: PAGE_SIZE,
+                    offset: results.length
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setResults(prev => [...prev, ...data.data]);
+                setHasMore(data.data.length === PAGE_SIZE);
+            }
+        } catch (error) {
+            console.error('Error loading more:', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     const fetchAvailableTags = async () => {
         try {
@@ -806,6 +854,34 @@ export default function ExplorePage() {
                                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                                     <p className="text-lg mb-2">No se encontraron resultados</p>
                                     <p className="text-sm">Prueba a cambiar los filtros o la busqueda</p>
+                                </div>
+                            )}
+
+                            {/* Load more button */}
+                            {hasMore && results.length > 0 && (
+                                <div className="py-6 text-center">
+                                    <button
+                                        onClick={loadMoreResults}
+                                        disabled={loadingMore}
+                                        className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                                    >
+                                        {loadingMore ? (
+                                            <span className="flex items-center gap-2">
+                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                </svg>
+                                                Cargando...
+                                            </span>
+                                        ) : (
+                                            `Cargar mas (${results.length} de ${totalResults || facets?.total_contents || '?'})`
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+                            {!hasMore && results.length > 0 && (
+                                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                    Mostrando todos los {results.length} resultados
                                 </div>
                             )}
                         </div>
