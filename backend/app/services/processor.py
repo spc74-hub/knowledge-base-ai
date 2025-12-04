@@ -11,6 +11,7 @@ from app.services.classifier import classifier_service
 from app.services.summarizer import summarizer_service
 from app.services.embeddings import embeddings_service
 from app.services.usage_tracker import usage_tracker
+from app.services.fetcher import fetcher_service
 
 
 class ProcessorService:
@@ -65,13 +66,51 @@ class ProcessorService:
             title = content.get("title", "")
             raw_content = content.get("raw_content", "")
             url = content.get("url", "")
+            metadata = content.get("metadata") or {}
+
+            # If no raw_content, try to fetch it first
+            if not raw_content and url:
+                try:
+                    original_url = metadata.get("original_url", url)
+                    fetch_result = await asyncio.wait_for(
+                        fetcher_service.fetch(original_url),
+                        timeout=30.0
+                    )
+                    if fetch_result.success and fetch_result.content:
+                        raw_content = fetch_result.content[:50000]
+                        title = fetch_result.title or title
+                        # Update content with fetched data
+                        db.table("contents").update({
+                            "raw_content": raw_content,
+                            "title": title,
+                            "type": fetch_result.type,
+                            "metadata": {**metadata, **fetch_result.metadata} if fetch_result.metadata else metadata
+                        }).eq("id", content_id).execute()
+                    else:
+                        db.table("contents").update({
+                            "processing_status": "failed",
+                            "processing_error": f"Fetch error: {fetch_result.error or 'No content returned'}"
+                        }).eq("id", content_id).execute()
+                        return {"success": False, "error": f"Fetch error: {fetch_result.error or 'No content returned'}"}
+                except asyncio.TimeoutError:
+                    db.table("contents").update({
+                        "processing_status": "failed",
+                        "processing_error": "Timeout al obtener contenido"
+                    }).eq("id", content_id).execute()
+                    return {"success": False, "error": "Timeout al obtener contenido"}
+                except Exception as fetch_err:
+                    db.table("contents").update({
+                        "processing_status": "failed",
+                        "processing_error": f"Fetch error: {str(fetch_err)}"
+                    }).eq("id", content_id).execute()
+                    return {"success": False, "error": f"Fetch error: {str(fetch_err)}"}
 
             if not raw_content:
                 db.table("contents").update({
                     "processing_status": "failed",
-                    "processing_error": "No content to process"
+                    "processing_error": "No content to process and no URL to fetch"
                 }).eq("id", content_id).execute()
-                return {"success": False, "error": "No content to process"}
+                return {"success": False, "error": "No content to process and no URL to fetch"}
 
             # Step 1: Classify content
             classification = await classifier_service.classify(
