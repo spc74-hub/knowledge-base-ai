@@ -86,13 +86,16 @@ class BatchProcessorService:
             logger.error(f"Error in _process_all_users: {e}")
 
     async def _fetch_queued_urls(self, db):
-        """Fetch content for queued URLs."""
+        """Fetch content for queued URLs (those without raw_content yet)."""
         try:
-            # Get queued URLs (limit to batch size)
+            # Get queued URLs that don't have content yet (limit to batch size)
+            # Only fetch URLs that are pending AND don't have raw_content
             queued = db.table("contents").select(
                 "id, url, user_id, metadata"
             ).eq(
                 "processing_status", "pending"
+            ).is_(
+                "raw_content", "null"
             ).limit(self._batch_size).execute()
 
             if not queued.data:
@@ -159,14 +162,17 @@ class BatchProcessorService:
             logger.error(f"Error in _fetch_queued_urls: {e}")
 
     async def _process_pending_content(self, db):
-        """Process pending content (AI enrichment)."""
+        """Process pending content that has raw_content (AI enrichment)."""
         try:
-            # Get all users with pending content
+            # Get all users with pending content that has raw_content
+            # Only process contents that have been fetched successfully
             pending_users = db.table("contents").select(
                 "user_id",
                 count="exact"
             ).eq(
                 "processing_status", "pending"
+            ).not_.is_(
+                "raw_content", "null"
             ).execute()
 
             if not pending_users.data:
