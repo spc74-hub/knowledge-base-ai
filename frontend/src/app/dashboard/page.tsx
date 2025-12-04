@@ -267,7 +267,10 @@ export default function DashboardPage() {
 
             if (response.ok) {
                 const data = await response.json();
+                console.log('Processing stats:', data);
                 setProcessingStats(data);
+            } else {
+                console.error('Error fetching processing stats:', response.status, await response.text());
             }
         } catch (error) {
             console.error('Error fetching processing stats:', error);
