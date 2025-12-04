@@ -35,8 +35,10 @@ interface Content {
     notes: string | null;
     is_favorite: boolean;
     is_archived: boolean;
+    is_asset: boolean;
     processing_status: string;
     maturity_level: string;
+    project_id: string | null;
     created_at: string;
     folder_id: string | null;
 }
@@ -61,6 +63,28 @@ interface Folder {
     children: Folder[];
     content_count: number;
 }
+
+interface Project {
+    id: string;
+    name: string;
+    color: string;
+    icon: string;
+    status: string;
+}
+
+interface RelatedNote {
+    id: string;
+    title: string;
+    note_type: string;
+    created_at: string;
+}
+
+const NOTE_TYPES = {
+    reflection: { label: 'Reflexion', icon: '💭', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+    idea: { label: 'Idea', icon: '💡', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
+    question: { label: 'Pregunta', icon: '❓', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+    connection: { label: 'Conexion', icon: '🔗', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+} as const;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -104,11 +128,87 @@ export default function DashboardPage() {
     const [filterType, setFilterType] = useState<string>('all');
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [filterMaturity, setFilterMaturity] = useState<string>('all');
+    const [filterAsset, setFilterAsset] = useState<string>('all'); // all, true, false
     const [searchQuery, setSearchQuery] = useState('');
 
     // Inherited tags
     const [inheritedTags, setInheritedTags] = useState<Array<{ tag: string; from_type: string; from_value: string; color: string }>>([]);
     const [loadingInheritedTags, setLoadingInheritedTags] = useState(false);
+
+    // Projects
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [updatingProject, setUpdatingProject] = useState(false);
+
+    // Related notes (from journal)
+    const [relatedNotes, setRelatedNotes] = useState<RelatedNote[]>([]);
+    const [loadingRelatedNotes, setLoadingRelatedNotes] = useState(false);
+
+    const fetchProjects = async () => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/projects/`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setProjects(data);
+            }
+        } catch (error) {
+            console.error('Error fetching projects:', error);
+        }
+    };
+
+    const handleUpdateProject = async (contentId: string, projectId: string | null) => {
+        setUpdatingProject(true);
+        try {
+            const { error } = await supabase
+                .from('contents')
+                .update({ project_id: projectId })
+                .eq('id', contentId);
+
+            if (error) throw error;
+
+            // Update local state
+            setContents(prev => prev.map(c =>
+                c.id === contentId ? { ...c, project_id: projectId } : c
+            ));
+            if (selectedContent?.id === contentId) {
+                setSelectedContent({ ...selectedContent, project_id: projectId });
+            }
+        } catch (error) {
+            console.error('Error updating project:', error);
+        } finally {
+            setUpdatingProject(false);
+        }
+    };
+
+    const fetchRelatedNotes = async (contentId: string) => {
+        setLoadingRelatedNotes(true);
+        try {
+            // Query standalone_notes where linked_content_ids contains this content id
+            const { data, error } = await supabase
+                .from('standalone_notes')
+                .select('id, title, note_type, created_at')
+                .contains('linked_content_ids', [contentId])
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                setRelatedNotes(data);
+            } else {
+                setRelatedNotes([]);
+            }
+        } catch (error) {
+            console.error('Error fetching related notes:', error);
+            setRelatedNotes([]);
+        } finally {
+            setLoadingRelatedNotes(false);
+        }
+    };
 
     const fetchContents = async () => {
         try {
@@ -262,6 +362,7 @@ export default function DashboardPage() {
             fetchContents();
             fetchFolders();
             fetchProcessingStats();
+            fetchProjects();
         }
     }, [user, showArchived]);
 
@@ -513,6 +614,11 @@ export default function DashboardPage() {
             result = result.filter(c => (c.maturity_level || 'captured') === filterMaturity);
         }
 
+        if (filterAsset !== 'all') {
+            const isAsset = filterAsset === 'true';
+            result = result.filter(c => c.is_asset === isAsset);
+        }
+
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             result = result.filter(c =>
@@ -523,7 +629,7 @@ export default function DashboardPage() {
         }
 
         setFilteredContents(result);
-    }, [contents, filterType, filterCategory, filterMaturity, searchQuery, selectedFolderId]);
+    }, [contents, filterType, filterCategory, filterMaturity, filterAsset, searchQuery, selectedFolderId]);
 
     // Helper to render folder tree recursively
     const renderFolderTree = (folderList: Folder[], depth = 0) => {
@@ -645,6 +751,23 @@ export default function DashboardPage() {
         }
     };
 
+    const handleToggleAsset = async (content: Content) => {
+        try {
+            const { error } = await supabase
+                .from('contents')
+                .update({ is_asset: !content.is_asset })
+                .eq('id', content.id);
+
+            if (error) throw error;
+            fetchContents();
+            if (selectedContent?.id === content.id) {
+                setSelectedContent({ ...content, is_asset: !content.is_asset });
+            }
+        } catch (error) {
+            console.error('Error toggling asset:', error);
+        }
+    };
+
     const handleUpdateMaturity = async (contentId: string, newLevel: MaturityLevel) => {
         try {
             const session = await supabase.auth.getSession();
@@ -738,6 +861,7 @@ export default function DashboardPage() {
         setSelectedContent(content);
         setShowDetailModal(true);
         fetchInheritedTags(content.id);
+        fetchRelatedNotes(content.id);
     };
 
     const getTypeIcon = (type: string) => {
@@ -901,6 +1025,24 @@ export default function DashboardPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                 </svg>
                                 <span className="hidden md:inline">Explorar</span>
+                            </Link>
+                            <Link
+                                href="/projects"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
+                                <span className="hidden md:inline">Proyectos</span>
+                            </Link>
+                            <Link
+                                href="/journal"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span className="hidden md:inline">Diario</span>
                             </Link>
                             <Link
                                 href="/knowledge-graph"
@@ -1177,12 +1319,24 @@ export default function DashboardPage() {
                         ))}
                     </select>
 
-                    {(filterType !== 'all' || filterCategory !== 'all' || filterMaturity !== 'all' || searchQuery) && (
+                    {/* Asset filter */}
+                    <select
+                        value={filterAsset}
+                        onChange={(e) => setFilterAsset(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
+                    >
+                        <option value="all">Todos</option>
+                        <option value="true">Activos</option>
+                        <option value="false">No activos</option>
+                    </select>
+
+                    {(filterType !== 'all' || filterCategory !== 'all' || filterMaturity !== 'all' || filterAsset !== 'all' || searchQuery) && (
                         <button
                             onClick={() => {
                                 setFilterType('all');
                                 setFilterCategory('all');
                                 setFilterMaturity('all');
+                                setFilterAsset('all');
                                 setSearchQuery('');
                             }}
                             className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
@@ -1384,13 +1538,22 @@ export default function DashboardPage() {
                                             {new Date(content.created_at).toLocaleDateString()}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                            <button
-                                                onClick={() => handleToggleFavorite(content)}
-                                                className="text-xl hover:scale-110 transition-transform"
-                                                title={content.is_favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
-                                            >
-                                                {content.is_favorite ? '⭐' : '☆'}
-                                            </button>
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => handleToggleFavorite(content)}
+                                                    className="text-xl hover:scale-110 transition-transform"
+                                                    title={content.is_favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                                                >
+                                                    {content.is_favorite ? '⭐' : '☆'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleToggleAsset(content)}
+                                                    className={`text-xl hover:scale-110 transition-transform ${content.is_asset ? 'opacity-100' : 'opacity-30'}`}
+                                                    title={content.is_asset ? 'Quitar de activos' : 'Marcar como activo'}
+                                                >
+                                                    📦
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -1801,6 +1964,79 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Project Selector */}
+                            <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Proyecto
+                                </label>
+                                <select
+                                    value={selectedContent.project_id || ''}
+                                    onChange={(e) => handleUpdateProject(selectedContent.id, e.target.value || null)}
+                                    disabled={updatingProject}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                                >
+                                    <option value="">Sin proyecto</option>
+                                    {projects.filter(p => p.status !== 'archived').map(project => (
+                                        <option key={project.id} value={project.id}>
+                                            {project.icon} {project.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {selectedContent.project_id && (
+                                    <Link
+                                        href="/projects"
+                                        className="inline-block mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                                    >
+                                        Ver proyecto
+                                    </Link>
+                                )}
+                            </div>
+
+                            {/* Related Notes (from Journal) */}
+                            <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Notas del Diario
+                                    </label>
+                                    <Link
+                                        href="/journal"
+                                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                                    >
+                                        + Añadir nota
+                                    </Link>
+                                </div>
+                                {loadingRelatedNotes ? (
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
+                                ) : relatedNotes.length > 0 ? (
+                                    <div className="flex flex-col gap-2">
+                                        {relatedNotes.map(note => {
+                                            const typeConfig = NOTE_TYPES[note.note_type as keyof typeof NOTE_TYPES] || NOTE_TYPES.reflection;
+                                            return (
+                                                <Link
+                                                    key={note.id}
+                                                    href="/journal"
+                                                    className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-700 rounded-lg border dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-500 transition-colors"
+                                                >
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full ${typeConfig.color}`}>
+                                                        {typeConfig.icon}
+                                                    </span>
+                                                    <span className="text-sm text-gray-700 dark:text-gray-200 truncate flex-1">
+                                                        {note.title}
+                                                    </span>
+                                                    <span className="text-xs text-gray-400">
+                                                        {new Date(note.created_at).toLocaleDateString()}
+                                                    </span>
+                                                </Link>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        No hay notas vinculadas a este contenido
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Footer */}
@@ -1811,6 +2047,12 @@ export default function DashboardPage() {
                                     className={`px-4 py-2 rounded-lg border ${selectedContent.is_favorite ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-600' : 'bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200'}`}
                                 >
                                     {selectedContent.is_favorite ? '⭐ Favorito' : '☆ Añadir a favoritos'}
+                                </button>
+                                <button
+                                    onClick={() => handleToggleAsset(selectedContent)}
+                                    className={`px-4 py-2 rounded-lg border ${selectedContent.is_asset ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-600' : 'bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200'}`}
+                                >
+                                    {selectedContent.is_asset ? '📦 Activo' : '📦 Marcar activo'}
                                 </button>
                                 {selectedContent.type === 'note' ? (
                                     <Link

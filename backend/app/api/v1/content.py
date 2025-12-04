@@ -60,7 +60,9 @@ class ContentUpdate(BaseModel):
     user_tags: Optional[List[str]] = None
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
+    is_asset: Optional[bool] = None  # Mark as reusable asset/template
     maturity_level: Optional[str] = None  # captured, processed, connected, integrated
+    project_id: Optional[str] = None  # Link to project (can be null to unlink)
 
 
 class MaturityUpdate(BaseModel):
@@ -81,8 +83,10 @@ class ContentResponse(BaseModel):
     user_tags: List[str] = []
     is_favorite: bool = False
     is_archived: bool = False
+    is_asset: bool = False  # Reusable asset/template
     processing_status: str = "pending"
     maturity_level: str = "captured"
+    project_id: Optional[str] = None  # Linked project
     created_at: str
 
 
@@ -95,6 +99,7 @@ class ContentDetailResponse(ContentResponse):
     content_format: Optional[str] = None
     reading_time_minutes: Optional[int] = None
     metadata: Optional[dict] = None
+    last_reviewed_at: Optional[str] = None
 
 
 class PaginatedResponse(BaseModel):
@@ -123,6 +128,9 @@ async def list_contents(
     tags: Optional[str] = None,
     favorite: Optional[bool] = None,
     archived: bool = False,
+    asset: Optional[bool] = None,  # Filter by is_asset
+    project_id: Optional[str] = None,  # Filter by project
+    maturity_level: Optional[str] = None,  # Filter by maturity level
     sort_by: str = "created_at",
     sort_order: str = "desc",
     q: Optional[str] = None
@@ -143,6 +151,12 @@ async def list_contents(
             query = query.eq("is_favorite", favorite)
         if not archived:
             query = query.eq("is_archived", False)
+        if asset is not None:
+            query = query.eq("is_asset", asset)
+        if project_id:
+            query = query.eq("project_id", project_id)
+        if maturity_level:
+            query = query.eq("maturity_level", maturity_level)
         if tags:
             tag_list = tags.split(",")
             query = query.contains("user_tags", tag_list)

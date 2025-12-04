@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import content, chat, search, usage, folders, apple_notes, quick_save, process, taxonomy, tags, system_notes
+from app.api.v1 import content, chat, search, usage, folders, apple_notes, quick_save, process, taxonomy, tags, system_notes, projects, standalone_notes
 from app.services.batch_processor import batch_processor
 
 
@@ -49,6 +49,8 @@ app.include_router(process.router, prefix="/api/v1/process", tags=["process"])
 app.include_router(taxonomy.router, prefix="/api/v1/taxonomy", tags=["taxonomy"])
 app.include_router(tags.router, prefix="/api/v1/tags", tags=["tags"])
 app.include_router(system_notes.router, prefix="/api/v1/system-notes", tags=["system-notes"])
+app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
+app.include_router(standalone_notes.router, prefix="/api/v1/notes", tags=["notes"])
 
 
 @app.get("/")
