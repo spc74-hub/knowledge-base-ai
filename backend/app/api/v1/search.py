@@ -280,9 +280,9 @@ async def search_global(
         if not query_lower:
             return {"data": [], "meta": {"query": data.query, "total_results": 0}}
 
-        # Get all user contents with searchable fields
+        # Get all user contents with searchable fields (include raw_content for deeper search)
         response = db.table("contents").select(
-            "id, title, summary, url, type, iab_tier1, iab_tier2, iab_tier3, concepts, entities, "
+            "id, title, summary, raw_content, url, type, iab_tier1, iab_tier2, iab_tier3, concepts, entities, "
             "schema_type, content_format, technical_level, language, sentiment, "
             "reading_time_minutes, processing_status, is_favorite, metadata, user_tags, created_at"
         ).eq("user_id", current_user["id"]).execute()
@@ -324,28 +324,38 @@ async def search_global(
                     match_fields.append(f"category:{content.get(tier)}")
                     break
 
-            # Search in entities
+            # Search in entities - handle both dict and string JSON formats
             entities = content.get("entities") or {}
+            # If entities is a string (JSON), parse it
+            if isinstance(entities, str):
+                try:
+                    import json
+                    entities = json.loads(entities)
+                except:
+                    entities = {}
 
             # Persons
-            for person in entities.get("persons") or []:
-                person_name = person.get("name") if isinstance(person, dict) else person
+            persons_list = entities.get("persons") or []
+            for person in persons_list:
+                person_name = person.get("name") if isinstance(person, dict) else str(person)
                 if person_name and query_lower in person_name.lower():
                     score += 0.8
                     match_fields.append(f"person:{person_name}")
                     break
 
             # Organizations
-            for org in entities.get("organizations") or []:
-                org_name = org.get("name") if isinstance(org, dict) else org
+            orgs_list = entities.get("organizations") or []
+            for org in orgs_list:
+                org_name = org.get("name") if isinstance(org, dict) else str(org)
                 if org_name and query_lower in org_name.lower():
                     score += 0.8
                     match_fields.append(f"organization:{org_name}")
                     break
 
             # Products
-            for prod in entities.get("products") or []:
-                prod_name = prod.get("name") if isinstance(prod, dict) else prod
+            prods_list = entities.get("products") or []
+            for prod in prods_list:
+                prod_name = prod.get("name") if isinstance(prod, dict) else str(prod)
                 if prod_name and query_lower in prod_name.lower():
                     score += 0.8
                     match_fields.append(f"product:{prod_name}")
@@ -359,10 +369,19 @@ async def search_global(
                     match_fields.append(f"tag:{tag}")
                     break
 
+            # Search in raw_content (lower weight, only if no other matches yet)
+            if score == 0:
+                raw_content = (content.get("raw_content") or "").lower()
+                if query_lower in raw_content:
+                    score += 0.3
+                    match_fields.append("content")
+
             # If any match found, add to results
             if score > 0:
+                # Don't include raw_content in response (too large)
+                result_content = {k: v for k, v in content.items() if k != "raw_content"}
                 scored_results.append({
-                    **content,
+                    **result_content,
                     "relevance_score": score,
                     "match_fields": match_fields
                 })
