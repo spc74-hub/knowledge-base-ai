@@ -1,2642 +1,701 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { TagFilter } from '@/components/tag-filter';
-import { useVirtualizer } from '@tanstack/react-virtual';
 
-interface Content {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// =====================================================
+// Interfaces
+// =====================================================
+
+interface Objective {
     id: string;
-    url: string;
     title: string;
-    summary: string | null;
-    raw_content: string | null;
-    type: string;
-    schema_type: string | null;
-    schema_subtype: string | null;
-    iab_tier1: string | null;
-    iab_tier2: string | null;
-    concepts: string[];
-    entities: {
-        persons?: Array<{ name: string; role?: string; organization?: string }>;
-        organizations?: Array<{ name: string; type?: string }>;
-        places?: Array<{ name: string; type?: string; country?: string }>;
-        products?: Array<{ name: string; type?: string; company?: string }>;
-    } | null;
-    language: string | null;
-    sentiment: string | null;
-    technical_level: string | null;
-    content_format: string | null;
-    reading_time_minutes: number | null;
-    metadata: Record<string, any> | null;
-    user_tags: string[];
-    notes: string | null;
-    is_favorite: boolean;
-    is_archived: boolean;
-    is_asset: boolean;
-    processing_status: string;
-    maturity_level: string;
-    project_id: string | null;
-    created_at: string;
-    folder_id: string | null;
+    description: string;
+    status: string;
+    progress: number;
+    icon: string;
+    color: string;
+    target_date: string | null;
+    objective_actions: Action[];
 }
 
-// Maturity level configuration
-const MATURITY_LEVELS = {
-    captured: { label: 'Capturado', color: 'bg-gray-400', textColor: 'text-gray-600 dark:text-gray-400', icon: '○' },
-    processed: { label: 'Procesado', color: 'bg-blue-400', textColor: 'text-blue-600 dark:text-blue-400', icon: '◐' },
-    connected: { label: 'Conectado', color: 'bg-purple-400', textColor: 'text-purple-600 dark:text-purple-400', icon: '◑' },
-    integrated: { label: 'Integrado', color: 'bg-green-400', textColor: 'text-green-600 dark:text-green-400', icon: '●' },
-} as const;
+interface Action {
+    id: string;
+    title: string;
+    is_completed: boolean;
+    position: number;
+}
 
-type MaturityLevel = keyof typeof MATURITY_LEVELS;
+interface ProcessingStats {
+    queued: number;
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+}
+
+interface ContentStats {
+    total: number;
+    by_type: { [key: string]: number };
+    favorites: number;
+    archived: number;
+    this_week: number;
+}
 
 interface Folder {
     id: string;
     name: string;
-    parent_id: string | null;
     color: string;
     icon: string;
-    position: number;
-    children: Folder[];
-    content_count: number;
+    parent_id: string | null;
+    content_count?: number;
+}
+
+interface RecentContent {
+    id: string;
+    title: string;
+    content_type: string;
+    source_url: string | null;
+    created_at: string;
+    is_favorite: boolean;
 }
 
 interface Project {
     id: string;
     name: string;
+    status: string;
     color: string;
     icon: string;
-    status: string;
 }
 
-interface RelatedNote {
-    id: string;
-    title: string;
-    note_type: string;
-    created_at: string;
-}
-
-const NOTE_TYPES = {
-    reflection: { label: 'Reflexion', icon: '💭', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
-    idea: { label: 'Idea', icon: '💡', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
-    question: { label: 'Pregunta', icon: '❓', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-    connection: { label: 'Conexion', icon: '🔗', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-} as const;
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// =====================================================
+// Dashboard Component
+// =====================================================
 
 export default function DashboardPage() {
     const router = useRouter();
-    const { user, loading: authLoading, signOut } = useAuth();
-    const [contents, setContents] = useState<Content[]>([]);
-    const [filteredContents, setFilteredContents] = useState<Content[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showDetailModal, setShowDetailModal] = useState(false);
-    const [selectedContent, setSelectedContent] = useState<Content | null>(null);
-    const [newUrl, setNewUrl] = useState('');
-    const [addingUrl, setAddingUrl] = useState(false);
-    const [addError, setAddError] = useState('');
+    const { user, loading: authLoading } = useAuth();
 
-    // Folders
+    // State
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
     const [folders, setFolders] = useState<Folder[]>([]);
-    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
-    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-    const [showFolderModal, setShowFolderModal] = useState(false);
-    const [newFolderName, setNewFolderName] = useState('');
-    const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
-    const [creatingFolder, setCreatingFolder] = useState(false);
-    const [showMoveModal, setShowMoveModal] = useState(false);
-    const [selectedContentIds, setSelectedContentIds] = useState<Set<string>>(new Set());
-    const [movingContents, setMovingContents] = useState(false);
-    const [archivingContents, setArchivingContents] = useState(false);
-    const [deletingContents, setDeletingContents] = useState(false);
-    const [showArchived, setShowArchived] = useState(false);
-    const [archivedCount, setArchivedCount] = useState(0);
-    const [totalCount, setTotalCount] = useState(0);
-    const [showAddMenu, setShowAddMenu] = useState(false);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-    // Pagination state
-    const PAGE_SIZE = 100;
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-
-    // Processing state
-    const [processingStats, setProcessingStats] = useState({ queued: 0, pending: 0, processing: 0, completed: 0, failed: 0 });
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [processingContentId, setProcessingContentId] = useState<string | null>(null);
-    const [processLimit, setProcessLimit] = useState<string>('all'); // 'all', '50', '100', '500'
-
-    // Progress tracking for bulk processing
-    const [processingProgress, setProcessingProgress] = useState({
-        total: 0,
-        processed: 0,
-        failed: 0,
-        startTime: 0,
-        currentItem: ''
-    });
-
-    // Filters
-    const [filterType, setFilterType] = useState<string>('all');
-    const [filterCategory, setFilterCategory] = useState<string>('all');
-    const [filterMaturity, setFilterMaturity] = useState<string>('all');
-    const [filterAsset, setFilterAsset] = useState<string>('all'); // all, true, false
-    const [searchQuery, setSearchQuery] = useState('');
-    const [filterUserTags, setFilterUserTags] = useState<string[]>([]);
-    const [filterInheritedTags, setFilterInheritedTags] = useState<string[]>([]);
-
-    // Available tags for filtering
-    const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
-
-    // Inherited tags for content detail
-    const [inheritedTags, setInheritedTags] = useState<Array<{ tag: string; from_type: string; from_value: string; color: string }>>([]);
-    const [loadingInheritedTags, setLoadingInheritedTags] = useState(false);
-
-    // Projects
+    const [objectives, setObjectives] = useState<Objective[]>([]);
+    const [processingStats, setProcessingStats] = useState<ProcessingStats | null>(null);
+    const [contentStats, setContentStats] = useState<ContentStats | null>(null);
+    const [recentContents, setRecentContents] = useState<RecentContent[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
-    const [updatingProject, setUpdatingProject] = useState(false);
+    const [usageCost, setUsageCost] = useState<number>(0);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'recent' | 'favorites' | 'projects'>('recent');
 
-    // Related notes (from journal)
-    const [relatedNotes, setRelatedNotes] = useState<RelatedNote[]>([]);
-    const [loadingRelatedNotes, setLoadingRelatedNotes] = useState(false);
+    // Quick actions state
+    const [showQuickUrl, setShowQuickUrl] = useState(false);
+    const [quickUrl, setQuickUrl] = useState('');
+    const [quickUrlLoading, setQuickUrlLoading] = useState(false);
 
-    // Virtualization for table
-    const tableContainerRef = useRef<HTMLDivElement>(null);
-    const rowVirtualizer = useVirtualizer({
-        count: filteredContents.length,
-        getScrollElement: () => tableContainerRef.current,
-        estimateSize: () => 72, // Estimated row height in pixels
-        overscan: 10, // Render 10 extra rows above/below visible area
-    });
+    // =====================================================
+    // Data Fetching
+    // =====================================================
 
-    const fetchProjects = async () => {
+    const fetchDashboardData = useCallback(async () => {
+        if (!user) return;
+
         try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
 
-            const response = await fetch(`${API_URL}/api/v1/projects/`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
+            const headers = {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+            };
 
-            if (response.ok) {
-                const data = await response.json();
-                setProjects(data);
-            }
-        } catch (error) {
-            console.error('Error fetching projects:', error);
-        }
-    };
-
-    const handleUpdateProject = async (contentId: string, projectId: string | null) => {
-        setUpdatingProject(true);
-        try {
-            const { error } = await supabase
-                .from('contents')
-                .update({ project_id: projectId })
-                .eq('id', contentId);
-
-            if (error) throw error;
-
-            // Update local state
-            setContents(prev => prev.map(c =>
-                c.id === contentId ? { ...c, project_id: projectId } : c
-            ));
-            if (selectedContent?.id === contentId) {
-                setSelectedContent({ ...selectedContent, project_id: projectId });
-            }
-        } catch (error) {
-            console.error('Error updating project:', error);
-        } finally {
-            setUpdatingProject(false);
-        }
-    };
-
-    const fetchRelatedNotes = async (contentId: string) => {
-        setLoadingRelatedNotes(true);
-        try {
-            // Query standalone_notes where linked_content_ids contains this content id
-            const { data, error } = await supabase
-                .from('standalone_notes')
-                .select('id, title, note_type, created_at')
-                .contains('linked_content_ids', [contentId])
-                .order('created_at', { ascending: false });
-
-            if (!error && data) {
-                setRelatedNotes(data);
-            } else {
-                setRelatedNotes([]);
-            }
-        } catch (error) {
-            console.error('Error fetching related notes:', error);
-            setRelatedNotes([]);
-        } finally {
-            setLoadingRelatedNotes(false);
-        }
-    };
-
-    const fetchContents = async (reset: boolean = true) => {
-        try {
-            if (reset) {
-                setLoading(true);
-                setContents([]);
-            }
-
-            // Fetch first page only for fast initial load
-            const { data, error } = await supabase
-                .from('contents')
-                .select('*')
-                .eq('is_archived', showArchived)
-                .order('created_at', { ascending: false })
-                .range(0, PAGE_SIZE - 1);
-
-            if (error) throw error;
-
-            setContents(data || []);
-            setHasMore((data?.length || 0) === PAGE_SIZE);
-
-            // Fetch counts for sidebar and stats
-            const [archivedResult, totalResult] = await Promise.all([
-                supabase.from('contents').select('*', { count: 'exact', head: true }).eq('is_archived', true),
-                supabase.from('contents').select('*', { count: 'exact', head: true }).eq('is_archived', false)
+            // Fetch all data in parallel
+            const results = await Promise.allSettled([
+                fetch(`${API_URL}/api/v1/objectives/active`, { headers }),
+                fetch(`${API_URL}/api/v1/content/stats`, { headers }),
+                fetch(`${API_URL}/api/v1/process/stats`, { headers }),
+                fetch(`${API_URL}/api/v1/content/?limit=10`, { headers }),
+                fetch(`${API_URL}/api/v1/folders/`, { headers }),
+                fetch(`${API_URL}/api/v1/projects/?status=active`, { headers }),
+                fetch(`${API_URL}/api/v1/usage/summary?days=30`, { headers }),
             ]);
-            setArchivedCount(archivedResult.count || 0);
-            setTotalCount(totalResult.count || 0);
+
+            // Process objectives
+            if (results[0].status === 'fulfilled' && results[0].value.ok) {
+                const data = await results[0].value.json();
+                setObjectives(data.objectives || []);
+            }
+
+            // Process content stats
+            if (results[1].status === 'fulfilled' && results[1].value.ok) {
+                const data = await results[1].value.json();
+                setContentStats(data);
+            }
+
+            // Process processing stats
+            if (results[2].status === 'fulfilled' && results[2].value.ok) {
+                const data = await results[2].value.json();
+                setProcessingStats(data);
+            }
+
+            // Process recent contents
+            if (results[3].status === 'fulfilled' && results[3].value.ok) {
+                const data = await results[3].value.json();
+                setRecentContents(data.data || []);
+            }
+
+            // Process folders
+            if (results[4].status === 'fulfilled' && results[4].value.ok) {
+                const data = await results[4].value.json();
+                setFolders(data || []);
+            }
+
+            // Process projects
+            if (results[5].status === 'fulfilled' && results[5].value.ok) {
+                const data = await results[5].value.json();
+                setProjects(data || []);
+            }
+
+            // Process usage
+            if (results[6].status === 'fulfilled' && results[6].value.ok) {
+                const data = await results[6].value.json();
+                setUsageCost(data.total_cost_usd || 0);
+            }
+
         } catch (error) {
-            console.error('Error fetching contents:', error);
+            console.error('Error fetching dashboard data:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [user]);
 
-    const loadMoreContents = async () => {
-        if (loadingMore || !hasMore) return;
-
-        setLoadingMore(true);
-        try {
-            const from = contents.length;
-            const to = from + PAGE_SIZE - 1;
-
-            const { data, error } = await supabase
-                .from('contents')
-                .select('*')
-                .eq('is_archived', showArchived)
-                .order('created_at', { ascending: false })
-                .range(from, to);
-
-            if (error) throw error;
-
-            if (data && data.length > 0) {
-                setContents(prev => [...prev, ...data]);
-                setHasMore(data.length === PAGE_SIZE);
-            } else {
-                setHasMore(false);
-            }
-        } catch (error) {
-            console.error('Error loading more contents:', error);
-        } finally {
-            setLoadingMore(false);
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/login');
+        } else if (user) {
+            fetchDashboardData();
         }
-    };
+    }, [user, authLoading, router, fetchDashboardData]);
 
-    const fetchFolders = async () => {
+    // =====================================================
+    // Actions
+    // =====================================================
+
+    const handleQuickSaveUrl = async () => {
+        if (!quickUrl.trim()) return;
+
+        setQuickUrlLoading(true);
         try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
 
-            const response = await fetch(`${API_URL}/api/v1/folders/tree`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setFolders(data);
-            }
-        } catch (error) {
-            console.error('Error fetching folders:', error);
-        }
-    };
-
-    const fetchProcessingStats = async () => {
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/process/stats`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Processing stats:', data);
-                setProcessingStats(data);
-            } else {
-                console.error('Error fetching processing stats:', response.status, await response.text());
-            }
-        } catch (error) {
-            console.error('Error fetching processing stats:', error);
-        }
-    };
-
-    const handleProcessSingle = async (contentId: string) => {
-        setProcessingContentId(contentId);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/process/${contentId}`, {
+            const res = await fetch(`${API_URL}/api/v1/quick-save/`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({ url: quickUrl }),
             });
 
-            if (response.ok) {
-                fetchContents();
-                fetchProcessingStats();
-            } else {
-                const error = await response.json();
-                alert(`Error: ${error.detail}`);
+            if (res.ok) {
+                setQuickUrl('');
+                setShowQuickUrl(false);
+                fetchDashboardData();
             }
         } catch (error) {
-            console.error('Error processing content:', error);
+            console.error('Error saving URL:', error);
         } finally {
-            setProcessingContentId(null);
+            setQuickUrlLoading(false);
         }
-    };
-
-    const handleProcessAllPending = async () => {
-        setIsProcessing(true);
-
-        // Initialize progress tracking
-        const totalToProcess = processLimit === 'all'
-            ? processingStats.pending
-            : Math.min(parseInt(processLimit), processingStats.pending);
-
-        setProcessingProgress({
-            total: totalToProcess,
-            processed: 0,
-            failed: 0,
-            startTime: Date.now(),
-            currentItem: 'Iniciando...'
-        });
-
-        // Start polling for progress updates
-        const initialCompleted = processingStats.completed;
-        const initialFailed = processingStats.failed;
-
-        const pollInterval = setInterval(async () => {
-            try {
-                const session = await supabase.auth.getSession();
-                if (!session.data.session) return;
-
-                const statsResponse = await fetch(`${API_URL}/api/v1/process/stats`, {
-                    headers: {
-                        'Authorization': `Bearer ${session.data.session.access_token}`,
-                    },
-                });
-
-                if (statsResponse.ok) {
-                    const stats = await statsResponse.json();
-                    const newCompleted = stats.completed - initialCompleted;
-                    const newFailed = stats.failed - initialFailed;
-
-                    setProcessingProgress(prev => ({
-                        ...prev,
-                        processed: newCompleted,
-                        failed: newFailed,
-                        currentItem: stats.processing > 0 ? `Procesando ${stats.processing} item(s)...` : 'Esperando...'
-                    }));
-
-                    setProcessingStats(stats);
-                }
-            } catch (e) {
-                console.error('Error polling stats:', e);
-            }
-        }, 2000); // Poll every 2 seconds
-
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) {
-                clearInterval(pollInterval);
-                return;
-            }
-
-            const limitParam = processLimit === 'all' ? '' : `?limit=${processLimit}`;
-            const response = await fetch(`${API_URL}/api/v1/process/bulk${limitParam}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            clearInterval(pollInterval);
-
-            if (response.ok) {
-                const result = await response.json();
-                setProcessingProgress(prev => ({
-                    ...prev,
-                    processed: result.processed,
-                    failed: result.failed,
-                    currentItem: 'Completado!'
-                }));
-
-                // Show completion message
-                const duration = Math.round((Date.now() - processingProgress.startTime) / 1000);
-                alert(`Procesamiento completado!\n\nExitosos: ${result.processed}\nFallidos: ${result.failed}\nTiempo: ${formatDuration(duration)}`);
-
-                fetchContents();
-                fetchProcessingStats();
-            } else {
-                const error = await response.json().catch(() => ({}));
-                alert(`Error: ${error.detail || 'Error desconocido al procesar'}`);
-            }
-        } catch (error) {
-            clearInterval(pollInterval);
-            console.error('Error processing all pending:', error);
-            alert('Error de conexion al procesar');
-        } finally {
-            setIsProcessing(false);
-            setProcessingProgress({
-                total: 0,
-                processed: 0,
-                failed: 0,
-                startTime: 0,
-                currentItem: ''
-            });
-        }
-    };
-
-    // Helper function to format duration
-    const formatDuration = (seconds: number): string => {
-        if (seconds < 60) return `${seconds}s`;
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        if (mins < 60) return `${mins}m ${secs}s`;
-        const hours = Math.floor(mins / 60);
-        const remainingMins = mins % 60;
-        return `${hours}h ${remainingMins}m`;
     };
 
     const handleRetryFailed = async () => {
         try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
 
-            const response = await fetch(`${API_URL}/api/v1/process/retry-failed`, {
+            await fetch(`${API_URL}/api/v1/process/retry-failed`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
+                headers: { 'Authorization': `Bearer ${session.access_token}` },
             });
-
-            if (response.ok) {
-                const result = await response.json();
-                alert(result.message);
-                fetchContents();
-                fetchProcessingStats();
-            }
+            fetchDashboardData();
         } catch (error) {
             console.error('Error retrying failed:', error);
         }
     };
 
-    const handleRetryErrored = async () => {
+    const handleToggleAction = async (objectiveId: string, actionId: string, currentState: boolean) => {
         try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
 
-            const response = await fetch(`${API_URL}/api/v1/process/retry-errored`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                alert(`${result.message}\nEncontrados: ${result.found}, Reseteados: ${result.reset}`);
-                fetchContents();
-                fetchProcessingStats();
-            }
-        } catch (error) {
-            console.error('Error retrying errored:', error);
-        }
-    };
-
-    useEffect(() => {
-        if (!authLoading && !user) {
-            router.push('/login');
-        }
-    }, [authLoading, user, router]);
-
-    const fetchAvailableTags = async () => {
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/tags/available`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setAvailableTags(data);
-            }
-        } catch (error) {
-            console.error('Error fetching available tags:', error);
-        }
-    };
-
-    useEffect(() => {
-        if (user) {
-            fetchContents();
-            fetchFolders();
-            fetchProcessingStats();
-            fetchProjects();
-            fetchAvailableTags();
-        }
-    }, [user, showArchived]);
-
-    const handleCreateFolder = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newFolderName.trim()) return;
-
-        setCreatingFolder(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) throw new Error('No session');
-
-            const response = await fetch(`${API_URL}/api/v1/folders/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    name: newFolderName.trim(),
-                    parent_id: newFolderParentId,
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Error creating folder');
-            }
-
-            setNewFolderName('');
-            setNewFolderParentId(null);
-            setShowFolderModal(false);
-            fetchFolders();
-        } catch (error: any) {
-            console.error('Error creating folder:', error);
-        } finally {
-            setCreatingFolder(false);
-        }
-    };
-
-    const handleDeleteFolder = async (folderId: string) => {
-        if (!confirm('¿Estas seguro de eliminar esta carpeta? El contenido se movera a la raiz.')) return;
-
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/folders/${folderId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                if (selectedFolderId === folderId) {
-                    setSelectedFolderId(null);
-                }
-                fetchFolders();
-                fetchContents();
-            }
-        } catch (error) {
-            console.error('Error deleting folder:', error);
-        }
-    };
-
-    const handleMoveContents = async (targetFolderId: string | null) => {
-        if (selectedContentIds.size === 0) return;
-
-        setMovingContents(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) throw new Error('No session');
-
-            const response = await fetch(`${API_URL}/api/v1/folders/move-contents`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    content_ids: Array.from(selectedContentIds),
-                    folder_id: targetFolderId,
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Error moving contents');
-            }
-
-            setSelectedContentIds(new Set());
-            setShowMoveModal(false);
-            fetchContents();
-            fetchFolders();
-        } catch (error) {
-            console.error('Error moving contents:', error);
-        } finally {
-            setMovingContents(false);
-        }
-    };
-
-    const handleBulkArchive = async () => {
-        if (selectedContentIds.size === 0) return;
-
-        const action = showArchived ? 'restaurar' : 'archivar';
-        if (!confirm(`¿Estas seguro de ${action} ${selectedContentIds.size} elemento(s)?`)) return;
-
-        setArchivingContents(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) throw new Error('No session');
-
-            const endpoint = showArchived ? 'unarchive' : 'archive';
-            const response = await fetch(`${API_URL}/api/v1/content/bulk/${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    content_ids: Array.from(selectedContentIds),
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Error al ${action}`);
-            }
-
-            setSelectedContentIds(new Set());
-            fetchContents();
-        } catch (error) {
-            console.error('Error archiving contents:', error);
-        } finally {
-            setArchivingContents(false);
-        }
-    };
-
-    const handleBulkDelete = async () => {
-        if (selectedContentIds.size === 0) return;
-
-        if (!confirm(`¿Estas seguro de ELIMINAR PERMANENTEMENTE ${selectedContentIds.size} elemento(s)? Esta accion no se puede deshacer.`)) return;
-
-        setDeletingContents(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) throw new Error('No session');
-
-            const response = await fetch(`${API_URL}/api/v1/content/bulk/delete`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    content_ids: Array.from(selectedContentIds),
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Error al eliminar');
-            }
-
-            setSelectedContentIds(new Set());
-            fetchContents();
-            fetchFolders();
-        } catch (error) {
-            console.error('Error deleting contents:', error);
-        } finally {
-            setDeletingContents(false);
-        }
-    };
-
-    const handleArchiveSingle = async (contentId: string) => {
-        const action = showArchived ? 'restaurar' : 'archivar';
-        if (!confirm(`¿Estas seguro de ${action} este contenido?`)) return;
-
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) throw new Error('No session');
-
-            const endpoint = showArchived ? 'unarchive' : 'archive';
-            const response = await fetch(`${API_URL}/api/v1/content/bulk/${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    content_ids: [contentId],
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Error al ${action}`);
-            }
-
-            setShowDetailModal(false);
-            setSelectedContent(null);
-            fetchContents();
-        } catch (error) {
-            console.error('Error archiving content:', error);
-        }
-    };
-
-    const toggleFolderExpand = (folderId: string) => {
-        setExpandedFolders(prev => {
-            const next = new Set(prev);
-            if (next.has(folderId)) {
-                next.delete(folderId);
-            } else {
-                next.add(folderId);
-            }
-            return next;
-        });
-    };
-
-    const toggleContentSelection = (contentId: string) => {
-        setSelectedContentIds(prev => {
-            const next = new Set(prev);
-            if (next.has(contentId)) {
-                next.delete(contentId);
-            } else {
-                next.add(contentId);
-            }
-            return next;
-        });
-    };
-
-    // Apply filters
-    useEffect(() => {
-        let result = contents;
-
-        // Filter by folder
-        if (selectedFolderId === 'root') {
-            result = result.filter(c => c.folder_id === null);
-        } else if (selectedFolderId) {
-            result = result.filter(c => c.folder_id === selectedFolderId);
-        }
-
-        if (filterType !== 'all') {
-            result = result.filter(c => c.type === filterType);
-        }
-
-        if (filterCategory !== 'all') {
-            result = result.filter(c => c.iab_tier1 === filterCategory);
-        }
-
-        if (filterMaturity !== 'all') {
-            result = result.filter(c => (c.maturity_level || 'captured') === filterMaturity);
-        }
-
-        if (filterAsset !== 'all') {
-            const isAsset = filterAsset === 'true';
-            result = result.filter(c => c.is_asset === isAsset);
-        }
-
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            result = result.filter(c =>
-                c.title?.toLowerCase().includes(query) ||
-                c.summary?.toLowerCase().includes(query) ||
-                c.concepts?.some(concept => concept.toLowerCase().includes(query))
-            );
-        }
-
-        // Filter by user_tags
-        if (filterUserTags.length > 0) {
-            result = result.filter(c =>
-                filterUserTags.some(tag => (c.user_tags || []).includes(tag))
-            );
-        }
-
-        // Note: inherited_tags filtering requires backend calculation
-        // For now, we only filter by user_tags on the client side
-        // inherited_tags filtering will work in Explore view which uses backend search
-
-        setFilteredContents(result);
-    }, [contents, filterType, filterCategory, filterMaturity, filterAsset, searchQuery, selectedFolderId, filterUserTags, filterInheritedTags, availableTags]);
-
-    // Helper to render folder tree recursively
-    const renderFolderTree = (folderList: Folder[], depth = 0) => {
-        return folderList.map(folder => (
-            <div key={folder.id}>
-                <div
-                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg group ${
-                        selectedFolderId === folder.id ? 'bg-gray-100 dark:bg-gray-700' : ''
-                    }`}
-                    style={{ paddingLeft: `${12 + depth * 16}px` }}
-                >
-                    {folder.children.length > 0 && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                toggleFolderExpand(folder.id);
-                            }}
-                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 w-4"
-                        >
-                            {expandedFolders.has(folder.id) ? '▼' : '▶'}
-                        </button>
-                    )}
-                    {folder.children.length === 0 && <span className="w-4" />}
-                    <span
-                        onClick={() => setSelectedFolderId(folder.id)}
-                        className="flex-1 flex items-center gap-2 dark:text-gray-200"
-                    >
-                        <span>{folder.icon}</span>
-                        <span className="truncate">{folder.name}</span>
-                        <span className="text-xs text-gray-400">({folder.content_count})</span>
-                    </span>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setNewFolderParentId(folder.id);
-                            setShowFolderModal(true);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        title="Crear subcarpeta"
-                    >
-                        +
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFolder(folder.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"
-                        title="Eliminar carpeta"
-                    >
-                        ×
-                    </button>
-                </div>
-                {expandedFolders.has(folder.id) && folder.children.length > 0 && (
-                    <div>{renderFolderTree(folder.children, depth + 1)}</div>
-                )}
-            </div>
-        ));
-    };
-
-    // Count contents without folder
-    const rootContentCount = contents.filter(c => c.folder_id === null).length;
-
-    const handleAddUrl = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setAddError('');
-        setAddingUrl(true);
-
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) {
-                throw new Error('No hay sesión activa');
-            }
-
-            // Use quick-save endpoint for faster saves (no AI processing, will be processed later)
-            const response = await fetch(`${API_URL}/api/v1/quick-save/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({ url: newUrl }),
-            });
-
-            const data = await response.json();
-
-            if (!data.success) {
-                if (data.error === 'duplicate') {
-                    throw new Error(`Esta URL ya está guardada: "${data.title}"`);
-                }
-                throw new Error(data.error || data.message || 'Error al guardar URL');
-            }
-
-            setNewUrl('');
-            setShowAddModal(false);
-            fetchContents();
-            fetchProcessingStats(); // Update pending count
-        } catch (error: any) {
-            setAddError(error.message || 'Error adding URL');
-        } finally {
-            setAddingUrl(false);
-        }
-    };
-
-    const handleToggleFavorite = async (content: Content) => {
-        try {
-            const { error } = await supabase
-                .from('contents')
-                .update({ is_favorite: !content.is_favorite })
-                .eq('id', content.id);
-
-            if (error) throw error;
-            fetchContents();
-            if (selectedContent?.id === content.id) {
-                setSelectedContent({ ...content, is_favorite: !content.is_favorite });
-            }
-        } catch (error) {
-            console.error('Error toggling favorite:', error);
-        }
-    };
-
-    const handleToggleAsset = async (content: Content) => {
-        try {
-            const { error } = await supabase
-                .from('contents')
-                .update({ is_asset: !content.is_asset })
-                .eq('id', content.id);
-
-            if (error) throw error;
-            fetchContents();
-            if (selectedContent?.id === content.id) {
-                setSelectedContent({ ...content, is_asset: !content.is_asset });
-            }
-        } catch (error) {
-            console.error('Error toggling asset:', error);
-        }
-    };
-
-    const handleUpdateMaturity = async (contentId: string, newLevel: MaturityLevel) => {
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/content/${contentId}/maturity`, {
+            await fetch(`${API_URL}/api/v1/objectives/${objectiveId}/actions/${actionId}`, {
                 method: 'PUT',
                 headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
                 },
-                body: JSON.stringify({ maturity_level: newLevel }),
+                body: JSON.stringify({ is_completed: !currentState }),
             });
-
-            if (!response.ok) throw new Error('Error updating maturity');
-
-            fetchContents();
-            if (selectedContent?.id === contentId) {
-                setSelectedContent({ ...selectedContent, maturity_level: newLevel });
-            }
+            fetchDashboardData();
         } catch (error) {
-            console.error('Error updating maturity:', error);
+            console.error('Error toggling action:', error);
         }
     };
 
-    const handleUpdateTags = async (contentId: string, newTags: string[]) => {
-        try {
-            const { error } = await supabase
-                .from('contents')
-                .update({ user_tags: newTags })
-                .eq('id', contentId);
-
-            if (error) throw error;
-            fetchContents();
-            if (selectedContent?.id === contentId) {
-                setSelectedContent({ ...selectedContent, user_tags: newTags });
-            }
-        } catch (error) {
-            console.error('Error updating tags:', error);
-        }
-    };
-
-    const fetchInheritedTags = async (contentId: string) => {
-        setLoadingInheritedTags(true);
-        setInheritedTags([]);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/tags/inherited/${contentId}`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setInheritedTags(data.tag_sources || []);
-            }
-        } catch (error) {
-            console.error('Error fetching inherited tags:', error);
-        } finally {
-            setLoadingInheritedTags(false);
-        }
-    };
-
-    const handleDelete = async (contentId: string) => {
-        if (!confirm('¿Estas seguro de eliminar este contenido?')) return;
-
-        try {
-            const { error } = await supabase
-                .from('contents')
-                .delete()
-                .eq('id', contentId);
-
-            if (error) throw error;
-            setShowDetailModal(false);
-            setSelectedContent(null);
-            fetchContents();
-        } catch (error) {
-            console.error('Error deleting content:', error);
-        }
-    };
-
-    const handleSignOut = async () => {
-        await signOut();
-        router.push('/');
-    };
-
-    const openDetail = (content: Content) => {
-        setSelectedContent(content);
-        setShowDetailModal(true);
-        fetchInheritedTags(content.id);
-        fetchRelatedNotes(content.id);
-    };
-
-    const getTypeIcon = (type: string) => {
-        const icons: Record<string, string> = {
-            web: '🌐',
-            youtube: '📺',
-            tiktok: '🎵',
-            twitter: '🐦',
-            pdf: '📄',
-            note: '📝',
-        };
-        return icons[type] || '📄';
-    };
-
-    const getStatusBadge = (status: string) => {
-        const styles: Record<string, string> = {
-            pending: 'bg-yellow-100 text-yellow-800',
-            processing: 'bg-blue-100 text-blue-800',
-            completed: 'bg-green-100 text-green-800',
-            failed: 'bg-red-100 text-red-800',
-        };
-        return styles[status] || 'bg-gray-100 text-gray-800';
-    };
-
-    const getSentimentBadge = (sentiment: string | null) => {
-        if (!sentiment) return null;
-        const styles: Record<string, string> = {
-            positive: 'bg-green-100 text-green-800',
-            negative: 'bg-red-100 text-red-800',
-            neutral: 'bg-gray-100 text-gray-800',
-            mixed: 'bg-purple-100 text-purple-800',
-        };
-        return styles[sentiment] || 'bg-gray-100 text-gray-800';
-    };
-
-    // Get unique categories for filter
-    const categories = [...new Set(contents.map(c => c.iab_tier1).filter(Boolean))] as string[];
-    const types = [...new Set(contents.map(c => c.type))];
+    // =====================================================
+    // Render
+    // =====================================================
 
     if (authLoading || loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
             </div>
         );
     }
 
-    if (!user) {
-        return null;
-    }
+    const pendingProcessing = (processingStats?.queued || 0) + (processingStats?.pending || 0) + (processingStats?.processing || 0);
+    const failedCount = processingStats?.failed || 0;
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-            {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-14">
-                        {/* Logo */}
-                        <Link href="/dashboard" className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                                <span className="text-white text-sm font-bold">K</span>
-                            </div>
-                            <span className="font-semibold text-gray-900 dark:text-white hidden sm:block">KBase</span>
-                        </Link>
-
-                        {/* Center Navigation */}
-                        <nav className="flex items-center gap-1">
-                            {/* Add Button with Dropdown */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowAddMenu(!showAddMenu)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Añadir
-                                    <svg className={`w-3 h-3 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
-
-                                {showAddMenu && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
-                                        <div className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
-                                            <button
-                                                onClick={() => {
-                                                    setShowAddMenu(false);
-                                                    setShowAddModal(true);
-                                                }}
-                                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                            >
-                                                <span className="w-5 text-center">🔗</span>
-                                                Añadir URL
-                                            </button>
-                                            <Link
-                                                href="/notes/new"
-                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                onClick={() => setShowAddMenu(false)}
-                                            >
-                                                <span className="w-5 text-center">📝</span>
-                                                Nueva Nota
-                                            </Link>
-                                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-                                            <Link
-                                                href="/import"
-                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                onClick={() => setShowAddMenu(false)}
-                                            >
-                                                <span className="w-5 text-center">📥</span>
-                                                Importar URLs (masivo)
-                                            </Link>
-                                            <Link
-                                                href="/import-apple-notes"
-                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                onClick={() => setShowAddMenu(false)}
-                                            >
-                                                <span className="w-5 text-center">🍎</span>
-                                                Apple Notes
-                                            </Link>
-                                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-                                            <Link
-                                                href="/quick-save"
-                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                onClick={() => setShowAddMenu(false)}
-                                            >
-                                                <span className="w-5 text-center">🔖</span>
-                                                Configurar Quick Save
-                                            </Link>
-                                            <Link
-                                                href="/tags"
-                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                onClick={() => setShowAddMenu(false)}
-                                            >
-                                                <span className="w-5 text-center">🏷️</span>
-                                                Reglas de Tags
-                                            </Link>
-                                            <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-                                            <Link
-                                                href="/guide"
-                                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                onClick={() => setShowAddMenu(false)}
-                                            >
-                                                <span className="w-5 text-center">📖</span>
-                                                Guía de Uso
-                                            </Link>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-
-                            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-2" />
-
-                            {/* Main Nav Links */}
-                            <Link
-                                href="/explore"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                                <span className="hidden md:inline">Explorar</span>
-                            </Link>
-                            <Link
-                                href="/projects"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                                </svg>
-                                <span className="hidden md:inline">Proyectos</span>
-                            </Link>
-                            <Link
-                                href="/journal"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                <span className="hidden md:inline">Diario</span>
-                            </Link>
-                            <Link
-                                href="/knowledge-graph"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                </svg>
-                                <span className="hidden md:inline">Grafo</span>
-                            </Link>
-                            <Link
-                                href="/taxonomy"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                                </svg>
-                                <span className="hidden md:inline">Taxonomia</span>
-                            </Link>
-                            <Link
-                                href="/mental-models"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                <span className="text-base">🧠</span>
-                                <span className="hidden md:inline">Mental</span>
-                            </Link>
-                            <Link
-                                href="/chat"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                </svg>
-                                <span className="hidden md:inline">Chat</span>
-                            </Link>
-                            <Link
-                                href="/usage"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                                <span className="hidden md:inline">API</span>
-                            </Link>
-                        </nav>
-
-                        {/* Right section */}
-                        <div className="flex items-center gap-2">
-                            <ThemeToggle />
-                            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600" />
-                            <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                                    <span className="text-white text-xs font-medium">
-                                        {user.email?.charAt(0).toUpperCase()}
-                                    </span>
-                                </div>
-                                <span className="text-sm text-gray-600 dark:text-gray-300 hidden lg:block max-w-[150px] truncate">
-                                    {user.email}
-                                </span>
-                            </div>
-                            <button
-                                onClick={handleSignOut}
-                                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                                title="Cerrar sesión"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main content with sidebar */}
-            <div className="flex">
-                {/* Sidebar - Folders (collapsible) */}
-                <aside className={`${sidebarCollapsed ? 'w-12' : 'w-64'} bg-white dark:bg-gray-800 shadow-sm min-h-[calc(100vh-64px)] flex-shrink-0 transition-all duration-300 relative`}>
-                    {/* Toggle button */}
-                    <button
-                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className="absolute -right-3 top-4 z-10 w-6 h-6 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                        title={sidebarCollapsed ? 'Expandir carpetas' : 'Colapsar carpetas'}
-                    >
-                        <svg className={`w-3 h-3 text-gray-600 dark:text-gray-300 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                    </button>
-
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+            {/* ===== SIDEBAR CARPETAS (Colapsable) ===== */}
+            <aside className={`${sidebarCollapsed ? 'w-12' : 'w-64'} bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 flex flex-col`}>
+                {/* Toggle button */}
+                <button
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700"
+                >
                     {sidebarCollapsed ? (
-                        /* Collapsed view - only icons */
-                        <div className="p-2 pt-4 space-y-2">
-                            <div
-                                onClick={() => { setSelectedFolderId(null); setShowArchived(false); }}
-                                className={`p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg ${
-                                    selectedFolderId === null && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
-                                }`}
-                                title="Todo el contenido"
-                            >
-                                <span className="text-lg">📚</span>
-                            </div>
-                            <div
-                                onClick={() => { setSelectedFolderId('root'); setShowArchived(false); }}
-                                className={`p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg ${
-                                    selectedFolderId === 'root' && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
-                                }`}
-                                title="Sin carpeta"
-                            >
-                                <span className="text-lg">📄</span>
-                            </div>
-                            <div
-                                onClick={() => { setShowArchived(true); setSelectedFolderId(null); }}
-                                className={`p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg ${
-                                    showArchived ? 'bg-yellow-50 dark:bg-yellow-900/30' : ''
-                                }`}
-                                title="Archivados"
-                            >
-                                <span className="text-lg">📦</span>
-                            </div>
-                        </div>
+                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                        </svg>
                     ) : (
-                        /* Expanded view - full content */
-                        <div className="p-4">
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="font-semibold text-gray-700 dark:text-gray-200">Carpetas</h2>
-                                <button
-                                    onClick={() => {
-                                        setNewFolderParentId(null);
-                                        setShowFolderModal(true);
-                                    }}
-                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl"
-                                    title="Nueva carpeta"
-                                >
-                                    +
-                                </button>
-                            </div>
-
-                            {/* All content */}
-                            <div
-                                onClick={() => { setSelectedFolderId(null); setShowArchived(false); }}
-                                className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-1 ${
-                                    selectedFolderId === null && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
-                                }`}
-                            >
-                                <span>📚</span>
-                                <span className="dark:text-gray-200">Todo el contenido</span>
-                                <span className="text-xs text-gray-400">({contents.length})</span>
-                            </div>
-
-                            {/* Root content (no folder) */}
-                            <div
-                                onClick={() => { setSelectedFolderId('root'); setShowArchived(false); }}
-                                className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-1 ${
-                                    selectedFolderId === 'root' && !showArchived ? 'bg-gray-100 dark:bg-gray-700' : ''
-                                }`}
-                            >
-                                <span>📄</span>
-                                <span className="dark:text-gray-200">Sin carpeta</span>
-                                <span className="text-xs text-gray-400">({rootContentCount})</span>
-                            </div>
-
-                            {/* Archived content */}
-                            <div
-                                onClick={() => { setShowArchived(true); setSelectedFolderId(null); }}
-                                className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mb-2 ${
-                                    showArchived ? 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700' : ''
-                                }`}
-                            >
-                                <span>📦</span>
-                                <span className="dark:text-gray-200">Archivados</span>
-                                <span className="text-xs text-gray-400">({archivedCount})</span>
-                            </div>
-
-                            <div className="border-t dark:border-gray-700 my-2"></div>
-
-                            {/* Folder tree */}
-                            <div className="space-y-1">
-                                {renderFolderTree(folders)}
-                            </div>
-
-                            {folders.length === 0 && (
-                                <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
-                                    No hay carpetas. Crea una!
-                                </p>
-                            )}
-                        </div>
+                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                        </svg>
                     )}
-                </aside>
+                </button>
 
-                {/* Main content area */}
-                <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
-                    {/* Processing Banner - Always visible */}
-                    <div className={`mb-4 border rounded-lg p-4 ${
-                        processingStats.queued > 0 || processingStats.pending > 0 || processingStats.failed > 0
-                            ? 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-700'
-                            : 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-700'
-                    }`}>
-                        <div className="flex items-center justify-between flex-wrap gap-3">
-                            <div className="flex items-center gap-4 flex-wrap">
-                                {processingStats.queued > 0 && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-blue-500">📥</span>
-                                        <span className="text-blue-800 dark:text-blue-200 font-medium">
-                                            {processingStats.queued} en cola
-                                        </span>
-                                    </div>
-                                )}
-                                {processingStats.pending > 0 && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-amber-500">⏳</span>
-                                        <span className="text-amber-800 dark:text-amber-200 font-medium">
-                                            {processingStats.pending} pendiente{processingStats.pending !== 1 ? 's' : ''}
-                                        </span>
-                                    </div>
-                                )}
-                                {processingStats.queued === 0 && processingStats.pending === 0 && processingStats.failed === 0 && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-green-500">✓</span>
-                                        <span className="text-green-800 dark:text-green-200 font-medium">
-                                            Todo procesado
-                                        </span>
-                                    </div>
-                                )}
-                                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <span>✓ {processingStats.completed}</span>
-                                </div>
-                                {processingStats.failed > 0 && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-red-500">✗</span>
-                                        <span className="text-red-700 dark:text-red-300">
-                                            {processingStats.failed} fallido{processingStats.failed !== 1 ? 's' : ''}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={fetchProcessingStats}
-                                    className="px-2 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                                    title="Refrescar estadisticas"
-                                >
-                                    🔄
-                                </button>
-                                <button
-                                    onClick={handleRetryErrored}
-                                    className="px-3 py-1.5 text-sm bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-800/40 transition-colors"
-                                    title="Busca contenidos completados que tengan errores en el resumen y los resetea para reprocesar"
-                                >
-                                    Reparar errores
-                                </button>
-                                {processingStats.failed > 0 && (
-                                    <button
-                                        onClick={handleRetryFailed}
-                                        className="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-800/40 transition-colors"
-                                    >
-                                        Reintentar fallidos
-                                    </button>
-                                )}
-                                {processingStats.pending > 0 && (
-                                    <>
-                                        <select
-                                            value={processLimit}
-                                            onChange={(e) => setProcessLimit(e.target.value)}
-                                            className="px-2 py-1.5 text-sm border border-amber-300 dark:border-amber-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                                            disabled={isProcessing}
-                                        >
-                                            <option value="50">50</option>
-                                            <option value="100">100</option>
-                                            <option value="500">500</option>
-                                            <option value="all">Todos</option>
-                                        </select>
+                {!sidebarCollapsed && (
+                    <div className="flex-1 overflow-y-auto p-3">
+                        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Carpetas</h3>
+                        {folders.length === 0 ? (
+                            <p className="text-sm text-gray-400 dark:text-gray-500">Sin carpetas</p>
+                        ) : (
+                            <ul className="space-y-1">
+                                {folders.filter(f => !f.parent_id).map(folder => (
+                                    <li key={folder.id}>
                                         <button
-                                            onClick={handleProcessAllPending}
-                                            disabled={isProcessing || processingStats.pending === 0}
-                                            className="px-4 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                            onClick={() => router.push(`/explore?folder=${folder.id}`)}
+                                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
                                         >
-                                            {isProcessing ? (
-                                                <>
-                                                    <span className="animate-spin">⚙️</span>
-                                                    Procesando...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    ⚡ Procesar ({processLimit === 'all' ? processingStats.pending : Math.min(parseInt(processLimit), processingStats.pending)})
-                                                </>
-                                            )}
+                                            <span>{folder.icon || '📁'}</span>
+                                            <span className="truncate">{folder.name}</span>
                                         </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                            📥 En cola = URLs por descargar | ⏳ Pendiente = Listos para clasificar/resumir con IA
-                        </p>
-
-                        {/* Progress bar during processing */}
-                        {isProcessing && processingProgress.total > 0 && (
-                            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                                        Procesando contenidos...
-                                    </span>
-                                    <span className="text-sm text-amber-600 dark:text-amber-300">
-                                        {processingProgress.processed + processingProgress.failed} / {processingProgress.total}
-                                        {' '}({Math.round(((processingProgress.processed + processingProgress.failed) / processingProgress.total) * 100)}%)
-                                    </span>
-                                </div>
-
-                                {/* Progress bar */}
-                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                                    <div className="h-full flex">
-                                        <div
-                                            className="bg-green-500 h-full transition-all duration-500"
-                                            style={{ width: `${(processingProgress.processed / processingProgress.total) * 100}%` }}
-                                        />
-                                        <div
-                                            className="bg-red-500 h-full transition-all duration-500"
-                                            style={{ width: `${(processingProgress.failed / processingProgress.total) * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Stats */}
-                                <div className="flex justify-between mt-2 text-xs">
-                                    <div className="flex gap-4">
-                                        <span className="text-green-600 dark:text-green-400">
-                                            ✓ {processingProgress.processed} exitosos
-                                        </span>
-                                        {processingProgress.failed > 0 && (
-                                            <span className="text-red-600 dark:text-red-400">
-                                                ✗ {processingProgress.failed} fallidos
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="text-gray-600 dark:text-gray-400">
-                                        {(() => {
-                                            const elapsed = Math.round((Date.now() - processingProgress.startTime) / 1000);
-                                            const processed = processingProgress.processed + processingProgress.failed;
-                                            if (processed > 0) {
-                                                const rate = processed / elapsed; // items per second
-                                                const remaining = processingProgress.total - processed;
-                                                const eta = Math.round(remaining / rate);
-                                                return `Tiempo: ${formatDuration(elapsed)} | ETA: ${formatDuration(eta)}`;
-                                            }
-                                            return `Tiempo: ${formatDuration(elapsed)}`;
-                                        })()}
-                                    </div>
-                                </div>
-
-                                {/* Current item */}
-                                <div className="mt-2 text-xs text-amber-700 dark:text-amber-300 truncate">
-                                    {processingProgress.currentItem}
-                                </div>
-                            </div>
+                                    </li>
+                                ))}
+                            </ul>
                         )}
-                    </div>
 
-                    {/* Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Total contenidos</p>
-                            <p className="text-3xl font-bold dark:text-white">{totalCount}</p>
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Acceso Rapido</h3>
+                            <ul className="space-y-1">
+                                <li>
+                                    <Link href="/explore?is_favorite=true" className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300">
+                                        <span>⭐</span><span>Favoritos</span>
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link href="/explore?is_archived=true" className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300">
+                                        <span>📦</span><span>Archivados</span>
+                                    </Link>
+                                </li>
+                            </ul>
                         </div>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Web</p>
-                            <p className="text-3xl font-bold dark:text-white">{contents.filter(c => c.type === 'web').length}</p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Videos</p>
-                            <p className="text-3xl font-bold dark:text-white">{contents.filter(c => ['youtube', 'tiktok'].includes(c.type)).length}</p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Favoritos</p>
-                            <p className="text-3xl font-bold dark:text-white">{contents.filter(c => c.is_favorite).length}</p>
-                        </div>
-                    </div>
-
-                    {/* Filters and Actions */}
-                    <div className="flex flex-wrap gap-4 mb-6 items-center">
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="inline-flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600"
-                    >
-                        <span className="mr-2">+</span>
-                        Anadir URL
-                    </button>
-
-                    {/* Search */}
-                    <input
-                        type="text"
-                        placeholder="Buscar..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
-                    />
-
-                    {/* Type filter */}
-                    <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
-                    >
-                        <option value="all">Todos los tipos</option>
-                        {types.map(type => (
-                            <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-                        ))}
-                    </select>
-
-                    {/* Category filter */}
-                    <select
-                        value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
-                    >
-                        <option value="all">Todas las categorias</option>
-                        {categories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </select>
-
-                    {/* Maturity filter */}
-                    <select
-                        value={filterMaturity}
-                        onChange={(e) => setFilterMaturity(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
-                    >
-                        <option value="all">Todos los niveles</option>
-                        {(Object.keys(MATURITY_LEVELS) as MaturityLevel[]).map(level => (
-                            <option key={level} value={level}>{MATURITY_LEVELS[level].icon} {MATURITY_LEVELS[level].label}</option>
-                        ))}
-                    </select>
-
-                    {/* Asset filter */}
-                    <select
-                        value={filterAsset}
-                        onChange={(e) => setFilterAsset(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
-                    >
-                        <option value="all">Todos</option>
-                        <option value="true">Activos</option>
-                        <option value="false">No activos</option>
-                    </select>
-
-                    {(filterType !== 'all' || filterCategory !== 'all' || filterMaturity !== 'all' || filterAsset !== 'all' || searchQuery || filterUserTags.length > 0 || filterInheritedTags.length > 0) && (
-                        <>
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {filteredContents.length} de {contents.length}
-                            </span>
-                            <button
-                                onClick={() => {
-                                    setFilterType('all');
-                                    setFilterCategory('all');
-                                    setFilterMaturity('all');
-                                    setFilterAsset('all');
-                                    setSearchQuery('');
-                                    setFilterUserTags([]);
-                                    setFilterInheritedTags([]);
-                                }}
-                                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                            >
-                                Limpiar filtros
-                            </button>
-                        </>
-                    )}
-
-                    {/* Bulk action buttons */}
-                    {selectedContentIds.size > 0 && (
-                        <div className="ml-auto flex items-center gap-2">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                                {selectedContentIds.size} seleccionado(s)
-                            </span>
-                            {!showArchived && (
-                                <button
-                                    onClick={() => setShowMoveModal(true)}
-                                    className="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"
-                                >
-                                    📁 Mover
-                                </button>
-                            )}
-                            <button
-                                onClick={handleBulkArchive}
-                                disabled={archivingContents}
-                                className={`inline-flex items-center px-3 py-2 rounded-lg text-sm ${
-                                    showArchived
-                                        ? 'bg-green-600 text-white hover:bg-green-700'
-                                        : 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                }`}
-                            >
-                                {archivingContents ? '...' : showArchived ? '↩️ Restaurar' : '📦 Archivar'}
-                            </button>
-                            <button
-                                onClick={handleBulkDelete}
-                                disabled={deletingContents}
-                                className="inline-flex items-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
-                            >
-                                {deletingContents ? '...' : '🗑️ Eliminar'}
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Tag filters */}
-                {(availableTags.user_tags.length > 0 || availableTags.inherited_tags.length > 0) && (
-                    <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                        <TagFilter
-                            userTags={availableTags.user_tags}
-                            inheritedTags={availableTags.inherited_tags}
-                            selectedUserTags={filterUserTags}
-                            selectedInheritedTags={filterInheritedTags}
-                            onUserTagsChange={setFilterUserTags}
-                            onInheritedTagsChange={setFilterInheritedTags}
-                        />
                     </div>
                 )}
 
-                {/* Archived banner */}
-                {showArchived && (
-                    <div className="mb-4 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className="text-yellow-600">📦</span>
-                            <span className="text-yellow-800 dark:text-yellow-200 font-medium">Viendo contenido archivado</span>
-                        </div>
-                        <button
-                            onClick={() => { setShowArchived(false); setSelectedFolderId(null); }}
-                            className="text-sm text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100 underline"
-                        >
-                            Volver al contenido activo
-                        </button>
-                    </div>
-                )}
-
-                {/* Content list */}
-                {filteredContents.length === 0 ? (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
-                            {contents.length === 0
-                                ? 'No tienes contenido guardado todavia'
-                                : 'No hay contenido que coincida con los filtros'
-                            }
-                        </p>
-                        {contents.length === 0 && (
-                            <button
-                                onClick={() => setShowAddModal(true)}
-                                className="inline-flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600"
-                            >
-                                Anadir tu primera URL
+                {sidebarCollapsed && (
+                    <div className="flex-1 flex flex-col items-center py-3 space-y-2">
+                        <button onClick={() => router.push('/explore?is_favorite=true')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Favoritos">⭐</button>
+                        <button onClick={() => router.push('/explore?is_archived=true')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Archivados">📦</button>
+                        {folders.slice(0, 5).map(f => (
+                            <button key={f.id} onClick={() => router.push(`/explore?folder=${f.id}`)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title={f.name}>
+                                {f.icon || '📁'}
                             </button>
-                        )}
-                    </div>
-                ) : (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                        {/* Results count */}
-                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400">
-                            Mostrando {filteredContents.length} de {contents.length} contenidos
-                        </div>
-                        {/* Fixed header */}
-                        <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                            <div className="flex">
-                                <div className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10 flex-shrink-0">
-                                    <input
-                                        type="checkbox"
-                                        checked={filteredContents.length > 0 && selectedContentIds.size === filteredContents.length}
-                                        onChange={(e) => {
-                                            if (e.target.checked) {
-                                                setSelectedContentIds(new Set(filteredContents.map(c => c.id)));
-                                            } else {
-                                                setSelectedContentIds(new Set());
-                                            }
-                                        }}
-                                        className="rounded border-gray-300 dark:border-gray-600"
-                                    />
-                                </div>
-                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1 min-w-[300px]">
-                                    Contenido
-                                </div>
-                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24 flex-shrink-0">
-                                    Tipo
-                                </div>
-                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32 flex-shrink-0">
-                                    Categoria
-                                </div>
-                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32 flex-shrink-0">
-                                    Estado
-                                </div>
-                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28 flex-shrink-0">
-                                    Nivel
-                                </div>
-                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24 flex-shrink-0">
-                                    Fecha
-                                </div>
-                                <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20 flex-shrink-0">
-                                    Acciones
-                                </div>
-                            </div>
-                        </div>
-                        {/* Virtualized scrollable body */}
-                        <div
-                            ref={tableContainerRef}
-                            className="overflow-auto"
-                            style={{ height: 'calc(100vh - 400px)', minHeight: '400px' }}
-                        >
-                            <div
-                                style={{
-                                    height: `${rowVirtualizer.getTotalSize()}px`,
-                                    width: '100%',
-                                    position: 'relative',
-                                }}
-                            >
-                                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                    const content = filteredContents[virtualRow.index];
-                                    return (
-                                        <div
-                                            key={content.id}
-                                            className="flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700"
-                                            style={{
-                                                position: 'absolute',
-                                                top: 0,
-                                                left: 0,
-                                                width: '100%',
-                                                height: `${virtualRow.size}px`,
-                                                transform: `translateY(${virtualRow.start}px)`,
-                                            }}
-                                            onClick={() => openDetail(content)}
-                                        >
-                                            <div className="px-3 py-4 w-10 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedContentIds.has(content.id)}
-                                                    onChange={() => toggleContentSelection(content.id)}
-                                                    className="rounded border-gray-300 dark:border-gray-600"
-                                                />
-                                            </div>
-                                            <div className="px-6 py-4 flex-1 min-w-[300px]">
-                                                <div className="flex items-start">
-                                                    <span className="text-2xl mr-3">{getTypeIcon(content.type)}</span>
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="font-medium text-gray-900 dark:text-white line-clamp-1">
-                                                            {content.title || 'Sin titulo'}
-                                                        </p>
-                                                        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
-                                                            {content.summary || content.url}
-                                                        </p>
-                                                        {content.concepts && content.concepts.length > 0 && (
-                                                            <div className="flex gap-1 mt-1">
-                                                                {content.concepts.slice(0, 3).map((concept, i) => (
-                                                                    <span
-                                                                        key={i}
-                                                                        className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded"
-                                                                    >
-                                                                        {concept}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="px-6 py-4 w-24 flex-shrink-0">
-                                                <span className="text-sm text-gray-600 dark:text-gray-300 capitalize">{content.type}</span>
-                                            </div>
-                                            <div className="px-6 py-4 w-32 flex-shrink-0">
-                                                <span className="text-sm text-gray-600 dark:text-gray-300 truncate block">
-                                                    {content.iab_tier1 || '-'}
-                                                </span>
-                                            </div>
-                                            <div className="px-6 py-4 w-32 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadge(content.processing_status)}`}>
-                                                        {content.processing_status}
-                                                    </span>
-                                                    {(content.processing_status === 'pending' || content.processing_status === 'failed') && (
-                                                        <button
-                                                            onClick={() => handleProcessSingle(content.id)}
-                                                            disabled={processingContentId === content.id}
-                                                            className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/40 disabled:opacity-50"
-                                                            title="Procesar ahora"
-                                                        >
-                                                            {processingContentId === content.id ? '⏳' : '⚡'}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="px-6 py-4 w-28 flex-shrink-0">
-                                                {(() => {
-                                                    const level = (content.maturity_level || 'captured') as MaturityLevel;
-                                                    const config = MATURITY_LEVELS[level];
-                                                    return (
-                                                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${config.color} bg-opacity-20 ${config.textColor}`}>
-                                                            <span>{config.icon}</span>
-                                                            <span>{config.label}</span>
-                                                        </span>
-                                                    );
-                                                })()}
-                                            </div>
-                                            <div className="px-6 py-4 w-24 flex-shrink-0 text-sm text-gray-500 dark:text-gray-400">
-                                                {new Date(content.created_at).toLocaleDateString()}
-                                            </div>
-                                            <div className="px-6 py-4 w-20 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex gap-1">
-                                                    <button
-                                                        onClick={() => handleToggleFavorite(content)}
-                                                        className="text-xl hover:scale-110 transition-transform"
-                                                        title={content.is_favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
-                                                    >
-                                                        {content.is_favorite ? '⭐' : '☆'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleToggleAsset(content)}
-                                                        className={`text-xl hover:scale-110 transition-transform ${content.is_asset ? 'opacity-100' : 'opacity-30'}`}
-                                                        title={content.is_asset ? 'Quitar de activos' : 'Marcar como activo'}
-                                                    >
-                                                        📦
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                        {/* Load more button */}
-                        {hasMore && (
-                            <div className="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
-                                <button
-                                    onClick={loadMoreContents}
-                                    disabled={loadingMore}
-                                    className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-                                >
-                                    {loadingMore ? (
-                                        <span className="flex items-center gap-2">
-                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                            </svg>
-                                            Cargando...
-                                        </span>
-                                    ) : (
-                                        `Cargar mas (${contents.length} de ${totalCount})`
-                                    )}
-                                </button>
-                            </div>
-                        )}
-                        {!hasMore && contents.length > 0 && (
-                            <div className="p-3 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
-                                Mostrando todos los {contents.length} contenidos
-                            </div>
-                        )}
+                        ))}
                     </div>
                 )}
-                </main>
-            </div>
+            </aside>
 
-            {/* Add URL Modal */}
-            {showAddModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-2 dark:text-white">Añadir URL</h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                            La URL se guardará rápidamente y se procesará con AI en segundo plano.
-                        </p>
-                        <form onSubmit={handleAddUrl}>
-                            {addError && (
-                                <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
-                                    {addError}
-                                </div>
-                            )}
+            {/* ===== MAIN CONTENT ===== */}
+            <main className="flex-1 overflow-y-auto">
+                {/* HEADER */}
+                <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+
+                        {/* Quick Actions */}
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setShowQuickUrl(!showQuickUrl)}
+                                className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2"
+                            >
+                                <span>+</span> URL
+                            </button>
+                            <Link href="/notes/new" className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-2">
+                                <span>+</span> Nota
+                            </Link>
+                            <Link href="/chat" className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-2">
+                                💬 Chat
+                            </Link>
+                            <ThemeToggle />
+                        </div>
+                    </div>
+
+                    {/* Quick URL Input */}
+                    {showQuickUrl && (
+                        <div className="mt-4 flex gap-2">
                             <input
                                 type="url"
-                                value={newUrl}
-                                onChange={(e) => setNewUrl(e.target.value)}
-                                placeholder="https://example.com/article"
-                                required
-                                autoFocus
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
+                                value={quickUrl}
+                                onChange={(e) => setQuickUrl(e.target.value)}
+                                placeholder="https://..."
+                                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                onKeyDown={(e) => e.key === 'Enter' && handleQuickSaveUrl()}
                             />
-                            <div className="flex justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowAddModal(false);
-                                        setAddError('');
-                                        setNewUrl('');
-                                    }}
-                                    className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={addingUrl}
-                                    className="px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50"
-                                >
-                                    {addingUrl ? 'Guardando...' : 'Guardar'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Detail Modal */}
-            {showDetailModal && selectedContent && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                        {/* Header */}
-                        <div className="p-6 border-b dark:border-gray-700 flex justify-between items-start">
-                            <div className="flex-1 pr-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-2xl">{getTypeIcon(selectedContent.type)}</span>
-                                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadge(selectedContent.processing_status)}`}>
-                                        {selectedContent.processing_status}
-                                    </span>
-                                    {selectedContent.sentiment && (
-                                        <span className={`text-xs px-2 py-1 rounded-full ${getSentimentBadge(selectedContent.sentiment)}`}>
-                                            {selectedContent.sentiment}
-                                        </span>
-                                    )}
-                                </div>
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedContent.title}</h2>
-                                <a
-                                    href={selectedContent.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all"
-                                >
-                                    {selectedContent.url}
-                                </a>
-                            </div>
                             <button
-                                onClick={() => setShowDetailModal(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl"
+                                onClick={handleQuickSaveUrl}
+                                disabled={quickUrlLoading}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                             >
-                                ×
+                                {quickUrlLoading ? '...' : 'Guardar'}
                             </button>
                         </div>
+                    )}
+                </header>
 
-                        {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-6">
-                            {/* Maturity Level Selector */}
-                            <div className="mb-6">
-                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Nivel de madurez</h3>
-                                <div className="flex gap-2">
-                                    {(Object.keys(MATURITY_LEVELS) as MaturityLevel[]).map(level => {
-                                        const config = MATURITY_LEVELS[level];
-                                        const isSelected = (selectedContent.maturity_level || 'captured') === level;
-                                        return (
-                                            <button
-                                                key={level}
-                                                onClick={() => handleUpdateMaturity(selectedContent.id, level)}
-                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
-                                                    isSelected
-                                                        ? `${config.color} border-current ${config.textColor} font-medium`
-                                                        : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
-                                                }`}
-                                                title={`Marcar como ${config.label}`}
-                                            >
-                                                <span className="text-lg">{config.icon}</span>
-                                                <span className="text-sm">{config.label}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                <div className="p-6 space-y-6">
+                    {/* ===== ZONA 1: METRICAS ===== */}
+                    <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Total</p>
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white">{contentStats?.total || 0}</p>
+                        </div>
+                        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Procesando</p>
+                            <p className="text-2xl font-bold text-yellow-600">{pendingProcessing}</p>
+                        </div>
+                        <div className={`bg-white dark:bg-gray-800 rounded-xl p-4 border ${failedCount > 0 ? 'border-red-300 dark:border-red-700' : 'border-gray-200 dark:border-gray-700'}`}>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Fallidos</p>
+                            <p className={`text-2xl font-bold ${failedCount > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>{failedCount}</p>
+                        </div>
+                        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Esta semana</p>
+                            <p className="text-2xl font-bold text-green-600">+{contentStats?.this_week || 0}</p>
+                        </div>
+                        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Costo (30d)</p>
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white">${usageCost.toFixed(2)}</p>
+                        </div>
+                    </section>
+
+                    {/* ===== ZONA 2: FOCO Y ALERTAS ===== */}
+                    <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Objetivo Activo */}
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    🎯 Objetivo Activo
+                                </h2>
+                                <Link href="/objectives" className="text-sm text-indigo-600 hover:underline">Ver todos</Link>
                             </div>
 
-                            {/* Classification */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Tipo</p>
-                                    <p className="font-medium capitalize dark:text-white">{selectedContent.type}</p>
+                            {objectives.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-500 dark:text-gray-400 mb-4">No tienes objetivos activos</p>
+                                    <Link href="/objectives" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                                        Crear objetivo
+                                    </Link>
                                 </div>
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Categoria IAB</p>
-                                    <p className="font-medium dark:text-white">{selectedContent.iab_tier1 || '-'}</p>
-                                    {selectedContent.iab_tier2 && (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">{selectedContent.iab_tier2}</p>
-                                    )}
-                                </div>
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Schema.org</p>
-                                    <p className="font-medium dark:text-white">{selectedContent.schema_type || '-'}</p>
-                                    {selectedContent.schema_subtype && (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">{selectedContent.schema_subtype}</p>
-                                    )}
-                                </div>
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Formato</p>
-                                    <p className="font-medium capitalize dark:text-white">{selectedContent.content_format || '-'}</p>
-                                </div>
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Nivel tecnico</p>
-                                    <p className="font-medium capitalize dark:text-white">{selectedContent.technical_level || '-'}</p>
-                                </div>
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Idioma</p>
-                                    <p className="font-medium uppercase dark:text-white">{selectedContent.language || '-'}</p>
-                                </div>
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Tiempo de lectura</p>
-                                    <p className="font-medium dark:text-white">{selectedContent.reading_time_minutes ? `${selectedContent.reading_time_minutes} min` : '-'}</p>
-                                </div>
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Fecha</p>
-                                    <p className="font-medium dark:text-white">{new Date(selectedContent.created_at).toLocaleDateString()}</p>
-                                </div>
-                            </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {objectives.slice(0, 1).map(obj => (
+                                        <div key={obj.id}>
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <span className="text-2xl">{obj.icon}</span>
+                                                <div className="flex-1">
+                                                    <h3 className="font-medium text-gray-900 dark:text-white">{obj.title}</h3>
+                                                    {obj.target_date && (
+                                                        <p className="text-xs text-gray-500">Deadline: {new Date(obj.target_date).toLocaleDateString()}</p>
+                                                    )}
+                                                </div>
+                                                <span className="text-lg font-bold" style={{ color: obj.color }}>{obj.progress}%</span>
+                                            </div>
 
-                            {/* Summary */}
-                            {selectedContent.summary && (
-                                <div className="mb-6">
-                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Resumen</h3>
-                                    <p className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">{selectedContent.summary}</p>
-                                </div>
-                            )}
+                                            {/* Progress bar */}
+                                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
+                                                <div
+                                                    className="h-2 rounded-full transition-all"
+                                                    style={{ width: `${obj.progress}%`, backgroundColor: obj.color }}
+                                                />
+                                            </div>
 
-                            {/* Concepts */}
-                            {selectedContent.concepts && selectedContent.concepts.length > 0 && (
-                                <div className="mb-6">
-                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Conceptos</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        {selectedContent.concepts.map((concept, i) => (
-                                            <span
-                                                key={i}
-                                                className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full text-sm"
-                                            >
-                                                {concept}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Entities */}
-                            {selectedContent.entities && (
-                                <div className="mb-6">
-                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Entidades</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {selectedContent.entities.persons && selectedContent.entities.persons.length > 0 && (
-                                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">👤 Personas</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {selectedContent.entities.persons.map((p, i) => (
-                                                        <span key={i} className="text-sm bg-white dark:bg-gray-600 dark:text-gray-200 px-2 py-0.5 rounded border dark:border-gray-500">
-                                                            {p.name}
-                                                        </span>
+                                            {/* Actions */}
+                                            {obj.objective_actions && obj.objective_actions.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Proximas acciones:</p>
+                                                    {obj.objective_actions.filter(a => !a.is_completed).slice(0, 3).map(action => (
+                                                        <label key={action.id} className="flex items-center gap-2 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={action.is_completed}
+                                                                onChange={() => handleToggleAction(obj.id, action.id, action.is_completed)}
+                                                                className="rounded border-gray-300 text-indigo-600"
+                                                            />
+                                                            <span className="text-sm text-gray-700 dark:text-gray-300">{action.title}</span>
+                                                        </label>
                                                     ))}
                                                 </div>
-                                            </div>
-                                        )}
-                                        {selectedContent.entities.organizations && selectedContent.entities.organizations.length > 0 && (
-                                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">🏢 Organizaciones</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {selectedContent.entities.organizations.map((o, i) => (
-                                                        <span key={i} className="text-sm bg-white dark:bg-gray-600 dark:text-gray-200 px-2 py-0.5 rounded border dark:border-gray-500">
-                                                            {o.name}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {selectedContent.entities.places && selectedContent.entities.places.length > 0 && (
-                                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">📍 Lugares</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {selectedContent.entities.places.map((pl, i) => (
-                                                        <span key={i} className="text-sm bg-white dark:bg-gray-600 dark:text-gray-200 px-2 py-0.5 rounded border dark:border-gray-500">
-                                                            {pl.name}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {selectedContent.entities.products && selectedContent.entities.products.length > 0 && (
-                                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">📦 Productos</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {selectedContent.entities.products.map((pr, i) => (
-                                                        <span key={i} className="text-sm bg-white dark:bg-gray-600 dark:text-gray-200 px-2 py-0.5 rounded border dark:border-gray-500">
-                                                            {pr.name}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Inherited Tags */}
-                            {(inheritedTags.length > 0 || loadingInheritedTags) && (
-                                <div className="mb-6">
-                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">
-                                        Tags Heredados
-                                    </h3>
-                                    {loadingInheritedTags ? (
-                                        <span className="text-gray-400 dark:text-gray-500 text-sm">Cargando...</span>
-                                    ) : (
-                                        <div className="flex flex-wrap gap-2">
-                                            {inheritedTags.map((tagInfo, i) => (
-                                                <span
-                                                    key={i}
-                                                    className="px-3 py-1 rounded-full text-sm text-white"
-                                                    style={{ backgroundColor: tagInfo.color || '#6366f1' }}
-                                                    title={`Heredado de ${tagInfo.from_type}: ${tagInfo.from_value}`}
-                                                >
-                                                    {tagInfo.tag}
-                                                </span>
-                                            ))}
+                                            )}
                                         </div>
-                                    )}
-                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                                        Estos tags se heredan de las{' '}
-                                        <Link href="/tags" className="text-indigo-600 dark:text-indigo-400 hover:underline">
-                                            reglas de taxonomía
-                                        </Link>
-                                    </p>
+                                    ))}
                                 </div>
                             )}
+                        </div>
 
-                            {/* User Tags */}
-                            <div className="mb-6">
-                                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">
-                                    Mis Tags
-                                </h3>
-                                <div className="flex flex-wrap gap-2 items-center">
-                                    {selectedContent.user_tags && selectedContent.user_tags.length > 0 && (
-                                        selectedContent.user_tags.map((tag, i) => (
-                                            <span
-                                                key={i}
-                                                className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm flex items-center gap-1 group"
+                        {/* Alertas y Acciones Pendientes */}
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">⚡ Centro de Acciones</h2>
+
+                            <div className="space-y-3">
+                                {failedCount > 0 && (
+                                    <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                                        <span className="text-sm text-red-800 dark:text-red-200">
+                                            🔴 {failedCount} contenidos fallidos
+                                        </span>
+                                        <button
+                                            onClick={handleRetryFailed}
+                                            className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                                        >
+                                            Reintentar
+                                        </button>
+                                    </div>
+                                )}
+
+                                {pendingProcessing > 0 && (
+                                    <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                                        <span className="text-sm text-yellow-800 dark:text-yellow-200">
+                                            🟡 {pendingProcessing} en cola de procesamiento
+                                        </span>
+                                        <Link href="/import" className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700">
+                                            Ver cola
+                                        </Link>
+                                    </div>
+                                )}
+
+                                {projects.filter(p => p.status === 'active').length > 0 && (
+                                    <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                        <span className="text-sm text-blue-800 dark:text-blue-200">
+                                            📁 {projects.filter(p => p.status === 'active').length} proyectos activos
+                                        </span>
+                                        <Link href="/projects" className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+                                            Ver
+                                        </Link>
+                                    </div>
+                                )}
+
+                                {failedCount === 0 && pendingProcessing === 0 && projects.length === 0 && (
+                                    <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                        ✅ Todo al dia
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* ===== ZONA 3: NAVEGACION + CONTENIDO ===== */}
+                    <section className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        {/* Navegacion */}
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">🧭 Navegar</h2>
+
+                            <div className="space-y-2">
+                                <Link href="/explore" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">🔍</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Explorar</span>
+                                </Link>
+                                <Link href="/taxonomy" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">🌳</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Taxonomia</span>
+                                </Link>
+                                <Link href="/knowledge-graph" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">🕸️</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Knowledge Graph</span>
+                                </Link>
+                                <Link href="/chat" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">💬</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Chat IA</span>
+                                </Link>
+
+                                <hr className="my-3 border-gray-200 dark:border-gray-700" />
+
+                                <Link href="/objectives" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">🎯</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Objetivos</span>
+                                </Link>
+                                <Link href="/projects" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">📁</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Proyectos</span>
+                                </Link>
+                                <Link href="/journal" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">📔</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Diario</span>
+                                </Link>
+                                <Link href="/mental-models" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">🧠</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Modelos Mentales</span>
+                                </Link>
+                                <Link href="/tags" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">🏷️</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Tags</span>
+                                </Link>
+
+                                <hr className="my-3 border-gray-200 dark:border-gray-700" />
+
+                                <Link href="/import" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">📥</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Importar URLs</span>
+                                </Link>
+                                <Link href="/import-apple-notes" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">🍎</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Apple Notes</span>
+                                </Link>
+                                <Link href="/quick-save" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">⚡</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Quick Save</span>
+                                </Link>
+                                <Link href="/usage" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <span className="text-xl">📊</span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Uso API</span>
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Contenido Reciente */}
+                        <div className="lg:col-span-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setActiveTab('recent')}
+                                        className={`px-3 py-1.5 rounded-lg text-sm ${activeTab === 'recent' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                    >
+                                        Reciente
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('favorites')}
+                                        className={`px-3 py-1.5 rounded-lg text-sm ${activeTab === 'favorites' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                    >
+                                        Favoritos
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('projects')}
+                                        className={`px-3 py-1.5 rounded-lg text-sm ${activeTab === 'projects' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                    >
+                                        Proyectos
+                                    </button>
+                                </div>
+                                <Link href="/explore" className="text-sm text-indigo-600 hover:underline">Ver todo →</Link>
+                            </div>
+
+                            {activeTab === 'recent' && (
+                                <div className="space-y-2">
+                                    {recentContents.length === 0 ? (
+                                        <p className="text-gray-500 dark:text-gray-400 text-center py-8">No hay contenidos recientes</p>
+                                    ) : (
+                                        recentContents.map(content => (
+                                            <Link
+                                                key={content.id}
+                                                href={`/explore?content=${content.id}`}
+                                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
                                             >
-                                                {tag}
-                                                <button
-                                                    onClick={() => {
-                                                        const newTags = selectedContent.user_tags.filter((_, idx) => idx !== i);
-                                                        handleUpdateTags(selectedContent.id, newTags);
-                                                    }}
-                                                    className="ml-1 text-purple-600 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-100 opacity-60 hover:opacity-100"
-                                                    title="Eliminar tag"
-                                                >
-                                                    ×
-                                                </button>
-                                            </span>
+                                                <span className="text-lg">
+                                                    {content.content_type === 'note' ? '📝' :
+                                                     content.content_type === 'url' ? '🔗' :
+                                                     content.content_type === 'apple_note' ? '🍎' : '📄'}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{content.title}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {new Date(content.created_at).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                                {content.is_favorite && <span>⭐</span>}
+                                            </Link>
                                         ))
                                     )}
-                                    <form
-                                        onSubmit={(e) => {
-                                            e.preventDefault();
-                                            const input = e.currentTarget.querySelector('input') as HTMLInputElement;
-                                            const newTag = input.value.trim();
-                                            if (newTag && !selectedContent.user_tags?.includes(newTag)) {
-                                                const newTags = [...(selectedContent.user_tags || []), newTag];
-                                                handleUpdateTags(selectedContent.id, newTags);
-                                                input.value = '';
-                                            }
-                                        }}
-                                        className="inline-flex"
-                                    >
-                                        <input
-                                            type="text"
-                                            placeholder="+ Añadir tag"
-                                            className="px-2 py-1 text-sm border border-dashed border-gray-300 dark:border-gray-600 rounded-full bg-transparent dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-purple-400 dark:focus:border-purple-500 w-24 focus:w-32 transition-all"
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    const input = e.currentTarget;
-                                                    const newTag = input.value.trim();
-                                                    if (newTag && !selectedContent.user_tags?.includes(newTag)) {
-                                                        const newTags = [...(selectedContent.user_tags || []), newTag];
-                                                        handleUpdateTags(selectedContent.id, newTags);
-                                                        input.value = '';
-                                                    }
-                                                }
-                                            }}
-                                        />
-                                    </form>
-                                </div>
-                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                                    Pulsa Enter para añadir. Gestiona tags heredados en{' '}
-                                    <Link href="/tags" className="text-indigo-600 dark:text-indigo-400 hover:underline">
-                                        Reglas de Tags
-                                    </Link>
-                                </p>
-                            </div>
-
-                            {/* User Notes */}
-                            {selectedContent.notes && (
-                                <div className="mb-6">
-                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">
-                                        Mis Notas
-                                    </h3>
-                                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-lg">
-                                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm">
-                                            {selectedContent.notes}
-                                        </p>
-                                    </div>
                                 </div>
                             )}
 
-                            {/* Metadata (for YouTube videos) */}
-                            {selectedContent.metadata && selectedContent.type === 'youtube' && (
-                                <div className="mb-6">
-                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Metadata del video</h3>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg grid grid-cols-2 gap-2 text-sm dark:text-gray-200">
-                                        {selectedContent.metadata.channel && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Canal:</span> {selectedContent.metadata.channel}</div>
-                                        )}
-                                        {selectedContent.metadata.duration_formatted && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Duracion:</span> {selectedContent.metadata.duration_formatted}</div>
-                                        )}
-                                        {selectedContent.metadata.view_count && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Vistas:</span> {selectedContent.metadata.view_count.toLocaleString()}</div>
-                                        )}
-                                        {selectedContent.metadata.has_transcript !== undefined && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Transcript:</span> {selectedContent.metadata.has_transcript ? 'Si' : 'No'}</div>
-                                        )}
-                                    </div>
+                            {activeTab === 'favorites' && (
+                                <div className="space-y-2">
+                                    {recentContents.filter(c => c.is_favorite).length === 0 ? (
+                                        <p className="text-gray-500 dark:text-gray-400 text-center py-8">No hay favoritos</p>
+                                    ) : (
+                                        recentContents.filter(c => c.is_favorite).map(content => (
+                                            <Link
+                                                key={content.id}
+                                                href={`/explore?content=${content.id}`}
+                                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                            >
+                                                <span>⭐</span>
+                                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{content.title}</p>
+                                            </Link>
+                                        ))
+                                    )}
                                 </div>
                             )}
 
-                            {/* Metadata (for TikTok videos) */}
-                            {selectedContent.metadata && selectedContent.type === 'tiktok' && (
-                                <div className="mb-6">
-                                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Metadata del TikTok</h3>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg grid grid-cols-2 gap-2 text-sm dark:text-gray-200">
-                                        {selectedContent.metadata.creator && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Creador:</span> @{selectedContent.metadata.creator}</div>
-                                        )}
-                                        {selectedContent.metadata.duration_formatted && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Duracion:</span> {selectedContent.metadata.duration_formatted}</div>
-                                        )}
-                                        {selectedContent.metadata.view_count !== undefined && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Vistas:</span> {selectedContent.metadata.view_count.toLocaleString()}</div>
-                                        )}
-                                        {selectedContent.metadata.like_count !== undefined && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Likes:</span> {selectedContent.metadata.like_count.toLocaleString()}</div>
-                                        )}
-                                        {selectedContent.metadata.comment_count !== undefined && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Comentarios:</span> {selectedContent.metadata.comment_count.toLocaleString()}</div>
-                                        )}
-                                        {selectedContent.metadata.upload_date && (
-                                            <div><span className="text-gray-500 dark:text-gray-400">Fecha:</span> {selectedContent.metadata.upload_date}</div>
-                                        )}
-                                        {selectedContent.metadata.hashtags && selectedContent.metadata.hashtags.length > 0 && (
-                                            <div className="col-span-2">
-                                                <span className="text-gray-500 dark:text-gray-400">Hashtags:</span>{' '}
-                                                {selectedContent.metadata.hashtags.join(' ')}
-                                            </div>
-                                        )}
-                                    </div>
+                            {activeTab === 'projects' && (
+                                <div className="space-y-2">
+                                    {projects.length === 0 ? (
+                                        <div className="text-center py-8">
+                                            <p className="text-gray-500 dark:text-gray-400 mb-4">No hay proyectos activos</p>
+                                            <Link href="/projects" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                                                Crear proyecto
+                                            </Link>
+                                        </div>
+                                    ) : (
+                                        projects.map(project => (
+                                            <Link
+                                                key={project.id}
+                                                href={`/projects?id=${project.id}`}
+                                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                            >
+                                                <span className="text-lg">{project.icon}</span>
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-white">{project.name}</p>
+                                                    <p className="text-xs text-gray-500">{project.status}</p>
+                                                </div>
+                                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: project.color }} />
+                                            </Link>
+                                        ))
+                                    )}
                                 </div>
                             )}
-
-                            {/* Project Selector */}
-                            <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Proyecto
-                                </label>
-                                <select
-                                    value={selectedContent.project_id || ''}
-                                    onChange={(e) => handleUpdateProject(selectedContent.id, e.target.value || null)}
-                                    disabled={updatingProject}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                                >
-                                    <option value="">Sin proyecto</option>
-                                    {projects.filter(p => p.status !== 'archived').map(project => (
-                                        <option key={project.id} value={project.id}>
-                                            {project.icon} {project.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                {selectedContent.project_id && (
-                                    <Link
-                                        href="/projects"
-                                        className="inline-block mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                                    >
-                                        Ver proyecto
-                                    </Link>
-                                )}
-                            </div>
-
-                            {/* Related Notes (from Journal) */}
-                            <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Notas del Diario
-                                    </label>
-                                    <Link
-                                        href="/journal"
-                                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                                    >
-                                        + Añadir nota
-                                    </Link>
-                                </div>
-                                {loadingRelatedNotes ? (
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
-                                ) : relatedNotes.length > 0 ? (
-                                    <div className="flex flex-col gap-2">
-                                        {relatedNotes.map(note => {
-                                            const typeConfig = NOTE_TYPES[note.note_type as keyof typeof NOTE_TYPES] || NOTE_TYPES.reflection;
-                                            return (
-                                                <Link
-                                                    key={note.id}
-                                                    href="/journal"
-                                                    className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-700 rounded-lg border dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-500 transition-colors"
-                                                >
-                                                    <span className={`text-xs px-2 py-0.5 rounded-full ${typeConfig.color}`}>
-                                                        {typeConfig.icon}
-                                                    </span>
-                                                    <span className="text-sm text-gray-700 dark:text-gray-200 truncate flex-1">
-                                                        {note.title}
-                                                    </span>
-                                                    <span className="text-xs text-gray-400">
-                                                        {new Date(note.created_at).toLocaleDateString()}
-                                                    </span>
-                                                </Link>
-                                            );
-                                        })}
-                                    </div>
-                                ) : (
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                                        No hay notas vinculadas a este contenido
-                                    </div>
-                                )}
-                            </div>
                         </div>
-
-                        {/* Footer */}
-                        <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between">
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => handleToggleFavorite(selectedContent)}
-                                    className={`px-4 py-2 rounded-lg border ${selectedContent.is_favorite ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-600' : 'bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200'}`}
-                                >
-                                    {selectedContent.is_favorite ? '⭐ Favorito' : '☆ Añadir a favoritos'}
-                                </button>
-                                <button
-                                    onClick={() => handleToggleAsset(selectedContent)}
-                                    className={`px-4 py-2 rounded-lg border ${selectedContent.is_asset ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-600' : 'bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200'}`}
-                                >
-                                    {selectedContent.is_asset ? '📦 Activo' : '📦 Marcar activo'}
-                                </button>
-                                {selectedContent.type === 'note' ? (
-                                    <Link
-                                        href={`/notes/${selectedContent.id}/edit`}
-                                        className="px-4 py-2 rounded-lg border bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
-                                    >
-                                        ✏️ Editar nota
-                                    </Link>
-                                ) : (
-                                    <a
-                                        href={selectedContent.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-4 py-2 rounded-lg border bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
-                                    >
-                                        🔗 Abrir original
-                                    </a>
-                                )}
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => handleArchiveSingle(selectedContent.id)}
-                                    className={`px-4 py-2 rounded-lg border ${
-                                        showArchived
-                                            ? 'border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30'
-                                            : 'border-yellow-200 dark:border-yellow-700 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
-                                    }`}
-                                >
-                                    {showArchived ? '↩️ Restaurar' : '📦 Archivar'}
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(selectedContent.id)}
-                                    className="px-4 py-2 rounded-lg border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
-                                >
-                                    🗑 Eliminar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    </section>
                 </div>
-            )}
-
-            {/* Create Folder Modal */}
-            {showFolderModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
-                            {newFolderParentId ? 'Nueva subcarpeta' : 'Nueva carpeta'}
-                        </h2>
-                        <form onSubmit={handleCreateFolder}>
-                            <input
-                                type="text"
-                                value={newFolderName}
-                                onChange={(e) => setNewFolderName(e.target.value)}
-                                placeholder="Nombre de la carpeta"
-                                required
-                                autoFocus
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500"
-                            />
-                            <div className="flex justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowFolderModal(false);
-                                        setNewFolderName('');
-                                        setNewFolderParentId(null);
-                                    }}
-                                    className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={creatingFolder}
-                                    className="px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50"
-                                >
-                                    {creatingFolder ? 'Creando...' : 'Crear'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Move Content Modal */}
-            {showMoveModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
-                            Mover {selectedContentIds.size} elemento(s)
-                        </h2>
-                        <p className="text-gray-600 dark:text-gray-300 mb-4">Selecciona la carpeta destino:</p>
-
-                        <div className="max-h-64 overflow-y-auto border dark:border-gray-600 rounded-lg mb-4">
-                            {/* Root option */}
-                            <button
-                                onClick={() => handleMoveContents(null)}
-                                disabled={movingContents}
-                                className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 border-b dark:border-gray-600 flex items-center gap-2 dark:text-gray-200"
-                            >
-                                <span>📄</span>
-                                <span>Sin carpeta (raiz)</span>
-                            </button>
-
-                            {/* Folder options */}
-                            {folders.map(folder => (
-                                <button
-                                    key={folder.id}
-                                    onClick={() => handleMoveContents(folder.id)}
-                                    disabled={movingContents}
-                                    className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 border-b dark:border-gray-600 last:border-b-0 flex items-center gap-2 dark:text-gray-200"
-                                >
-                                    <span>{folder.icon}</span>
-                                    <span>{folder.name}</span>
-                                </button>
-                            ))}
-
-                            {folders.length === 0 && (
-                                <p className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                                    No hay carpetas. Crea una primero.
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="flex justify-end">
-                            <button
-                                onClick={() => {
-                                    setShowMoveModal(false);
-                                }}
-                                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            </main>
         </div>
     );
 }
