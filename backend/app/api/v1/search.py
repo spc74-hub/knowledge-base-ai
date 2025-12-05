@@ -325,41 +325,71 @@ async def search_global(
                     break
 
             # Search in entities - handle both dict and string JSON formats
-            entities = content.get("entities") or {}
-            # If entities is a string (JSON), parse it
-            if isinstance(entities, str):
-                try:
-                    import json
-                    entities = json.loads(entities)
-                except:
-                    entities = {}
+            entities_raw = content.get("entities")
+            entities = {}
+            entities_str = ""  # Keep string version for fallback search
+
+            if entities_raw:
+                if isinstance(entities_raw, str):
+                    entities_str = entities_raw.lower()
+                    try:
+                        import json
+                        entities = json.loads(entities_raw)
+                    except:
+                        entities = {}
+                elif isinstance(entities_raw, dict):
+                    entities = entities_raw
+                    try:
+                        import json
+                        entities_str = json.dumps(entities_raw).lower()
+                    except:
+                        entities_str = str(entities_raw).lower()
+
+            # Helper function to extract name from entity (handles multiple formats)
+            def get_entity_name(entity):
+                if isinstance(entity, dict):
+                    return entity.get("name") or entity.get("nombre") or ""
+                elif isinstance(entity, str):
+                    return entity
+                return str(entity) if entity else ""
 
             # Persons
-            persons_list = entities.get("persons") or []
+            person_found = False
+            persons_list = entities.get("persons") or entities.get("personas") or []
             for person in persons_list:
-                person_name = person.get("name") if isinstance(person, dict) else str(person)
+                person_name = get_entity_name(person)
                 if person_name and query_lower in person_name.lower():
                     score += 0.8
                     match_fields.append(f"person:{person_name}")
+                    person_found = True
                     break
 
             # Organizations
-            orgs_list = entities.get("organizations") or []
+            org_found = False
+            orgs_list = entities.get("organizations") or entities.get("organizaciones") or []
             for org in orgs_list:
-                org_name = org.get("name") if isinstance(org, dict) else str(org)
+                org_name = get_entity_name(org)
                 if org_name and query_lower in org_name.lower():
                     score += 0.8
                     match_fields.append(f"organization:{org_name}")
+                    org_found = True
                     break
 
             # Products
-            prods_list = entities.get("products") or []
+            prod_found = False
+            prods_list = entities.get("products") or entities.get("productos") or []
             for prod in prods_list:
-                prod_name = prod.get("name") if isinstance(prod, dict) else str(prod)
+                prod_name = get_entity_name(prod)
                 if prod_name and query_lower in prod_name.lower():
                     score += 0.8
                     match_fields.append(f"product:{prod_name}")
+                    prod_found = True
                     break
+
+            # Fallback: search in raw entities string if no structured match found
+            if not (person_found or org_found or prod_found) and entities_str and query_lower in entities_str:
+                score += 0.75
+                match_fields.append("entities")
 
             # Search in user_tags
             user_tags = content.get("user_tags") or []
