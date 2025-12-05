@@ -368,8 +368,8 @@ export default function DashboardPage() {
               {summary.recent.contents.slice(0, 5).map((content) => (
                 <div key={content.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
                   <span className="text-lg">
-                    {content.content_type === 'video' ? '🎬' :
-                     content.content_type === 'article' ? '📰' : '📄'}
+                    {content.type === 'youtube' || content.type === 'video' ? '🎬' :
+                     content.type === 'tiktok' ? '📱' : content.type === 'twitter' ? '🐦' : '📄'}
                   </span>
                   <p className="text-white text-sm flex-1 truncate">{content.title || 'Sin titulo'}</p>
                 </div>
@@ -506,7 +506,7 @@ export default function DashboardPage() {
                     className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer"
                   >
                     <span className="text-lg">
-                      {item.icon || (item.content_type === 'video' ? '🎬' : item.content_type === 'article' ? '📰' : '📄')}
+                      {item.icon || (item.type === 'youtube' || item.type === 'video' ? '🎬' : item.type === 'tiktok' ? '📱' : item.type === 'twitter' ? '🐦' : '📄')}
                     </span>
                     <p className="text-white text-sm flex-1 truncate">
                       {item.title || item.name || item.tag || 'Sin titulo'}

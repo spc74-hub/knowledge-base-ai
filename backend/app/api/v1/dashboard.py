@@ -111,7 +111,7 @@ async def get_dashboard_summary(
 
     # Recent items for default view (last 5 of each)
     recent_contents = safe_query(lambda: db.table("contents").select(
-        "id, title, content_type, source_url, created_at"
+        "id, title, type, url, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
     recent_objectives = safe_query(lambda: db.table("objectives").select(
@@ -187,12 +187,12 @@ async def get_object_summary(
     if object_type == "contents":
         logger.info(f"Fetching contents for user {user_id} with limit {limit}")
         recent = safe_query(lambda: db.table("contents").select(
-            "id, title, content_type, source_url, is_favorite, created_at"
+            "id, title, type, url, is_favorite, created_at"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
         logger.info(f"Recent contents result: {recent is not None}, data count: {len(recent.data) if recent and recent.data else 0}")
 
         favorites = safe_query(lambda: db.table("contents").select(
-            "id, title, content_type, source_url, created_at"
+            "id, title, type, url, created_at"
         ).eq("user_id", user_id).eq("is_favorite", True).order("created_at", desc=True).limit(limit).execute())
 
         result = {
