@@ -1195,9 +1195,16 @@ function ExplorePageContent() {
                                                         {selectedContent.entities.persons.map((person, idx) => {
                                                             const personName = typeof person === 'string' ? person : (person as any).name || JSON.stringify(person);
                                                             return (
-                                                                <span key={idx} className="px-2 py-1 bg-white dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-200">
+                                                                <button
+                                                                    key={idx}
+                                                                    onClick={() => {
+                                                                        toggleFilter('persons', personName);
+                                                                        setShowDetailModal(false);
+                                                                    }}
+                                                                    className="px-2 py-1 bg-white dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-200 hover:bg-teal-50 dark:hover:bg-teal-900"
+                                                                >
                                                                     {personName}
-                                                                </span>
+                                                                </button>
                                                             );
                                                         })}
                                                     </div>
