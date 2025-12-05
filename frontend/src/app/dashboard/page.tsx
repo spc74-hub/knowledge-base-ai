@@ -449,12 +449,12 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Active/Pinned section */}
-        {(objectSummary.active || objectSummary.pinned || objectSummary.favorites) && (
+        {/* Active/Pinned/Favorites section */}
+        {((objectSummary.active?.length ?? 0) > 0 || (objectSummary.pinned?.length ?? 0) > 0 || (objectSummary.favorites?.length ?? 0) > 0) && (
           <div className="bg-gray-800/50 rounded-xl p-4">
             <h3 className="text-white font-medium mb-3">
-              {objectSummary.favorites ? '⭐ Favoritos' :
-               objectSummary.pinned ? '📌 Fijados' :
+              {(objectSummary.favorites?.length ?? 0) > 0 ? '⭐ Favoritos' :
+               (objectSummary.pinned?.length ?? 0) > 0 ? '📌 Fijados' :
                '✅ Activos'}
             </h3>
             <div className="space-y-2">
@@ -483,9 +483,6 @@ export default function DashboardPage() {
                   )}
                 </Link>
               ))}
-              {(objectSummary.active || objectSummary.pinned || objectSummary.favorites || []).length === 0 && (
-                <p className="text-gray-500 text-sm">No hay elementos</p>
-              )}
             </div>
           </div>
         )}
@@ -495,20 +492,23 @@ export default function DashboardPage() {
           <div className="bg-gray-800/50 rounded-xl p-4">
             <h3 className="text-white font-medium mb-3">🕐 Recientes</h3>
             <div className="space-y-2">
-              {objectSummary.recent.slice(0, 8).map((item: any) => (
-                <Link
-                  key={item.id}
-                  href={getItemUrl(selectedCategory, item)}
-                  target="_blank"
-                  className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer"
-                >
-                  <span className="text-lg">{item.icon || '📄'}</span>
-                  <p className="text-white text-sm flex-1 truncate">
-                    {item.title || item.name || item.tag || 'Sin titulo'}
-                  </p>
-                </Link>
-              ))}
-              {objectSummary.recent.length === 0 && (
+              {objectSummary.recent.length > 0 ? (
+                objectSummary.recent.slice(0, 8).map((item: any) => (
+                  <Link
+                    key={item.id}
+                    href={getItemUrl(selectedCategory, item)}
+                    target="_blank"
+                    className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer"
+                  >
+                    <span className="text-lg">
+                      {item.icon || (item.content_type === 'video' ? '🎬' : item.content_type === 'article' ? '📰' : '📄')}
+                    </span>
+                    <p className="text-white text-sm flex-1 truncate">
+                      {item.title || item.name || item.tag || 'Sin titulo'}
+                    </p>
+                  </Link>
+                ))
+              ) : (
                 <p className="text-gray-500 text-sm">No hay elementos recientes</p>
               )}
             </div>
@@ -669,6 +669,7 @@ export default function DashboardPage() {
                           <Link
                             key={item.key}
                             href={item.href}
+                            target="_blank"
                             className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
                           >
                             <span>{item.icon}</span>
