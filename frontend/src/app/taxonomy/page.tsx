@@ -84,6 +84,45 @@ export default function TaxonomyExplorerPage() {
         new Set(['category', 'concept'])
     );
 
+    // Facet filters state (similar to explorer)
+    interface Facet { value: string; count: number; }
+    interface Facets {
+        categories: Facet[];
+        concepts: Facet[];
+        organizations: Facet[];
+        products: Facet[];
+        persons: Facet[];
+    }
+    const [facets, setFacets] = useState<Facets | null>(null);
+    const [facetFilters, setFacetFilters] = useState<{
+        categories: string[];
+        concepts: string[];
+        organizations: string[];
+        products: string[];
+        persons: string[];
+    }>({
+        categories: [],
+        concepts: [],
+        organizations: [],
+        products: [],
+        persons: [],
+    });
+    const [facetSearch, setFacetSearch] = useState({
+        categories: '',
+        concepts: '',
+        organizations: '',
+        products: '',
+        persons: '',
+    });
+    const [expandedFacets, setExpandedFacets] = useState({
+        types: false,
+        categories: false,
+        concepts: false,
+        organizations: false,
+        products: false,
+        persons: false,
+    });
+
     const getAuthHeaders = async () => {
         const session = await supabase.auth.getSession();
         if (!session.data.session?.access_token) {
@@ -110,6 +149,51 @@ export default function TaxonomyExplorerPage() {
         }
     }, [user]);
 
+    // Fetch facets for filters
+    const fetchFacets = useCallback(async () => {
+        if (!user) return;
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/search/facets`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setFacets(data);
+            }
+        } catch (err) {
+            console.error('Error fetching facets:', err);
+        }
+    }, [user]);
+
+    // Toggle facet filter
+    const toggleFacetFilter = (facetType: keyof typeof facetFilters, value: string) => {
+        setFacetFilters(prev => {
+            const current = prev[facetType];
+            const newFilters = current.includes(value)
+                ? current.filter(v => v !== value)
+                : [...current, value];
+            return { ...prev, [facetType]: newFilters };
+        });
+    };
+
+    // Toggle facet section expand
+    const toggleFacetSection = (section: keyof typeof expandedFacets) => {
+        setExpandedFacets(prev => ({ ...prev, [section]: !prev[section] }));
+    };
+
+    // Clear all facet filters
+    const clearFacetFilters = () => {
+        setFacetFilters({
+            categories: [],
+            concepts: [],
+            organizations: [],
+            products: [],
+            persons: [],
+        });
+    };
+
+    // Check if any facet filters are active
+    const hasActiveFacetFilters = Object.values(facetFilters).some(arr => arr.length > 0);
+
     // Fetch taxonomy nodes
     const fetchNodes = useCallback(async (
         rootTypeParam: RootType,
@@ -130,6 +214,12 @@ export default function TaxonomyExplorerPage() {
                     type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
                     parent_type: parentType,
                     parent_value: parentValue,
+                    // Additional facet filters
+                    categories: facetFilters.categories.length > 0 ? facetFilters.categories : null,
+                    concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : null,
+                    organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
+                    products: facetFilters.products.length > 0 ? facetFilters.products : null,
+                    persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                 }),
             });
 
@@ -157,7 +247,7 @@ export default function TaxonomyExplorerPage() {
         } finally {
             setLoading(false);
         }
-    }, [user, typeFilters]);
+    }, [user, typeFilters, facetFilters]);
 
     // Fetch contents for current filters
     const fetchContents = useCallback(async (reset: boolean = true) => {
@@ -182,6 +272,11 @@ export default function TaxonomyExplorerPage() {
                 body: JSON.stringify({
                     filters,
                     type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
+                    categories: facetFilters.categories.length > 0 ? facetFilters.categories : null,
+                    concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : null,
+                    organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
+                    products: facetFilters.products.length > 0 ? facetFilters.products : null,
+                    persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                     limit: PAGE_SIZE,
                     offset: 0,
                 }),
@@ -201,7 +296,7 @@ export default function TaxonomyExplorerPage() {
         } finally {
             setLoading(false);
         }
-    }, [user, breadcrumb, typeFilters]);
+    }, [user, breadcrumb, typeFilters, facetFilters]);
 
     // Load more contents
     const loadMoreContents = async () => {
@@ -223,6 +318,11 @@ export default function TaxonomyExplorerPage() {
                 body: JSON.stringify({
                     filters,
                     type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
+                    categories: facetFilters.categories.length > 0 ? facetFilters.categories : null,
+                    concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : null,
+                    organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
+                    products: facetFilters.products.length > 0 ? facetFilters.products : null,
+                    persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                     limit: PAGE_SIZE,
                     offset: contents.length,
                 }),
@@ -256,9 +356,10 @@ export default function TaxonomyExplorerPage() {
     useEffect(() => {
         if (user) {
             fetchTypes();
+            fetchFacets();
             fetchNodes(rootType);
         }
-    }, [user, fetchTypes, fetchNodes, rootType]);
+    }, [user, fetchTypes, fetchFacets, fetchNodes, rootType]);
 
     // Handle root type change
     const handleRootTypeChange = (newType: RootType) => {
@@ -302,7 +403,7 @@ export default function TaxonomyExplorerPage() {
         if (user) {
             fetchNodes(rootType);
         }
-    }, [typeFilters]);
+    }, [typeFilters, facetFilters]);
 
     // Handle node click - toggle expand/collapse
     const handleNodeClick = async (node: TaxonomyNode) => {
@@ -629,6 +730,220 @@ export default function TaxonomyExplorerPage() {
                                     ))}
                                 </div>
                             </div>
+
+                            {/* Facet Filters Section */}
+                            {facets && (
+                                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                            Filtros
+                                        </h3>
+                                        {hasActiveFacetFilters && (
+                                            <button
+                                                onClick={clearFacetFilters}
+                                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                Limpiar
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Categories */}
+                                    <div className="mb-4">
+                                        <button
+                                            onClick={() => toggleFacetSection('categories')}
+                                            className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Categoria ({facets.categories.length})</span>
+                                            <span>{expandedFacets.categories ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedFacets.categories && (
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={facetSearch.categories}
+                                                    onChange={(e) => setFacetSearch(prev => ({ ...prev, categories: e.target.value }))}
+                                                    placeholder="Buscar categoria..."
+                                                    className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                />
+                                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                    {facets.categories
+                                                        .filter(f => !facetSearch.categories || f.value.toLowerCase().includes(facetSearch.categories.toLowerCase()))
+                                                        .slice(0, 20)
+                                                        .map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={facetFilters.categories.includes(facet.value)}
+                                                                onChange={() => toggleFacetFilter('categories', facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{facet.value}</span>
+                                                            <span className="text-gray-400">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Concepts */}
+                                    <div className="mb-4">
+                                        <button
+                                            onClick={() => toggleFacetSection('concepts')}
+                                            className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Conceptos ({facets.concepts.length})</span>
+                                            <span>{expandedFacets.concepts ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedFacets.concepts && (
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={facetSearch.concepts}
+                                                    onChange={(e) => setFacetSearch(prev => ({ ...prev, concepts: e.target.value }))}
+                                                    placeholder="Buscar concepto..."
+                                                    className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                />
+                                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                    {facets.concepts
+                                                        .filter(f => !facetSearch.concepts || f.value.toLowerCase().includes(facetSearch.concepts.toLowerCase()))
+                                                        .slice(0, 20)
+                                                        .map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={facetFilters.concepts.includes(facet.value)}
+                                                                onChange={() => toggleFacetFilter('concepts', facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{facet.value}</span>
+                                                            <span className="text-gray-400">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Organizations */}
+                                    <div className="mb-4">
+                                        <button
+                                            onClick={() => toggleFacetSection('organizations')}
+                                            className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Organizaciones ({facets.organizations.length})</span>
+                                            <span>{expandedFacets.organizations ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedFacets.organizations && (
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={facetSearch.organizations}
+                                                    onChange={(e) => setFacetSearch(prev => ({ ...prev, organizations: e.target.value }))}
+                                                    placeholder="Buscar organizacion..."
+                                                    className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                />
+                                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                    {facets.organizations
+                                                        .filter(f => !facetSearch.organizations || f.value.toLowerCase().includes(facetSearch.organizations.toLowerCase()))
+                                                        .slice(0, 20)
+                                                        .map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={facetFilters.organizations.includes(facet.value)}
+                                                                onChange={() => toggleFacetFilter('organizations', facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{facet.value}</span>
+                                                            <span className="text-gray-400">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Products */}
+                                    <div className="mb-4">
+                                        <button
+                                            onClick={() => toggleFacetSection('products')}
+                                            className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Productos ({facets.products.length})</span>
+                                            <span>{expandedFacets.products ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedFacets.products && (
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={facetSearch.products}
+                                                    onChange={(e) => setFacetSearch(prev => ({ ...prev, products: e.target.value }))}
+                                                    placeholder="Buscar producto..."
+                                                    className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                />
+                                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                    {facets.products
+                                                        .filter(f => !facetSearch.products || f.value.toLowerCase().includes(facetSearch.products.toLowerCase()))
+                                                        .slice(0, 20)
+                                                        .map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={facetFilters.products.includes(facet.value)}
+                                                                onChange={() => toggleFacetFilter('products', facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{facet.value}</span>
+                                                            <span className="text-gray-400">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Persons */}
+                                    <div className="mb-4">
+                                        <button
+                                            onClick={() => toggleFacetSection('persons')}
+                                            className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Personas ({facets.persons.length})</span>
+                                            <span>{expandedFacets.persons ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedFacets.persons && (
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={facetSearch.persons}
+                                                    onChange={(e) => setFacetSearch(prev => ({ ...prev, persons: e.target.value }))}
+                                                    placeholder="Buscar persona..."
+                                                    className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                />
+                                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                    {facets.persons
+                                                        .filter(f => !facetSearch.persons || f.value.toLowerCase().includes(facetSearch.persons.toLowerCase()))
+                                                        .slice(0, 20)
+                                                        .map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={facetFilters.persons.includes(facet.value)}
+                                                                onChange={() => toggleFacetFilter('persons', facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{facet.value}</span>
+                                                            <span className="text-gray-400">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
