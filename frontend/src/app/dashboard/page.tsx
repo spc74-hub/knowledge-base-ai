@@ -216,7 +216,7 @@ export default function DashboardPage() {
       title: 'ADMINISTRACION',
       items: [
         { key: 'import', label: 'Importar URLs', icon: '📥', href: '/import' },
-        { key: 'apple-notes', label: 'Apple Notes', icon: '🍎', href: '/apple-notes' },
+        { key: 'apple-notes', label: 'Apple Notes', icon: '🍎', href: '/import-apple-notes' },
         { key: 'quick-save', label: 'Quick Save', icon: '⚡', href: '/quick-save' },
         {
           key: 'processing',

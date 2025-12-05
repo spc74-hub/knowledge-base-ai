@@ -36,7 +36,8 @@ export default function NotesPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        setNotes(data.notes || []);
+        // API returns array directly, not { notes: [] }
+        setNotes(Array.isArray(data) ? data : (data.notes || []));
       }
     } catch (error) {
       console.error('Error fetching notes:', error);

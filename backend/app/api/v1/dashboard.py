@@ -181,84 +181,84 @@ async def get_object_summary(
     user_id = current_user["id"]
 
     if object_type == "contents":
-        recent = db.table("contents").select(
+        recent = safe_query(lambda: db.table("contents").select(
             "id, title, content_type, source_url, is_favorite, created_at"
-        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
-        favorites = db.table("contents").select(
+        favorites = safe_query(lambda: db.table("contents").select(
             "id, title, content_type, source_url, created_at"
-        ).eq("user_id", user_id).eq("is_favorite", True).order("created_at", desc=True).limit(limit).execute()
+        ).eq("user_id", user_id).eq("is_favorite", True).order("created_at", desc=True).limit(limit).execute())
 
         return {
             "type": "contents",
-            "recent": recent.data or [],
-            "favorites": favorites.data or [],
+            "recent": safe_data(recent),
+            "favorites": safe_data(favorites),
         }
 
     elif object_type == "objectives":
-        recent = db.table("objectives").select(
+        recent = safe_query(lambda: db.table("objectives").select(
             "id, title, status, progress, icon, color, horizon, target_date"
-        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
-        active = db.table("objectives").select(
+        active = safe_query(lambda: db.table("objectives").select(
             "id, title, status, progress, icon, color, horizon, target_date"
-        ).eq("user_id", user_id).eq("status", "active").order("position").limit(limit).execute()
+        ).eq("user_id", user_id).eq("status", "active").order("position").limit(limit).execute())
 
         return {
             "type": "objectives",
-            "recent": recent.data or [],
-            "active": active.data or [],
+            "recent": safe_data(recent),
+            "active": safe_data(active),
         }
 
     elif object_type == "projects":
-        recent = db.table("projects").select(
+        recent = safe_query(lambda: db.table("projects").select(
             "id, name, status, color, icon, description"
-        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
-        active = db.table("projects").select(
+        active = safe_query(lambda: db.table("projects").select(
             "id, name, status, color, icon, description"
-        ).eq("user_id", user_id).eq("status", "active").order("created_at", desc=True).limit(limit).execute()
+        ).eq("user_id", user_id).eq("status", "active").order("created_at", desc=True).limit(limit).execute())
 
         return {
             "type": "projects",
-            "recent": recent.data or [],
-            "active": active.data or [],
+            "recent": safe_data(recent),
+            "active": safe_data(active),
         }
 
     elif object_type == "mental_models":
-        recent = db.table("mental_models").select(
+        recent = safe_query(lambda: db.table("mental_models").select(
             "id, name, slug, icon, color, description, is_active"
-        ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(limit).execute()
+        ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(limit).execute())
 
         return {
             "type": "mental_models",
-            "recent": recent.data or [],
-            "active": recent.data or [],  # Same as recent for mental models
+            "recent": safe_data(recent),
+            "active": safe_data(recent),  # Same as recent for mental models
         }
 
     elif object_type == "notes":
-        recent = db.table("standalone_notes").select(
+        recent = safe_query(lambda: db.table("standalone_notes").select(
             "id, title, is_pinned, created_at, updated_at"
-        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
-        pinned = db.table("standalone_notes").select(
+        pinned = safe_query(lambda: db.table("standalone_notes").select(
             "id, title, is_pinned, created_at, updated_at"
-        ).eq("user_id", user_id).eq("is_pinned", True).order("created_at", desc=True).limit(limit).execute()
+        ).eq("user_id", user_id).eq("is_pinned", True).order("created_at", desc=True).limit(limit).execute())
 
         return {
             "type": "notes",
-            "recent": recent.data or [],
-            "pinned": pinned.data or [],
+            "recent": safe_data(recent),
+            "pinned": safe_data(pinned),
         }
 
     elif object_type == "tags":
-        tags = db.table("taxonomy_tags").select(
+        tags = safe_query(lambda: db.table("taxonomy_tags").select(
             "id, tag, color, match_type, category, concept"
-        ).eq("user_id", user_id).order("tag").limit(limit).execute()
+        ).eq("user_id", user_id).order("tag").limit(limit).execute())
 
         return {
             "type": "tags",
-            "items": tags.data or [],
+            "items": safe_data(tags),
         }
 
     else:
