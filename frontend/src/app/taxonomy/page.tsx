@@ -220,24 +220,26 @@ export default function TaxonomyExplorerPage() {
 
         try {
             const headers = await getAuthHeaders();
+            const requestBody = {
+                root_type: rootTypeParam,
+                type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
+                parent_type: parentType,
+                parent_value: parentValue,
+                // Additional facet filters
+                categories: facetFilters.categories.length > 0 ? facetFilters.categories : null,
+                concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : null,
+                organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
+                products: facetFilters.products.length > 0 ? facetFilters.products : null,
+                persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
+                processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
+                maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
+                has_comment: facetFilters.has_comment,
+            };
+            console.log('Taxonomy nodes request:', requestBody);
             const response = await fetch(`${API_URL}/api/v1/taxonomy/nodes`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({
-                    root_type: rootTypeParam,
-                    type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
-                    parent_type: parentType,
-                    parent_value: parentValue,
-                    // Additional facet filters
-                    categories: facetFilters.categories.length > 0 ? facetFilters.categories : null,
-                    concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : null,
-                    organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
-                    products: facetFilters.products.length > 0 ? facetFilters.products : null,
-                    persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
-                    processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
-                    maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
-                    has_comment: facetFilters.has_comment,
-                }),
+                body: JSON.stringify(requestBody),
             });
 
             if (!response.ok) {
@@ -246,6 +248,7 @@ export default function TaxonomyExplorerPage() {
             }
 
             const data = await response.json();
+            console.log('Taxonomy nodes response:', data);
             setTotalContents(data.total_contents);
 
             if (parentType && parentValue) {
@@ -421,12 +424,6 @@ export default function TaxonomyExplorerPage() {
         setExpandedNodes(new Set());
         setNodeChildren({});
     };
-
-    useEffect(() => {
-        if (user) {
-            fetchNodes(rootType);
-        }
-    }, [typeFilters, facetFilters]);
 
     // Handle node click - toggle expand/collapse
     const handleNodeClick = async (node: TaxonomyNode) => {
