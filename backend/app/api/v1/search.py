@@ -1040,12 +1040,17 @@ async def search_faceted(
 
                 # Execute query with proper pagination
                 logger.info(f"Executing standard query: offset={data.offset}, limit={data.limit}")
-                response = query.order("created_at", desc=True).range(
-                    data.offset, data.offset + data.limit - 1
-                ).execute()
-
-                results = response.data or []
-                logger.info(f"Standard query returned {len(results)} results")
+                try:
+                    response = query.order("created_at", desc=True).range(
+                        data.offset, data.offset + data.limit - 1
+                    ).execute()
+                    results = response.data or []
+                    logger.info(f"Standard query returned {len(results)} results")
+                    if hasattr(response, 'error') and response.error:
+                        logger.error(f"Supabase query error: {response.error}")
+                except Exception as query_error:
+                    logger.error(f"Query execution error: {query_error}", exc_info=True)
+                    results = []
 
         # Filter by user_tags (post-query for simplicity)
         if data.user_tags:
