@@ -75,6 +75,7 @@ export function ContentDetailModal({
     const [isFavorite, setIsFavorite] = useState(false);
     const [reprocessing, setReprocessing] = useState(false);
     const [processingStatus, setProcessingStatus] = useState<string>('');
+    const [savingNote, setSavingNote] = useState(false);
 
     useEffect(() => {
         if (content) {
@@ -199,6 +200,7 @@ export function ContentDetailModal({
 
     const handleSaveNote = async () => {
         if (!content) return;
+        setSavingNote(true);
         try {
             const headers = await getAuthHeaders();
             const response = await fetch(`${API_URL}/api/v1/content/${content.id}`, {
@@ -209,9 +211,16 @@ export function ContentDetailModal({
             if (response.ok) {
                 setEditingNote(false);
                 onUpdate?.({ ...content, user_note: userNote });
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('Error saving note:', response.status, errorData);
+                alert(`Error al guardar: ${errorData.detail || response.statusText}`);
             }
         } catch (error) {
             console.error('Error saving note:', error);
+            alert('Error de conexion al guardar la nota');
+        } finally {
+            setSavingNote(false);
         }
     };
 
@@ -426,9 +435,10 @@ export function ContentDetailModal({
                                     </button>
                                     <button
                                         onClick={handleSaveNote}
-                                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
+                                        disabled={savingNote}
+                                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
                                     >
-                                        Guardar
+                                        {savingNote ? 'Guardando...' : 'Guardar'}
                                     </button>
                                 </div>
                             </div>
