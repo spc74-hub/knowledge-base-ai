@@ -9,6 +9,29 @@ from app.api.deps import CurrentUser, Database
 router = APIRouter()
 
 
+def safe_query(func):
+    """Execute a query safely, returning default on error."""
+    try:
+        return func()
+    except Exception as e:
+        print(f"Dashboard query error: {e}")
+        return None
+
+
+def safe_count(result) -> int:
+    """Get count from result, handling None."""
+    if result is None:
+        return 0
+    return result.count or 0
+
+
+def safe_data(result) -> list:
+    """Get data from result, handling None."""
+    if result is None:
+        return []
+    return result.data or []
+
+
 @router.get("/summary")
 async def get_dashboard_summary(
     current_user: CurrentUser,
@@ -20,129 +43,126 @@ async def get_dashboard_summary(
     """
     user_id = current_user["id"]
 
-    # Parallel queries for all counts
+    # Safe queries for all counts
     # Contents
-    contents_result = db.table("contents").select(
+    contents_result = safe_query(lambda: db.table("contents").select(
         "id", count="exact"
-    ).eq("user_id", user_id).execute()
+    ).eq("user_id", user_id).execute())
 
-    # Contents by processing status
-    pending_result = db.table("contents").select(
+    pending_result = safe_query(lambda: db.table("contents").select(
         "id", count="exact"
-    ).eq("user_id", user_id).eq("processing_status", "pending").execute()
+    ).eq("user_id", user_id).eq("processing_status", "pending").execute())
 
-    failed_result = db.table("contents").select(
+    failed_result = safe_query(lambda: db.table("contents").select(
         "id", count="exact"
-    ).eq("user_id", user_id).eq("processing_status", "failed").execute()
+    ).eq("user_id", user_id).eq("processing_status", "failed").execute())
 
-    # Objectives (active)
-    objectives_result = db.table("objectives").select(
+    # Objectives
+    objectives_result = safe_query(lambda: db.table("objectives").select(
         "id", count="exact"
-    ).eq("user_id", user_id).eq("status", "active").execute()
+    ).eq("user_id", user_id).eq("status", "active").execute())
 
-    # Objectives total
-    objectives_total = db.table("objectives").select(
+    objectives_total = safe_query(lambda: db.table("objectives").select(
         "id", count="exact"
-    ).eq("user_id", user_id).execute()
+    ).eq("user_id", user_id).execute())
 
-    # Projects (active)
-    projects_result = db.table("projects").select(
+    # Projects
+    projects_result = safe_query(lambda: db.table("projects").select(
         "id", count="exact"
-    ).eq("user_id", user_id).eq("status", "active").execute()
+    ).eq("user_id", user_id).eq("status", "active").execute())
 
-    # Projects total
-    projects_total = db.table("projects").select(
+    projects_total = safe_query(lambda: db.table("projects").select(
         "id", count="exact"
-    ).eq("user_id", user_id).execute()
+    ).eq("user_id", user_id).execute())
 
-    # Mental Models (active)
-    mental_models_result = db.table("mental_models").select(
+    # Mental Models
+    mental_models_result = safe_query(lambda: db.table("mental_models").select(
         "id", count="exact"
-    ).eq("user_id", user_id).eq("is_active", True).execute()
+    ).eq("user_id", user_id).eq("is_active", True).execute())
 
-    # Notes (standalone)
-    notes_result = db.table("standalone_notes").select(
+    # Notes
+    notes_result = safe_query(lambda: db.table("standalone_notes").select(
         "id", count="exact"
-    ).eq("user_id", user_id).execute()
+    ).eq("user_id", user_id).execute())
 
     # Tags
-    tags_result = db.table("taxonomy_tags").select(
+    tags_result = safe_query(lambda: db.table("taxonomy_tags").select(
         "id", count="exact"
-    ).eq("user_id", user_id).execute()
+    ).eq("user_id", user_id).execute())
 
     # Folders
-    folders_result = db.table("folders").select(
+    folders_result = safe_query(lambda: db.table("folders").select(
         "id", count="exact"
-    ).eq("user_id", user_id).execute()
+    ).eq("user_id", user_id).execute())
 
     # Usage stats (last 30 days)
     from datetime import datetime, timedelta
     thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
 
-    usage_result = db.table("ai_usage_log").select(
+    usage_result = safe_query(lambda: db.table("ai_usage_log").select(
         "total_cost"
-    ).eq("user_id", user_id).gte("created_at", thirty_days_ago).execute()
+    ).eq("user_id", user_id).gte("created_at", thirty_days_ago).execute())
 
-    total_cost = sum(u.get("total_cost", 0) or 0 for u in usage_result.data)
+    total_cost = sum(u.get("total_cost", 0) or 0 for u in safe_data(usage_result))
 
     # Recent items for default view (last 5 of each)
-    recent_contents = db.table("contents").select(
+    recent_contents = safe_query(lambda: db.table("contents").select(
         "id, title, content_type, source_url, created_at"
-    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute()
+    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
-    recent_objectives = db.table("objectives").select(
+    recent_objectives = safe_query(lambda: db.table("objectives").select(
         "id, title, status, progress, icon, color, horizon"
-    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute()
+    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
-    recent_projects = db.table("projects").select(
+    recent_projects = safe_query(lambda: db.table("projects").select(
         "id, name, status, color, icon"
-    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute()
+    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
-    recent_mental_models = db.table("mental_models").select(
+    recent_mental_models = safe_query(lambda: db.table("mental_models").select(
         "id, name, slug, icon, color, is_active"
-    ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(5).execute()
+    ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(5).execute())
 
-    recent_notes = db.table("standalone_notes").select(
+    recent_notes = safe_query(lambda: db.table("standalone_notes").select(
         "id, title, is_pinned, created_at"
-    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute()
+    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
     return {
         "kpis": {
             "contents": {
-                "total": contents_result.count or 0,
-                "pending": pending_result.count or 0,
-                "failed": failed_result.count or 0,
+                "total": safe_count(contents_result),
+                "pending": safe_count(pending_result),
+                "failed": safe_count(failed_result),
             },
             "objectives": {
-                "active": objectives_result.count or 0,
-                "total": objectives_total.count or 0,
+                "active": safe_count(objectives_result),
+                "total": safe_count(objectives_total),
             },
             "projects": {
-                "active": projects_result.count or 0,
-                "total": projects_total.count or 0,
+                "active": safe_count(projects_result),
+                "total": safe_count(projects_total),
             },
             "mental_models": {
-                "active": mental_models_result.count or 0,
+                "active": safe_count(mental_models_result),
             },
             "notes": {
-                "total": notes_result.count or 0,
+                "total": safe_count(notes_result),
             },
             "tags": {
-                "total": tags_result.count or 0,
+                "total": safe_count(tags_result),
             },
             "folders": {
-                "total": folders_result.count or 0,
+                "total": safe_count(folders_result),
             },
             "usage": {
                 "cost_30d": round(total_cost, 2),
             },
         },
         "recent": {
-            "contents": recent_contents.data or [],
-            "objectives": recent_objectives.data or [],
-            "projects": recent_projects.data or [],
-            "mental_models": recent_mental_models.data or [],
-            "notes": recent_notes.data or [],
+            "contents": safe_data(recent_contents),
+            "objectives": safe_data(recent_objectives),
+            "projects": safe_data(recent_projects),
+            "mental_models": safe_data(recent_mental_models),
+            "notes": safe_data(recent_notes),
         },
     }
 
