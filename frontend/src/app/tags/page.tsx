@@ -19,26 +19,11 @@ interface TaxonomyTag {
 }
 
 const TAXONOMY_TYPES = [
-    { value: 'category', label: 'Categoría', icon: '📂' },
+    { value: 'category', label: 'Categoria', icon: '📂' },
     { value: 'person', label: 'Persona', icon: '👤' },
-    { value: 'organization', label: 'Organización', icon: '🏢' },
+    { value: 'organization', label: 'Organizacion', icon: '🏢' },
     { value: 'product', label: 'Producto', icon: '📦' },
     { value: 'concept', label: 'Concepto', icon: '💡' },
-    { value: 'mental_model', label: 'Modelo Mental', icon: '🧠' },
-];
-
-// Predefined mental models for quick creation
-const MENTAL_MODELS = [
-    { name: 'First Principles', description: 'Descomponer problemas en sus componentes fundamentales' },
-    { name: 'Inversion', description: 'Pensar al revés - qué evitar para lograr el objetivo' },
-    { name: 'Second-Order Thinking', description: 'Considerar las consecuencias de las consecuencias' },
-    { name: 'Circle of Competence', description: 'Conocer los límites de tu conocimiento' },
-    { name: 'Occam\'s Razor', description: 'La explicación más simple suele ser la correcta' },
-    { name: 'Hanlon\'s Razor', description: 'No atribuir a malicia lo que puede explicarse por incompetencia' },
-    { name: 'Pareto Principle', description: 'El 80% de resultados viene del 20% de esfuerzos' },
-    { name: 'Compounding', description: 'Pequeñas ganancias acumuladas generan grandes resultados' },
-    { name: 'Opportunity Cost', description: 'El coste de lo que renuncias al elegir algo' },
-    { name: 'Survivorship Bias', description: 'Solo vemos los que sobrevivieron, no los que fallaron' },
 ];
 
 const TAG_COLORS = [
@@ -263,68 +248,24 @@ export default function TagsPage() {
                     </p>
                 </div>
 
-                {/* Mental Models Section */}
+                {/* Link to Mental Models */}
                 <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-6">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">🧠</span>
-                        <h2 className="font-medium text-purple-900 dark:text-purple-200">Modelos Mentales</h2>
-                    </div>
-                    <p className="text-sm text-purple-800 dark:text-purple-300 mb-4">
-                        Los modelos mentales son marcos de pensamiento que te ayudan a analizar y conectar ideas.
-                        Añade modelos mentales para etiquetar contenido según el tipo de pensamiento que aplica.
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {MENTAL_MODELS.map(model => {
-                            const isAdded = taxonomyTags.some(
-                                t => t.taxonomy_type === 'mental_model' && t.taxonomy_value === model.name
-                            );
-                            return (
-                                <div
-                                    key={model.name}
-                                    className={`flex items-center justify-between p-2 rounded-lg border ${
-                                        isAdded
-                                            ? 'bg-purple-100 dark:bg-purple-900/40 border-purple-300 dark:border-purple-700'
-                                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                                    }`}
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-medium ${isAdded ? 'text-purple-800 dark:text-purple-200' : 'text-gray-800 dark:text-gray-200'}`}>
-                                            {model.name}
-                                        </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                            {model.description}
-                                        </p>
-                                    </div>
-                                    {isAdded ? (
-                                        <span className="ml-2 text-purple-600 dark:text-purple-400 text-sm">✓</span>
-                                    ) : (
-                                        <button
-                                            onClick={async () => {
-                                                try {
-                                                    const headers = await getAuthHeaders();
-                                                    await fetch(`${API_URL}/api/v1/tags/`, {
-                                                        method: 'POST',
-                                                        headers,
-                                                        body: JSON.stringify({
-                                                            taxonomy_type: 'mental_model',
-                                                            taxonomy_value: model.name,
-                                                            tag: model.name,
-                                                            color: '#8b5cf6',
-                                                        }),
-                                                    });
-                                                    fetchTaxonomyTags();
-                                                } catch (err) {
-                                                    console.error('Error adding mental model:', err);
-                                                }
-                                            }}
-                                            className="ml-2 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
-                                        >
-                                            Añadir
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">🧠</span>
+                            <div>
+                                <h2 className="font-medium text-purple-900 dark:text-purple-200">Modelos Mentales</h2>
+                                <p className="text-sm text-purple-800 dark:text-purple-300">
+                                    Gestiona tus modelos mentales en su propia seccion
+                                </p>
+                            </div>
+                        </div>
+                        <Link
+                            href="/mental-models"
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                        >
+                            Ir a Modelos Mentales
+                        </Link>
                     </div>
                 </div>
 
