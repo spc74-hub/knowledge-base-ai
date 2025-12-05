@@ -449,8 +449,8 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Active/Pinned/Favorites section */}
-        {((objectSummary.active?.length ?? 0) > 0 || (objectSummary.pinned?.length ?? 0) > 0 || (objectSummary.favorites?.length ?? 0) > 0) && (
+        {/* Active/Pinned/Favorites section - NOT shown for contents */}
+        {selectedCategory !== 'contents' && ((objectSummary.active?.length ?? 0) > 0 || (objectSummary.pinned?.length ?? 0) > 0 || (objectSummary.favorites?.length ?? 0) > 0) && (
           <div className="bg-gray-800/50 rounded-xl p-4">
             <h3 className="text-white font-medium mb-3">
               {(objectSummary.favorites?.length ?? 0) > 0 ? '⭐ Favoritos' :
@@ -493,7 +493,7 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium mb-3">🕐 Recientes</h3>
             <div className="space-y-2">
               {objectSummary.recent.length > 0 ? (
-                objectSummary.recent.slice(0, 8).map((item: any) => (
+                objectSummary.recent.slice(0, selectedCategory === 'contents' ? 10 : 8).map((item: any) => (
                   <Link
                     key={item.id}
                     href={getItemUrl(selectedCategory, item)}

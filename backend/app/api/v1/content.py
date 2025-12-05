@@ -134,6 +134,7 @@ async def list_contents(
     asset: Optional[bool] = None,  # Filter by is_asset
     project_id: Optional[str] = None,  # Filter by project
     maturity_level: Optional[str] = None,  # Filter by maturity level
+    processing_status: Optional[str] = None,  # Filter by processing status
     sort_by: str = "created_at",
     sort_order: str = "desc",
     q: Optional[str] = None
@@ -152,6 +153,8 @@ async def list_contents(
             query = query.eq("iab_tier1", category)
         if favorite is not None:
             query = query.eq("is_favorite", favorite)
+        if processing_status:
+            query = query.eq("processing_status", processing_status)
         if not archived:
             query = query.eq("is_archived", False)
         if asset is not None:

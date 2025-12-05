@@ -73,12 +73,15 @@ export function ContentDetailModal({
     const [userNote, setUserNote] = useState('');
     const [userTags, setUserTags] = useState<string[]>([]);
     const [isFavorite, setIsFavorite] = useState(false);
+    const [reprocessing, setReprocessing] = useState(false);
+    const [processingStatus, setProcessingStatus] = useState<string>('');
 
     useEffect(() => {
         if (content) {
             setUserTags(content.user_tags || []);
             setUserNote(content.user_note || '');
             setIsFavorite(content.is_favorite || false);
+            setProcessingStatus(content.processing_status || 'pending');
         }
     }, [content]);
 
@@ -209,6 +212,26 @@ export function ContentDetailModal({
             }
         } catch (error) {
             console.error('Error saving note:', error);
+        }
+    };
+
+    const handleReprocess = async () => {
+        if (!content) return;
+        setReprocessing(true);
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/content/${content.id}/reprocess`, {
+                method: 'POST',
+                headers,
+            });
+            if (response.ok) {
+                setProcessingStatus('pending');
+                onUpdate?.({ ...content, processing_status: 'pending' });
+            }
+        } catch (error) {
+            console.error('Error reprocessing:', error);
+        } finally {
+            setReprocessing(false);
         }
     };
 
@@ -538,6 +561,17 @@ export function ContentDetailModal({
 
                     {/* Actions */}
                     <div className="flex flex-wrap gap-3 pt-4 border-t dark:border-gray-700">
+                        <button
+                            onClick={handleReprocess}
+                            disabled={reprocessing || processingStatus === 'pending'}
+                            className={`px-4 py-2 rounded-lg border ${
+                                processingStatus === 'pending'
+                                    ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 cursor-not-allowed'
+                                    : 'border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
+                            } disabled:opacity-50`}
+                        >
+                            {reprocessing ? '⏳ Procesando...' : processingStatus === 'pending' ? '⏳ En cola' : '🤖 Procesar con IA'}
+                        </button>
                         <button
                             onClick={handleToggleFavorite}
                             className={`px-4 py-2 rounded-lg border ${
