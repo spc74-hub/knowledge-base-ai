@@ -875,6 +875,10 @@ async def search_faceted(
 
         logger.info(f"Faceted search request: user={current_user['id']}, data={data}")
 
+        # Quick test: count all contents for this user
+        test_count = db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).eq("is_archived", False).execute()
+        logger.info(f"Total non-archived contents for user: {test_count.count if test_count else 'N/A'}")
+
         # Check if we need entity filtering (requires separate queries for OR logic)
         has_entity_filters = data.organizations or data.products or data.persons
         logger.info(f"has_entity_filters={has_entity_filters}")
@@ -944,11 +948,11 @@ async def search_faceted(
 
             # If we have matching IDs, fetch full content
             if all_ids:
-                response = db.table("contents").select(
+                select_fields = (
                     "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
-                    "schema_type, content_format, technical_level, language, sentiment, "
-                    "reading_time_minutes, processing_status, maturity_level, is_favorite, user_note, note_category, metadata, created_at"
-                ).in_("id", list(all_ids)).eq("is_archived", False).order("created_at", desc=True).range(
+                    "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
+                )
+                response = db.table("contents").select(select_fields).in_("id", list(all_ids)).eq("is_archived", False).order("created_at", desc=True).range(
                     data.offset, data.offset + data.limit - 1
                 ).execute()
                 results = response.data or []
@@ -956,10 +960,10 @@ async def search_faceted(
                 results = []
         else:
             # Standard query without entity filters
+            # Use simpler select to avoid potential missing column issues
             query = db.table("contents").select(
                 "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
-                "schema_type, content_format, technical_level, language, sentiment, "
-                "reading_time_minutes, processing_status, maturity_level, is_favorite, user_note, note_category, metadata, created_at"
+                "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
             ).eq("user_id", current_user["id"]).eq("is_archived", False)
 
             # Apply facet filters - handle apple_notes as special case
@@ -971,21 +975,17 @@ async def search_faceted(
                 if has_apple_notes and other_types:
                     # Need to combine: (type in other_types) OR (type=note AND metadata.source=apple_notes)
                     # Supabase doesn't support complex OR, so we do two queries
-                    query1 = db.table("contents").select(
+                    select_fields = (
                         "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
-                        "schema_type, content_format, technical_level, language, sentiment, "
-                        "reading_time_minutes, processing_status, maturity_level, is_favorite, user_note, note_category, metadata, created_at"
-                    ).eq("user_id", current_user["id"]).eq("is_archived", False).in_("type", other_types)
+                        "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
+                    )
+                    query1 = db.table("contents").select(select_fields).eq("user_id", current_user["id"]).eq("is_archived", False).in_("type", other_types)
                     if data.categories:
                         query1 = query1.in_("iab_tier1", data.categories)
                     if data.concepts:
                         query1 = query1.overlaps("concepts", data.concepts)
 
-                    query2 = db.table("contents").select(
-                        "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
-                        "schema_type, content_format, technical_level, language, sentiment, "
-                        "reading_time_minutes, processing_status, maturity_level, is_favorite, user_note, note_category, metadata, created_at"
-                    ).eq("user_id", current_user["id"]).eq("is_archived", False).eq("type", "note").filter(
+                    query2 = db.table("contents").select(select_fields).eq("user_id", current_user["id"]).eq("is_archived", False).eq("type", "note").filter(
                         "metadata->>source", "eq", "apple_notes"
                     )
                     if data.categories:
