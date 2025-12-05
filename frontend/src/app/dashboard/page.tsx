@@ -1,701 +1,641 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { ThemeToggle } from '@/components/theme-toggle';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// =====================================================
-// Interfaces
-// =====================================================
-
-interface Objective {
-    id: string;
-    title: string;
-    description: string;
-    status: string;
-    progress: number;
-    icon: string;
-    color: string;
-    target_date: string | null;
-    objective_actions: Action[];
+// Types
+interface DashboardSummary {
+  kpis: {
+    contents: { total: number; pending: number; failed: number };
+    objectives: { active: number; total: number };
+    projects: { active: number; total: number };
+    mental_models: { active: number };
+    notes: { total: number };
+    tags: { total: number };
+    folders: { total: number };
+    usage: { cost_30d: number };
+  };
+  recent: {
+    contents: any[];
+    objectives: any[];
+    projects: any[];
+    mental_models: any[];
+    notes: any[];
+  };
 }
 
-interface Action {
-    id: string;
-    title: string;
-    is_completed: boolean;
-    position: number;
+interface ObjectSummary {
+  type: string;
+  recent?: any[];
+  active?: any[];
+  favorites?: any[];
+  pinned?: any[];
+  items?: any[];
 }
 
-interface ProcessingStats {
-    queued: number;
-    pending: number;
-    processing: number;
-    completed: number;
-    failed: number;
+type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'tags';
+
+interface SidebarItem {
+  key: string;
+  label: string;
+  icon: string;
+  href?: string;
+  selectable?: boolean;
 }
 
-interface ContentStats {
-    total: number;
-    by_type: { [key: string]: number };
-    favorites: number;
-    archived: number;
-    this_week: number;
+interface SidebarSection {
+  title: string;
+  items: SidebarItem[];
 }
-
-interface Folder {
-    id: string;
-    name: string;
-    color: string;
-    icon: string;
-    parent_id: string | null;
-    content_count?: number;
-}
-
-interface RecentContent {
-    id: string;
-    title: string;
-    content_type: string;
-    source_url: string | null;
-    created_at: string;
-    is_favorite: boolean;
-}
-
-interface Project {
-    id: string;
-    name: string;
-    status: string;
-    color: string;
-    icon: string;
-}
-
-// =====================================================
-// Dashboard Component
-// =====================================================
 
 export default function DashboardPage() {
-    const router = useRouter();
-    const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [objectSummary, setObjectSummary] = useState<ObjectSummary | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<SidebarCategory>('overview');
+  const [loading, setLoading] = useState(true);
+  const [loadingObject, setLoadingObject] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-    // State
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-    const [folders, setFolders] = useState<Folder[]>([]);
-    const [objectives, setObjectives] = useState<Objective[]>([]);
-    const [processingStats, setProcessingStats] = useState<ProcessingStats | null>(null);
-    const [contentStats, setContentStats] = useState<ContentStats | null>(null);
-    const [recentContents, setRecentContents] = useState<RecentContent[]>([]);
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [usageCost, setUsageCost] = useState<number>(0);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'recent' | 'favorites' | 'projects'>('recent');
+  // URL Modal state
+  const [showUrlModal, setShowUrlModal] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [savingUrl, setSavingUrl] = useState(false);
 
-    // Quick actions state
-    const [showQuickUrl, setShowQuickUrl] = useState(false);
-    const [quickUrl, setQuickUrl] = useState('');
-    const [quickUrlLoading, setQuickUrlLoading] = useState(false);
-
-    // =====================================================
-    // Data Fetching
-    // =====================================================
-
-    const fetchDashboardData = useCallback(async () => {
-        if (!user) return;
-
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            const headers = {
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-            };
-
-            // Fetch all data in parallel
-            const results = await Promise.allSettled([
-                fetch(`${API_URL}/api/v1/objectives/active`, { headers }),
-                fetch(`${API_URL}/api/v1/content/stats`, { headers }),
-                fetch(`${API_URL}/api/v1/process/stats`, { headers }),
-                fetch(`${API_URL}/api/v1/content/?limit=10`, { headers }),
-                fetch(`${API_URL}/api/v1/folders/`, { headers }),
-                fetch(`${API_URL}/api/v1/projects/?status=active`, { headers }),
-                fetch(`${API_URL}/api/v1/usage/summary?days=30`, { headers }),
-            ]);
-
-            // Process objectives
-            if (results[0].status === 'fulfilled' && results[0].value.ok) {
-                const data = await results[0].value.json();
-                setObjectives(data.objectives || []);
-            }
-
-            // Process content stats
-            if (results[1].status === 'fulfilled' && results[1].value.ok) {
-                const data = await results[1].value.json();
-                setContentStats(data);
-            }
-
-            // Process processing stats
-            if (results[2].status === 'fulfilled' && results[2].value.ok) {
-                const data = await results[2].value.json();
-                setProcessingStats(data);
-            }
-
-            // Process recent contents
-            if (results[3].status === 'fulfilled' && results[3].value.ok) {
-                const data = await results[3].value.json();
-                setRecentContents(data.data || []);
-            }
-
-            // Process folders
-            if (results[4].status === 'fulfilled' && results[4].value.ok) {
-                const data = await results[4].value.json();
-                setFolders(data || []);
-            }
-
-            // Process projects
-            if (results[5].status === 'fulfilled' && results[5].value.ok) {
-                const data = await results[5].value.json();
-                setProjects(data || []);
-            }
-
-            // Process usage
-            if (results[6].status === 'fulfilled' && results[6].value.ok) {
-                const data = await results[6].value.json();
-                setUsageCost(data.total_cost_usd || 0);
-            }
-
-        } catch (error) {
-            console.error('Error fetching dashboard data:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [user]);
-
-    useEffect(() => {
-        if (!authLoading && !user) {
-            router.push('/login');
-        } else if (user) {
-            fetchDashboardData();
-        }
-    }, [user, authLoading, router, fetchDashboardData]);
-
-    // =====================================================
-    // Actions
-    // =====================================================
-
-    const handleQuickSaveUrl = async () => {
-        if (!quickUrl.trim()) return;
-
-        setQuickUrlLoading(true);
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            const res = await fetch(`${API_URL}/api/v1/quick-save/`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ url: quickUrl }),
-            });
-
-            if (res.ok) {
-                setQuickUrl('');
-                setShowQuickUrl(false);
-                fetchDashboardData();
-            }
-        } catch (error) {
-            console.error('Error saving URL:', error);
-        } finally {
-            setQuickUrlLoading(false);
-        }
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem('access_token');
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
+  }, []);
 
-    const handleRetryFailed = async () => {
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            await fetch(`${API_URL}/api/v1/process/retry-failed`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${session.access_token}` },
-            });
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Error retrying failed:', error);
-        }
-    };
-
-    const handleToggleAction = async (objectiveId: string, actionId: string, currentState: boolean) => {
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            await fetch(`${API_URL}/api/v1/objectives/${objectiveId}/actions/${actionId}`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ is_completed: !currentState }),
-            });
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Error toggling action:', error);
-        }
-    };
-
-    // =====================================================
-    // Render
-    // =====================================================
-
-    if (authLoading || loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            </div>
-        );
+  // Fetch main dashboard summary
+  const fetchSummary = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/dashboard/summary`, {
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSummary(data);
+        setLastRefresh(new Date());
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard summary:', error);
+    } finally {
+      setLoading(false);
     }
+  }, [user, getAuthHeaders]);
 
-    const pendingProcessing = (processingStats?.queued || 0) + (processingStats?.pending || 0) + (processingStats?.processing || 0);
-    const failedCount = processingStats?.failed || 0;
+  // Fetch object-specific summary
+  const fetchObjectSummary = useCallback(async (objectType: string) => {
+    if (!user || objectType === 'overview') {
+      setObjectSummary(null);
+      return;
+    }
+    setLoadingObject(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/dashboard/objects/${objectType}`, {
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setObjectSummary(data);
+      }
+    } catch (error) {
+      console.error('Error fetching object summary:', error);
+    } finally {
+      setLoadingObject(false);
+    }
+  }, [user, getAuthHeaders]);
+
+  useEffect(() => {
+    if (user && !authLoading) {
+      fetchSummary();
+    }
+  }, [user, authLoading, fetchSummary]);
+
+  useEffect(() => {
+    fetchObjectSummary(selectedCategory);
+  }, [selectedCategory, fetchObjectSummary]);
+
+  // Save URL
+  const handleSaveUrl = async () => {
+    if (!urlInput.trim()) return;
+    setSavingUrl(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/content/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ source_url: urlInput.trim() }),
+      });
+      if (response.ok) {
+        setUrlInput('');
+        setShowUrlModal(false);
+        fetchSummary(); // Refresh
+      }
+    } catch (error) {
+      console.error('Error saving URL:', error);
+    } finally {
+      setSavingUrl(false);
+    }
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-gray-400">Cargando...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl text-white mb-4">Inicia sesion para acceder</h2>
+          <Link href="/login" className="bg-indigo-600 text-white px-4 py-2 rounded-lg">
+            Iniciar Sesion
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const kpis = summary?.kpis;
+
+  // KPI Cards data
+  const kpiCards = [
+    { key: 'contents', label: 'Contenidos', value: kpis?.contents.total || 0, icon: '📄', href: '/explore', color: 'bg-blue-600' },
+    { key: 'objectives', label: 'Objetivos', value: kpis?.objectives.active || 0, icon: '🎯', href: '/objectives', color: 'bg-purple-600' },
+    { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-green-600' },
+    { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-pink-600' },
+    { key: 'notes', label: 'Notas', value: kpis?.notes.total || 0, icon: '📝', href: '/notes', color: 'bg-yellow-600' },
+    { key: 'tags', label: 'Tags', value: kpis?.tags.total || 0, icon: '🏷️', href: '/tags', color: 'bg-orange-600' },
+  ];
+
+  // Sidebar navigation
+  const sidebarSections: SidebarSection[] = [
+    {
+      title: 'NAVEGAR',
+      items: [
+        { key: 'explore', label: 'Explorar', icon: '🔍', href: '/explore' },
+        { key: 'taxonomy', label: 'Taxonomia', icon: '🌿', href: '/taxonomy' },
+        { key: 'knowledge-graph', label: 'Knowledge Graph', icon: '🕸️', href: '/knowledge-graph' },
+        { key: 'chat', label: 'Chat IA', icon: '💬', href: '/chat' },
+      ],
+    },
+    {
+      title: 'OBJETOS',
+      items: [
+        { key: 'contents', label: 'Contenidos', icon: '📄', selectable: true },
+        { key: 'objectives', label: 'Objetivos', icon: '🎯', selectable: true },
+        { key: 'projects', label: 'Proyectos', icon: '📁', selectable: true },
+        { key: 'mental_models', label: 'Modelos Mentales', icon: '🧠', selectable: true },
+        { key: 'notes', label: 'Diario', icon: '📝', selectable: true },
+        { key: 'tags', label: 'Tags', icon: '🏷️', selectable: true },
+      ],
+    },
+    {
+      title: 'ADMINISTRACION',
+      items: [
+        { key: 'import', label: 'Importar URLs', icon: '📥', href: '/import' },
+        { key: 'apple-notes', label: 'Apple Notes', icon: '🍎', href: '/apple-notes' },
+        { key: 'quick-save', label: 'Quick Save', icon: '⚡', href: '/quick-save' },
+        {
+          key: 'processing',
+          label: `Cola (${kpis?.contents.pending || 0} pend, ${kpis?.contents.failed || 0} fall)`,
+          icon: '⚙️',
+          href: '/processing'
+        },
+        { key: 'usage', label: `Uso API ($${kpis?.usage.cost_30d || 0})`, icon: '📊', href: '/usage' },
+      ],
+    },
+  ];
+
+  // Render overview panel (default)
+  const renderOverviewPanel = () => {
+    if (!summary) return null;
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
-            {/* ===== SIDEBAR CARPETAS (Colapsable) ===== */}
-            <aside className={`${sidebarCollapsed ? 'w-12' : 'w-64'} bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 flex flex-col`}>
-                {/* Toggle button */}
-                <button
-                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                    className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700"
-                >
-                    {sidebarCollapsed ? (
-                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                        </svg>
-                    ) : (
-                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                        </svg>
-                    )}
-                </button>
-
-                {!sidebarCollapsed && (
-                    <div className="flex-1 overflow-y-auto p-3">
-                        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Carpetas</h3>
-                        {folders.length === 0 ? (
-                            <p className="text-sm text-gray-400 dark:text-gray-500">Sin carpetas</p>
-                        ) : (
-                            <ul className="space-y-1">
-                                {folders.filter(f => !f.parent_id).map(folder => (
-                                    <li key={folder.id}>
-                                        <button
-                                            onClick={() => router.push(`/explore?folder=${folder.id}`)}
-                                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
-                                        >
-                                            <span>{folder.icon || '📁'}</span>
-                                            <span className="truncate">{folder.name}</span>
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-
-                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Acceso Rapido</h3>
-                            <ul className="space-y-1">
-                                <li>
-                                    <Link href="/explore?is_favorite=true" className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300">
-                                        <span>⭐</span><span>Favoritos</span>
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link href="/explore?is_archived=true" className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300">
-                                        <span>📦</span><span>Archivados</span>
-                                    </Link>
-                                </li>
-                            </ul>
-                        </div>
+      <div className="space-y-6">
+        {/* Objectives */}
+        <div className="bg-gray-800/50 rounded-xl p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              🎯 Objetivos Activos
+            </h3>
+            <Link href="/objectives" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+              Ver todo →
+            </Link>
+          </div>
+          {summary.recent.objectives.length > 0 ? (
+            <div className="space-y-2">
+              {summary.recent.objectives.filter(o => o.status === 'active').slice(0, 3).map((obj) => (
+                <div key={obj.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                  <span className="text-lg">{obj.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm truncate">{obj.title}</p>
+                    <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+                      <div
+                        className="h-1.5 rounded-full"
+                        style={{ width: `${obj.progress}%`, backgroundColor: obj.color }}
+                      />
                     </div>
-                )}
-
-                {sidebarCollapsed && (
-                    <div className="flex-1 flex flex-col items-center py-3 space-y-2">
-                        <button onClick={() => router.push('/explore?is_favorite=true')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Favoritos">⭐</button>
-                        <button onClick={() => router.push('/explore?is_archived=true')} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Archivados">📦</button>
-                        {folders.slice(0, 5).map(f => (
-                            <button key={f.id} onClick={() => router.push(`/explore?folder=${f.id}`)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title={f.name}>
-                                {f.icon || '📁'}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </aside>
-
-            {/* ===== MAIN CONTENT ===== */}
-            <main className="flex-1 overflow-y-auto">
-                {/* HEADER */}
-                <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-
-                        {/* Quick Actions */}
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => setShowQuickUrl(!showQuickUrl)}
-                                className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2"
-                            >
-                                <span>+</span> URL
-                            </button>
-                            <Link href="/notes/new" className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center gap-2">
-                                <span>+</span> Nota
-                            </Link>
-                            <Link href="/chat" className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-2">
-                                💬 Chat
-                            </Link>
-                            <ThemeToggle />
-                        </div>
-                    </div>
-
-                    {/* Quick URL Input */}
-                    {showQuickUrl && (
-                        <div className="mt-4 flex gap-2">
-                            <input
-                                type="url"
-                                value={quickUrl}
-                                onChange={(e) => setQuickUrl(e.target.value)}
-                                placeholder="https://..."
-                                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                onKeyDown={(e) => e.key === 'Enter' && handleQuickSaveUrl()}
-                            />
-                            <button
-                                onClick={handleQuickSaveUrl}
-                                disabled={quickUrlLoading}
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                            >
-                                {quickUrlLoading ? '...' : 'Guardar'}
-                            </button>
-                        </div>
-                    )}
-                </header>
-
-                <div className="p-6 space-y-6">
-                    {/* ===== ZONA 1: METRICAS ===== */}
-                    <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Total</p>
-                            <p className="text-2xl font-bold text-gray-900 dark:text-white">{contentStats?.total || 0}</p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Procesando</p>
-                            <p className="text-2xl font-bold text-yellow-600">{pendingProcessing}</p>
-                        </div>
-                        <div className={`bg-white dark:bg-gray-800 rounded-xl p-4 border ${failedCount > 0 ? 'border-red-300 dark:border-red-700' : 'border-gray-200 dark:border-gray-700'}`}>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Fallidos</p>
-                            <p className={`text-2xl font-bold ${failedCount > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>{failedCount}</p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Esta semana</p>
-                            <p className="text-2xl font-bold text-green-600">+{contentStats?.this_week || 0}</p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Costo (30d)</p>
-                            <p className="text-2xl font-bold text-gray-900 dark:text-white">${usageCost.toFixed(2)}</p>
-                        </div>
-                    </section>
-
-                    {/* ===== ZONA 2: FOCO Y ALERTAS ===== */}
-                    <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Objetivo Activo */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                    🎯 Objetivo Activo
-                                </h2>
-                                <Link href="/objectives" className="text-sm text-indigo-600 hover:underline">Ver todos</Link>
-                            </div>
-
-                            {objectives.length === 0 ? (
-                                <div className="text-center py-8">
-                                    <p className="text-gray-500 dark:text-gray-400 mb-4">No tienes objetivos activos</p>
-                                    <Link href="/objectives" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                                        Crear objetivo
-                                    </Link>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {objectives.slice(0, 1).map(obj => (
-                                        <div key={obj.id}>
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <span className="text-2xl">{obj.icon}</span>
-                                                <div className="flex-1">
-                                                    <h3 className="font-medium text-gray-900 dark:text-white">{obj.title}</h3>
-                                                    {obj.target_date && (
-                                                        <p className="text-xs text-gray-500">Deadline: {new Date(obj.target_date).toLocaleDateString()}</p>
-                                                    )}
-                                                </div>
-                                                <span className="text-lg font-bold" style={{ color: obj.color }}>{obj.progress}%</span>
-                                            </div>
-
-                                            {/* Progress bar */}
-                                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
-                                                <div
-                                                    className="h-2 rounded-full transition-all"
-                                                    style={{ width: `${obj.progress}%`, backgroundColor: obj.color }}
-                                                />
-                                            </div>
-
-                                            {/* Actions */}
-                                            {obj.objective_actions && obj.objective_actions.length > 0 && (
-                                                <div className="space-y-2">
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Proximas acciones:</p>
-                                                    {obj.objective_actions.filter(a => !a.is_completed).slice(0, 3).map(action => (
-                                                        <label key={action.id} className="flex items-center gap-2 cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={action.is_completed}
-                                                                onChange={() => handleToggleAction(obj.id, action.id, action.is_completed)}
-                                                                className="rounded border-gray-300 text-indigo-600"
-                                                            />
-                                                            <span className="text-sm text-gray-700 dark:text-gray-300">{action.title}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Alertas y Acciones Pendientes */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">⚡ Centro de Acciones</h2>
-
-                            <div className="space-y-3">
-                                {failedCount > 0 && (
-                                    <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                                        <span className="text-sm text-red-800 dark:text-red-200">
-                                            🔴 {failedCount} contenidos fallidos
-                                        </span>
-                                        <button
-                                            onClick={handleRetryFailed}
-                                            className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-                                        >
-                                            Reintentar
-                                        </button>
-                                    </div>
-                                )}
-
-                                {pendingProcessing > 0 && (
-                                    <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                                        <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                                            🟡 {pendingProcessing} en cola de procesamiento
-                                        </span>
-                                        <Link href="/import" className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700">
-                                            Ver cola
-                                        </Link>
-                                    </div>
-                                )}
-
-                                {projects.filter(p => p.status === 'active').length > 0 && (
-                                    <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                        <span className="text-sm text-blue-800 dark:text-blue-200">
-                                            📁 {projects.filter(p => p.status === 'active').length} proyectos activos
-                                        </span>
-                                        <Link href="/projects" className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
-                                            Ver
-                                        </Link>
-                                    </div>
-                                )}
-
-                                {failedCount === 0 && pendingProcessing === 0 && projects.length === 0 && (
-                                    <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                                        ✅ Todo al dia
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* ===== ZONA 3: NAVEGACION + CONTENIDO ===== */}
-                    <section className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                        {/* Navegacion */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">🧭 Navegar</h2>
-
-                            <div className="space-y-2">
-                                <Link href="/explore" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">🔍</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Explorar</span>
-                                </Link>
-                                <Link href="/taxonomy" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">🌳</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Taxonomia</span>
-                                </Link>
-                                <Link href="/knowledge-graph" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">🕸️</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Knowledge Graph</span>
-                                </Link>
-                                <Link href="/chat" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">💬</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Chat IA</span>
-                                </Link>
-
-                                <hr className="my-3 border-gray-200 dark:border-gray-700" />
-
-                                <Link href="/objectives" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">🎯</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Objetivos</span>
-                                </Link>
-                                <Link href="/projects" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">📁</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Proyectos</span>
-                                </Link>
-                                <Link href="/journal" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">📔</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Diario</span>
-                                </Link>
-                                <Link href="/mental-models" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">🧠</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Modelos Mentales</span>
-                                </Link>
-                                <Link href="/tags" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">🏷️</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Tags</span>
-                                </Link>
-
-                                <hr className="my-3 border-gray-200 dark:border-gray-700" />
-
-                                <Link href="/import" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">📥</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Importar URLs</span>
-                                </Link>
-                                <Link href="/import-apple-notes" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">🍎</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Apple Notes</span>
-                                </Link>
-                                <Link href="/quick-save" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">⚡</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Quick Save</span>
-                                </Link>
-                                <Link href="/usage" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <span className="text-xl">📊</span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">Uso API</span>
-                                </Link>
-                            </div>
-                        </div>
-
-                        {/* Contenido Reciente */}
-                        <div className="lg:col-span-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setActiveTab('recent')}
-                                        className={`px-3 py-1.5 rounded-lg text-sm ${activeTab === 'recent' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                                    >
-                                        Reciente
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('favorites')}
-                                        className={`px-3 py-1.5 rounded-lg text-sm ${activeTab === 'favorites' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                                    >
-                                        Favoritos
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('projects')}
-                                        className={`px-3 py-1.5 rounded-lg text-sm ${activeTab === 'projects' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                                    >
-                                        Proyectos
-                                    </button>
-                                </div>
-                                <Link href="/explore" className="text-sm text-indigo-600 hover:underline">Ver todo →</Link>
-                            </div>
-
-                            {activeTab === 'recent' && (
-                                <div className="space-y-2">
-                                    {recentContents.length === 0 ? (
-                                        <p className="text-gray-500 dark:text-gray-400 text-center py-8">No hay contenidos recientes</p>
-                                    ) : (
-                                        recentContents.map(content => (
-                                            <Link
-                                                key={content.id}
-                                                href={`/explore?content=${content.id}`}
-                                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
-                                            >
-                                                <span className="text-lg">
-                                                    {content.content_type === 'note' ? '📝' :
-                                                     content.content_type === 'url' ? '🔗' :
-                                                     content.content_type === 'apple_note' ? '🍎' : '📄'}
-                                                </span>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{content.title}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        {new Date(content.created_at).toLocaleDateString()}
-                                                    </p>
-                                                </div>
-                                                {content.is_favorite && <span>⭐</span>}
-                                            </Link>
-                                        ))
-                                    )}
-                                </div>
-                            )}
-
-                            {activeTab === 'favorites' && (
-                                <div className="space-y-2">
-                                    {recentContents.filter(c => c.is_favorite).length === 0 ? (
-                                        <p className="text-gray-500 dark:text-gray-400 text-center py-8">No hay favoritos</p>
-                                    ) : (
-                                        recentContents.filter(c => c.is_favorite).map(content => (
-                                            <Link
-                                                key={content.id}
-                                                href={`/explore?content=${content.id}`}
-                                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                                            >
-                                                <span>⭐</span>
-                                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{content.title}</p>
-                                            </Link>
-                                        ))
-                                    )}
-                                </div>
-                            )}
-
-                            {activeTab === 'projects' && (
-                                <div className="space-y-2">
-                                    {projects.length === 0 ? (
-                                        <div className="text-center py-8">
-                                            <p className="text-gray-500 dark:text-gray-400 mb-4">No hay proyectos activos</p>
-                                            <Link href="/projects" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                                                Crear proyecto
-                                            </Link>
-                                        </div>
-                                    ) : (
-                                        projects.map(project => (
-                                            <Link
-                                                key={project.id}
-                                                href={`/projects?id=${project.id}`}
-                                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                                            >
-                                                <span className="text-lg">{project.icon}</span>
-                                                <div className="flex-1">
-                                                    <p className="text-sm font-medium text-gray-900 dark:text-white">{project.name}</p>
-                                                    <p className="text-xs text-gray-500">{project.status}</p>
-                                                </div>
-                                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: project.color }} />
-                                            </Link>
-                                        ))
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </section>
+                  </div>
+                  <span className="text-xs text-gray-400">{obj.progress}%</span>
                 </div>
-            </main>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay objetivos activos</p>
+          )}
         </div>
+
+        {/* Projects */}
+        <div className="bg-gray-800/50 rounded-xl p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              📁 Proyectos Activos
+            </h3>
+            <Link href="/projects" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+              Ver todo →
+            </Link>
+          </div>
+          {summary.recent.projects.filter(p => p.status === 'active').length > 0 ? (
+            <div className="space-y-2">
+              {summary.recent.projects.filter(p => p.status === 'active').slice(0, 3).map((proj) => (
+                <div key={proj.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                  <span className="text-lg">{proj.icon || '📁'}</span>
+                  <p className="text-white text-sm flex-1 truncate">{proj.name}</p>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-600/20 text-green-400">
+                    activo
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay proyectos activos</p>
+          )}
+        </div>
+
+        {/* Mental Models */}
+        <div className="bg-gray-800/50 rounded-xl p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              🧠 Modelos Mentales
+            </h3>
+            <Link href="/mental-models" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+              Ver todo →
+            </Link>
+          </div>
+          {summary.recent.mental_models.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {summary.recent.mental_models.slice(0, 5).map((mm) => (
+                <span
+                  key={mm.id}
+                  className="px-2 py-1 rounded-lg text-sm text-white"
+                  style={{ backgroundColor: mm.color || '#8b5cf6' }}
+                >
+                  {mm.icon} {mm.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay modelos mentales activos</p>
+          )}
+        </div>
+
+        {/* Recent Contents */}
+        <div className="bg-gray-800/50 rounded-xl p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              📄 Contenidos Recientes
+            </h3>
+            <Link href="/explore" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+              Ver todo →
+            </Link>
+          </div>
+          {summary.recent.contents.length > 0 ? (
+            <div className="space-y-2">
+              {summary.recent.contents.slice(0, 5).map((content) => (
+                <div key={content.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                  <span className="text-lg">
+                    {content.content_type === 'video' ? '🎬' :
+                     content.content_type === 'article' ? '📰' : '📄'}
+                  </span>
+                  <p className="text-white text-sm flex-1 truncate">{content.title || 'Sin titulo'}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay contenidos</p>
+          )}
+        </div>
+
+        {/* Notes */}
+        <div className="bg-gray-800/50 rounded-xl p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              📝 Notas Recientes
+            </h3>
+            <Link href="/notes" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+              Ver todo →
+            </Link>
+          </div>
+          {summary.recent.notes.length > 0 ? (
+            <div className="space-y-2">
+              {summary.recent.notes.slice(0, 3).map((note) => (
+                <div key={note.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                  <span className="text-lg">{note.is_pinned ? '📌' : '📝'}</span>
+                  <p className="text-white text-sm flex-1 truncate">{note.title}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay notas</p>
+          )}
+        </div>
+      </div>
     );
+  };
+
+  // Render object-specific panel
+  const renderObjectPanel = () => {
+    if (loadingObject) {
+      return <div className="text-gray-400 text-center py-8">Cargando...</div>;
+    }
+
+    if (!objectSummary) return null;
+
+    const typeLabels: Record<string, { title: string; href: string }> = {
+      contents: { title: 'Contenidos', href: '/explore' },
+      objectives: { title: 'Objetivos', href: '/objectives' },
+      projects: { title: 'Proyectos', href: '/projects' },
+      mental_models: { title: 'Modelos Mentales', href: '/mental-models' },
+      notes: { title: 'Notas', href: '/notes' },
+      tags: { title: 'Tags', href: '/tags' },
+    };
+
+    const info = typeLabels[objectSummary.type] || { title: 'Items', href: '#' };
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl text-white font-semibold">{info.title}</h2>
+          <Link
+            href={info.href}
+            target="_blank"
+            className="text-indigo-400 hover:text-indigo-300 text-sm"
+          >
+            Ver todo →
+          </Link>
+        </div>
+
+        {/* Active/Pinned section */}
+        {(objectSummary.active || objectSummary.pinned || objectSummary.favorites) && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">
+              {objectSummary.favorites ? '⭐ Favoritos' :
+               objectSummary.pinned ? '📌 Fijados' :
+               '✅ Activos'}
+            </h3>
+            <div className="space-y-2">
+              {(objectSummary.active || objectSummary.pinned || objectSummary.favorites || []).slice(0, 5).map((item: any) => (
+                <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                  <span className="text-lg">{item.icon || item.color ? '●' : '📄'}</span>
+                  <p className="text-white text-sm flex-1 truncate">
+                    {item.title || item.name || item.tag || 'Sin titulo'}
+                  </p>
+                  {item.progress !== undefined && (
+                    <span className="text-xs text-gray-400">{item.progress}%</span>
+                  )}
+                  {item.status && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      item.status === 'active' ? 'bg-green-600/20 text-green-400' :
+                      item.status === 'completed' ? 'bg-blue-600/20 text-blue-400' :
+                      'bg-gray-600/20 text-gray-400'
+                    }`}>
+                      {item.status}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {(objectSummary.active || objectSummary.pinned || objectSummary.favorites || []).length === 0 && (
+                <p className="text-gray-500 text-sm">No hay elementos</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Recent section */}
+        {objectSummary.recent && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">🕐 Recientes</h3>
+            <div className="space-y-2">
+              {objectSummary.recent.slice(0, 8).map((item: any) => (
+                <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                  <span className="text-lg">{item.icon || '📄'}</span>
+                  <p className="text-white text-sm flex-1 truncate">
+                    {item.title || item.name || item.tag || 'Sin titulo'}
+                  </p>
+                </div>
+              ))}
+              {objectSummary.recent.length === 0 && (
+                <p className="text-gray-500 text-sm">No hay elementos recientes</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tags special case */}
+        {objectSummary.items && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">🏷️ Tags definidos</h3>
+            <div className="flex flex-wrap gap-2">
+              {objectSummary.items.map((tag: any) => (
+                <span
+                  key={tag.id}
+                  className="px-3 py-1 rounded-full text-sm text-white"
+                  style={{ backgroundColor: tag.color || '#6366f1' }}
+                >
+                  {tag.tag}
+                </span>
+              ))}
+              {objectSummary.items.length === 0 && (
+                <p className="text-gray-500 text-sm">No hay tags definidos</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950">
+      {/* Header */}
+      <header className="border-b border-gray-800 bg-gray-900/50 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+          <h1 className="text-xl font-bold text-white">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowUrlModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
+            >
+              + URL
+            </button>
+            <Link
+              href="/notes/new"
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
+            >
+              + Nota
+            </Link>
+            <Link
+              href="/chat"
+              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
+            >
+              💬 Chat
+            </Link>
+            <button
+              onClick={fetchSummary}
+              className="text-gray-400 hover:text-white p-2"
+              title={lastRefresh ? `Ultimo: ${lastRefresh.toLocaleTimeString()}` : 'Refrescar'}
+            >
+              🔄
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* KPI Bar */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          {kpiCards.map((kpi) => (
+            <Link
+              key={kpi.key}
+              href={kpi.href}
+              target="_blank"
+              className={`${kpi.color} hover:opacity-90 rounded-xl p-4 transition-all cursor-pointer`}
+            >
+              <div className="text-2xl mb-1">{kpi.icon}</div>
+              <div className="text-2xl font-bold text-white">{kpi.value}</div>
+              <div className="text-xs text-white/80">{kpi.label}</div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="flex gap-6">
+          {/* Sidebar */}
+          <aside className="w-64 flex-shrink-0">
+            <div className="bg-gray-900/50 rounded-xl p-4 sticky top-20">
+              {sidebarSections.map((section) => (
+                <div key={section.title} className="mb-6">
+                  <h3 className="text-xs font-semibold text-gray-500 mb-2 tracking-wider">
+                    {section.title}
+                  </h3>
+                  <div className="space-y-1">
+                    {section.items.map((item) => {
+                      const isSelected = item.selectable && selectedCategory === item.key;
+
+                      if (item.href && !item.selectable) {
+                        return (
+                          <Link
+                            key={item.key}
+                            href={item.href}
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                          >
+                            <span>{item.icon}</span>
+                            <span className="text-sm">{item.label}</span>
+                          </Link>
+                        );
+                      }
+
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() => setSelectedCategory(item.key as SidebarCategory)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white'
+                              : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                          }`}
+                        >
+                          <span>{item.icon}</span>
+                          <span className="text-sm">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {/* Overview button */}
+              <button
+                onClick={() => setSelectedCategory('overview')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mt-4 ${
+                  selectedCategory === 'overview'
+                    ? 'bg-gray-700 text-white'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                }`}
+              >
+                <span>🏠</span>
+                <span className="text-sm">Vista General</span>
+              </button>
+            </div>
+          </aside>
+
+          {/* Main Panel */}
+          <main className="flex-1 min-w-0">
+            <div className="bg-gray-900/30 rounded-xl p-6">
+              {selectedCategory === 'overview' ? renderOverviewPanel() : renderObjectPanel()}
+            </div>
+          </main>
+        </div>
+      </div>
+
+      {/* URL Modal */}
+      {showUrlModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-lg font-semibold text-white mb-4">Guardar URL</h2>
+            <input
+              type="url"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="https://..."
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white mb-4"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveUrl()}
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowUrlModal(false)}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveUrl}
+                disabled={savingUrl || !urlInput.trim()}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg disabled:opacity-50"
+              >
+                {savingUrl ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
