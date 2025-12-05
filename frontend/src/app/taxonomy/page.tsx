@@ -79,9 +79,9 @@ export default function TaxonomyExplorerPage() {
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedContent, setSelectedContent] = useState<ContentDetail | null>(null);
 
-    // Enabled drill-down levels (all enabled by default)
+    // Enabled drill-down levels (only selected root type and concepts by default)
     const [enabledLevels, setEnabledLevels] = useState<Set<RootType>>(
-        new Set(['category', 'person', 'organization', 'product', 'concept'])
+        new Set(['category', 'concept'])
     );
 
     const getAuthHeaders = async () => {
@@ -267,12 +267,8 @@ export default function TaxonomyExplorerPage() {
         setShowContents(false);
         setExpandedNodes(new Set());
         setNodeChildren({});
-        // Ensure the new root type is always enabled
-        setEnabledLevels(prev => {
-            const next = new Set(prev);
-            next.add(newType);
-            return next;
-        });
+        // Reset enabled levels to only the new root type and concepts
+        setEnabledLevels(new Set([newType, 'concept']));
         fetchNodes(newType);
     };
 
