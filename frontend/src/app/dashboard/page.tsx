@@ -154,15 +154,20 @@ export default function DashboardPage() {
       const response = await fetch(`${API_URL}/api/v1/content/`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ source_url: urlInput.trim() }),
+        body: JSON.stringify({ url: urlInput.trim() }),
       });
       if (response.ok) {
         setUrlInput('');
         setShowUrlModal(false);
         fetchSummary(); // Refresh
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error saving URL:', response.status, errorData);
+        alert(errorData.detail || 'Error al guardar la URL');
       }
     } catch (error) {
       console.error('Error saving URL:', error);
+      alert('Error de conexión');
     } finally {
       setSavingUrl(false);
     }
