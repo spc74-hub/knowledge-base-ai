@@ -869,10 +869,15 @@ async def search_faceted(
     """
     try:
         import time
+        import logging
+        logger = logging.getLogger(__name__)
         start_time = time.time()
+
+        logger.info(f"Faceted search request: user={current_user['id']}, data={data}")
 
         # Check if we need entity filtering (requires separate queries for OR logic)
         has_entity_filters = data.organizations or data.products or data.persons
+        logger.info(f"has_entity_filters={has_entity_filters}")
 
         # Helper to apply type filter including apple_notes handling
         def apply_type_filter(query, types):
@@ -1034,11 +1039,13 @@ async def search_faceted(
                     query = query.overlaps("concepts", data.concepts)
 
                 # Execute query with proper pagination
+                logger.info(f"Executing standard query: offset={data.offset}, limit={data.limit}")
                 response = query.order("created_at", desc=True).range(
                     data.offset, data.offset + data.limit - 1
                 ).execute()
 
                 results = response.data or []
+                logger.info(f"Standard query returned {len(results)} results")
 
         # Filter by user_tags (post-query for simplicity)
         if data.user_tags:
@@ -1132,6 +1139,8 @@ async def search_faceted(
 
         search_time = int((time.time() - start_time) * 1000)
 
+        logger.info(f"Faceted search returning {len(results)} results in {search_time}ms")
+
         return {
             "data": results,
             "meta": {
@@ -1154,6 +1163,7 @@ async def search_faceted(
         }
 
     except Exception as e:
+        logger.error(f"Faceted search error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
