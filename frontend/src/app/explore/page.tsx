@@ -47,6 +47,9 @@ interface Content {
     is_favorite: boolean;
     metadata: Record<string, any> | null;
     created_at: string;
+    // Fields from global search
+    relevance_score?: number;
+    match_fields?: string[];
 }
 
 interface Filters {
@@ -87,6 +90,16 @@ export default function ExplorePage() {
         products: false,
         persons: false
     });
+    // Search within facets
+    const [facetSearch, setFacetSearch] = useState({
+        categories: '',
+        concepts: '',
+        organizations: '',
+        products: '',
+        persons: ''
+    });
+    // Track if using global search
+    const [isGlobalSearch, setIsGlobalSearch] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedContent, setSelectedContent] = useState<Content | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
@@ -161,29 +174,55 @@ export default function ExplorePage() {
         }
         try {
             const headers = await getAuthHeader();
-            const response = await fetch(`${API_BASE}/search/faceted`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    query: searchQuery || null,
-                    types: filters.types.length > 0 ? filters.types : null,
-                    categories: filters.categories.length > 0 ? filters.categories : null,
-                    concepts: filters.concepts.length > 0 ? filters.concepts : null,
-                    organizations: filters.organizations.length > 0 ? filters.organizations : null,
-                    products: filters.products.length > 0 ? filters.products : null,
-                    persons: filters.persons.length > 0 ? filters.persons : null,
-                    user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
-                    inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
-                    limit: PAGE_SIZE,
-                    offset: 0
-                }),
-            });
+            const hasFilters = Object.values(filters).some(arr => arr.length > 0);
 
-            if (response.ok) {
-                const data = await response.json();
-                setResults(data.data);
-                setTotalResults(data.total || data.data.length);
-                setHasMore(data.data.length === PAGE_SIZE);
+            // Use global search when there's a query and no filters
+            // This searches across title, summary, concepts, entities, etc.
+            if (searchQuery && !hasFilters) {
+                setIsGlobalSearch(true);
+                const response = await fetch(`${API_BASE}/search/global`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        query: searchQuery,
+                        limit: PAGE_SIZE,
+                        offset: 0
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setResults(data.data);
+                    setTotalResults(data.meta?.total_results || data.data.length);
+                    setHasMore(data.data.length === PAGE_SIZE);
+                }
+            } else {
+                // Use faceted search when filters are applied
+                setIsGlobalSearch(false);
+                const response = await fetch(`${API_BASE}/search/faceted`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        query: searchQuery || null,
+                        types: filters.types.length > 0 ? filters.types : null,
+                        categories: filters.categories.length > 0 ? filters.categories : null,
+                        concepts: filters.concepts.length > 0 ? filters.concepts : null,
+                        organizations: filters.organizations.length > 0 ? filters.organizations : null,
+                        products: filters.products.length > 0 ? filters.products : null,
+                        persons: filters.persons.length > 0 ? filters.persons : null,
+                        user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
+                        inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
+                        limit: PAGE_SIZE,
+                        offset: 0
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setResults(data.data);
+                    setTotalResults(data.meta?.total_results || data.data.length);
+                    setHasMore(data.data.length === PAGE_SIZE);
+                }
             }
         } catch (error) {
             console.error('Error searching:', error);
@@ -198,28 +237,48 @@ export default function ExplorePage() {
         setLoadingMore(true);
         try {
             const headers = await getAuthHeader();
-            const response = await fetch(`${API_BASE}/search/faceted`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    query: searchQuery || null,
-                    types: filters.types.length > 0 ? filters.types : null,
-                    categories: filters.categories.length > 0 ? filters.categories : null,
-                    concepts: filters.concepts.length > 0 ? filters.concepts : null,
-                    organizations: filters.organizations.length > 0 ? filters.organizations : null,
-                    products: filters.products.length > 0 ? filters.products : null,
-                    persons: filters.persons.length > 0 ? filters.persons : null,
-                    user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
-                    inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
-                    limit: PAGE_SIZE,
-                    offset: results.length
-                }),
-            });
 
-            if (response.ok) {
-                const data = await response.json();
-                setResults(prev => [...prev, ...data.data]);
-                setHasMore(data.data.length === PAGE_SIZE);
+            // Use the same search type as the initial search
+            if (isGlobalSearch) {
+                const response = await fetch(`${API_BASE}/search/global`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        query: searchQuery,
+                        limit: PAGE_SIZE,
+                        offset: results.length
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setResults(prev => [...prev, ...data.data]);
+                    setHasMore(data.data.length === PAGE_SIZE);
+                }
+            } else {
+                const response = await fetch(`${API_BASE}/search/faceted`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        query: searchQuery || null,
+                        types: filters.types.length > 0 ? filters.types : null,
+                        categories: filters.categories.length > 0 ? filters.categories : null,
+                        concepts: filters.concepts.length > 0 ? filters.concepts : null,
+                        organizations: filters.organizations.length > 0 ? filters.organizations : null,
+                        products: filters.products.length > 0 ? filters.products : null,
+                        persons: filters.persons.length > 0 ? filters.persons : null,
+                        user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
+                        inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
+                        limit: PAGE_SIZE,
+                        offset: results.length
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setResults(prev => [...prev, ...data.data]);
+                    setHasMore(data.data.length === PAGE_SIZE);
+                }
             }
         } catch (error) {
             console.error('Error loading more:', error);
@@ -473,7 +532,7 @@ export default function ExplorePage() {
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Buscar en tu knowledge base..."
+                                placeholder="Buscar en titulo, contenido, conceptos, entidades, categorias..."
                                 className="w-full px-4 py-3 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
                             />
                             <span className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500">🔍</span>
@@ -487,6 +546,11 @@ export default function ExplorePage() {
                             </button>
                         )}
                     </div>
+                    {searchQuery && isGlobalSearch && (
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Buscando en: titulo, resumen, conceptos, categorias, personas, organizaciones, productos y tags
+                        </p>
+                    )}
                 </div>
 
                 <div className="flex gap-6">
@@ -534,19 +598,30 @@ export default function ExplorePage() {
                                             <span>{expandedSections.categories ? '−' : '+'}</span>
                                         </button>
                                         {expandedSections.categories && (
-                                            <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
-                                                {facets.categories.map(facet => (
-                                                    <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={filters.categories.includes(facet.value)}
-                                                            onChange={() => toggleFilter('categories', facet.value)}
-                                                            className="rounded"
-                                                        />
-                                                        <span className="flex-1 truncate">{facet.value}</span>
-                                                        <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
-                                                    </label>
-                                                ))}
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={facetSearch.categories}
+                                                    onChange={(e) => setFacetSearch(prev => ({ ...prev, categories: e.target.value }))}
+                                                    placeholder="Buscar categoria..."
+                                                    className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                />
+                                                <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
+                                                    {facets.categories
+                                                        .filter(f => !facetSearch.categories || f.value.toLowerCase().includes(facetSearch.categories.toLowerCase()))
+                                                        .map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={filters.categories.includes(facet.value)}
+                                                                onChange={() => toggleFilter('categories', facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1 truncate">{facet.value}</span>
+                                                            <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -561,19 +636,30 @@ export default function ExplorePage() {
                                             <span>{expandedSections.concepts ? '−' : '+'}</span>
                                         </button>
                                         {expandedSections.concepts && (
-                                            <div className="space-y-1 ml-1 max-h-64 overflow-y-auto">
-                                                {facets.concepts.map(facet => (
-                                                    <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={filters.concepts.includes(facet.value)}
-                                                            onChange={() => toggleFilter('concepts', facet.value)}
-                                                            className="rounded"
-                                                        />
-                                                        <span className="flex-1 truncate">{facet.value}</span>
-                                                        <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
-                                                    </label>
-                                                ))}
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={facetSearch.concepts}
+                                                    onChange={(e) => setFacetSearch(prev => ({ ...prev, concepts: e.target.value }))}
+                                                    placeholder="Buscar concepto..."
+                                                    className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                />
+                                                <div className="space-y-1 ml-1 max-h-64 overflow-y-auto">
+                                                    {facets.concepts
+                                                        .filter(f => !facetSearch.concepts || f.value.toLowerCase().includes(facetSearch.concepts.toLowerCase()))
+                                                        .map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={filters.concepts.includes(facet.value)}
+                                                                onChange={() => toggleFilter('concepts', facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1 truncate">{facet.value}</span>
+                                                            <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -589,19 +675,30 @@ export default function ExplorePage() {
                                                 <span>{expandedSections.organizations ? '−' : '+'}</span>
                                             </button>
                                             {expandedSections.organizations && (
-                                                <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
-                                                    {facets.organizations.map(facet => (
-                                                        <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={filters.organizations.includes(facet.value)}
-                                                                onChange={() => toggleFilter('organizations', facet.value)}
-                                                                className="rounded"
-                                                            />
-                                                            <span className="flex-1 truncate">{facet.value}</span>
-                                                            <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
-                                                        </label>
-                                                    ))}
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        value={facetSearch.organizations}
+                                                        onChange={(e) => setFacetSearch(prev => ({ ...prev, organizations: e.target.value }))}
+                                                        placeholder="Buscar organizacion..."
+                                                        className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                    />
+                                                    <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
+                                                        {facets.organizations
+                                                            .filter(f => !facetSearch.organizations || f.value.toLowerCase().includes(facetSearch.organizations.toLowerCase()))
+                                                            .map(facet => (
+                                                            <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={filters.organizations.includes(facet.value)}
+                                                                    onChange={() => toggleFilter('organizations', facet.value)}
+                                                                    className="rounded"
+                                                                />
+                                                                <span className="flex-1 truncate">{facet.value}</span>
+                                                                <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -618,19 +715,30 @@ export default function ExplorePage() {
                                                 <span>{expandedSections.products ? '−' : '+'}</span>
                                             </button>
                                             {expandedSections.products && (
-                                                <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
-                                                    {facets.products.map(facet => (
-                                                        <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={filters.products.includes(facet.value)}
-                                                                onChange={() => toggleFilter('products', facet.value)}
-                                                                className="rounded"
-                                                            />
-                                                            <span className="flex-1 truncate">{facet.value}</span>
-                                                            <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
-                                                        </label>
-                                                    ))}
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        value={facetSearch.products}
+                                                        onChange={(e) => setFacetSearch(prev => ({ ...prev, products: e.target.value }))}
+                                                        placeholder="Buscar producto..."
+                                                        className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                    />
+                                                    <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
+                                                        {facets.products
+                                                            .filter(f => !facetSearch.products || f.value.toLowerCase().includes(facetSearch.products.toLowerCase()))
+                                                            .map(facet => (
+                                                            <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={filters.products.includes(facet.value)}
+                                                                    onChange={() => toggleFilter('products', facet.value)}
+                                                                    className="rounded"
+                                                                />
+                                                                <span className="flex-1 truncate">{facet.value}</span>
+                                                                <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -647,19 +755,30 @@ export default function ExplorePage() {
                                                 <span>{expandedSections.persons ? '−' : '+'}</span>
                                             </button>
                                             {expandedSections.persons && (
-                                                <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
-                                                    {facets.persons.map(facet => (
-                                                        <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={filters.persons.includes(facet.value)}
-                                                                onChange={() => toggleFilter('persons', facet.value)}
-                                                                className="rounded"
-                                                            />
-                                                            <span className="flex-1 truncate">{facet.value}</span>
-                                                            <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
-                                                        </label>
-                                                    ))}
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        value={facetSearch.persons}
+                                                        onChange={(e) => setFacetSearch(prev => ({ ...prev, persons: e.target.value }))}
+                                                        placeholder="Buscar persona..."
+                                                        className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400"
+                                                    />
+                                                    <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
+                                                        {facets.persons
+                                                            .filter(f => !facetSearch.persons || f.value.toLowerCase().includes(facetSearch.persons.toLowerCase()))
+                                                            .map(facet => (
+                                                            <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={filters.persons.includes(facet.value)}
+                                                                    onChange={() => toggleFilter('persons', facet.value)}
+                                                                    className="rounded"
+                                                                />
+                                                                <span className="flex-1 truncate">{facet.value}</span>
+                                                                <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -815,6 +934,22 @@ export default function ExplorePage() {
                                                 </p>
                                             )}
                                             <div className="flex flex-wrap gap-2 mt-2">
+                                                {/* Show match fields when using global search */}
+                                                {content.match_fields && content.match_fields.length > 0 && (
+                                                    <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 rounded">
+                                                        Encontrado en: {content.match_fields.map(f => {
+                                                            if (f === 'title') return 'titulo';
+                                                            if (f === 'summary') return 'resumen';
+                                                            if (f.startsWith('concept:')) return f.replace('concept:', '');
+                                                            if (f.startsWith('category:')) return f.replace('category:', '');
+                                                            if (f.startsWith('person:')) return f.replace('person:', '');
+                                                            if (f.startsWith('organization:')) return f.replace('organization:', '');
+                                                            if (f.startsWith('product:')) return f.replace('product:', '');
+                                                            if (f.startsWith('tag:')) return f.replace('tag:', '');
+                                                            return f;
+                                                        }).join(', ')}
+                                                    </span>
+                                                )}
                                                 {content.iab_tier1 && (
                                                     <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
                                                         {content.iab_tier1}

@@ -249,6 +249,154 @@ async def get_suggestions(
         )
 
 
+class GlobalSearchRequest(BaseModel):
+    """Request model for global search across all content fields."""
+    query: str
+    limit: int = 100
+    offset: int = 0
+
+
+@router.post("/global")
+async def search_global(
+    data: GlobalSearchRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Global search that searches across ALL content fields:
+    - Title and summary (text content)
+    - Concepts
+    - Entities (persons, organizations, products)
+    - Categories (iab_tier1, iab_tier2)
+    - User tags
+
+    Returns contents that match the query in ANY of these fields.
+    """
+    try:
+        import time
+        start_time = time.time()
+
+        query_lower = data.query.lower().strip()
+        if not query_lower:
+            return {"data": [], "meta": {"query": data.query, "total_results": 0}}
+
+        # Get all user contents with searchable fields
+        response = db.table("contents").select(
+            "id, title, summary, url, type, iab_tier1, iab_tier2, iab_tier3, concepts, entities, "
+            "schema_type, content_format, technical_level, language, sentiment, "
+            "reading_time_minutes, processing_status, is_favorite, metadata, user_tags, created_at"
+        ).eq("user_id", current_user["id"]).execute()
+
+        all_contents = response.data or []
+
+        # Score and filter contents based on match
+        scored_results = []
+
+        for content in all_contents:
+            score = 0.0
+            match_fields = []
+
+            # Search in title (highest weight)
+            title = (content.get("title") or "").lower()
+            if query_lower in title:
+                score += 1.0
+                match_fields.append("title")
+
+            # Search in summary
+            summary = (content.get("summary") or "").lower()
+            if query_lower in summary:
+                score += 0.5
+                match_fields.append("summary")
+
+            # Search in concepts
+            concepts = content.get("concepts") or []
+            for concept in concepts:
+                if query_lower in concept.lower():
+                    score += 0.7
+                    match_fields.append(f"concept:{concept}")
+                    break
+
+            # Search in categories
+            for tier in ["iab_tier1", "iab_tier2", "iab_tier3"]:
+                cat = (content.get(tier) or "").lower()
+                if cat and query_lower in cat:
+                    score += 0.6
+                    match_fields.append(f"category:{content.get(tier)}")
+                    break
+
+            # Search in entities
+            entities = content.get("entities") or {}
+
+            # Persons
+            for person in entities.get("persons") or []:
+                person_name = person.get("name") if isinstance(person, dict) else person
+                if person_name and query_lower in person_name.lower():
+                    score += 0.8
+                    match_fields.append(f"person:{person_name}")
+                    break
+
+            # Organizations
+            for org in entities.get("organizations") or []:
+                org_name = org.get("name") if isinstance(org, dict) else org
+                if org_name and query_lower in org_name.lower():
+                    score += 0.8
+                    match_fields.append(f"organization:{org_name}")
+                    break
+
+            # Products
+            for prod in entities.get("products") or []:
+                prod_name = prod.get("name") if isinstance(prod, dict) else prod
+                if prod_name and query_lower in prod_name.lower():
+                    score += 0.8
+                    match_fields.append(f"product:{prod_name}")
+                    break
+
+            # Search in user_tags
+            user_tags = content.get("user_tags") or []
+            for tag in user_tags:
+                if query_lower in tag.lower():
+                    score += 0.6
+                    match_fields.append(f"tag:{tag}")
+                    break
+
+            # If any match found, add to results
+            if score > 0:
+                scored_results.append({
+                    **content,
+                    "relevance_score": score,
+                    "match_fields": match_fields
+                })
+
+        # Sort by relevance score
+        scored_results.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+        # Apply pagination
+        paginated_results = scored_results[data.offset:data.offset + data.limit]
+
+        search_time = int((time.time() - start_time) * 1000)
+
+        return {
+            "data": paginated_results,
+            "meta": {
+                "query": data.query,
+                "total_results": len(scored_results),
+                "returned_results": len(paginated_results),
+                "search_time_ms": search_time,
+                "offset": data.offset,
+                "limit": data.limit
+            }
+        }
+
+    except Exception as e:
+        import traceback
+        print(f"Global search error: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 def _aggregate_facets(items: list) -> dict:
     """Helper function to aggregate facets from a list of content items."""
     types = {}
@@ -346,25 +494,29 @@ async def get_facets(
     """
     Get available facets for filtering (no filters applied).
     Returns counts for each category, type, concept, and entity.
-    Uses optimized SQL aggregation for better performance with large datasets.
+    Calculates facets from ALL user contents for accurate filtering.
     """
     try:
-        # Use optimized queries for each facet type
-        import asyncio
-
-        # Get type counts with a simple query
-        type_response = db.table("contents").select(
-            "type, metadata"
+        # Get ALL content data for complete facet calculation
+        # We fetch only the fields needed for facet aggregation
+        all_response = db.table("contents").select(
+            "type, metadata, iab_tier1, concepts, entities, user_tags"
         ).eq("user_id", current_user["id"]).execute()
 
-        # Get category counts
-        category_response = db.table("contents").select(
-            "iab_tier1"
-        ).eq("user_id", current_user["id"]).not_.is_("iab_tier1", "null").execute()
+        all_items = all_response.data or []
+        total_contents = len(all_items)
 
         # Count types (with apple_notes handling)
         types = {}
-        for item in type_response.data or []:
+        categories = {}
+        concepts = {}
+        organizations = {}
+        products = {}
+        persons = {}
+        user_tags = {}
+
+        for item in all_items:
+            # Count types
             t = item.get("type")
             if t:
                 if t == "note":
@@ -376,27 +528,11 @@ async def get_facets(
                 else:
                     types[t] = types.get(t, 0) + 1
 
-        # Count categories
-        categories = {}
-        for item in category_response.data or []:
+            # Count categories
             cat = item.get("iab_tier1")
             if cat:
                 categories[cat] = categories.get(cat, 0) + 1
 
-        # For concepts, entities, and user_tags, we need the full data
-        # but we can limit to a sample for performance on initial load
-        # Full facets will be computed when filters are applied
-        detail_response = db.table("contents").select(
-            "concepts, entities, user_tags"
-        ).eq("user_id", current_user["id"]).limit(2000).execute()
-
-        concepts = {}
-        organizations = {}
-        products = {}
-        persons = {}
-        user_tags = {}
-
-        for item in detail_response.data or []:
             # Count concepts
             for concept in item.get("concepts") or []:
                 concepts[concept] = concepts.get(concept, 0) + 1
@@ -423,19 +559,22 @@ async def get_facets(
                 if tag:
                     user_tags[tag] = user_tags.get(tag, 0) + 1
 
-        def to_facet_list(d, limit=50):
-            sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)[:limit]
+        def to_facet_list(d, limit=None):
+            """Convert dict to sorted facet list. No limit = return all."""
+            sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)
+            if limit:
+                sorted_items = sorted_items[:limit]
             return [{"value": k, "count": v} for k, v in sorted_items]
 
         return {
-            "types": to_facet_list(types, 20),
-            "categories": to_facet_list(categories, 50),
-            "concepts": to_facet_list(concepts, 50),
-            "organizations": to_facet_list(organizations, 50),
-            "products": to_facet_list(products, 50),
-            "persons": to_facet_list(persons, 50),
-            "user_tags": to_facet_list(user_tags, 50),
-            "total_contents": len(type_response.data or [])
+            "types": to_facet_list(types),
+            "categories": to_facet_list(categories),
+            "concepts": to_facet_list(concepts),
+            "organizations": to_facet_list(organizations),
+            "products": to_facet_list(products),
+            "persons": to_facet_list(persons),
+            "user_tags": to_facet_list(user_tags),
+            "total_contents": total_contents
         }
 
     except Exception as e:
