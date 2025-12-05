@@ -94,7 +94,7 @@ export default function GuidePage() {
                             <a href="#exploracion" className="text-blue-600 dark:text-blue-400 hover:underline">4. Exploración</a>
                         </li>
                         <li>
-                            <a href="#procesamiento" className="text-blue-600 dark:text-blue-400 hover:underline">5. Procesamiento y Madurez</a>
+                            <a href="#procesamiento" className="text-blue-600 dark:text-blue-400 hover:underline">5. Niveles de Madurez</a>
                         </li>
                         <li>
                             <a href="#chat" className="text-blue-600 dark:text-blue-400 hover:underline">6. Chat con IA</a>
@@ -320,46 +320,38 @@ export default function GuidePage() {
                 <section id="procesamiento" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center text-teal-600 dark:text-teal-400 text-sm font-bold">5</span>
-                        Procesamiento y Madurez
+                        Niveles de Madurez
                     </h2>
                     <div className="space-y-6">
-                        {/* Coming soon badge */}
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 rounded-full text-sm">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Próximamente
-                        </div>
-
                         <p className="text-gray-600 dark:text-gray-300">
-                            El sistema de <strong>niveles de madurez</strong> te ayudará a evolucionar tu conocimiento
-                            desde la captura inicial hasta la integración profunda:
+                            El sistema de <strong>niveles de madurez</strong> te ayuda a evolucionar tu conocimiento
+                            desde la captura inicial hasta la integración profunda. Cambia el nivel desde el detalle de cualquier contenido.
                         </p>
 
                         <div className="space-y-3">
                             <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                                <span className="text-2xl">📥</span>
                                 <div>
                                     <span className="font-medium text-gray-900 dark:text-white">Capturado</span>
                                     <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Contenido guardado, pendiente de revisar</span>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                <div className="w-3 h-3 rounded-full bg-blue-400"></div>
+                            <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                                <span className="text-2xl">⚙️</span>
                                 <div>
                                     <span className="font-medium text-gray-900 dark:text-white">Procesado</span>
-                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Revisado y categorizado correctamente</span>
+                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Analizado por IA, listo para revisar</span>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                <div className="w-3 h-3 rounded-full bg-purple-400"></div>
+                            <div className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                                <span className="text-2xl">🔗</span>
                                 <div>
                                     <span className="font-medium text-gray-900 dark:text-white">Conectado</span>
                                     <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Vinculado con otros contenidos relacionados</span>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                            <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                                <span className="text-2xl">✅</span>
                                 <div>
                                     <span className="font-medium text-gray-900 dark:text-white">Integrado</span>
                                     <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Conocimiento asimilado y sintetizado</span>
@@ -367,10 +359,22 @@ export default function GuidePage() {
                             </div>
                         </div>
 
+                        {/* Flujo de trabajo */}
+                        <div className="bg-gradient-to-r from-teal-50 to-blue-50 dark:from-teal-900/20 dark:to-blue-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
+                            <h4 className="font-medium text-teal-900 dark:text-teal-200 mb-2">Flujo de trabajo recomendado</h4>
+                            <ol className="text-sm text-teal-800 dark:text-teal-300 list-decimal list-inside space-y-1">
+                                <li><strong>Captura rápido</strong> - No pierdas tiempo organizando al guardar</li>
+                                <li><strong>Procesa con IA</strong> - Deja que extraiga categorías y conceptos</li>
+                                <li><strong>Revisa periódicamente</strong> - Usa los filtros para ver contenidos pendientes</li>
+                                <li><strong>Conecta ideas</strong> - Usa el grafo para descubrir relaciones</li>
+                                <li><strong>Integra</strong> - Marca como integrado lo que ya has asimilado</li>
+                            </ol>
+                        </div>
+
                         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                             <p className="text-sm text-blue-800 dark:text-blue-300">
-                                <strong>Objetivo:</strong> Transformar la acumulación pasiva de información en conocimiento
-                                activo y conectado que puedas aplicar.
+                                <strong>Consejo:</strong> Usa los filtros de "Nivel de Madurez" en el Explorador y Taxonomía
+                                para revisar contenidos por su estado de integración.
                             </p>
                         </div>
                     </div>
