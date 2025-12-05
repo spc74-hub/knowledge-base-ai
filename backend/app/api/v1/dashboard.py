@@ -246,17 +246,42 @@ async def get_object_summary(
 
     elif object_type == "notes":
         recent = safe_query(lambda: db.table("standalone_notes").select(
-            "id, title, is_pinned, created_at, updated_at"
+            "id, title, note_type, is_pinned, created_at, updated_at"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
         pinned = safe_query(lambda: db.table("standalone_notes").select(
-            "id, title, is_pinned, created_at, updated_at"
+            "id, title, note_type, is_pinned, created_at, updated_at"
         ).eq("user_id", user_id).eq("is_pinned", True).order("created_at", desc=True).limit(limit).execute())
+
+        # Get counts by note_type
+        note_types = ["reflection", "idea", "question", "connection", "journal"]
+        by_type = {}
+        for note_type in note_types:
+            count_result = safe_query(lambda nt=note_type: db.table("standalone_notes").select(
+                "id", count="exact"
+            ).eq("user_id", user_id).eq("note_type", nt).execute())
+            by_type[note_type] = safe_count(count_result)
+
+        # Total count
+        total_result = safe_query(lambda: db.table("standalone_notes").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).execute())
 
         return {
             "type": "notes",
             "recent": safe_data(recent),
             "pinned": safe_data(pinned),
+            "stats": {
+                "total": safe_count(total_result),
+                "by_type": by_type,
+            },
+            "note_types": [
+                {"value": "reflection", "label": "Reflexiones", "icon": "💭"},
+                {"value": "idea", "label": "Ideas", "icon": "💡"},
+                {"value": "question", "label": "Preguntas", "icon": "❓"},
+                {"value": "connection", "label": "Conexiones", "icon": "🔗"},
+                {"value": "journal", "label": "Diario", "icon": "📓"},
+            ],
         }
 
     elif object_type == "tags":

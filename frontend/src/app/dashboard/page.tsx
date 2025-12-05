@@ -216,7 +216,7 @@ export default function DashboardPage() {
     { key: 'objectives', label: 'Objetivos', value: kpis?.objectives.active || 0, icon: '🎯', href: '/objectives', color: 'bg-purple-600' },
     { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-green-600' },
     { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-pink-600' },
-    { key: 'notes', label: 'Notas', value: kpis?.notes.total || 0, icon: '📝', href: '/notes', color: 'bg-yellow-600' },
+    { key: 'notes', label: 'Notas', value: kpis?.notes.total || 0, icon: '📝', href: '/journal', color: 'bg-yellow-600' },
     { key: 'tags', label: 'Tags', value: kpis?.tags.total || 0, icon: '🏷️', href: '/tags', color: 'bg-orange-600' },
   ];
 
@@ -446,6 +446,130 @@ export default function DashboardPage() {
     }
   };
 
+  // Render notes panel with stats by type
+  const renderNotesPanel = () => {
+    if (loadingObject) {
+      return <div className="text-gray-400 text-center py-8">Cargando...</div>;
+    }
+
+    if (!objectSummary) return null;
+
+    const notesSummary = objectSummary as any;
+    const stats = notesSummary.stats || { total: 0, by_type: {} };
+    const noteTypes = notesSummary.note_types || [];
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl text-white font-semibold">Diario y Notas</h2>
+          <Link
+            href="/journal"
+            className="text-indigo-400 hover:text-indigo-300 text-sm"
+          >
+            Ver todo →
+          </Link>
+        </div>
+
+        {/* Stats by type */}
+        <div className="bg-gray-800/50 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-medium">📊 Resumen</h3>
+            <span className="text-2xl font-bold text-white">{stats.total} notas</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {noteTypes.map((noteType: any) => {
+              const count = stats.by_type?.[noteType.value] || 0;
+              return (
+                <Link
+                  key={noteType.value}
+                  href={`/journal?type=${noteType.value}`}
+                  className="bg-gray-900/50 hover:bg-gray-800 rounded-lg p-3 transition-colors cursor-pointer text-center"
+                >
+                  <div className="text-2xl mb-1">{noteType.icon}</div>
+                  <div className="text-xl font-bold text-white">{count}</div>
+                  <div className="text-xs text-gray-400">{noteType.label}</div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Pinned */}
+        {notesSummary.pinned && notesSummary.pinned.length > 0 && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">📌 Fijadas</h3>
+            <div className="space-y-2">
+              {notesSummary.pinned.slice(0, 5).map((note: any) => {
+                const noteTypeInfo = noteTypes.find((t: any) => t.value === note.note_type) || { icon: '📝', label: 'Nota' };
+                return (
+                  <Link
+                    key={note.id}
+                    href={`/notes/${note.id}`}
+                    className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors"
+                  >
+                    <span className="text-lg">{noteTypeInfo.icon}</span>
+                    <p className="text-white text-sm flex-1 truncate">{note.title}</p>
+                    <span className="text-xs text-gray-500">{noteTypeInfo.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Recent */}
+        {notesSummary.recent && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">🕐 Recientes</h3>
+            <div className="space-y-2">
+              {notesSummary.recent.length > 0 ? (
+                notesSummary.recent.slice(0, 8).map((note: any) => {
+                  const noteTypeInfo = noteTypes.find((t: any) => t.value === note.note_type) || { icon: '📝', label: 'Nota' };
+                  return (
+                    <Link
+                      key={note.id}
+                      href={`/notes/${note.id}`}
+                      className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors"
+                    >
+                      <span className="text-lg">{noteTypeInfo.icon}</span>
+                      <p className="text-white text-sm flex-1 truncate">{note.title}</p>
+                      <span className="text-xs text-gray-500">{noteTypeInfo.label}</span>
+                    </Link>
+                  );
+                })
+              ) : (
+                <p className="text-gray-500 text-sm">No hay notas recientes</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Quick create */}
+        <div className="flex gap-3 flex-wrap">
+          <Link
+            href="/notes/new?type=journal"
+            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+          >
+            📓 Nueva entrada de diario
+          </Link>
+          <Link
+            href="/notes/new?type=idea"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+          >
+            💡 Nueva idea
+          </Link>
+          <Link
+            href="/notes/new"
+            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+          >
+            📝 Nueva nota
+          </Link>
+        </div>
+      </div>
+    );
+  };
+
   // Render object-specific panel
   const renderObjectPanel = () => {
     if (loadingObject) {
@@ -454,12 +578,17 @@ export default function DashboardPage() {
 
     if (!objectSummary) return null;
 
+    // Special handling for notes panel
+    if (selectedCategory === 'notes') {
+      return renderNotesPanel();
+    }
+
     const typeLabels: Record<string, { title: string; href: string }> = {
       contents: { title: 'Contenidos', href: '/explore' },
       objectives: { title: 'Objetivos', href: '/objectives' },
       projects: { title: 'Proyectos', href: '/projects' },
       mental_models: { title: 'Modelos Mentales', href: '/mental-models' },
-      notes: { title: 'Notas', href: '/notes' },
+      notes: { title: 'Notas', href: '/journal' },
       tags: { title: 'Tags', href: '/tags' },
     };
 
