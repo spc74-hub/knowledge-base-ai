@@ -244,9 +244,13 @@ function ExplorePageContent() {
 
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('Faceted search response:', data);
                     setResults(data.data);
                     setTotalResults(data.meta?.total_results || data.data.length);
                     setHasMore(data.data.length === PAGE_SIZE);
+                } else {
+                    const errorText = await response.text();
+                    console.error('Faceted search error:', response.status, errorText);
                 }
             }
         } catch (error) {
