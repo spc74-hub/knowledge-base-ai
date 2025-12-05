@@ -2,9 +2,12 @@
 Dashboard API endpoints.
 Consolidated endpoint for dashboard KPIs and summaries.
 """
+import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from app.api.deps import CurrentUser, Database
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -12,9 +15,10 @@ router = APIRouter()
 def safe_query(func):
     """Execute a query safely, returning default on error."""
     try:
-        return func()
+        result = func()
+        return result
     except Exception as e:
-        print(f"Dashboard query error: {e}")
+        logger.error(f"Dashboard query error: {e}", exc_info=True)
         return None
 
 
@@ -181,19 +185,23 @@ async def get_object_summary(
     user_id = current_user["id"]
 
     if object_type == "contents":
+        logger.info(f"Fetching contents for user {user_id} with limit {limit}")
         recent = safe_query(lambda: db.table("contents").select(
             "id, title, content_type, source_url, is_favorite, created_at"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
+        logger.info(f"Recent contents result: {recent is not None}, data count: {len(recent.data) if recent and recent.data else 0}")
 
         favorites = safe_query(lambda: db.table("contents").select(
             "id, title, content_type, source_url, created_at"
         ).eq("user_id", user_id).eq("is_favorite", True).order("created_at", desc=True).limit(limit).execute())
 
-        return {
+        result = {
             "type": "contents",
             "recent": safe_data(recent),
             "favorites": safe_data(favorites),
         }
+        logger.info(f"Returning {len(result['recent'])} recent contents")
+        return result
 
     elif object_type == "objectives":
         recent = safe_query(lambda: db.table("objectives").select(
