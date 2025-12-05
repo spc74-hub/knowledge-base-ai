@@ -100,12 +100,14 @@ export default function TaxonomyExplorerPage() {
         organizations: string[];
         products: string[];
         persons: string[];
+        processing_status: string[];
     }>({
         categories: [],
         concepts: [],
         organizations: [],
         products: [],
         persons: [],
+        processing_status: [],
     });
     const [facetSearch, setFacetSearch] = useState({
         categories: '',
@@ -121,6 +123,7 @@ export default function TaxonomyExplorerPage() {
         organizations: false,
         products: false,
         persons: false,
+        processing_status: true,
     });
 
     const getAuthHeaders = async () => {
@@ -188,6 +191,7 @@ export default function TaxonomyExplorerPage() {
             organizations: [],
             products: [],
             persons: [],
+            processing_status: [],
         });
     };
 
@@ -220,6 +224,7 @@ export default function TaxonomyExplorerPage() {
                     organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
                     products: facetFilters.products.length > 0 ? facetFilters.products : null,
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
+                    processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                 }),
             });
 
@@ -277,6 +282,7 @@ export default function TaxonomyExplorerPage() {
                     organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
                     products: facetFilters.products.length > 0 ? facetFilters.products : null,
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
+                    processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                     limit: PAGE_SIZE,
                     offset: 0,
                 }),
@@ -323,6 +329,7 @@ export default function TaxonomyExplorerPage() {
                     organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
                     products: facetFilters.products.length > 0 ? facetFilters.products : null,
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
+                    processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                     limit: PAGE_SIZE,
                     offset: contents.length,
                 }),
@@ -729,6 +736,42 @@ export default function TaxonomyExplorerPage() {
                                         </label>
                                     ))}
                                 </div>
+                            </div>
+
+                            {/* Processing Status Filter */}
+                            <div className="mt-4">
+                                <button
+                                    onClick={() => toggleFacetSection('processing_status')}
+                                    className="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+                                >
+                                    <span>Estado</span>
+                                    <span>{expandedFacets.processing_status ? '−' : '+'}</span>
+                                </button>
+                                {expandedFacets.processing_status && (
+                                    <div className="space-y-1">
+                                        {[
+                                            { value: 'completed', label: 'Procesado', icon: '✅' },
+                                            { value: 'pending', label: 'Pendiente', icon: '⏳' },
+                                            { value: 'error', label: 'Error', icon: '❌' }
+                                        ].map(status => (
+                                            <label key={status.value} className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={facetFilters.processing_status.includes(status.value)}
+                                                    onChange={() => toggleFacetFilter('processing_status', status.value)}
+                                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className={`flex-1 text-sm ${
+                                                    facetFilters.processing_status.includes(status.value)
+                                                        ? 'text-gray-900 dark:text-white font-medium'
+                                                        : 'text-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                    {status.icon} {status.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Facet Filters Section */}

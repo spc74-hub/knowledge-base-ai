@@ -255,6 +255,7 @@ export default function DashboardPage() {
           href: '/processing'
         },
         { key: 'usage', label: `Uso API ($${kpis?.usage.cost_30d || 0})`, icon: '📊', href: '/usage' },
+        { key: 'guide', label: 'Guía de Uso', icon: '📖', href: '/guide' },
       ],
     },
   ];

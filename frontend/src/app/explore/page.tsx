@@ -66,6 +66,7 @@ interface Filters {
     persons: string[];
     user_tags: string[];
     inherited_tags: string[];
+    processing_status: string[];
 }
 
 function ExplorePageContent() {
@@ -85,7 +86,8 @@ function ExplorePageContent() {
         products: [],
         persons: [],
         user_tags: [],
-        inherited_tags: []
+        inherited_tags: [],
+        processing_status: []
     });
     const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
@@ -94,7 +96,8 @@ function ExplorePageContent() {
         concepts: false,
         organizations: false,
         products: false,
-        persons: false
+        persons: false,
+        processing_status: true
     });
     // Search within facets
     const [facetSearch, setFacetSearch] = useState({
@@ -218,6 +221,7 @@ function ExplorePageContent() {
                         persons: filters.persons.length > 0 ? filters.persons : null,
                         user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
                         inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
+                        processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
                         limit: PAGE_SIZE,
                         offset: 0
                     }),
@@ -275,6 +279,7 @@ function ExplorePageContent() {
                         persons: filters.persons.length > 0 ? filters.persons : null,
                         user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
                         inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
+                        processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
                         limit: PAGE_SIZE,
                         offset: results.length
                     }),
@@ -622,6 +627,36 @@ function ExplorePageContent() {
                                                         />
                                                         <span className="flex-1">{getTypeIcon(facet.value)} {facet.value}</span>
                                                         <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Processing Status */}
+                                    <div>
+                                        <button
+                                            onClick={() => toggleSection('processing_status')}
+                                            className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Estado</span>
+                                            <span>{expandedSections.processing_status ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedSections.processing_status && (
+                                            <div className="space-y-1 ml-1">
+                                                {[
+                                                    { value: 'completed', label: 'Procesado', icon: '✅' },
+                                                    { value: 'pending', label: 'Pendiente', icon: '⏳' },
+                                                    { value: 'error', label: 'Error', icon: '❌' }
+                                                ].map(status => (
+                                                    <label key={status.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={filters.processing_status.includes(status.value)}
+                                                            onChange={() => toggleFilter('processing_status', status.value)}
+                                                            className="rounded"
+                                                        />
+                                                        <span className="flex-1">{status.icon} {status.label}</span>
                                                     </label>
                                                 ))}
                                             </div>
