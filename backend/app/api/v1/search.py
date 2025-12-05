@@ -274,11 +274,34 @@ async def search_global(
     """
     try:
         import time
+        import re
         start_time = time.time()
 
-        query_lower = data.query.lower().strip()
-        if not query_lower:
+        raw_query = data.query.strip()
+        if not raw_query:
             return {"data": [], "meta": {"query": data.query, "total_results": 0}}
+
+        # Check if query is wrapped in quotes (exact phrase search)
+        is_exact_phrase = (raw_query.startswith('"') and raw_query.endswith('"')) or \
+                          (raw_query.startswith("'") and raw_query.endswith("'"))
+
+        if is_exact_phrase:
+            # Remove quotes and search for exact phrase
+            search_phrase = raw_query[1:-1].lower().strip()
+            search_terms = [search_phrase]  # Single term = exact phrase
+        else:
+            # Split into individual terms for multi-word search
+            search_phrase = raw_query.lower()
+            search_terms = [t.strip() for t in search_phrase.split() if t.strip()]
+
+        # Helper function to check if ALL terms are present in text
+        def matches_all_terms(text: str, terms: list) -> bool:
+            text_lower = text.lower()
+            return all(term in text_lower for term in terms)
+
+        # Helper function to check if the exact phrase is present
+        def matches_phrase(text: str, phrase: str) -> bool:
+            return phrase in text.lower()
 
         # Get all user contents with searchable fields (include raw_content for deeper search)
         response = db.table("contents").select(
@@ -297,32 +320,55 @@ async def search_global(
             match_fields = []
 
             # Search in title (highest weight)
-            title = (content.get("title") or "").lower()
-            if query_lower in title:
-                score += 1.0
-                match_fields.append("title")
+            title = content.get("title") or ""
+            if is_exact_phrase:
+                if matches_phrase(title, search_phrase):
+                    score += 1.0
+                    match_fields.append("title")
+            else:
+                if matches_all_terms(title, search_terms):
+                    score += 1.0
+                    match_fields.append("title")
 
             # Search in summary
-            summary = (content.get("summary") or "").lower()
-            if query_lower in summary:
-                score += 0.5
-                match_fields.append("summary")
+            summary = content.get("summary") or ""
+            if is_exact_phrase:
+                if matches_phrase(summary, search_phrase):
+                    score += 0.5
+                    match_fields.append("summary")
+            else:
+                if matches_all_terms(summary, search_terms):
+                    score += 0.5
+                    match_fields.append("summary")
 
             # Search in concepts
             concepts = content.get("concepts") or []
             for concept in concepts:
-                if query_lower in concept.lower():
-                    score += 0.7
-                    match_fields.append(f"concept:{concept}")
-                    break
+                if is_exact_phrase:
+                    if matches_phrase(concept, search_phrase):
+                        score += 0.7
+                        match_fields.append(f"concept:{concept}")
+                        break
+                else:
+                    if matches_all_terms(concept, search_terms):
+                        score += 0.7
+                        match_fields.append(f"concept:{concept}")
+                        break
 
             # Search in categories
             for tier in ["iab_tier1", "iab_tier2", "iab_tier3"]:
-                cat = (content.get(tier) or "").lower()
-                if cat and query_lower in cat:
-                    score += 0.6
-                    match_fields.append(f"category:{content.get(tier)}")
-                    break
+                cat = content.get(tier) or ""
+                if cat:
+                    if is_exact_phrase:
+                        if matches_phrase(cat, search_phrase):
+                            score += 0.6
+                            match_fields.append(f"category:{cat}")
+                            break
+                    else:
+                        if matches_all_terms(cat, search_terms):
+                            score += 0.6
+                            match_fields.append(f"category:{cat}")
+                            break
 
             # Search in entities - handle both dict and string JSON formats
             entities_raw = content.get("entities")
@@ -353,12 +399,21 @@ async def search_global(
                     return entity
                 return str(entity) if entity else ""
 
+            # Helper to check entity match
+            def entity_matches(entity_name):
+                if not entity_name:
+                    return False
+                if is_exact_phrase:
+                    return matches_phrase(entity_name, search_phrase)
+                else:
+                    return matches_all_terms(entity_name, search_terms)
+
             # Persons
             person_found = False
             persons_list = entities.get("persons") or entities.get("personas") or []
             for person in persons_list:
                 person_name = get_entity_name(person)
-                if person_name and query_lower in person_name.lower():
+                if entity_matches(person_name):
                     score += 0.8
                     match_fields.append(f"person:{person_name}")
                     person_found = True
@@ -369,7 +424,7 @@ async def search_global(
             orgs_list = entities.get("organizations") or entities.get("organizaciones") or []
             for org in orgs_list:
                 org_name = get_entity_name(org)
-                if org_name and query_lower in org_name.lower():
+                if entity_matches(org_name):
                     score += 0.8
                     match_fields.append(f"organization:{org_name}")
                     org_found = True
@@ -380,31 +435,48 @@ async def search_global(
             prods_list = entities.get("products") or entities.get("productos") or []
             for prod in prods_list:
                 prod_name = get_entity_name(prod)
-                if prod_name and query_lower in prod_name.lower():
+                if entity_matches(prod_name):
                     score += 0.8
                     match_fields.append(f"product:{prod_name}")
                     prod_found = True
                     break
 
             # Fallback: search in raw entities string if no structured match found
-            if not (person_found or org_found or prod_found) and entities_str and query_lower in entities_str:
-                score += 0.75
-                match_fields.append("entities")
+            if not (person_found or org_found or prod_found) and entities_str:
+                if is_exact_phrase:
+                    if search_phrase in entities_str:
+                        score += 0.75
+                        match_fields.append("entities")
+                else:
+                    if all(term in entities_str for term in search_terms):
+                        score += 0.75
+                        match_fields.append("entities")
 
             # Search in user_tags
             user_tags = content.get("user_tags") or []
             for tag in user_tags:
-                if query_lower in tag.lower():
-                    score += 0.6
-                    match_fields.append(f"tag:{tag}")
-                    break
+                if is_exact_phrase:
+                    if matches_phrase(tag, search_phrase):
+                        score += 0.6
+                        match_fields.append(f"tag:{tag}")
+                        break
+                else:
+                    if matches_all_terms(tag, search_terms):
+                        score += 0.6
+                        match_fields.append(f"tag:{tag}")
+                        break
 
             # Search in raw_content (lower weight, only if no other matches yet)
             if score == 0:
-                raw_content = (content.get("raw_content") or "").lower()
-                if query_lower in raw_content:
-                    score += 0.3
-                    match_fields.append("content")
+                raw_content = content.get("raw_content") or ""
+                if is_exact_phrase:
+                    if matches_phrase(raw_content, search_phrase):
+                        score += 0.3
+                        match_fields.append("content")
+                else:
+                    if matches_all_terms(raw_content, search_terms):
+                        score += 0.3
+                        match_fields.append("content")
 
             # If any match found, add to results
             if score > 0:
