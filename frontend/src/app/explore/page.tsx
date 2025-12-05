@@ -150,7 +150,10 @@ function ExplorePageContent() {
         try {
             const headers = await getAuthHeader();
             const filtersToUse = currentFilters || filters;
-            const hasFilters = Object.values(filtersToUse).some(arr => arr.length > 0);
+            const hasFilters = Object.entries(filtersToUse).some(([key, val]) => {
+                if (key === 'has_comment') return val !== null;
+                return Array.isArray(val) && val.length > 0;
+            });
 
             if (hasFilters) {
                 // Use dynamic facets when filters are active

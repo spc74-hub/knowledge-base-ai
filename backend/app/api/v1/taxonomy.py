@@ -34,6 +34,7 @@ class TaxonomyRequest(BaseModel):
     persons: Optional[List[str]] = None
     processing_status: Optional[List[str]] = None
     maturity_level: Optional[List[str]] = None
+    has_comment: Optional[bool] = None  # Filter by presence of user_note
 
 
 class TaxonomyResponse(BaseModel):
@@ -56,6 +57,7 @@ class ContentListRequest(BaseModel):
     persons: Optional[List[str]] = None
     processing_status: Optional[List[str]] = None
     maturity_level: Optional[List[str]] = None
+    has_comment: Optional[bool] = None  # Filter by presence of user_note
     limit: int = 10000
     offset: int = 0
 
@@ -75,7 +77,7 @@ async def get_taxonomy_nodes(
 
         # Build base query
         query = db.table("contents").select(
-            "id, title, type, iab_tier1, concepts, entities, metadata, processing_status, maturity_level"
+            "id, title, type, iab_tier1, concepts, entities, metadata, processing_status, maturity_level, user_note"
         ).eq("user_id", user_id).eq("is_archived", False)
 
         # Determine which type filters to use (support both old and new format)
@@ -122,6 +124,13 @@ async def get_taxonomy_nodes(
         # Filter by maturity_level if specified
         if data.maturity_level:
             items = [item for item in items if (item.get("maturity_level") or "captured") in data.maturity_level]
+
+        # Filter by has_comment (presence of user_note)
+        if data.has_comment is not None:
+            if data.has_comment:
+                items = [item for item in items if item.get("user_note") and item.get("user_note").strip()]
+            else:
+                items = [item for item in items if not item.get("user_note") or not item.get("user_note").strip()]
 
         # Aggregate based on root_type
         nodes = []
@@ -201,7 +210,7 @@ async def get_taxonomy_contents(
 
         # Build query with all filters
         query = db.table("contents").select(
-            "id, title, type, url, iab_tier1, summary, created_at, metadata, processing_status, maturity_level"
+            "id, title, type, url, iab_tier1, summary, created_at, metadata, processing_status, maturity_level, user_note"
         ).eq("user_id", user_id).eq("is_archived", False)
 
         # Determine which type filters to use (support both old and new format)
@@ -249,6 +258,13 @@ async def get_taxonomy_contents(
             if data.maturity_level:
                 filtered_items = [item for item in filtered_items if (item.get("maturity_level") or "captured") in data.maturity_level]
 
+            # Filter by has_comment (presence of user_note)
+            if data.has_comment is not None:
+                if data.has_comment:
+                    filtered_items = [item for item in filtered_items if item.get("user_note") and item.get("user_note").strip()]
+                else:
+                    filtered_items = [item for item in filtered_items if not item.get("user_note") or not item.get("user_note").strip()]
+
             # Apply pagination
             paginated_items = filtered_items[data.offset:data.offset + data.limit]
 
@@ -259,8 +275,8 @@ async def get_taxonomy_contents(
                 "limit": data.limit
             }
         else:
-            # No type filter - still need to apply status/maturity filters if any
-            if data.processing_status or data.maturity_level:
+            # No type filter - still need to apply status/maturity/has_comment filters if any
+            if data.processing_status or data.maturity_level or data.has_comment is not None:
                 # Get all results first, then filter
                 response = query.order("created_at", desc=True).execute()
                 filtered_items = response.data or []
@@ -270,6 +286,13 @@ async def get_taxonomy_contents(
 
                 if data.maturity_level:
                     filtered_items = [item for item in filtered_items if (item.get("maturity_level") or "captured") in data.maturity_level]
+
+                # Filter by has_comment (presence of user_note)
+                if data.has_comment is not None:
+                    if data.has_comment:
+                        filtered_items = [item for item in filtered_items if item.get("user_note") and item.get("user_note").strip()]
+                    else:
+                        filtered_items = [item for item in filtered_items if not item.get("user_note") or not item.get("user_note").strip()]
 
                 # Apply pagination
                 paginated_items = filtered_items[data.offset:data.offset + data.limit]

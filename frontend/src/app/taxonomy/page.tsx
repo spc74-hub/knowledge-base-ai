@@ -236,6 +236,7 @@ export default function TaxonomyExplorerPage() {
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                     processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                     maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
+                    has_comment: facetFilters.has_comment,
                 }),
             });
 
@@ -295,6 +296,7 @@ export default function TaxonomyExplorerPage() {
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                     processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                     maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
+                    has_comment: facetFilters.has_comment,
                     limit: PAGE_SIZE,
                     offset: 0,
                 }),
@@ -343,6 +345,7 @@ export default function TaxonomyExplorerPage() {
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                     processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                     maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
+                    has_comment: facetFilters.has_comment,
                     limit: PAGE_SIZE,
                     offset: contents.length,
                 }),
