@@ -60,6 +60,7 @@ class BulkImportResponse(BaseModel):
 class ContentUpdate(BaseModel):
     title: Optional[str] = None
     user_tags: Optional[List[str]] = None
+    user_note: Optional[str] = None  # Personal note attached to content
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
     is_asset: Optional[bool] = None  # Mark as reusable asset/template

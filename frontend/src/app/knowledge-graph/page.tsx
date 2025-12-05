@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { TagFilter } from '@/components/tag-filter';
+import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 
 // Dynamic import for react-force-graph-2d (SSR issues)
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
@@ -94,6 +95,10 @@ export default function KnowledgeGraphPage() {
         inherited_tags: [],
     });
     const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
+
+    // Detail modal state
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [selectedContentDetail, setSelectedContentDetail] = useState<ContentDetail | null>(null);
 
     const getAuthHeaders = async () => {
         const session = await supabase.auth.getSession();
@@ -289,6 +294,24 @@ export default function KnowledgeGraphPage() {
 
     const handleFilterChange = (key: keyof GraphFilters, value: boolean | number) => {
         setFilters(prev => ({ ...prev, [key]: value }));
+    };
+
+    // Open content detail modal
+    const openContentDetail = async (contentId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('contents')
+                .select('*')
+                .eq('id', contentId)
+                .single();
+
+            if (!error && data) {
+                setSelectedContentDetail(data as ContentDetail);
+                setShowDetailModal(true);
+            }
+        } catch (err) {
+            console.error('Error fetching content detail:', err);
+        }
     };
 
     // Convert data for force-graph with ego mode filtering
@@ -719,15 +742,15 @@ export default function KnowledgeGraphPage() {
                                     </h3>
                                     <div className="space-y-2 max-h-48 overflow-y-auto">
                                         {(selectedNode.contents || []).map((contentId) => (
-                                            <Link
+                                            <button
                                                 key={contentId}
-                                                href={`/notes/${contentId}`}
-                                                className="block p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                                onClick={() => openContentDetail(contentId)}
+                                                className="block w-full text-left p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                                             >
                                                 <p className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
                                                     {graphData.content_titles[contentId] || contentId}
                                                 </p>
-                                            </Link>
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
@@ -824,15 +847,15 @@ export default function KnowledgeGraphPage() {
                                     </h3>
                                     <div className="space-y-2 max-h-64 overflow-y-auto">
                                         {(selectedEdge.contents || []).map((contentId) => (
-                                            <Link
+                                            <button
                                                 key={contentId}
-                                                href={`/notes/${contentId}`}
-                                                className="block p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                                onClick={() => openContentDetail(contentId)}
+                                                className="block w-full text-left p-2 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                                             >
                                                 <p className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate">
                                                     {graphData.content_titles[contentId] || contentId}
                                                 </p>
-                                            </Link>
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
@@ -841,6 +864,24 @@ export default function KnowledgeGraphPage() {
                     </aside>
                 )}
             </div>
+
+            {/* Content Detail Modal */}
+            <ContentDetailModal
+                content={selectedContentDetail}
+                isOpen={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                onUpdate={(updated) => {
+                    setSelectedContentDetail(updated);
+                }}
+                onArchive={() => {
+                    fetchGraphData();
+                    setShowDetailModal(false);
+                }}
+                onDelete={() => {
+                    fetchGraphData();
+                    setShowDetailModal(false);
+                }}
+            />
         </div>
     );
 }

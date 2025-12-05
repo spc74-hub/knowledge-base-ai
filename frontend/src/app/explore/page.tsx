@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { TagFilter } from '@/components/tag-filter';
+import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 
 interface Facet {
     value: string;
@@ -31,11 +32,12 @@ interface Content {
     type: string;
     iab_tier1: string | null;
     iab_tier2: string | null;
+    iab_tier3: string | null;
     concepts: string[];
     entities: {
-        organizations?: string[];
-        products?: string[];
-        persons?: string[];
+        organizations?: Array<string | { name: string }>;
+        products?: Array<string | { name: string }>;
+        persons?: Array<string | { name: string }>;
     } | null;
     schema_type: string | null;
     content_format: string | null;
@@ -45,6 +47,9 @@ interface Content {
     reading_time_minutes: number | null;
     processing_status: string;
     is_favorite: boolean;
+    is_archived: boolean;
+    user_tags: string[];
+    user_note: string | null;
     metadata: Record<string, any> | null;
     created_at: string;
     // Fields from global search
@@ -102,7 +107,7 @@ function ExplorePageContent() {
     // Track if using global search
     const [isGlobalSearch, setIsGlobalSearch] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
-    const [selectedContent, setSelectedContent] = useState<Content | null>(null);
+    const [selectedContent, setSelectedContent] = useState<ContentDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [selectedContentIds, setSelectedContentIds] = useState<Set<string>>(new Set());
     const [archivingContents, setArchivingContents] = useState(false);
@@ -1060,273 +1065,30 @@ function ExplorePageContent() {
             </div>
 
             {/* Detail Modal */}
-            {showDetailModal && selectedContent && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                        {/* Modal Header */}
-                        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 flex items-start justify-between">
-                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                                <span className="text-3xl">{getTypeIcon(selectedContent.type)}</span>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <span className={`text-xs px-2 py-1 rounded ${
-                                            selectedContent.processing_status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                                            selectedContent.processing_status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
-                                            'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
-                                        }`}>
-                                            {selectedContent.processing_status}
-                                        </span>
-                                        {selectedContent.sentiment && (
-                                            <span className={`text-xs px-2 py-1 rounded ${
-                                                selectedContent.sentiment === 'positive' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                                                selectedContent.sentiment === 'negative' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
-                                                'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                                            }`}>
-                                                {selectedContent.sentiment}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-2 line-clamp-2">
-                                        {selectedContent.title || 'Sin titulo'}
-                                    </h2>
-                                    <a
-                                        href={selectedContent.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate block mt-1"
-                                    >
-                                        {selectedContent.url}
-                                    </a>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setShowDetailModal(false)}
-                                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 text-2xl ml-4"
-                            >
-                                ×
-                            </button>
-                        </div>
-
-                        {loadingDetail ? (
-                            <div className="p-6 flex justify-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
-                            </div>
-                        ) : (
-                            <div className="p-6">
-                                {/* Metadata Grid */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Tipo</p>
-                                        <p className="font-medium capitalize text-gray-900 dark:text-white">{selectedContent.type}</p>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Categoria IAB</p>
-                                        <p className="font-medium text-gray-900 dark:text-white">{selectedContent.iab_tier1 || '-'}</p>
-                                        {selectedContent.iab_tier2 && (
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">{selectedContent.iab_tier2}</p>
-                                        )}
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Schema.org</p>
-                                        <p className="font-medium text-gray-900 dark:text-white">{selectedContent.schema_type || '-'}</p>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Formato</p>
-                                        <p className="font-medium text-gray-900 dark:text-white">{selectedContent.content_format || '-'}</p>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Nivel Tecnico</p>
-                                        <p className="font-medium text-gray-900 dark:text-white">{selectedContent.technical_level || '-'}</p>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Idioma</p>
-                                        <p className="font-medium uppercase text-gray-900 dark:text-white">{selectedContent.language || '-'}</p>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Tiempo de Lectura</p>
-                                        <p className="font-medium text-gray-900 dark:text-white">{selectedContent.reading_time_minutes ? `${selectedContent.reading_time_minutes} min` : '-'}</p>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Fecha</p>
-                                        <p className="font-medium text-gray-900 dark:text-white">{new Date(selectedContent.created_at).toLocaleDateString()}</p>
-                                    </div>
-                                </div>
-
-                                {/* Summary */}
-                                {selectedContent.summary && (
-                                    <div className="mb-6">
-                                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Resumen</h3>
-                                        <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-                                            <p className="text-gray-800 dark:text-gray-200">{selectedContent.summary}</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Concepts */}
-                                {selectedContent.concepts && selectedContent.concepts.length > 0 && (
-                                    <div className="mb-6">
-                                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Conceptos</h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {selectedContent.concepts.map(concept => (
-                                                <button
-                                                    key={concept}
-                                                    onClick={() => {
-                                                        toggleFilter('concepts', concept);
-                                                        setShowDetailModal(false);
-                                                    }}
-                                                    className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-800"
-                                                >
-                                                    {concept}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Entities */}
-                                {selectedContent.entities && (
-                                    <div className="mb-6">
-                                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Entidades</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {selectedContent.entities.persons && selectedContent.entities.persons.length > 0 && (
-                                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">👤 Personas</p>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {selectedContent.entities.persons.map((person, idx) => {
-                                                            const personName = typeof person === 'string' ? person : (person as any).name || JSON.stringify(person);
-                                                            return (
-                                                                <button
-                                                                    key={idx}
-                                                                    onClick={() => {
-                                                                        toggleFilter('persons', personName);
-                                                                        setShowDetailModal(false);
-                                                                    }}
-                                                                    className="px-2 py-1 bg-white dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-200 hover:bg-teal-50 dark:hover:bg-teal-900"
-                                                                >
-                                                                    {personName}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {selectedContent.entities.organizations && selectedContent.entities.organizations.length > 0 && (
-                                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">🏢 Organizaciones</p>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {selectedContent.entities.organizations.map((org, idx) => {
-                                                            const orgName = typeof org === 'string' ? org : (org as any).name || JSON.stringify(org);
-                                                            return (
-                                                                <button
-                                                                    key={idx}
-                                                                    onClick={() => {
-                                                                        toggleFilter('organizations', orgName);
-                                                                        setShowDetailModal(false);
-                                                                    }}
-                                                                    className="px-2 py-1 bg-white dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900"
-                                                                >
-                                                                    {orgName}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {selectedContent.entities.products && selectedContent.entities.products.length > 0 && (
-                                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">📦 Productos</p>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {selectedContent.entities.products.map((product, idx) => {
-                                                            const productName = typeof product === 'string' ? product : (product as any).name || JSON.stringify(product);
-                                                            return (
-                                                                <button
-                                                                    key={idx}
-                                                                    onClick={() => {
-                                                                        toggleFilter('products', productName);
-                                                                        setShowDetailModal(false);
-                                                                    }}
-                                                                    className="px-2 py-1 bg-white dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-200 hover:bg-pink-50 dark:hover:bg-pink-900"
-                                                                >
-                                                                    {productName}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Metadata (for YouTube/TikTok) */}
-                                {selectedContent.metadata && Object.keys(selectedContent.metadata).length > 0 && (
-                                    <div className="mb-6">
-                                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-                                            Metadata del {selectedContent.type}
-                                        </h3>
-                                        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                            <dl className="grid grid-cols-2 gap-2 text-sm">
-                                                {selectedContent.metadata.channel_name && (
-                                                    <>
-                                                        <dt className="text-gray-500 dark:text-gray-400">Canal:</dt>
-                                                        <dd className="text-gray-900 dark:text-gray-200">{selectedContent.metadata.channel_name}</dd>
-                                                    </>
-                                                )}
-                                                {selectedContent.metadata.view_count && (
-                                                    <>
-                                                        <dt className="text-gray-500 dark:text-gray-400">Vistas:</dt>
-                                                        <dd className="text-gray-900 dark:text-gray-200">{selectedContent.metadata.view_count.toLocaleString()}</dd>
-                                                    </>
-                                                )}
-                                                {selectedContent.metadata.like_count && (
-                                                    <>
-                                                        <dt className="text-gray-500 dark:text-gray-400">Likes:</dt>
-                                                        <dd className="text-gray-900 dark:text-gray-200">{selectedContent.metadata.like_count.toLocaleString()}</dd>
-                                                    </>
-                                                )}
-                                                {selectedContent.metadata.duration && (
-                                                    <>
-                                                        <dt className="text-gray-500 dark:text-gray-400">Duracion:</dt>
-                                                        <dd className="text-gray-900 dark:text-gray-200">{selectedContent.metadata.duration}s</dd>
-                                                    </>
-                                                )}
-                                                {selectedContent.metadata.author && (
-                                                    <>
-                                                        <dt className="text-gray-500 dark:text-gray-400">Autor:</dt>
-                                                        <dd className="text-gray-900 dark:text-gray-200">{selectedContent.metadata.author}</dd>
-                                                    </>
-                                                )}
-                                            </dl>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Actions */}
-                                <div className="flex gap-3 pt-4 border-t dark:border-gray-700">
-                                    <button
-                                        onClick={() => toggleFavorite(selectedContent.id)}
-                                        className={`px-4 py-2 rounded-lg border ${
-                                            selectedContent.is_favorite
-                                                ? 'bg-yellow-50 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300'
-                                                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                        }`}
-                                    >
-                                        {selectedContent.is_favorite ? '★ Favorito' : '☆ Anadir a favoritos'}
-                                    </button>
-                                    <a
-                                        href={selectedContent.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                    >
-                                        🔗 Abrir original
-                                    </a>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+            <ContentDetailModal
+                content={selectedContent}
+                isOpen={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                onUpdate={(updated) => {
+                    setSelectedContent(updated);
+                    setResults(results.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+                }}
+                onArchive={(contentId) => {
+                    setResults(results.filter(c => c.id !== contentId));
+                    fetchFacets();
+                }}
+                onDelete={(contentId) => {
+                    setResults(results.filter(c => c.id !== contentId));
+                    fetchFacets();
+                }}
+                onFilterClick={(filterType, value) => {
+                    if (filterType === 'concepts') toggleFilter('concepts', value);
+                    else if (filterType === 'organizations') toggleFilter('organizations', value);
+                    else if (filterType === 'products') toggleFilter('products', value);
+                    else if (filterType === 'persons') toggleFilter('persons', value);
+                    setShowDetailModal(false);
+                }}
+            />
         </div>
     );
 }

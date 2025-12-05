@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { TagFilter } from '@/components/tag-filter';
+import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -73,6 +74,10 @@ export default function TaxonomyExplorerPage() {
     const PAGE_SIZE = 100;
     const [hasMoreContents, setHasMoreContents] = useState(true);
     const [loadingMoreContents, setLoadingMoreContents] = useState(false);
+
+    // Detail modal state
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [selectedContent, setSelectedContent] = useState<ContentDetail | null>(null);
 
     // Enabled drill-down levels (all enabled by default)
     const [enabledLevels, setEnabledLevels] = useState<Set<RootType>>(
@@ -378,6 +383,24 @@ export default function TaxonomyExplorerPage() {
         setShowContents(true);
     };
 
+    // Open content detail modal
+    const openContentDetail = async (contentId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('contents')
+                .select('*')
+                .eq('id', contentId)
+                .single();
+
+            if (!error && data) {
+                setSelectedContent(data as ContentDetail);
+                setShowDetailModal(true);
+            }
+        } catch (err) {
+            console.error('Error fetching content detail:', err);
+        }
+    };
+
     // Fetch contents when breadcrumb changes and showContents is true
     useEffect(() => {
         if (showContents && breadcrumb.length > 0) {
@@ -678,10 +701,10 @@ export default function TaxonomyExplorerPage() {
                                         </div>
                                     ) : (
                                         contents.map((content) => (
-                                            <Link
+                                            <div
                                                 key={content.id}
-                                                href={`/notes/${content.id}`}
-                                                className="block p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                                                onClick={() => openContentDetail(content.id)}
+                                                className="block p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
                                             >
                                                 <div className="flex items-start gap-3">
                                                     <span className="text-lg">
@@ -705,7 +728,7 @@ export default function TaxonomyExplorerPage() {
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </Link>
+                                            </div>
                                         ))
                                     )}
 
@@ -737,6 +760,24 @@ export default function TaxonomyExplorerPage() {
                     </div>
                 </div>
             </main>
+
+            {/* Content Detail Modal */}
+            <ContentDetailModal
+                content={selectedContent}
+                isOpen={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                onUpdate={(updated) => {
+                    setSelectedContent(updated);
+                }}
+                onArchive={() => {
+                    fetchContents();
+                    setShowDetailModal(false);
+                }}
+                onDelete={() => {
+                    fetchContents();
+                    setShowDetailModal(false);
+                }}
+            />
         </div>
     );
 }
