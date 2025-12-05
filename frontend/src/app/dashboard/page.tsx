@@ -52,7 +52,7 @@ interface SidebarSection {
 }
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, token } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [objectSummary, setObjectSummary] = useState<ObjectSummary | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<SidebarCategory>('overview');
@@ -67,12 +67,11 @@ export default function DashboardPage() {
   const [savingUrl, setSavingUrl] = useState(false);
 
   const getAuthHeaders = useCallback(() => {
-    const token = localStorage.getItem('access_token');
     return {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
-  }, []);
+  }, [token]);
 
   // Fetch main dashboard summary
   const fetchSummary = useCallback(async () => {
