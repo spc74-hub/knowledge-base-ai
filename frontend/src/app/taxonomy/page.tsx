@@ -102,6 +102,7 @@ export default function TaxonomyExplorerPage() {
         persons: string[];
         processing_status: string[];
         maturity_level: string[];
+        has_comment: boolean | null;
     }>({
         categories: [],
         concepts: [],
@@ -110,6 +111,7 @@ export default function TaxonomyExplorerPage() {
         persons: [],
         processing_status: [],
         maturity_level: [],
+        has_comment: null,
     });
     const [facetSearch, setFacetSearch] = useState({
         categories: '',
@@ -170,10 +172,10 @@ export default function TaxonomyExplorerPage() {
         }
     }, [user]);
 
-    // Toggle facet filter
-    const toggleFacetFilter = (facetType: keyof typeof facetFilters, value: string) => {
+    // Toggle facet filter (only for array-based filters, not has_comment)
+    const toggleFacetFilter = (facetType: Exclude<keyof typeof facetFilters, 'has_comment'>, value: string) => {
         setFacetFilters(prev => {
-            const current = prev[facetType];
+            const current = prev[facetType] as string[];
             const newFilters = current.includes(value)
                 ? current.filter(v => v !== value)
                 : [...current, value];
@@ -196,11 +198,15 @@ export default function TaxonomyExplorerPage() {
             persons: [],
             processing_status: [],
             maturity_level: [],
+            has_comment: null,
         });
     };
 
     // Check if any facet filters are active
-    const hasActiveFacetFilters = Object.values(facetFilters).some(arr => arr.length > 0);
+    const hasActiveFacetFilters = Object.entries(facetFilters).some(([key, val]) => {
+        if (key === 'has_comment') return val !== null;
+        return Array.isArray(val) && val.length > 0;
+    });
 
     // Fetch taxonomy nodes
     const fetchNodes = useCallback(async (
@@ -816,6 +822,43 @@ export default function TaxonomyExplorerPage() {
                                         ))}
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Has Comment Filter */}
+                            <div className="mt-4">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 block">Anotaciones</span>
+                                <div className="space-y-1">
+                                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={facetFilters.has_comment === true}
+                                            onChange={() => setFacetFilters(prev => ({ ...prev, has_comment: prev.has_comment === true ? null : true }))}
+                                            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className={`flex-1 text-sm ${
+                                            facetFilters.has_comment === true
+                                                ? 'text-gray-900 dark:text-white font-medium'
+                                                : 'text-gray-700 dark:text-gray-300'
+                                        }`}>
+                                            💬 Con anotaciones
+                                        </span>
+                                    </label>
+                                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={facetFilters.has_comment === false}
+                                            onChange={() => setFacetFilters(prev => ({ ...prev, has_comment: prev.has_comment === false ? null : false }))}
+                                            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className={`flex-1 text-sm ${
+                                            facetFilters.has_comment === false
+                                                ? 'text-gray-900 dark:text-white font-medium'
+                                                : 'text-gray-700 dark:text-gray-300'
+                                        }`}>
+                                            Sin anotaciones
+                                        </span>
+                                    </label>
+                                </div>
                             </div>
 
                             {/* Facet Filters Section */}

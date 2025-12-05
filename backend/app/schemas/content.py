@@ -72,6 +72,7 @@ class ContentUpdate(BaseModel):
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
     para_category: Optional[str] = None  # PARA: projects, areas, resources, archive
+    note_category: Optional[str] = None  # For notes: idea, reflection, summary, project, reference
 
 
 class ContentInDB(ContentBase):
@@ -96,6 +97,7 @@ class ContentInDB(ContentBase):
     is_archived: bool = False
     processing_status: str = "pending"
     para_category: Optional[str] = None  # PARA: projects, areas, resources, archive
+    note_category: Optional[str] = None  # For notes: idea, reflection, summary, project, reference
     metadata: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
@@ -132,6 +134,7 @@ class ContentDetailResponse(ContentResponse):
     content_format: Optional[str] = None
     reading_time_minutes: Optional[int] = None
     notes: Optional[str] = None
+    note_category: Optional[str] = None  # For notes: idea, reflection, summary, project, reference
     inherited_tags: List[str] = []
     is_archived: bool = False
     metadata: Optional[dict] = None

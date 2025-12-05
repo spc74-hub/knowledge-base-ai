@@ -97,7 +97,10 @@ export default function GuidePage() {
                             <a href="#procesamiento" className="text-blue-600 dark:text-blue-400 hover:underline">5. Niveles de Madurez</a>
                         </li>
                         <li>
-                            <a href="#chat" className="text-blue-600 dark:text-blue-400 hover:underline">6. Chat con IA</a>
+                            <a href="#notas" className="text-blue-600 dark:text-blue-400 hover:underline">6. Sistema de Notas</a>
+                        </li>
+                        <li>
+                            <a href="#chat" className="text-blue-600 dark:text-blue-400 hover:underline">7. Chat con IA</a>
                         </li>
                     </ol>
                 </nav>
@@ -380,10 +383,113 @@ export default function GuidePage() {
                     </div>
                 </section>
 
-                {/* Section 6: Chat con IA */}
+                {/* Section 6: Sistema de Notas */}
+                <section id="notas" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <span className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center text-yellow-600 dark:text-yellow-400 text-sm font-bold">6</span>
+                        Sistema de Notas
+                    </h2>
+                    <div className="space-y-6">
+                        <p className="text-gray-600 dark:text-gray-300">
+                            KBase distingue entre diferentes tipos de notas para ayudarte a organizar tu pensamiento:
+                        </p>
+
+                        {/* Tipos de notas */}
+                        <div className="space-y-4">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Tipos de notas</h3>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xl">💬</span>
+                                        <h4 className="font-medium text-gray-900 dark:text-white">Anotaciones en contenidos</h4>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Comentarios y reflexiones sobre contenido guardado. Añádelos desde el detalle
+                                        de cualquier artículo o vídeo. <strong>Auto-avanza</strong> el nivel de madurez a "Procesado".
+                                    </p>
+                                </div>
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xl">📓</span>
+                                        <h4 className="font-medium text-gray-900 dark:text-white">Diario (Journal)</h4>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Entradas del día a día: lo que aprendiste, reflexiones personales, ideas que surgieron.
+                                        Perfecto para llevar un registro de tu evolución.
+                                    </p>
+                                </div>
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xl">💡</span>
+                                        <h4 className="font-medium text-gray-900 dark:text-white">Ideas</h4>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Captura rápida de ideas que surgen. Puedes vincularlas a contenidos relacionados
+                                        o a otras notas.
+                                    </p>
+                                </div>
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xl">💭</span>
+                                        <h4 className="font-medium text-gray-900 dark:text-white">Reflexiones</h4>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Análisis más profundos sobre temas que estás estudiando.
+                                        Síntesis de lo que has aprendido.
+                                    </p>
+                                </div>
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xl">❓</span>
+                                        <h4 className="font-medium text-gray-900 dark:text-white">Preguntas</h4>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Dudas que te surgen y quieres investigar. Genial para volver a ellas
+                                        cuando tengas tiempo de profundizar.
+                                    </p>
+                                </div>
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xl">🔗</span>
+                                        <h4 className="font-medium text-gray-900 dark:text-white">Conexiones</h4>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Notas que vinculan conceptos de diferentes fuentes. Ayudan a construir
+                                        mapas mentales de tus conocimientos.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Filtrar por anotaciones */}
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <h4 className="font-medium text-blue-900 dark:text-blue-200 mb-2">💬 Filtrar contenidos con anotaciones</h4>
+                            <p className="text-sm text-blue-800 dark:text-blue-300">
+                                En el <strong>Explorador</strong> y <strong>Taxonomía</strong> puedes filtrar por contenidos que tienen
+                                o no tienen anotaciones. Esto te ayuda a identificar qué contenidos ya has procesado
+                                y cuáles necesitan tu atención.
+                            </p>
+                        </div>
+
+                        {/* Flujo recomendado */}
+                        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                            <h4 className="font-medium text-yellow-900 dark:text-yellow-200 mb-2">Flujo de trabajo con notas</h4>
+                            <ol className="text-sm text-yellow-800 dark:text-yellow-300 list-decimal list-inside space-y-1">
+                                <li>Captura contenido interesante (artículo, vídeo, tweet)</li>
+                                <li>Léelo y añade una <strong>anotación</strong> con tus impresiones (auto-avanza a "Procesado")</li>
+                                <li>Si surge una idea importante, créala como <strong>nota independiente</strong></li>
+                                <li>Usa el <strong>diario</strong> para reflexionar sobre lo aprendido al final del día</li>
+                                <li>Crea <strong>conexiones</strong> cuando veas patrones entre diferentes fuentes</li>
+                            </ol>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Section 7: Chat con IA */}
                 <section id="chat" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm font-bold">6</span>
+                        <span className="w-8 h-8 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm font-bold">7</span>
                         Chat con IA
                     </h2>
                     <div className="space-y-6">

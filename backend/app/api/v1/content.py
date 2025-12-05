@@ -61,6 +61,7 @@ class ContentUpdate(BaseModel):
     title: Optional[str] = None
     user_tags: Optional[List[str]] = None
     user_note: Optional[str] = None  # Personal note attached to content
+    note_category: Optional[str] = None  # For notes: idea, reflection, summary, project, reference
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
     is_asset: Optional[bool] = None  # Mark as reusable asset/template

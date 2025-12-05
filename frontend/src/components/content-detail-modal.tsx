@@ -221,7 +221,26 @@ export function ContentDetailModal({
             });
             if (response.ok) {
                 setEditingNote(false);
-                onUpdate?.({ ...content, user_note: userNote });
+                let updatedContent = { ...content, user_note: userNote };
+
+                // Auto-upgrade maturity to 'processed' if currently 'captured' and adding a note
+                if (userNote.trim() && maturityLevel === 'captured') {
+                    try {
+                        const maturityResponse = await fetch(`${API_URL}/api/v1/content/${content.id}/maturity`, {
+                            method: 'PUT',
+                            headers,
+                            body: JSON.stringify({ maturity_level: 'processed' }),
+                        });
+                        if (maturityResponse.ok) {
+                            setMaturityLevel('processed');
+                            updatedContent = { ...updatedContent, maturity_level: 'processed' };
+                        }
+                    } catch (maturityError) {
+                        console.error('Error auto-upgrading maturity:', maturityError);
+                    }
+                }
+
+                onUpdate?.(updatedContent);
             } else {
                 const errorData = await response.json().catch(() => ({}));
                 console.error('Error saving note:', response.status, errorData);

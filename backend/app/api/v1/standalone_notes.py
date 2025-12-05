@@ -48,7 +48,7 @@ class NoteDetailResponse(NoteResponse):
     linked_notes: List[dict] = []  # Note summaries
 
 
-VALID_NOTE_TYPES = ["reflection", "idea", "question", "connection"]
+VALID_NOTE_TYPES = ["reflection", "idea", "question", "connection", "journal"]
 
 
 @router.get("/", response_model=List[NoteResponse])
@@ -130,7 +130,8 @@ async def get_notes_stats(
                 {"value": "reflection", "label": "Reflexiones", "icon": "💭"},
                 {"value": "idea", "label": "Ideas", "icon": "💡"},
                 {"value": "question", "label": "Preguntas", "icon": "❓"},
-                {"value": "connection", "label": "Conexiones", "icon": "🔗"}
+                {"value": "connection", "label": "Conexiones", "icon": "🔗"},
+                {"value": "journal", "label": "Diario", "icon": "📓"}
             ]
         }
 

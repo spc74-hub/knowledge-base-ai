@@ -51,6 +51,7 @@ interface Content {
     is_archived: boolean;
     user_tags: string[];
     user_note: string | null;
+    note_category: string | null;
     metadata: Record<string, any> | null;
     created_at: string;
     // Fields from global search
@@ -69,6 +70,7 @@ interface Filters {
     inherited_tags: string[];
     processing_status: string[];
     maturity_level: string[];
+    has_comment: boolean | null;
 }
 
 function ExplorePageContent() {
@@ -90,7 +92,8 @@ function ExplorePageContent() {
         user_tags: [],
         inherited_tags: [],
         processing_status: [],
-        maturity_level: []
+        maturity_level: [],
+        has_comment: null
     });
     const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
@@ -227,6 +230,7 @@ function ExplorePageContent() {
                         inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
                         processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
                         maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
+                        has_comment: filters.has_comment,
                         limit: PAGE_SIZE,
                         offset: 0
                     }),
@@ -286,6 +290,7 @@ function ExplorePageContent() {
                         inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
                         processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
                         maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
+                        has_comment: filters.has_comment,
                         limit: PAGE_SIZE,
                         offset: results.length
                     }),
@@ -369,9 +374,9 @@ function ExplorePageContent() {
         }
     }, [filters, searchQuery, searchWithFilters, user]);
 
-    const toggleFilter = (category: keyof Filters, value: string) => {
+    const toggleFilter = (category: keyof Omit<Filters, 'has_comment'>, value: string) => {
         setFilters(prev => {
-            const current = prev[category];
+            const current = prev[category] as string[];
             if (current.includes(value)) {
                 return { ...prev, [category]: current.filter(v => v !== value) };
             } else {
@@ -391,12 +396,16 @@ function ExplorePageContent() {
             user_tags: [],
             inherited_tags: [],
             processing_status: [],
-            maturity_level: []
+            maturity_level: [],
+            has_comment: null
         });
         setSearchQuery('');
     };
 
-    const hasActiveFilters = Object.values(filters).some(arr => arr.length > 0) || searchQuery;
+    const hasActiveFilters = Object.entries(filters).some(([key, val]) => {
+        if (key === 'has_comment') return val !== null;
+        return Array.isArray(val) && val.length > 0;
+    }) || searchQuery;
 
     const toggleSection = (section: keyof typeof expandedSections) => {
         setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -700,6 +709,31 @@ function ExplorePageContent() {
                                                 ))}
                                             </div>
                                         )}
+                                    </div>
+
+                                    {/* Has Comment Filter */}
+                                    <div>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Anotaciones</span>
+                                        <div className="space-y-1 ml-1">
+                                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={filters.has_comment === true}
+                                                    onChange={() => setFilters(prev => ({ ...prev, has_comment: prev.has_comment === true ? null : true }))}
+                                                    className="rounded"
+                                                />
+                                                <span className="flex-1">💬 Con anotaciones</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={filters.has_comment === false}
+                                                    onChange={() => setFilters(prev => ({ ...prev, has_comment: prev.has_comment === false ? null : false }))}
+                                                    className="rounded"
+                                                />
+                                                <span className="flex-1">Sin anotaciones</span>
+                                            </label>
+                                        </div>
                                     </div>
 
                                     {/* Categories */}
@@ -1041,6 +1075,7 @@ function ExplorePageContent() {
                                                     {content.title}
                                                 </span>
                                                 {content.is_favorite && <span className="text-yellow-500">★</span>}
+                                                {content.user_note && <span className="text-blue-500" title="Tiene anotación">💬</span>}
                                             </div>
                                             {content.summary && (
                                                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
