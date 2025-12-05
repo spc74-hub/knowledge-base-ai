@@ -221,25 +221,27 @@ function ExplorePageContent() {
             } else {
                 // Use faceted search when filters are applied
                 setIsGlobalSearch(false);
+                const requestBody = {
+                    query: searchQuery || null,
+                    types: filters.types.length > 0 ? filters.types : null,
+                    categories: filters.categories.length > 0 ? filters.categories : null,
+                    concepts: filters.concepts.length > 0 ? filters.concepts : null,
+                    organizations: filters.organizations.length > 0 ? filters.organizations : null,
+                    products: filters.products.length > 0 ? filters.products : null,
+                    persons: filters.persons.length > 0 ? filters.persons : null,
+                    user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
+                    inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
+                    processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
+                    maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
+                    has_comment: filters.has_comment,
+                    limit: PAGE_SIZE,
+                    offset: 0
+                };
+                console.log('Faceted search request:', requestBody);
                 const response = await fetch(`${API_BASE}/search/faceted`, {
                     method: 'POST',
                     headers,
-                    body: JSON.stringify({
-                        query: searchQuery || null,
-                        types: filters.types.length > 0 ? filters.types : null,
-                        categories: filters.categories.length > 0 ? filters.categories : null,
-                        concepts: filters.concepts.length > 0 ? filters.concepts : null,
-                        organizations: filters.organizations.length > 0 ? filters.organizations : null,
-                        products: filters.products.length > 0 ? filters.products : null,
-                        persons: filters.persons.length > 0 ? filters.persons : null,
-                        user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
-                        inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
-                        processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
-                        maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
-                        has_comment: filters.has_comment,
-                        limit: PAGE_SIZE,
-                        offset: 0
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
 
                 if (response.ok) {

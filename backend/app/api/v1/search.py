@@ -56,7 +56,7 @@ async def search_text(
         start_time = time.time()
 
         # Build query - search in title and summary
-        query = db.table("contents").select("id, title, summary, type, url").eq("user_id", current_user["id"]).eq("is_archived", False).or_(f"title.ilike.%{q}%,summary.ilike.%{q}%")
+        query = db.table("contents").select("id, title, summary, type, url").eq("user_id", current_user["id"]).neq("is_archived", True).or_(f"title.ilike.%{q}%,summary.ilike.%{q}%")
 
         if type:
             query = query.eq("type", type)
@@ -221,12 +221,12 @@ async def get_suggestions(
     """
     try:
         # Search in titles for suggestions
-        response = db.table("contents").select("title").eq("user_id", current_user["id"]).eq("is_archived", False).ilike("title", f"%{q}%").limit(limit).execute()
+        response = db.table("contents").select("title").eq("user_id", current_user["id"]).neq("is_archived", True).ilike("title", f"%{q}%").limit(limit).execute()
 
         suggestions = [item["title"] for item in response.data if item.get("title")]
 
         # Also search in concepts/tags
-        tag_response = db.table("contents").select("user_tags, concepts").eq("user_id", current_user["id"]).eq("is_archived", False).execute()
+        tag_response = db.table("contents").select("user_tags, concepts").eq("user_id", current_user["id"]).neq("is_archived", True).execute()
 
         all_tags = set()
         for item in tag_response.data:
@@ -308,7 +308,7 @@ async def search_global(
             "id, title, summary, raw_content, url, type, iab_tier1, iab_tier2, iab_tier3, concepts, entities, "
             "schema_type, content_format, technical_level, language, sentiment, "
             "reading_time_minutes, processing_status, is_favorite, metadata, user_tags, created_at"
-        ).eq("user_id", current_user["id"]).eq("is_archived", False).execute()
+        ).eq("user_id", current_user["id"]).neq("is_archived", True).execute()
 
         all_contents = response.data or []
 
@@ -622,7 +622,7 @@ async def get_facets(
         # We fetch only the fields needed for facet aggregation
         all_response = db.table("contents").select(
             "type, metadata, iab_tier1, concepts, entities, user_tags"
-        ).eq("user_id", current_user["id"]).eq("is_archived", False).execute()
+        ).eq("user_id", current_user["id"]).neq("is_archived", True).execute()
 
         all_items = all_response.data or []
         total_contents = len(all_items)
@@ -750,7 +750,7 @@ async def get_dynamic_facets(
 
             if data.organizations:
                 for org in data.organizations:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).eq("is_archived", False)
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
                     if data.types:
                         q = apply_type_filter_dynamic(q, data.types)
                     if data.categories:
@@ -764,7 +764,7 @@ async def get_dynamic_facets(
 
             if data.products:
                 for prod in data.products:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).eq("is_archived", False)
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
                     if data.types:
                         q = apply_type_filter_dynamic(q, data.types)
                     if data.categories:
@@ -778,7 +778,7 @@ async def get_dynamic_facets(
 
             if data.persons:
                 for person in data.persons:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).eq("is_archived", False)
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
                     if data.types:
                         q = apply_type_filter_dynamic(q, data.types)
                     if data.categories:
@@ -793,7 +793,7 @@ async def get_dynamic_facets(
             if all_ids:
                 response = db.table("contents").select(
                     "type, iab_tier1, concepts, entities, metadata"
-                ).in_("id", list(all_ids)).eq("is_archived", False).execute()
+                ).in_("id", list(all_ids)).neq("is_archived", True).execute()
                 items = response.data or []
             else:
                 items = []
@@ -801,7 +801,7 @@ async def get_dynamic_facets(
             # Standard query without entity filters
             query = db.table("contents").select(
                 "type, iab_tier1, concepts, entities, metadata"
-            ).eq("user_id", current_user["id"]).eq("is_archived", False)
+            ).eq("user_id", current_user["id"]).neq("is_archived", True)
 
             if data.types:
                 query = apply_type_filter_dynamic(query, data.types)
@@ -876,8 +876,9 @@ async def search_faceted(
         logger.info(f"Faceted search request: user={current_user['id']}, data={data}")
 
         # Quick test: count all contents for this user
-        test_count = db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).eq("is_archived", False).execute()
-        logger.info(f"Total non-archived contents for user: {test_count.count if test_count else 'N/A'}")
+        test_count_all = db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).execute()
+        test_count_false = db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).neq("is_archived", True).execute()
+        logger.info(f"Total contents: {test_count_all.count if test_count_all else 'N/A'}, non-archived (is_archived=false): {test_count_false.count if test_count_false else 'N/A'}")
 
         # Check if we need entity filtering (requires separate queries for OR logic)
         has_entity_filters = data.organizations or data.products or data.persons
@@ -905,7 +906,7 @@ async def search_faceted(
             # Query for each entity type filter
             if data.organizations:
                 for org in data.organizations:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).eq("is_archived", False)
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
                     if data.types:
                         q = apply_type_filter(q, data.types)
                     if data.categories:
@@ -920,7 +921,7 @@ async def search_faceted(
 
             if data.products:
                 for prod in data.products:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).eq("is_archived", False)
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
                     if data.types:
                         q = apply_type_filter(q, data.types)
                     if data.categories:
@@ -934,7 +935,7 @@ async def search_faceted(
 
             if data.persons:
                 for person in data.persons:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).eq("is_archived", False)
+                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
                     if data.types:
                         q = apply_type_filter(q, data.types)
                     if data.categories:
@@ -952,7 +953,7 @@ async def search_faceted(
                     "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
                     "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
                 )
-                response = db.table("contents").select(select_fields).in_("id", list(all_ids)).eq("is_archived", False).order("created_at", desc=True).range(
+                response = db.table("contents").select(select_fields).in_("id", list(all_ids)).neq("is_archived", True).order("created_at", desc=True).range(
                     data.offset, data.offset + data.limit - 1
                 ).execute()
                 results = response.data or []
@@ -961,10 +962,11 @@ async def search_faceted(
         else:
             # Standard query without entity filters
             # Use simpler select to avoid potential missing column issues
+            # Use neq(True) instead of eq(False) to also include NULL values
             query = db.table("contents").select(
                 "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
                 "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
-            ).eq("user_id", current_user["id"]).eq("is_archived", False)
+            ).eq("user_id", current_user["id"]).neq("is_archived", True)
 
             # Apply facet filters - handle apple_notes as special case
             if data.types:
@@ -979,13 +981,13 @@ async def search_faceted(
                         "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
                         "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
                     )
-                    query1 = db.table("contents").select(select_fields).eq("user_id", current_user["id"]).eq("is_archived", False).in_("type", other_types)
+                    query1 = db.table("contents").select(select_fields).eq("user_id", current_user["id"]).neq("is_archived", True).in_("type", other_types)
                     if data.categories:
                         query1 = query1.in_("iab_tier1", data.categories)
                     if data.concepts:
                         query1 = query1.overlaps("concepts", data.concepts)
 
-                    query2 = db.table("contents").select(select_fields).eq("user_id", current_user["id"]).eq("is_archived", False).eq("type", "note").filter(
+                    query2 = db.table("contents").select(select_fields).eq("user_id", current_user["id"]).neq("is_archived", True).eq("type", "note").filter(
                         "metadata->>source", "eq", "apple_notes"
                     )
                     if data.categories:
@@ -1199,7 +1201,7 @@ async def get_knowledge_graph(
         # Get all contents with entities
         response = db.table("contents").select(
             "id, title, entities, concepts, user_tags, iab_tier1, iab_tier2, iab_tier3"
-        ).eq("user_id", current_user["id"]).eq("is_archived", False).execute()
+        ).eq("user_id", current_user["id"]).neq("is_archived", True).execute()
 
         contents = response.data or []
 

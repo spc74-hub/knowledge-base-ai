@@ -81,7 +81,7 @@ async def get_taxonomy_nodes(
         # Build base query
         query = db.table("contents").select(
             "id, title, type, iab_tier1, concepts, entities, metadata, processing_status, maturity_level, user_note"
-        ).eq("user_id", user_id).eq("is_archived", False)
+        ).eq("user_id", user_id).neq("is_archived", True)
 
         # Determine which type filters to use (support both old and new format)
         active_type_filters = data.type_filters or ([data.type_filter] if data.type_filter else None)
@@ -218,7 +218,7 @@ async def get_taxonomy_contents(
         # Build query with all filters
         query = db.table("contents").select(
             "id, title, type, url, iab_tier1, summary, created_at, metadata, processing_status, maturity_level, user_note"
-        ).eq("user_id", user_id).eq("is_archived", False)
+        ).eq("user_id", user_id).neq("is_archived", True)
 
         # Determine which type filters to use (support both old and new format)
         active_type_filters = data.type_filters or ([data.type_filter] if data.type_filter else None)
@@ -346,7 +346,7 @@ async def get_content_types(
 
         response = db.table("contents").select(
             "type, metadata"
-        ).eq("user_id", user_id).eq("is_archived", False).execute()
+        ).eq("user_id", user_id).neq("is_archived", True).execute()
 
         type_counts = {}
         for item in response.data or []:
