@@ -73,6 +73,9 @@ async def get_taxonomy_nodes(
     Returns aggregated counts for the selected dimension.
     """
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Taxonomy nodes request: {data}")
         user_id = current_user["id"]
 
         # Build base query
@@ -127,12 +130,15 @@ async def get_taxonomy_nodes(
 
         # Filter by has_comment (presence of user_note)
         if data.has_comment is not None:
+            logger.info(f"Filtering by has_comment={data.has_comment}, items before: {len(items)}")
             if data.has_comment:
                 items = [item for item in items if item.get("user_note") and item.get("user_note").strip()]
             else:
                 items = [item for item in items if not item.get("user_note") or not item.get("user_note").strip()]
+            logger.info(f"Items after has_comment filter: {len(items)}")
 
         # Aggregate based on root_type
+        logger.info(f"Aggregating by root_type={data.root_type}, items={len(items)}")
         nodes = []
         aggregation = {}
 
@@ -170,6 +176,7 @@ async def get_taxonomy_nodes(
             ))
 
         nodes.sort(key=lambda x: x.count, reverse=True)
+        logger.info(f"Aggregated nodes: {len(nodes)}")
 
         # Build breadcrumb path
         path = []
