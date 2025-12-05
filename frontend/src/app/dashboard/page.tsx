@@ -59,6 +59,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadingObject, setLoadingObject] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // URL Modal state
   const [showUrlModal, setShowUrlModal] = useState(false);
@@ -77,6 +78,7 @@ export default function DashboardPage() {
   const fetchSummary = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch(`${API_URL}/api/v1/dashboard/summary`, {
         headers: getAuthHeaders(),
@@ -85,9 +87,13 @@ export default function DashboardPage() {
         const data = await response.json();
         setSummary(data);
         setLastRefresh(new Date());
+      } else {
+        setError(`Error ${response.status}: ${response.statusText}`);
+        console.error('Dashboard API error:', response.status, response.statusText);
       }
-    } catch (error) {
-      console.error('Error fetching dashboard summary:', error);
+    } catch (err) {
+      setError('Error de conexion con el servidor');
+      console.error('Error fetching dashboard summary:', err);
     } finally {
       setLoading(false);
     }
@@ -221,7 +227,33 @@ export default function DashboardPage() {
 
   // Render overview panel (default)
   const renderOverviewPanel = () => {
-    if (!summary) return null;
+    if (error) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-red-400 mb-2">{error}</p>
+          <button
+            onClick={fetchSummary}
+            className="text-indigo-400 hover:text-indigo-300"
+          >
+            Reintentar
+          </button>
+        </div>
+      );
+    }
+
+    if (!summary) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-gray-400">Cargando resumen...</p>
+          <button
+            onClick={fetchSummary}
+            className="mt-4 text-indigo-400 hover:text-indigo-300"
+          >
+            Reintentar
+          </button>
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">
