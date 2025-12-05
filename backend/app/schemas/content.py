@@ -71,6 +71,7 @@ class ContentUpdate(BaseModel):
     notes: Optional[str] = None
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
+    para_category: Optional[str] = None  # PARA: projects, areas, resources, archive
 
 
 class ContentInDB(ContentBase):
@@ -94,6 +95,7 @@ class ContentInDB(ContentBase):
     is_favorite: bool = False
     is_archived: bool = False
     processing_status: str = "pending"
+    para_category: Optional[str] = None  # PARA: projects, areas, resources, archive
     metadata: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
@@ -114,6 +116,7 @@ class ContentResponse(BaseModel):
     user_tags: List[str] = []
     is_favorite: bool = False
     processing_status: str = "pending"
+    para_category: Optional[str] = None
     created_at: str
 
 

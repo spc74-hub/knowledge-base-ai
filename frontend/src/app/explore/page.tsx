@@ -46,6 +46,7 @@ interface Content {
     sentiment: string | null;
     reading_time_minutes: number | null;
     processing_status: string;
+    maturity_level: string | null;
     is_favorite: boolean;
     is_archived: boolean;
     user_tags: string[];
@@ -67,6 +68,7 @@ interface Filters {
     user_tags: string[];
     inherited_tags: string[];
     processing_status: string[];
+    maturity_level: string[];
 }
 
 function ExplorePageContent() {
@@ -87,7 +89,8 @@ function ExplorePageContent() {
         persons: [],
         user_tags: [],
         inherited_tags: [],
-        processing_status: []
+        processing_status: [],
+        maturity_level: []
     });
     const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
@@ -97,7 +100,8 @@ function ExplorePageContent() {
         organizations: false,
         products: false,
         persons: false,
-        processing_status: true
+        processing_status: true,
+        maturity_level: true
     });
     // Search within facets
     const [facetSearch, setFacetSearch] = useState({
@@ -222,6 +226,7 @@ function ExplorePageContent() {
                         user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
                         inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
                         processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
+                        maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
                         limit: PAGE_SIZE,
                         offset: 0
                     }),
@@ -280,6 +285,7 @@ function ExplorePageContent() {
                         user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
                         inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
                         processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
+                        maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
                         limit: PAGE_SIZE,
                         offset: results.length
                     }),
@@ -384,7 +390,8 @@ function ExplorePageContent() {
             persons: [],
             user_tags: [],
             inherited_tags: [],
-            processing_status: []
+            processing_status: [],
+            maturity_level: []
         });
         setSearchQuery('');
     };
@@ -658,6 +665,37 @@ function ExplorePageContent() {
                                                             className="rounded"
                                                         />
                                                         <span className="flex-1">{status.icon} {status.label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Maturity Level */}
+                                    <div>
+                                        <button
+                                            onClick={() => toggleSection('maturity_level')}
+                                            className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Nivel de Madurez</span>
+                                            <span>{expandedSections.maturity_level ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedSections.maturity_level && (
+                                            <div className="space-y-1 ml-1">
+                                                {[
+                                                    { value: 'captured', label: 'Capturado', icon: '📥' },
+                                                    { value: 'processed', label: 'Procesado', icon: '⚙️' },
+                                                    { value: 'connected', label: 'Conectado', icon: '🔗' },
+                                                    { value: 'integrated', label: 'Integrado', icon: '✅' }
+                                                ].map(level => (
+                                                    <label key={level.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={filters.maturity_level.includes(level.value)}
+                                                            onChange={() => toggleFilter('maturity_level', level.value)}
+                                                            className="rounded"
+                                                        />
+                                                        <span className="flex-1">{level.icon} {level.label}</span>
                                                     </label>
                                                 ))}
                                             </div>

@@ -837,6 +837,8 @@ class FacetedSearchRequest(BaseModel):
     persons: Optional[List[str]] = None
     user_tags: Optional[List[str]] = None
     inherited_tags: Optional[List[str]] = None
+    processing_status: Optional[List[str]] = None
+    maturity_level: Optional[List[str]] = None
     limit: int = 100  # Reduced from 10000 for better performance
     offset: int = 0
 
@@ -939,7 +941,7 @@ async def search_faceted(
                 response = db.table("contents").select(
                     "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
                     "schema_type, content_format, technical_level, language, sentiment, "
-                    "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
+                    "reading_time_minutes, processing_status, maturity_level, is_favorite, metadata, created_at"
                 ).in_("id", list(all_ids)).order("created_at", desc=True).range(
                     data.offset, data.offset + data.limit - 1
                 ).execute()
@@ -951,7 +953,7 @@ async def search_faceted(
             query = db.table("contents").select(
                 "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
                 "schema_type, content_format, technical_level, language, sentiment, "
-                "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
+                "reading_time_minutes, processing_status, maturity_level, is_favorite, metadata, created_at"
             ).eq("user_id", current_user["id"])
 
             # Apply facet filters - handle apple_notes as special case
@@ -966,7 +968,7 @@ async def search_faceted(
                     query1 = db.table("contents").select(
                         "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
                         "schema_type, content_format, technical_level, language, sentiment, "
-                        "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
+                        "reading_time_minutes, processing_status, maturity_level, is_favorite, metadata, created_at"
                     ).eq("user_id", current_user["id"]).in_("type", other_types)
                     if data.categories:
                         query1 = query1.in_("iab_tier1", data.categories)
@@ -976,7 +978,7 @@ async def search_faceted(
                     query2 = db.table("contents").select(
                         "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
                         "schema_type, content_format, technical_level, language, sentiment, "
-                        "reading_time_minutes, processing_status, is_favorite, metadata, created_at"
+                        "reading_time_minutes, processing_status, maturity_level, is_favorite, metadata, created_at"
                     ).eq("user_id", current_user["id"]).eq("type", "note").filter(
                         "metadata->>source", "eq", "apple_notes"
                     )
@@ -1075,6 +1077,20 @@ async def search_faceted(
                 return False
 
             results = [r for r in results if content_matches_inherited_tag(r)]
+
+        # Filter by processing_status
+        if data.processing_status:
+            results = [
+                r for r in results
+                if r.get("processing_status") in data.processing_status
+            ]
+
+        # Filter by maturity_level
+        if data.maturity_level:
+            results = [
+                r for r in results
+                if (r.get("maturity_level") or "captured") in data.maturity_level
+            ]
 
         # If text query provided, filter and score results
         if data.query:

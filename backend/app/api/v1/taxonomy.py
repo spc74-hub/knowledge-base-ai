@@ -26,6 +26,14 @@ class TaxonomyRequest(BaseModel):
     type_filters: Optional[List[str]] = None  # Filter by multiple content types
     parent_type: Optional[str] = None  # Type of parent node when drilling down
     parent_value: Optional[str] = None  # Value of parent node when drilling down
+    # Additional facet filters
+    categories: Optional[List[str]] = None
+    concepts: Optional[List[str]] = None
+    organizations: Optional[List[str]] = None
+    products: Optional[List[str]] = None
+    persons: Optional[List[str]] = None
+    processing_status: Optional[List[str]] = None
+    maturity_level: Optional[List[str]] = None
 
 
 class TaxonomyResponse(BaseModel):
@@ -40,6 +48,14 @@ class ContentListRequest(BaseModel):
     filters: dict  # All accumulated filters from drill-down
     type_filter: Optional[str] = None  # DEPRECATED: Single filter (kept for backwards compatibility)
     type_filters: Optional[List[str]] = None  # Filter by multiple content types
+    # Additional facet filters
+    categories: Optional[List[str]] = None
+    concepts: Optional[List[str]] = None
+    organizations: Optional[List[str]] = None
+    products: Optional[List[str]] = None
+    persons: Optional[List[str]] = None
+    processing_status: Optional[List[str]] = None
+    maturity_level: Optional[List[str]] = None
     limit: int = 10000
     offset: int = 0
 
@@ -59,7 +75,7 @@ async def get_taxonomy_nodes(
 
         # Build base query
         query = db.table("contents").select(
-            "id, title, type, iab_tier1, concepts, entities, metadata"
+            "id, title, type, iab_tier1, concepts, entities, metadata, processing_status, maturity_level"
         ).eq("user_id", user_id).eq("is_archived", False)
 
         # Determine which type filters to use (support both old and new format)
@@ -98,6 +114,14 @@ async def get_taxonomy_nodes(
                 return effective_type in type_filters
 
             items = [item for item in items if matches_type_filter(item, active_type_filters)]
+
+        # Filter by processing_status if specified
+        if data.processing_status:
+            items = [item for item in items if item.get("processing_status") in data.processing_status]
+
+        # Filter by maturity_level if specified
+        if data.maturity_level:
+            items = [item for item in items if (item.get("maturity_level") or "captured") in data.maturity_level]
 
         # Aggregate based on root_type
         nodes = []
@@ -177,7 +201,7 @@ async def get_taxonomy_contents(
 
         # Build query with all filters
         query = db.table("contents").select(
-            "id, title, type, url, iab_tier1, summary, created_at, metadata"
+            "id, title, type, url, iab_tier1, summary, created_at, metadata, processing_status, maturity_level"
         ).eq("user_id", user_id).eq("is_archived", False)
 
         # Determine which type filters to use (support both old and new format)
@@ -217,6 +241,14 @@ async def get_taxonomy_contents(
 
             filtered_items = [item for item in all_items if matches_type_filter(item, active_type_filters)]
 
+            # Filter by processing_status if specified
+            if data.processing_status:
+                filtered_items = [item for item in filtered_items if item.get("processing_status") in data.processing_status]
+
+            # Filter by maturity_level if specified
+            if data.maturity_level:
+                filtered_items = [item for item in filtered_items if (item.get("maturity_level") or "captured") in data.maturity_level]
+
             # Apply pagination
             paginated_items = filtered_items[data.offset:data.offset + data.limit]
 
@@ -227,17 +259,39 @@ async def get_taxonomy_contents(
                 "limit": data.limit
             }
         else:
-            # No type filter, use DB pagination
-            response = query.order("created_at", desc=True).range(
-                data.offset, data.offset + data.limit - 1
-            ).execute()
+            # No type filter - still need to apply status/maturity filters if any
+            if data.processing_status or data.maturity_level:
+                # Get all results first, then filter
+                response = query.order("created_at", desc=True).execute()
+                filtered_items = response.data or []
 
-            return {
-                "contents": response.data or [],
-                "total": len(response.data or []),
-                "offset": data.offset,
-                "limit": data.limit
-            }
+                if data.processing_status:
+                    filtered_items = [item for item in filtered_items if item.get("processing_status") in data.processing_status]
+
+                if data.maturity_level:
+                    filtered_items = [item for item in filtered_items if (item.get("maturity_level") or "captured") in data.maturity_level]
+
+                # Apply pagination
+                paginated_items = filtered_items[data.offset:data.offset + data.limit]
+
+                return {
+                    "contents": paginated_items,
+                    "total": len(filtered_items),
+                    "offset": data.offset,
+                    "limit": data.limit
+                }
+            else:
+                # No filters, use DB pagination
+                response = query.order("created_at", desc=True).range(
+                    data.offset, data.offset + data.limit - 1
+                ).execute()
+
+                return {
+                    "contents": response.data or [],
+                    "total": len(response.data or []),
+                    "offset": data.offset,
+                    "limit": data.limit
+                }
 
     except Exception as e:
         import traceback

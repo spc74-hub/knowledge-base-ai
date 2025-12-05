@@ -27,6 +27,7 @@ export interface ContentDetail {
     sentiment: string | null;
     reading_time_minutes: number | null;
     processing_status: string;
+    maturity_level: string | null;
     is_favorite: boolean;
     is_archived: boolean;
     user_tags: string[];
@@ -57,6 +58,13 @@ const TYPE_ICONS: Record<string, string> = {
     default: '📄',
 };
 
+const MATURITY_LEVELS = [
+    { value: 'captured', label: 'Capturado', icon: '📥', color: 'gray', description: 'Guardado pero sin revisar' },
+    { value: 'processed', label: 'Procesado', icon: '⚙️', color: 'blue', description: 'Procesado por IA' },
+    { value: 'connected', label: 'Conectado', icon: '🔗', color: 'purple', description: 'Vinculado con otros contenidos' },
+    { value: 'integrated', label: 'Integrado', icon: '✅', color: 'green', description: 'Revisado y asimilado' },
+];
+
 export function ContentDetailModal({
     content,
     isOpen,
@@ -76,6 +84,8 @@ export function ContentDetailModal({
     const [reprocessing, setReprocessing] = useState(false);
     const [processingStatus, setProcessingStatus] = useState<string>('');
     const [savingNote, setSavingNote] = useState(false);
+    const [maturityLevel, setMaturityLevel] = useState<string>('captured');
+    const [updatingMaturity, setUpdatingMaturity] = useState(false);
 
     useEffect(() => {
         if (content) {
@@ -83,6 +93,7 @@ export function ContentDetailModal({
             setUserNote(content.user_note || '');
             setIsFavorite(content.is_favorite || false);
             setProcessingStatus(content.processing_status || 'pending');
+            setMaturityLevel(content.maturity_level || 'captured');
         }
     }, [content]);
 
@@ -244,6 +255,30 @@ export function ContentDetailModal({
         }
     };
 
+    const handleMaturityChange = async (newLevel: string) => {
+        if (!content || updatingMaturity) return;
+        setUpdatingMaturity(true);
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/content/${content.id}/maturity`, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ maturity_level: newLevel }),
+            });
+            if (response.ok) {
+                setMaturityLevel(newLevel);
+                onUpdate?.({ ...content, maturity_level: newLevel });
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('Error updating maturity:', response.status, errorData);
+            }
+        } catch (error) {
+            console.error('Error updating maturity level:', error);
+        } finally {
+            setUpdatingMaturity(false);
+        }
+    };
+
     const getTypeIcon = (type: string) => TYPE_ICONS[type] || TYPE_ICONS.default;
 
     const getEntityName = (entity: string | { name: string }) => {
@@ -337,6 +372,43 @@ export function ContentDetailModal({
                             <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Fecha</p>
                             <p className="font-medium text-gray-900 dark:text-white">{new Date(content.created_at).toLocaleDateString()}</p>
                         </div>
+                    </div>
+
+                    {/* Maturity Level Selector */}
+                    <div className="mb-6">
+                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
+                            Nivel de Madurez
+                        </h3>
+                        <div className="grid grid-cols-4 gap-2">
+                            {MATURITY_LEVELS.map((level) => {
+                                const isActive = maturityLevel === level.value;
+                                const colorClasses = {
+                                    gray: isActive ? 'bg-gray-200 dark:bg-gray-600 border-gray-400 dark:border-gray-500' : 'hover:bg-gray-100 dark:hover:bg-gray-700',
+                                    blue: isActive ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-400 dark:border-blue-600' : 'hover:bg-blue-50 dark:hover:bg-blue-900/30',
+                                    purple: isActive ? 'bg-purple-100 dark:bg-purple-900/50 border-purple-400 dark:border-purple-600' : 'hover:bg-purple-50 dark:hover:bg-purple-900/30',
+                                    green: isActive ? 'bg-green-100 dark:bg-green-900/50 border-green-400 dark:border-green-600' : 'hover:bg-green-50 dark:hover:bg-green-900/30',
+                                };
+                                return (
+                                    <button
+                                        key={level.value}
+                                        onClick={() => handleMaturityChange(level.value)}
+                                        disabled={updatingMaturity}
+                                        className={`p-3 rounded-lg border-2 transition-all ${
+                                            isActive ? colorClasses[level.color as keyof typeof colorClasses] : `border-gray-200 dark:border-gray-700 ${colorClasses[level.color as keyof typeof colorClasses]}`
+                                        } ${updatingMaturity ? 'opacity-50 cursor-wait' : ''}`}
+                                        title={level.description}
+                                    >
+                                        <div className="text-2xl mb-1">{level.icon}</div>
+                                        <div className={`text-xs font-medium ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                                            {level.label}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            {MATURITY_LEVELS.find(l => l.value === maturityLevel)?.description}
+                        </p>
                     </div>
 
                     {/* Summary */}

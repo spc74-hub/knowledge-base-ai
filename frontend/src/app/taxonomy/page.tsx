@@ -101,6 +101,7 @@ export default function TaxonomyExplorerPage() {
         products: string[];
         persons: string[];
         processing_status: string[];
+        maturity_level: string[];
     }>({
         categories: [],
         concepts: [],
@@ -108,6 +109,7 @@ export default function TaxonomyExplorerPage() {
         products: [],
         persons: [],
         processing_status: [],
+        maturity_level: [],
     });
     const [facetSearch, setFacetSearch] = useState({
         categories: '',
@@ -124,6 +126,7 @@ export default function TaxonomyExplorerPage() {
         products: false,
         persons: false,
         processing_status: true,
+        maturity_level: true,
     });
 
     const getAuthHeaders = async () => {
@@ -192,6 +195,7 @@ export default function TaxonomyExplorerPage() {
             products: [],
             persons: [],
             processing_status: [],
+            maturity_level: [],
         });
     };
 
@@ -225,6 +229,7 @@ export default function TaxonomyExplorerPage() {
                     products: facetFilters.products.length > 0 ? facetFilters.products : null,
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                     processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
+                    maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
                 }),
             });
 
@@ -283,6 +288,7 @@ export default function TaxonomyExplorerPage() {
                     products: facetFilters.products.length > 0 ? facetFilters.products : null,
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                     processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
+                    maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
                     limit: PAGE_SIZE,
                     offset: 0,
                 }),
@@ -330,6 +336,7 @@ export default function TaxonomyExplorerPage() {
                     products: facetFilters.products.length > 0 ? facetFilters.products : null,
                     persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
                     processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
+                    maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
                     limit: PAGE_SIZE,
                     offset: contents.length,
                 }),
@@ -767,6 +774,43 @@ export default function TaxonomyExplorerPage() {
                                                         : 'text-gray-700 dark:text-gray-300'
                                                 }`}>
                                                     {status.icon} {status.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Maturity Level Filter */}
+                            <div className="mt-4">
+                                <button
+                                    onClick={() => toggleFacetSection('maturity_level')}
+                                    className="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+                                >
+                                    <span>Nivel de Madurez</span>
+                                    <span>{expandedFacets.maturity_level ? '−' : '+'}</span>
+                                </button>
+                                {expandedFacets.maturity_level && (
+                                    <div className="space-y-1">
+                                        {[
+                                            { value: 'captured', label: 'Capturado', icon: '📥' },
+                                            { value: 'processed', label: 'Procesado', icon: '⚙️' },
+                                            { value: 'connected', label: 'Conectado', icon: '🔗' },
+                                            { value: 'integrated', label: 'Integrado', icon: '✅' }
+                                        ].map(level => (
+                                            <label key={level.value} className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={facetFilters.maturity_level.includes(level.value)}
+                                                    onChange={() => toggleFacetFilter('maturity_level', level.value)}
+                                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className={`flex-1 text-sm ${
+                                                    facetFilters.maturity_level.includes(level.value)
+                                                        ? 'text-gray-900 dark:text-white font-medium'
+                                                        : 'text-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                    {level.icon} {level.label}
                                                 </span>
                                             </label>
                                         ))}
