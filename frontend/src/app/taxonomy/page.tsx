@@ -639,7 +639,7 @@ export default function TaxonomyExplorerPage() {
                 <div className="flex gap-6">
                     {/* Sidebar - Filters */}
                     <div className="w-64 flex-shrink-0">
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sticky top-6">
+                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sticky top-6 max-h-[calc(100vh-120px)] overflow-y-auto">
                             {/* Root Type Selector */}
                             <div className="mb-6">
                                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">

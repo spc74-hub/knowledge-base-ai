@@ -190,7 +190,10 @@ function ExplorePageContent() {
         }
         try {
             const headers = await getAuthHeader();
-            const hasFilters = Object.values(filters).some(arr => arr.length > 0);
+            const hasFilters = Object.entries(filters).some(([key, val]) => {
+                if (key === 'has_comment') return val !== null;
+                return Array.isArray(val) && val.length > 0;
+            });
 
             // Use global search when there's a query and no filters
             // This searches across title, summary, concepts, entities, etc.
