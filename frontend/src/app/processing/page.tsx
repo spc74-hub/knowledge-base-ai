@@ -44,9 +44,9 @@ export default function ProcessingPage() {
         setPendingContents(data.contents || []);
       }
 
-      // Fetch failed
+      // Fetch failed (status is "error" in database)
       const failedResponse = await fetch(
-        `${API_URL}/api/v1/content/?processing_status=failed&limit=50`,
+        `${API_URL}/api/v1/content/?processing_status=error&limit=50`,
         { headers: getAuthHeaders() }
       );
       if (failedResponse.ok) {

@@ -110,12 +110,17 @@ export default function DashboardPage() {
     }
     setLoadingObject(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/dashboard/objects/${objectType}`, {
+      const url = `${API_URL}/api/v1/dashboard/objects/${objectType}`;
+      console.log('Fetching object summary:', url);
+      const response = await fetch(url, {
         headers: getAuthHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
+        console.log('Object summary data:', data);
         setObjectSummary(data);
+      } else {
+        console.error('Object summary error:', response.status, await response.text());
       }
     } catch (error) {
       console.error('Error fetching object summary:', error);
