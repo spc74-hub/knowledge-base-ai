@@ -383,7 +383,8 @@ function ExplorePageContent() {
             products: [],
             persons: [],
             user_tags: [],
-            inherited_tags: []
+            inherited_tags: [],
+            processing_status: []
         });
         setSearchQuery('');
     };
