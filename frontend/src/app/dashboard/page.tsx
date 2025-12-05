@@ -60,11 +60,15 @@ export default function DashboardPage() {
   const [loadingObject, setLoadingObject] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
 
   // URL Modal state
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [savingUrl, setSavingUrl] = useState(false);
+
+  // Quick actions dropdown
+  const [showQuickActions, setShowQuickActions] = useState(false);
 
   const getAuthHeaders = useCallback(() => {
     return {
@@ -121,10 +125,11 @@ export default function DashboardPage() {
   }, [user, getAuthHeaders]);
 
   useEffect(() => {
-    if (user && !authLoading) {
+    if (user && !authLoading && !hasFetched) {
       fetchSummary();
+      setHasFetched(true);
     }
-  }, [user, authLoading, fetchSummary]);
+  }, [user, authLoading, hasFetched, fetchSummary]);
 
   useEffect(() => {
     fetchObjectSummary(selectedCategory);
@@ -517,18 +522,66 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold text-white">Dashboard</h1>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowUrlModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
-            >
-              + URL
-            </button>
-            <Link
-              href="/notes/new"
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
-            >
-              + Nota
-            </Link>
+            {/* Quick Actions Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowQuickActions(!showQuickActions)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
+              >
+                + Crear ▾
+              </button>
+              {showQuickActions && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowQuickActions(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-xl z-20 py-1 border border-gray-700">
+                    <button
+                      onClick={() => { setShowUrlModal(true); setShowQuickActions(false); }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      🔗 Guardar URL
+                    </button>
+                    <Link
+                      href="/notes/new"
+                      onClick={() => setShowQuickActions(false)}
+                      className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      📝 Nueva Nota
+                    </Link>
+                    <Link
+                      href="/objectives/new"
+                      onClick={() => setShowQuickActions(false)}
+                      className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      🎯 Nuevo Objetivo
+                    </Link>
+                    <Link
+                      href="/projects/new"
+                      onClick={() => setShowQuickActions(false)}
+                      className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      📁 Nuevo Proyecto
+                    </Link>
+                    <Link
+                      href="/mental-models/new"
+                      onClick={() => setShowQuickActions(false)}
+                      className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      🧠 Nuevo M. Mental
+                    </Link>
+                    <Link
+                      href="/tags/new"
+                      onClick={() => setShowQuickActions(false)}
+                      className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      🏷️ Nuevo Tag
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
             <Link
               href="/chat"
               className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
@@ -536,7 +589,7 @@ export default function DashboardPage() {
               💬 Chat
             </Link>
             <button
-              onClick={fetchSummary}
+              onClick={() => { setHasFetched(false); fetchSummary(); }}
               className="text-gray-400 hover:text-white p-2"
               title={lastRefresh ? `Ultimo: ${lastRefresh.toLocaleTimeString()}` : 'Refrescar'}
             >
@@ -550,16 +603,17 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
           {kpiCards.map((kpi) => (
-            <Link
+            <button
               key={kpi.key}
-              href={kpi.href}
-              target="_blank"
-              className={`${kpi.color} hover:opacity-90 rounded-xl p-4 transition-all cursor-pointer`}
+              onClick={() => setSelectedCategory(kpi.key as SidebarCategory)}
+              className={`${kpi.color} hover:opacity-90 rounded-xl p-4 transition-all cursor-pointer text-left ${
+                selectedCategory === kpi.key ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-950' : ''
+              }`}
             >
               <div className="text-2xl mb-1">{kpi.icon}</div>
               <div className="text-2xl font-bold text-white">{kpi.value}</div>
               <div className="text-xs text-white/80">{kpi.label}</div>
-            </Link>
+            </button>
           ))}
         </div>
       </div>
