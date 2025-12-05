@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
+import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -66,6 +67,11 @@ export default function DashboardPage() {
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [savingUrl, setSavingUrl] = useState(false);
+
+  // Content Detail Modal state
+  const [selectedContent, setSelectedContent] = useState<ContentDetail | null>(null);
+  const [showContentModal, setShowContentModal] = useState(false);
+  const [loadingContent, setLoadingContent] = useState(false);
 
   // Quick actions dropdown
   const [showQuickActions, setShowQuickActions] = useState(false);
@@ -159,6 +165,25 @@ export default function DashboardPage() {
       console.error('Error saving URL:', error);
     } finally {
       setSavingUrl(false);
+    }
+  };
+
+  // Fetch content detail for modal
+  const handleContentClick = async (contentId: string) => {
+    setLoadingContent(true);
+    setShowContentModal(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/content/${contentId}`, {
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedContent(data);
+      }
+    } catch (error) {
+      console.error('Error fetching content:', error);
+    } finally {
+      setLoadingContent(false);
     }
   };
 
@@ -499,19 +524,34 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {objectSummary.recent.length > 0 ? (
                 objectSummary.recent.slice(0, selectedCategory === 'contents' ? 10 : 8).map((item: any) => (
-                  <Link
-                    key={item.id}
-                    href={getItemUrl(selectedCategory, item)}
-                    target="_blank"
-                    className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer"
-                  >
-                    <span className="text-lg">
-                      {item.icon || (item.type === 'youtube' || item.type === 'video' ? '🎬' : item.type === 'tiktok' ? '📱' : item.type === 'twitter' ? '🐦' : '📄')}
-                    </span>
-                    <p className="text-white text-sm flex-1 truncate">
-                      {item.title || item.name || item.tag || 'Sin titulo'}
-                    </p>
-                  </Link>
+                  selectedCategory === 'contents' ? (
+                    <button
+                      key={item.id}
+                      onClick={() => handleContentClick(item.id)}
+                      className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer w-full text-left"
+                    >
+                      <span className="text-lg">
+                        {item.type === 'youtube' || item.type === 'video' ? '🎬' : item.type === 'tiktok' ? '📱' : item.type === 'twitter' ? '🐦' : item.type === 'note' ? '📝' : '📄'}
+                      </span>
+                      <p className="text-white text-sm flex-1 truncate">
+                        {item.title || 'Sin titulo'}
+                      </p>
+                    </button>
+                  ) : (
+                    <Link
+                      key={item.id}
+                      href={getItemUrl(selectedCategory, item)}
+                      target="_blank"
+                      className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer"
+                    >
+                      <span className="text-lg">
+                        {item.icon || '📄'}
+                      </span>
+                      <p className="text-white text-sm flex-1 truncate">
+                        {item.title || item.name || item.tag || 'Sin titulo'}
+                      </p>
+                    </Link>
+                  )
                 ))
               ) : (
                 <p className="text-gray-500 text-sm">No hay elementos recientes</p>
@@ -758,6 +798,19 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Content Detail Modal */}
+      <ContentDetailModal
+        content={selectedContent}
+        isOpen={showContentModal}
+        onClose={() => {
+          setShowContentModal(false);
+          setSelectedContent(null);
+        }}
+        onUpdate={(updated) => {
+          setSelectedContent(updated);
+        }}
+      />
     </div>
   );
 }
