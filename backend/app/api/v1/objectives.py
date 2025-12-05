@@ -2,11 +2,10 @@
 Objectives API endpoints.
 """
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import date
-from app.core.auth import get_current_user, CurrentUser
-from app.core.database import get_db, Database
+from app.api.deps import CurrentUser, Database
 
 router = APIRouter()
 
@@ -51,10 +50,10 @@ class ActionUpdate(BaseModel):
 
 @router.get("/")
 async def list_objectives(
+    current_user: CurrentUser,
+    db: Database,
     status: Optional[str] = None,
     include_children: bool = True,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
 ):
     """List all objectives for the current user."""
     query = db.table("objectives").select(
@@ -73,8 +72,8 @@ async def list_objectives(
 
 @router.get("/active")
 async def get_active_objectives(
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Get only active objectives (for dashboard)."""
     result = db.table("objectives").select(
@@ -86,8 +85,8 @@ async def get_active_objectives(
 
 @router.get("/stats")
 async def get_objectives_stats(
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Get statistics about objectives."""
     result = db.table("objectives").select("status, progress").eq(
@@ -102,9 +101,9 @@ async def get_objectives_stats(
 
     total_progress = 0
     for obj in result.data:
-        status = obj.get("status", "pending")
-        if status in stats["by_status"]:
-            stats["by_status"][status] += 1
+        obj_status = obj.get("status", "pending")
+        if obj_status in stats["by_status"]:
+            stats["by_status"][obj_status] += 1
         total_progress += obj.get("progress", 0)
 
     if stats["total"] > 0:
@@ -116,8 +115,8 @@ async def get_objectives_stats(
 @router.post("/")
 async def create_objective(
     data: ObjectiveCreate,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Create a new objective."""
     insert_data = {
@@ -143,8 +142,8 @@ async def create_objective(
 @router.get("/{objective_id}")
 async def get_objective(
     objective_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Get a specific objective with all related data."""
     # Get objective with actions
@@ -188,8 +187,8 @@ async def get_objective(
 async def update_objective(
     objective_id: str,
     data: ObjectiveUpdate,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Update an objective."""
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
@@ -213,8 +212,8 @@ async def update_objective(
 @router.delete("/{objective_id}")
 async def delete_objective(
     objective_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Delete an objective."""
     result = db.table("objectives").delete().eq(
@@ -235,8 +234,8 @@ async def delete_objective(
 async def create_action(
     objective_id: str,
     data: ActionCreate,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Add an action to an objective."""
     # Verify objective exists and belongs to user
@@ -269,8 +268,8 @@ async def update_action(
     objective_id: str,
     action_id: str,
     data: ActionUpdate,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Update an action."""
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
@@ -293,8 +292,8 @@ async def update_action(
 async def delete_action(
     objective_id: str,
     action_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Delete an action."""
     result = db.table("objective_actions").delete().eq(
@@ -315,12 +314,12 @@ async def delete_action(
 async def link_mental_model(
     objective_id: str,
     model_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Link a mental model to an objective."""
     try:
-        result = db.table("objective_mental_models").insert({
+        db.table("objective_mental_models").insert({
             "objective_id": objective_id,
             "mental_model_id": model_id,
             "user_id": current_user["id"],
@@ -336,8 +335,8 @@ async def link_mental_model(
 async def unlink_mental_model(
     objective_id: str,
     model_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Unlink a mental model from an objective."""
     db.table("objective_mental_models").delete().eq(
@@ -350,12 +349,12 @@ async def unlink_mental_model(
 async def link_project(
     objective_id: str,
     project_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Link a project to an objective."""
     try:
-        result = db.table("objective_projects").insert({
+        db.table("objective_projects").insert({
             "objective_id": objective_id,
             "project_id": project_id,
             "user_id": current_user["id"],
@@ -371,8 +370,8 @@ async def link_project(
 async def unlink_project(
     objective_id: str,
     project_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Unlink a project from an objective."""
     db.table("objective_projects").delete().eq(
@@ -385,12 +384,12 @@ async def unlink_project(
 async def link_content(
     objective_id: str,
     content_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Link a content to an objective."""
     try:
-        result = db.table("objective_contents").insert({
+        db.table("objective_contents").insert({
             "objective_id": objective_id,
             "content_id": content_id,
             "user_id": current_user["id"],
@@ -406,8 +405,8 @@ async def link_content(
 async def unlink_content(
     objective_id: str,
     content_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
+    current_user: CurrentUser,
+    db: Database,
 ):
     """Unlink a content from an objective."""
     db.table("objective_contents").delete().eq(
@@ -419,10 +418,10 @@ async def unlink_content(
 @router.get("/{objective_id}/contents")
 async def get_objective_contents(
     objective_id: str,
+    current_user: CurrentUser,
+    db: Database,
     limit: int = 20,
     offset: int = 0,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: Database = Depends(get_db),
 ):
     """Get contents linked to an objective."""
     result = db.table("objective_contents").select(
