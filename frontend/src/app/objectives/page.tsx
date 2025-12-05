@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -58,6 +58,7 @@ interface Objective {
 
 export default function ObjectivesPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
 
     const [objectives, setObjectives] = useState<Objective[]>([]);
@@ -278,6 +279,13 @@ export default function ObjectivesPage() {
             fetchObjectives();
         }
     }, [user, authLoading, router, fetchObjectives]);
+
+    // Open create modal if ?create=true
+    useEffect(() => {
+        if (searchParams.get('create') === 'true') {
+            setShowCreateModal(true);
+        }
+    }, [searchParams]);
 
     if (authLoading || loading) {
         return (

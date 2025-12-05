@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -49,6 +49,7 @@ const ICONS = ['📁', '🎯', '🚀', '💡', '📚', '🔬', '🎨', '💻', '
 
 export default function ProjectsPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
@@ -78,6 +79,14 @@ export default function ProjectsPage() {
             fetchProjects();
         }
     }, [user]);
+
+    // Open create modal if ?create=true
+    useEffect(() => {
+        if (searchParams.get('create') === 'true') {
+            resetForm();
+            setShowCreateModal(true);
+        }
+    }, [searchParams]);
 
     const fetchProjects = async () => {
         try {

@@ -402,6 +402,19 @@ export default function DashboardPage() {
     );
   };
 
+  // Helper to get item URL
+  const getItemUrl = (type: string, item: any): string => {
+    switch (type) {
+      case 'contents': return `/content/${item.id}`;
+      case 'objectives': return `/objectives?id=${item.id}`;
+      case 'projects': return `/projects?id=${item.id}`;
+      case 'mental_models': return `/mental-models?id=${item.id}`;
+      case 'notes': return `/notes/${item.id}`;
+      case 'tags': return `/tags?tag=${item.tag}`;
+      default: return '#';
+    }
+  };
+
   // Render object-specific panel
   const renderObjectPanel = () => {
     if (loadingObject) {
@@ -419,7 +432,8 @@ export default function DashboardPage() {
       tags: { title: 'Tags', href: '/tags' },
     };
 
-    const info = typeLabels[objectSummary.type] || { title: 'Items', href: '#' };
+    // Use selectedCategory instead of objectSummary.type to ensure correct title
+    const info = typeLabels[selectedCategory] || typeLabels[objectSummary.type] || { title: 'Items', href: '#' };
 
     return (
       <div className="space-y-6">
@@ -445,7 +459,12 @@ export default function DashboardPage() {
             </h3>
             <div className="space-y-2">
               {(objectSummary.active || objectSummary.pinned || objectSummary.favorites || []).slice(0, 5).map((item: any) => (
-                <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                <Link
+                  key={item.id}
+                  href={getItemUrl(selectedCategory, item)}
+                  target="_blank"
+                  className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer"
+                >
                   <span className="text-lg">{item.icon || item.color ? '●' : '📄'}</span>
                   <p className="text-white text-sm flex-1 truncate">
                     {item.title || item.name || item.tag || 'Sin titulo'}
@@ -462,7 +481,7 @@ export default function DashboardPage() {
                       {item.status}
                     </span>
                   )}
-                </div>
+                </Link>
               ))}
               {(objectSummary.active || objectSummary.pinned || objectSummary.favorites || []).length === 0 && (
                 <p className="text-gray-500 text-sm">No hay elementos</p>
@@ -477,12 +496,17 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium mb-3">🕐 Recientes</h3>
             <div className="space-y-2">
               {objectSummary.recent.slice(0, 8).map((item: any) => (
-                <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                <Link
+                  key={item.id}
+                  href={getItemUrl(selectedCategory, item)}
+                  target="_blank"
+                  className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer"
+                >
                   <span className="text-lg">{item.icon || '📄'}</span>
                   <p className="text-white text-sm flex-1 truncate">
                     {item.title || item.name || item.tag || 'Sin titulo'}
                   </p>
-                </div>
+                </Link>
               ))}
               {objectSummary.recent.length === 0 && (
                 <p className="text-gray-500 text-sm">No hay elementos recientes</p>
@@ -497,13 +521,15 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium mb-3">🏷️ Tags definidos</h3>
             <div className="flex flex-wrap gap-2">
               {objectSummary.items.map((tag: any) => (
-                <span
+                <Link
                   key={tag.id}
-                  className="px-3 py-1 rounded-full text-sm text-white"
+                  href={`/explore?tag=${encodeURIComponent(tag.tag)}`}
+                  target="_blank"
+                  className="px-3 py-1 rounded-full text-sm text-white hover:opacity-80 transition-opacity cursor-pointer"
                   style={{ backgroundColor: tag.color || '#6366f1' }}
                 >
                   {tag.tag}
-                </span>
+                </Link>
               ))}
               {objectSummary.items.length === 0 && (
                 <p className="text-gray-500 text-sm">No hay tags definidos</p>
@@ -545,34 +571,39 @@ export default function DashboardPage() {
                     </button>
                     <Link
                       href="/notes/new"
+                      target="_blank"
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
                       📝 Nueva Nota
                     </Link>
                     <Link
-                      href="/objectives/new"
+                      href="/objectives?create=true"
+                      target="_blank"
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
                       🎯 Nuevo Objetivo
                     </Link>
                     <Link
-                      href="/projects/new"
+                      href="/projects?create=true"
+                      target="_blank"
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
                       📁 Nuevo Proyecto
                     </Link>
                     <Link
-                      href="/mental-models/new"
+                      href="/mental-models?create=true"
+                      target="_blank"
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
                       🧠 Nuevo M. Mental
                     </Link>
                     <Link
-                      href="/tags/new"
+                      href="/tags?create=true"
+                      target="_blank"
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
