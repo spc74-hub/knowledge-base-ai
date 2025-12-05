@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -63,8 +63,9 @@ interface Filters {
     inherited_tags: string[];
 }
 
-export default function ExplorePage() {
+function ExplorePageContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
     const [facets, setFacets] = useState<Facets | null>(null);
     const [results, setResults] = useState<Content[]>([]);
@@ -307,6 +308,40 @@ export default function ExplorePage() {
             fetchAvailableTags();
         }
     }, [user]);
+
+    // Handle ?content=ID query parameter to open content detail from chat links
+    useEffect(() => {
+        const contentId = searchParams.get('content');
+        if (contentId && user) {
+            // Fetch and open the content detail
+            const openContentFromParam = async () => {
+                setLoadingDetail(true);
+                setShowDetailModal(true);
+                try {
+                    const { data, error } = await supabase
+                        .from('contents')
+                        .select('*')
+                        .eq('id', contentId)
+                        .single();
+
+                    if (!error && data) {
+                        setSelectedContent(data);
+                    } else {
+                        console.error('Content not found:', contentId);
+                        setShowDetailModal(false);
+                    }
+                } catch (error) {
+                    console.error('Error fetching content:', error);
+                    setShowDetailModal(false);
+                } finally {
+                    setLoadingDetail(false);
+                }
+            };
+            openContentFromParam();
+            // Clear the query param from URL without navigation
+            router.replace('/explore', { scroll: false });
+        }
+    }, [searchParams, user, router]);
 
     useEffect(() => {
         if (user) {
@@ -1286,5 +1321,17 @@ export default function ExplorePage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function ExplorePage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
+            </div>
+        }>
+            <ExplorePageContent />
+        </Suspense>
     );
 }

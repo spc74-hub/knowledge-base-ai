@@ -98,7 +98,11 @@ class ChatService:
         # 2. Entity search - search in organizations, products, persons
         try:
             query_lower = query.lower()
-            print(f"[Entity Search] Looking for '{query_lower}' in entities...")
+            # Extract meaningful search terms (remove common words)
+            stop_words = {'sobre', 'de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'que', 'con', 'para', 'por', 'en', 'es', 'y', 'o', 'a', 'al', 'me', 'mi', 'tu', 'se', 'lo', 'le', 'te', 'nos'}
+            query_terms = [t for t in query_lower.split() if t not in stop_words and len(t) > 2]
+
+            print(f"[Entity Search] Looking for terms {query_terms} in entities...")
 
             # Fetch all user contents with entities
             entity_response = db.table("contents").select(
@@ -107,7 +111,7 @@ class ChatService:
 
             print(f"[Entity Search] Found {len(entity_response.data or [])} contents to search")
 
-            # Search in entity names
+            # Search in entity names - check if query terms appear in entity name
             entity_fields = ['organizations', 'products', 'persons']
             for item in entity_response.data or []:
                 if item['id'] in results:
@@ -120,8 +124,12 @@ class ChatService:
 
                     for entity in entity_list:
                         name = entity.get('name') if isinstance(entity, dict) else entity
-                        # Check if entity name appears in the query (not the other way around)
-                        if name and name.lower() in query_lower:
+                        if not name:
+                            continue
+                        name_lower = name.lower()
+                        # Check if ALL query terms appear in the entity name
+                        # OR if the entity name appears in the query
+                        if all(term in name_lower for term in query_terms) or name_lower in query_lower:
                             print(f"[Entity Search] MATCH! Found '{name}' in {field} for '{item['title']}'")
                             results[item['id']] = {
                                 **item,

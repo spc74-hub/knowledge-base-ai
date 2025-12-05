@@ -338,13 +338,14 @@ export default function ChatPage() {
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Fuentes utilizadas:</p>
                                         <div className="flex flex-wrap gap-2">
                                             {message.sources.map((source, i) => (
-                                                <span
+                                                <Link
                                                     key={i}
-                                                    className="text-xs bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded"
-                                                    title={`Relevancia: ${(source.relevance_score * 100).toFixed(0)}%`}
+                                                    href={`/explore?content=${source.content_id}`}
+                                                    className="text-xs bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-800 cursor-pointer transition-colors"
+                                                    title={`Relevancia: ${(source.relevance_score * 100).toFixed(0)}% - Click para ver detalle`}
                                                 >
                                                     {source.title}
-                                                </span>
+                                                </Link>
                                             ))}
                                         </div>
                                     </div>
