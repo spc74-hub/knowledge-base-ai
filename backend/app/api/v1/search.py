@@ -225,15 +225,22 @@ async def get_suggestions(
 
         suggestions = [item["title"] for item in response.data if item.get("title")]
 
-        # Also search in concepts/tags
-        tag_response = db.table("contents").select("user_tags, concepts").eq("user_id", current_user["id"]).neq("is_archived", True).execute()
-
+        # Also search in concepts/tags (with pagination for large datasets)
         all_tags = set()
-        for item in tag_response.data:
-            if item.get("user_tags"):
-                all_tags.update(item["user_tags"])
-            if item.get("concepts"):
-                all_tags.update(item["concepts"])
+        offset = 0
+        batch_size = 1000
+        while True:
+            tag_response = db.table("contents").select("user_tags, concepts").eq("user_id", current_user["id"]).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
+            if not tag_response.data:
+                break
+            for item in tag_response.data:
+                if item.get("user_tags"):
+                    all_tags.update(item["user_tags"])
+                if item.get("concepts"):
+                    all_tags.update(item["concepts"])
+            if len(tag_response.data) < batch_size:
+                break
+            offset += batch_size
 
         # Filter tags that match query
         matching_tags = [tag for tag in all_tags if q.lower() in tag.lower()][:limit]
@@ -620,11 +627,23 @@ async def get_facets(
     try:
         # Get ALL content data for complete facet calculation
         # We fetch only the fields needed for facet aggregation
-        all_response = db.table("contents").select(
-            "type, metadata, iab_tier1, concepts, entities, user_tags"
-        ).eq("user_id", current_user["id"]).neq("is_archived", True).execute()
+        # Note: Supabase has a default limit of 1000 rows, so we need pagination
+        all_items = []
+        offset = 0
+        batch_size = 1000
+        while True:
+            batch_response = db.table("contents").select(
+                "type, metadata, iab_tier1, concepts, entities, user_tags"
+            ).eq("user_id", current_user["id"]).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
 
-        all_items = all_response.data or []
+            batch_data = batch_response.data or []
+            if not batch_data:
+                break
+            all_items.extend(batch_data)
+            if len(batch_data) < batch_size:
+                break
+            offset += batch_size
+
         total_contents = len(all_items)
 
         # Count types (with apple_notes handling)

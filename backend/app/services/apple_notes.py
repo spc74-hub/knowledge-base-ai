@@ -62,7 +62,7 @@ class AppleNotesService:
                 ['osascript', '-e', script],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=10800  # 3 hours for very large note collections (2600+ notes)
             )
             if result.returncode != 0:
                 raise Exception(f"AppleScript error: {result.stderr}")

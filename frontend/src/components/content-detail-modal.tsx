@@ -52,6 +52,7 @@ export interface ContentDetail {
     user_note: string | null;
     metadata: Record<string, any> | null;
     created_at: string;
+    raw_content: string | null;
 }
 
 interface ContentDetailModalProps {
@@ -530,14 +531,20 @@ export function ContentDetailModal({
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-2 line-clamp-2">
                                 {content.title || 'Sin titulo'}
                             </h2>
-                            <a
-                                href={content.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate block mt-1"
-                            >
-                                {content.url}
-                            </a>
+                            {content.url.startsWith('apple-notes://') ? (
+                                <span className="text-sm text-gray-500 dark:text-gray-400 truncate block mt-1">
+                                    🍎 Importado desde Apple Notes · {content.metadata?.apple_notes_folder || 'Sin carpeta'}
+                                </span>
+                            ) : (
+                                <a
+                                    href={content.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate block mt-1"
+                                >
+                                    {content.url}
+                                </a>
+                            )}
                         </div>
                     </div>
                     <button
@@ -631,6 +638,21 @@ export function ContentDetailModal({
                             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Resumen</h3>
                             <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
                                 <p className="text-gray-800 dark:text-gray-200">{content.summary}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Original Content for Apple Notes */}
+                    {content.raw_content && (content.type === 'note' || content.metadata?.source === 'apple_notes') && (
+                        <div className="mb-6">
+                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                                Contenido Original {content.metadata?.source === 'apple_notes' && '(Apple Notes)'}
+                            </h3>
+                            <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 max-h-96 overflow-y-auto">
+                                <div
+                                    className="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200"
+                                    dangerouslySetInnerHTML={{ __html: content.raw_content }}
+                                />
                             </div>
                         </div>
                     )}
@@ -1065,14 +1087,23 @@ export function ContentDetailModal({
                         >
                             {isFavorite ? '★ Favorito' : '☆ Anadir a favoritos'}
                         </button>
-                        <a
-                            href={content.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                            🔗 Abrir original
-                        </a>
+                        {content.url.startsWith('apple-notes://') ? (
+                            <span
+                                className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                title="Las notas de Apple Notes no se pueden abrir directamente desde el navegador. El contenido se muestra arriba."
+                            >
+                                🍎 Apple Notes (local)
+                            </span>
+                        ) : (
+                            <a
+                                href={content.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                🔗 Abrir original
+                            </a>
+                        )}
                         <button
                             onClick={handleArchive}
                             className={`px-4 py-2 rounded-lg border ${
