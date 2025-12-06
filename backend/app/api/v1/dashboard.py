@@ -227,10 +227,19 @@ async def get_object_summary(
             "id, name, status, color, icon, description"
         ).eq("user_id", user_id).eq("status", "active").order("created_at", desc=True).limit(limit).execute())
 
+        # Get linked contents for each active project
+        projects_with_contents = []
+        for project in safe_data(active):
+            linked_contents = safe_query(lambda pid=project["id"]: db.table("contents").select(
+                "id, title, type, maturity_level"
+            ).eq("project_id", pid).eq("is_archived", False).limit(5).execute())
+            project["linked_contents"] = safe_data(linked_contents)
+            projects_with_contents.append(project)
+
         return {
             "type": "projects",
             "recent": safe_data(recent),
-            "active": safe_data(active),
+            "active": projects_with_contents,
         }
 
     elif object_type == "mental_models":
@@ -238,10 +247,29 @@ async def get_object_summary(
             "id, name, slug, icon, color, description, is_active"
         ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(limit).execute())
 
+        # Get linked contents for each mental model
+        models_with_contents = []
+        for model in safe_data(recent):
+            # Get content IDs from junction table
+            associations = safe_query(lambda mid=model["id"]: db.table("content_mental_models").select(
+                "content_id"
+            ).eq("mental_model_id", mid).limit(5).execute())
+
+            content_ids = [a["content_id"] for a in safe_data(associations)]
+            linked_contents = []
+            if content_ids:
+                contents_result = safe_query(lambda cids=content_ids: db.table("contents").select(
+                    "id, title, type, maturity_level"
+                ).in_("id", cids).execute())
+                linked_contents = safe_data(contents_result)
+
+            model["linked_contents"] = linked_contents
+            models_with_contents.append(model)
+
         return {
             "type": "mental_models",
-            "recent": safe_data(recent),
-            "active": safe_data(recent),  # Same as recent for mental models
+            "recent": models_with_contents,
+            "active": models_with_contents,
         }
 
     elif object_type == "notes":

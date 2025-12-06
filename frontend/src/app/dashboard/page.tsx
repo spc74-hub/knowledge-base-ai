@@ -575,6 +575,178 @@ export default function DashboardPage() {
     );
   };
 
+  // Helper to get type icon for content
+  const getContentTypeIcon = (type: string) => {
+    switch (type) {
+      case 'youtube': case 'video': return '🎬';
+      case 'tiktok': return '📱';
+      case 'twitter': return '🐦';
+      case 'note': case 'apple_notes': return '📝';
+      default: return '📄';
+    }
+  };
+
+  // Render projects panel with linked contents
+  const renderProjectsPanel = () => {
+    if (loadingObject) {
+      return <div className="text-gray-400 text-center py-8">Cargando...</div>;
+    }
+
+    if (!objectSummary) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl text-white font-semibold">Proyectos</h2>
+          <Link href="/projects" target="_blank" className="text-indigo-400 hover:text-indigo-300 text-sm">
+            Ver todo →
+          </Link>
+        </div>
+
+        {/* Active projects with linked contents */}
+        {(objectSummary.active?.length ?? 0) > 0 && (
+          <div className="space-y-4">
+            {(objectSummary.active ?? []).map((project: any) => (
+              <div key={project.id} className="bg-gray-800/50 rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl">{project.icon || '📁'}</span>
+                  <div className="flex-1">
+                    <Link
+                      href={`/projects?id=${project.id}`}
+                      target="_blank"
+                      className="text-white font-medium hover:text-indigo-400"
+                    >
+                      {project.name}
+                    </Link>
+                    {project.description && (
+                      <p className="text-gray-400 text-sm line-clamp-1">{project.description}</p>
+                    )}
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-600/20 text-green-400">
+                    activo
+                  </span>
+                </div>
+
+                {/* Linked contents */}
+                {project.linked_contents && project.linked_contents.length > 0 ? (
+                  <div className="border-t border-gray-700 pt-3 mt-2">
+                    <p className="text-xs text-gray-500 mb-2">Contenidos vinculados:</p>
+                    <div className="space-y-1">
+                      {project.linked_contents.slice(0, 3).map((content: any) => (
+                        <button
+                          key={content.id}
+                          onClick={() => handleContentClick(content.id)}
+                          className="flex items-center gap-2 p-1.5 bg-gray-900/50 rounded-lg hover:bg-gray-800 transition-colors w-full text-left"
+                        >
+                          <span className="text-sm">{getContentTypeIcon(content.type)}</span>
+                          <span className="text-gray-300 text-sm flex-1 truncate">{content.title || 'Sin título'}</span>
+                        </button>
+                      ))}
+                      {project.linked_contents.length > 3 && (
+                        <Link
+                          href={`/projects?id=${project.id}`}
+                          target="_blank"
+                          className="text-xs text-indigo-400 hover:text-indigo-300 pl-2"
+                        >
+                          +{project.linked_contents.length - 3} más →
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-xs mt-2 border-t border-gray-700 pt-2">
+                    Sin contenidos vinculados
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(objectSummary.active?.length ?? 0) === 0 && (
+          <p className="text-gray-500 text-center py-8">No hay proyectos activos</p>
+        )}
+      </div>
+    );
+  };
+
+  // Render mental models panel with linked contents
+  const renderMentalModelsPanel = () => {
+    if (loadingObject) {
+      return <div className="text-gray-400 text-center py-8">Cargando...</div>;
+    }
+
+    if (!objectSummary) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl text-white font-semibold">Modelos Mentales</h2>
+          <Link href="/mental-models" target="_blank" className="text-indigo-400 hover:text-indigo-300 text-sm">
+            Ver todo →
+          </Link>
+        </div>
+
+        {/* Active mental models with linked contents */}
+        {(objectSummary.active?.length ?? 0) > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(objectSummary.active ?? []).map((model: any) => (
+              <div key={model.id} className="bg-gray-800/50 rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">{model.icon || '🧠'}</span>
+                  <div className="flex-1">
+                    <Link
+                      href={`/mental-models?id=${model.id}`}
+                      target="_blank"
+                      className="text-white font-medium hover:text-emerald-400"
+                    >
+                      {model.name}
+                    </Link>
+                  </div>
+                </div>
+                {model.description && (
+                  <p className="text-gray-400 text-xs mb-2 line-clamp-2">{model.description}</p>
+                )}
+
+                {/* Linked contents */}
+                {model.linked_contents && model.linked_contents.length > 0 ? (
+                  <div className="border-t border-gray-700 pt-2 mt-2">
+                    <p className="text-xs text-gray-500 mb-1">Aplicado a:</p>
+                    <div className="space-y-1">
+                      {model.linked_contents.slice(0, 2).map((content: any) => (
+                        <button
+                          key={content.id}
+                          onClick={() => handleContentClick(content.id)}
+                          className="flex items-center gap-2 p-1 bg-gray-900/50 rounded hover:bg-gray-800 transition-colors w-full text-left"
+                        >
+                          <span className="text-xs">{getContentTypeIcon(content.type)}</span>
+                          <span className="text-gray-300 text-xs flex-1 truncate">{content.title || 'Sin título'}</span>
+                        </button>
+                      ))}
+                      {model.linked_contents.length > 2 && (
+                        <span className="text-xs text-emerald-400">
+                          +{model.linked_contents.length - 2} más
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-xs mt-2 border-t border-gray-700 pt-2">
+                    Sin contenidos aplicados
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(objectSummary.active?.length ?? 0) === 0 && (
+          <p className="text-gray-500 text-center py-8">No hay modelos mentales activos</p>
+        )}
+      </div>
+    );
+  };
+
   // Render object-specific panel
   const renderObjectPanel = () => {
     if (loadingObject) {
@@ -583,9 +755,15 @@ export default function DashboardPage() {
 
     if (!objectSummary) return null;
 
-    // Special handling for notes panel
+    // Special handling for specific panels
     if (selectedCategory === 'notes') {
       return renderNotesPanel();
+    }
+    if (selectedCategory === 'projects') {
+      return renderProjectsPanel();
+    }
+    if (selectedCategory === 'mental_models') {
+      return renderMentalModelsPanel();
     }
 
     const typeLabels: Record<string, { title: string; href: string }> = {

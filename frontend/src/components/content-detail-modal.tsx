@@ -5,6 +5,24 @@ import { supabase } from '@/lib/supabase';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Types for Projects and Mental Models
+interface Project {
+    id: string;
+    name: string;
+    description: string | null;
+    icon: string;
+    color: string;
+}
+
+interface MentalModel {
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    icon: string;
+    color: string;
+}
+
 export interface ContentDetail {
     id: string;
     title: string;
@@ -86,6 +104,20 @@ export function ContentDetailModal({
     const [savingNote, setSavingNote] = useState(false);
     const [maturityLevel, setMaturityLevel] = useState<string>('captured');
     const [updatingMaturity, setUpdatingMaturity] = useState(false);
+
+    // Project linking modal state
+    const [showProjectModal, setShowProjectModal] = useState(false);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [loadingProjects, setLoadingProjects] = useState(false);
+    const [linkingProject, setLinkingProject] = useState(false);
+    const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+
+    // Mental model linking modal state
+    const [showModelModal, setShowModelModal] = useState(false);
+    const [mentalModels, setMentalModels] = useState<MentalModel[]>([]);
+    const [loadingModels, setLoadingModels] = useState(false);
+    const [linkingModel, setLinkingModel] = useState(false);
+    const [linkedModelIds, setLinkedModelIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (content) {
@@ -296,6 +328,168 @@ export function ContentDetailModal({
             console.error('Error updating maturity level:', error);
         } finally {
             setUpdatingMaturity(false);
+        }
+    };
+
+    // Fetch projects for linking modal
+    const fetchProjects = async () => {
+        setLoadingProjects(true);
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/projects/`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setProjects(data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching projects:', error);
+        } finally {
+            setLoadingProjects(false);
+        }
+    };
+
+    // Fetch the current project for this content
+    const fetchCurrentProject = async () => {
+        if (!content) return;
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/content/${content.id}`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setCurrentProjectId(data.project_id || null);
+            }
+        } catch (error) {
+            console.error('Error fetching content project:', error);
+        }
+    };
+
+    // Handle opening project modal
+    const handleOpenProjectModal = async () => {
+        setShowProjectModal(true);
+        await Promise.all([fetchProjects(), fetchCurrentProject()]);
+    };
+
+    // Link content to project
+    const handleLinkToProject = async (projectId: string | null) => {
+        if (!content) return;
+        setLinkingProject(true);
+        try {
+            const headers = await getAuthHeaders();
+            if (projectId) {
+                // Link to project
+                const response = await fetch(`${API_URL}/api/v1/projects/${projectId}/link`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify([content.id]),
+                });
+                if (response.ok) {
+                    setCurrentProjectId(projectId);
+                    // Auto-upgrade maturity to connected if below
+                    if (maturityLevel === 'captured' || maturityLevel === 'processed') {
+                        await handleMaturityChange('connected');
+                    }
+                }
+            } else if (currentProjectId) {
+                // Unlink from current project
+                const response = await fetch(`${API_URL}/api/v1/projects/${currentProjectId}/unlink`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify([content.id]),
+                });
+                if (response.ok) {
+                    setCurrentProjectId(null);
+                }
+            }
+            setShowProjectModal(false);
+        } catch (error) {
+            console.error('Error linking to project:', error);
+        } finally {
+            setLinkingProject(false);
+        }
+    };
+
+    // Fetch mental models for linking modal
+    const fetchMentalModels = async () => {
+        setLoadingModels(true);
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/mental-models/`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setMentalModels(data.models || []);
+            }
+        } catch (error) {
+            console.error('Error fetching mental models:', error);
+        } finally {
+            setLoadingModels(false);
+        }
+    };
+
+    // Fetch linked mental models for this content
+    const fetchLinkedModels = async () => {
+        if (!content) return;
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/mental-models/contents/${content.id}`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                const ids = new Set((data.models || []).map((m: MentalModel) => m.id));
+                setLinkedModelIds(ids);
+            }
+        } catch (error) {
+            console.error('Error fetching linked models:', error);
+        }
+    };
+
+    // Handle opening mental model modal
+    const handleOpenModelModal = async () => {
+        setShowModelModal(true);
+        await Promise.all([fetchMentalModels(), fetchLinkedModels()]);
+    };
+
+    // Toggle mental model link
+    const handleToggleModelLink = async (modelId: string) => {
+        if (!content) return;
+        setLinkingModel(true);
+        try {
+            const headers = await getAuthHeaders();
+            const isLinked = linkedModelIds.has(modelId);
+
+            if (isLinked) {
+                // Unlink
+                const response = await fetch(`${API_URL}/api/v1/mental-models/contents/${content.id}/${modelId}`, {
+                    method: 'DELETE',
+                    headers,
+                });
+                if (response.ok) {
+                    setLinkedModelIds(prev => {
+                        const next = new Set(prev);
+                        next.delete(modelId);
+                        return next;
+                    });
+                }
+            } else {
+                // Link
+                const response = await fetch(`${API_URL}/api/v1/mental-models/contents/`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        content_id: content.id,
+                        mental_model_id: modelId,
+                    }),
+                });
+                if (response.ok) {
+                    setLinkedModelIds(prev => new Set(prev).add(modelId));
+                    // Auto-upgrade maturity to connected if below
+                    if (maturityLevel === 'captured' || maturityLevel === 'processed') {
+                        await handleMaturityChange('connected');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error toggling model link:', error);
+        } finally {
+            setLinkingModel(false);
         }
     };
 
@@ -685,20 +879,162 @@ export function ContentDetailModal({
                             >
                                 ❓ Pregunta
                             </a>
-                            <a
-                                href={`/projects?link_content=${content.id}`}
-                                className="px-3 py-2 text-sm rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-center"
+                            <button
+                                onClick={handleOpenProjectModal}
+                                className={`px-3 py-2 text-sm rounded-lg border text-center ${
+                                    currentProjectId
+                                        ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                        : 'border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
+                                }`}
                             >
-                                📁 Proyecto
-                            </a>
-                            <a
-                                href={`/mental-models?link_content=${content.id}`}
-                                className="px-3 py-2 text-sm rounded-lg border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-center"
+                                📁 Proyecto {currentProjectId && '✓'}
+                            </button>
+                            <button
+                                onClick={handleOpenModelModal}
+                                className={`px-3 py-2 text-sm rounded-lg border text-center ${
+                                    linkedModelIds.size > 0
+                                        ? 'border-emerald-500 dark:border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                        : 'border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30'
+                                }`}
                             >
-                                🧠 Modelo Mental
-                            </a>
+                                🧠 Modelo Mental {linkedModelIds.size > 0 && `(${linkedModelIds.size})`}
+                            </button>
                         </div>
                     </div>
+
+                    {/* Project Selection Modal */}
+                    {showProjectModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md mx-4 max-h-[70vh] overflow-hidden">
+                                <div className="px-4 py-3 border-b dark:border-gray-700 flex justify-between items-center">
+                                    <h3 className="font-medium text-gray-900 dark:text-white">Vincular a Proyecto</h3>
+                                    <button
+                                        onClick={() => setShowProjectModal(false)}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                                <div className="p-4 overflow-y-auto max-h-[50vh]">
+                                    {loadingProjects ? (
+                                        <p className="text-gray-500 text-center py-4">Cargando proyectos...</p>
+                                    ) : projects.length === 0 ? (
+                                        <div className="text-center py-4">
+                                            <p className="text-gray-500 mb-2">No tienes proyectos creados</p>
+                                            <a
+                                                href="/projects"
+                                                className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm"
+                                            >
+                                                Crear primer proyecto →
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {currentProjectId && (
+                                                <button
+                                                    onClick={() => handleLinkToProject(null)}
+                                                    disabled={linkingProject}
+                                                    className="w-full text-left px-3 py-2 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 text-sm"
+                                                >
+                                                    ✕ Desvincular del proyecto actual
+                                                </button>
+                                            )}
+                                            {projects.map(project => (
+                                                <button
+                                                    key={project.id}
+                                                    onClick={() => handleLinkToProject(project.id)}
+                                                    disabled={linkingProject || currentProjectId === project.id}
+                                                    className={`w-full text-left px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
+                                                        currentProjectId === project.id
+                                                            ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-400 dark:border-indigo-600'
+                                                            : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                    } disabled:opacity-50`}
+                                                >
+                                                    <span className="text-lg">{project.icon}</span>
+                                                    <span className="flex-1 text-gray-900 dark:text-white">{project.name}</span>
+                                                    {currentProjectId === project.id && (
+                                                        <span className="text-indigo-600 dark:text-indigo-400 text-sm">✓ Actual</span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Mental Model Selection Modal */}
+                    {showModelModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md mx-4 max-h-[70vh] overflow-hidden">
+                                <div className="px-4 py-3 border-b dark:border-gray-700 flex justify-between items-center">
+                                    <h3 className="font-medium text-gray-900 dark:text-white">Vincular a Modelos Mentales</h3>
+                                    <button
+                                        onClick={() => setShowModelModal(false)}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                                <div className="p-4 overflow-y-auto max-h-[50vh]">
+                                    {loadingModels ? (
+                                        <p className="text-gray-500 text-center py-4">Cargando modelos mentales...</p>
+                                    ) : mentalModels.length === 0 ? (
+                                        <div className="text-center py-4">
+                                            <p className="text-gray-500 mb-2">No tienes modelos mentales activos</p>
+                                            <a
+                                                href="/mental-models"
+                                                className="text-emerald-600 dark:text-emerald-400 hover:underline text-sm"
+                                            >
+                                                Activar modelos mentales →
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                                Selecciona los modelos mentales aplicables a este contenido
+                                            </p>
+                                            {mentalModels.map(model => {
+                                                const isLinked = linkedModelIds.has(model.id);
+                                                return (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => handleToggleModelLink(model.id)}
+                                                        disabled={linkingModel}
+                                                        className={`w-full text-left px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
+                                                            isLinked
+                                                                ? 'bg-emerald-100 dark:bg-emerald-900/50 border-emerald-400 dark:border-emerald-600'
+                                                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                        } disabled:opacity-50`}
+                                                    >
+                                                        <span className="text-lg">{model.icon}</span>
+                                                        <div className="flex-1">
+                                                            <span className="text-gray-900 dark:text-white block">{model.name}</span>
+                                                            {model.description && (
+                                                                <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">{model.description}</span>
+                                                            )}
+                                                        </div>
+                                                        {isLinked && (
+                                                            <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="px-4 py-3 border-t dark:border-gray-700 flex justify-end">
+                                    <button
+                                        onClick={() => setShowModelModal(false)}
+                                        className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    >
+                                        Cerrar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex flex-wrap gap-3 pt-4 border-t dark:border-gray-700">
