@@ -43,16 +43,24 @@ async def quick_save_url(
     By default, only fetches and saves content without AI processing (instant).
     Set process_now=True to process immediately.
     """
+    import asyncio
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     try:
         # Keep original URL for fetching, normalize for storage/dedup
         original_url = str(data.url)
         url_str = normalize_url(original_url)
         user_id = current_user["id"]
 
+        logger.info(f"Quick save request: {original_url} -> normalized: {url_str}")
+
         # Check if normalized URL already exists
         existing = db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
 
         if existing.data:
+            logger.info(f"URL already exists: {url_str}")
             return QuickSaveResponse(
                 success=False,
                 message="URL already saved",
@@ -62,9 +70,22 @@ async def quick_save_url(
             )
 
         # Fetch content using ORIGINAL URL (yt-dlp needs full URL)
-        fetch_result = await fetcher_service.fetch(original_url)
+        # Apply timeout to prevent hanging on slow fetches
+        try:
+            fetch_result = await asyncio.wait_for(
+                fetcher_service.fetch(original_url),
+                timeout=60.0  # 60 second timeout for video platforms
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout fetching URL: {original_url}")
+            return QuickSaveResponse(
+                success=False,
+                message="Timeout fetching content (try again later)",
+                error="timeout"
+            )
 
         if not fetch_result.success:
+            logger.error(f"Fetch failed for {original_url}: {fetch_result.error}")
             return QuickSaveResponse(
                 success=False,
                 message=f"Failed to fetch content",

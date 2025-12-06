@@ -257,6 +257,7 @@ export function ContentDetailModal({
     const handleReprocess = async () => {
         if (!content) return;
         setReprocessing(true);
+        setProcessingStatus('processing');
         try {
             const headers = await getAuthHeaders();
             const response = await fetch(`${API_URL}/api/v1/content/${content.id}/reprocess`, {
@@ -264,11 +265,29 @@ export function ContentDetailModal({
                 headers,
             });
             if (response.ok) {
-                setProcessingStatus('pending');
-                onUpdate?.({ ...content, processing_status: 'pending' });
+                const data = await response.json();
+                // Processing was done immediately, update status to completed
+                setProcessingStatus('completed');
+                onUpdate?.({ ...content, processing_status: 'completed' });
+                // Optionally refresh content to get new summary/data
+                if (onUpdate) {
+                    // Fetch updated content
+                    const contentResponse = await fetch(`${API_URL}/api/v1/content/${content.id}`, {
+                        headers,
+                    });
+                    if (contentResponse.ok) {
+                        const updatedContent = await contentResponse.json();
+                        onUpdate(updatedContent);
+                    }
+                }
+            } else {
+                const errorData = await response.json();
+                console.error('Reprocess failed:', errorData);
+                setProcessingStatus('failed');
             }
         } catch (error) {
             console.error('Error reprocessing:', error);
+            setProcessingStatus('failed');
         } finally {
             setReprocessing(false);
         }
@@ -664,14 +683,20 @@ export function ContentDetailModal({
                     <div className="flex flex-wrap gap-3 pt-4 border-t dark:border-gray-700">
                         <button
                             onClick={handleReprocess}
-                            disabled={reprocessing || processingStatus === 'pending'}
+                            disabled={reprocessing || processingStatus === 'processing'}
                             className={`px-4 py-2 rounded-lg border ${
-                                processingStatus === 'pending'
+                                processingStatus === 'processing'
                                     ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 cursor-not-allowed'
+                                    : processingStatus === 'pending'
+                                    ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50'
                                     : 'border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
                             } disabled:opacity-50`}
                         >
-                            {reprocessing ? '⏳ Procesando...' : processingStatus === 'pending' ? '⏳ En cola' : '🤖 Procesar con IA'}
+                            {reprocessing || processingStatus === 'processing'
+                                ? '⏳ Procesando...'
+                                : processingStatus === 'pending'
+                                ? '🔄 Procesar ahora (pendiente)'
+                                : '🤖 Procesar con IA'}
                         </button>
                         <button
                             onClick={handleToggleFavorite}

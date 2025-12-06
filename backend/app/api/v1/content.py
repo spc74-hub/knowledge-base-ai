@@ -621,14 +621,17 @@ async def reprocess_content(
     content_id: str,
     current_user: CurrentUser,
     db: Database,
-    steps: List[str] = Query(default=["summarize", "classify", "embed"])
+    process_now: bool = Query(default=True, description="Process immediately (True) or just queue (False)")
 ):
     """
     Reprocess content (regenerate summary, classification, embedding).
+    By default processes immediately. Set process_now=False to just queue.
     """
+    from app.services.processor import processor_service
+
     try:
         # Check ownership
-        existing = db.table("contents").select("id").eq("id", content_id).eq("user_id", current_user["id"]).execute()
+        existing = db.table("contents").select("id, processing_status").eq("id", content_id).eq("user_id", current_user["id"]).execute()
 
         if not existing.data:
             raise HTTPException(
@@ -636,15 +639,32 @@ async def reprocess_content(
                 detail="Content not found"
             )
 
-        # Update status
-        db.table("contents").update({"processing_status": "pending"}).eq("id", content_id).execute()
+        if process_now:
+            # Process immediately
+            result = await processor_service.process_content(
+                db=db,
+                content_id=content_id,
+                user_id=current_user["id"]
+            )
 
-        # TODO: Add to processing queue with specified steps
+            if not result["success"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=result.get("error", "Processing failed")
+                )
 
-        return {
-            "message": "Content queued for reprocessing",
-            "steps": steps
-        }
+            return {
+                "message": "Content processed successfully",
+                "success": True,
+                "title": result.get("title")
+            }
+        else:
+            # Just queue for later processing
+            db.table("contents").update({"processing_status": "pending"}).eq("id", content_id).execute()
+            return {
+                "message": "Content queued for reprocessing",
+                "success": True
+            }
 
     except HTTPException:
         raise

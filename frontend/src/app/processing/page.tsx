@@ -22,6 +22,8 @@ export default function ProcessingPage() {
   const [failedContents, setFailedContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
   const [reprocessing, setReprocessing] = useState<Set<string>>(new Set());
+  const [processingAll, setProcessingAll] = useState(false);
+  const [processProgress, setProcessProgress] = useState<{processed: number, failed: number, total: number} | null>(null);
 
   const getAuthHeaders = useCallback(() => {
     return {
@@ -44,9 +46,9 @@ export default function ProcessingPage() {
         setPendingContents(data.contents || []);
       }
 
-      // Fetch failed (status is "error" in database)
+      // Fetch failed (status is "failed" in database)
       const failedResponse = await fetch(
-        `${API_URL}/api/v1/content/?processing_status=error&limit=50`,
+        `${API_URL}/api/v1/content/?processing_status=failed&limit=50`,
         { headers: getAuthHeaders() }
       );
       if (failedResponse.ok) {
@@ -101,6 +103,54 @@ export default function ProcessingPage() {
       }
     } catch (error) {
       console.error('Error deleting:', error);
+    }
+  };
+
+  const handleProcessAll = async () => {
+    if (pendingContents.length === 0) return;
+    if (!confirm(`¿Procesar ${pendingContents.length} contenidos pendientes? Esto puede tomar varios minutos.`)) return;
+
+    setProcessingAll(true);
+    setProcessProgress({ processed: 0, failed: 0, total: pendingContents.length });
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/process/bulk`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setProcessProgress({
+          processed: data.processed || 0,
+          failed: data.failed || 0,
+          total: pendingContents.length
+        });
+        // Refresh the list
+        await fetchContents();
+      }
+    } catch (error) {
+      console.error('Error processing all:', error);
+    } finally {
+      setProcessingAll(false);
+    }
+  };
+
+  const handleRetryFailed = async () => {
+    if (failedContents.length === 0) return;
+    if (!confirm(`¿Reintentar ${failedContents.length} contenidos fallidos?`)) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/process/retry-failed`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+
+      if (response.ok) {
+        await fetchContents();
+      }
+    } catch (error) {
+      console.error('Error retrying failed:', error);
     }
   };
 
@@ -200,12 +250,43 @@ export default function ProcessingPage() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-8">
+        {/* Progress indicator */}
+        {processingAll && processProgress && (
+          <div className="bg-indigo-900/30 border border-indigo-700 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-indigo-300">
+                Procesando... {processProgress.processed + processProgress.failed} / {processProgress.total}
+                {processProgress.failed > 0 && ` (${processProgress.failed} fallidos)`}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Pending Section */}
         <section>
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-            Pendientes ({pendingContents.length})
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+              Pendientes ({pendingContents.length})
+            </h2>
+            {pendingContents.length > 0 && (
+              <button
+                onClick={handleProcessAll}
+                disabled={processingAll}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm rounded-lg flex items-center gap-2"
+              >
+                {processingAll ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Procesando...
+                  </>
+                ) : (
+                  <>Procesar todos ({pendingContents.length})</>
+                )}
+              </button>
+            )}
+          </div>
           {pendingContents.length === 0 ? (
             <p className="text-gray-500">No hay contenidos pendientes de procesar</p>
           ) : (
@@ -219,10 +300,20 @@ export default function ProcessingPage() {
 
         {/* Failed Section */}
         <section>
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-            Fallidos ({failedContents.length})
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+              Fallidos ({failedContents.length})
+            </h2>
+            {failedContents.length > 0 && (
+              <button
+                onClick={handleRetryFailed}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg"
+              >
+                Reintentar todos ({failedContents.length})
+              </button>
+            )}
+          </div>
           {failedContents.length === 0 ? (
             <p className="text-gray-500">No hay contenidos con errores</p>
           ) : (
