@@ -1,13 +1,28 @@
 """
 Apple Notes integration service using AppleScript.
 Allows fetching folders and notes from Apple Notes on macOS.
+
+NOTE: This service only works on macOS with osascript available.
+It will not work on Linux servers (like Railway).
 """
 import subprocess
 import json
 import re
+import shutil
+import platform
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+
+
+def is_macos_with_osascript() -> bool:
+    """Check if we're running on macOS with osascript available."""
+    return platform.system() == "Darwin" and shutil.which("osascript") is not None
+
+
+class AppleNotesNotAvailableError(Exception):
+    """Raised when Apple Notes integration is not available on this system."""
+    pass
 
 
 class AppleNotesFolder(BaseModel):
@@ -30,8 +45,18 @@ class AppleNote(BaseModel):
 class AppleNotesService:
     """Service for interacting with Apple Notes via AppleScript."""
 
+    def _check_availability(self):
+        """Check if Apple Notes integration is available."""
+        if not is_macos_with_osascript():
+            raise AppleNotesNotAvailableError(
+                "La importación de Apple Notes solo está disponible cuando ejecutas la aplicación localmente en macOS. "
+                "Esta función no funciona en servidores en la nube (Railway, Heroku, etc.). "
+                "Para importar tus notas, ejecuta el backend localmente en tu Mac."
+            )
+
     def _run_applescript(self, script: str) -> str:
         """Execute an AppleScript and return the result."""
+        self._check_availability()
         try:
             result = subprocess.run(
                 ['osascript', '-e', script],
@@ -44,6 +69,8 @@ class AppleNotesService:
             return result.stdout.strip()
         except subprocess.TimeoutExpired:
             raise Exception("AppleScript timed out")
+        except AppleNotesNotAvailableError:
+            raise
         except Exception as e:
             raise Exception(f"Failed to execute AppleScript: {str(e)}")
 

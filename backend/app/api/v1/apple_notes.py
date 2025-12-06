@@ -1,12 +1,21 @@
 """
 Apple Notes import endpoints.
+
+NOTE: These endpoints only work when the backend is running locally on macOS.
+They will return a 503 Service Unavailable error when accessed from cloud deployments.
 """
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from app.api.deps import Database, CurrentUser
-from app.services.apple_notes import apple_notes_service, AppleNotesFolder, AppleNote
+from app.services.apple_notes import (
+    apple_notes_service,
+    AppleNotesFolder,
+    AppleNote,
+    AppleNotesNotAvailableError,
+    is_macos_with_osascript
+)
 from app.services.classifier import classifier_service
 from app.services.summarizer import summarizer_service
 from app.services.embeddings import embeddings_service
@@ -83,6 +92,11 @@ async def list_folders(current_user: CurrentUser):
             total_notes=total_notes
         )
 
+    except AppleNotesNotAvailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -103,6 +117,11 @@ async def list_all_notes(current_user: CurrentUser):
             count=len(notes)
         )
 
+    except AppleNotesNotAvailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -124,6 +143,11 @@ async def list_notes_in_folder(folder_name: str, current_user: CurrentUser):
             count=len(notes)
         )
 
+    except AppleNotesNotAvailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -266,19 +290,25 @@ async def import_notes(
 
     results: List[ImportResult] = []
 
-    # Get notes by IDs
-    for note_id in data.note_ids:
-        note = apple_notes_service.get_note_by_id(note_id)
-        if note:
-            result = await _import_single_note(note, user_id, db, data.tags)
-            results.append(result)
-        else:
-            results.append(ImportResult(
-                note_id=note_id,
-                note_name="Unknown",
-                success=False,
-                error="Note not found"
-            ))
+    try:
+        # Get notes by IDs
+        for note_id in data.note_ids:
+            note = apple_notes_service.get_note_by_id(note_id)
+            if note:
+                result = await _import_single_note(note, user_id, db, data.tags)
+                results.append(result)
+            else:
+                results.append(ImportResult(
+                    note_id=note_id,
+                    note_name="Unknown",
+                    success=False,
+                    error="Note not found"
+                ))
+    except AppleNotesNotAvailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
 
     successful = sum(1 for r in results if r.success)
 
@@ -304,6 +334,11 @@ async def import_folder(
 
     try:
         notes = apple_notes_service.get_notes_in_folder(data.folder_name)
+    except AppleNotesNotAvailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -350,6 +385,11 @@ async def import_all_notes(
 
     try:
         notes = apple_notes_service.get_all_notes()
+    except AppleNotesNotAvailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
