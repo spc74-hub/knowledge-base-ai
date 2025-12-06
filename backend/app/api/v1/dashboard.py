@@ -103,7 +103,7 @@ async def get_dashboard_summary(
     from datetime import datetime, timedelta
     thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
 
-    usage_result = safe_query(lambda: db.table("ai_usage_log").select(
+    usage_result = safe_query(lambda: db.table("api_usage").select(
         "total_cost"
     ).eq("user_id", user_id).gte("created_at", thirty_days_ago).execute())
 
