@@ -94,13 +94,19 @@ export default function GuidePage() {
                             <a href="#exploracion" className="text-blue-600 dark:text-blue-400 hover:underline">4. Exploración</a>
                         </li>
                         <li>
-                            <a href="#procesamiento" className="text-blue-600 dark:text-blue-400 hover:underline">5. Niveles de Madurez</a>
+                            <a href="#procesamiento" className="text-blue-600 dark:text-blue-400 hover:underline">5. Cola de Procesamiento</a>
                         </li>
                         <li>
-                            <a href="#notas" className="text-blue-600 dark:text-blue-400 hover:underline">6. Sistema de Notas</a>
+                            <a href="#madurez" className="text-blue-600 dark:text-blue-400 hover:underline">6. Niveles de Madurez</a>
                         </li>
                         <li>
-                            <a href="#chat" className="text-blue-600 dark:text-blue-400 hover:underline">7. Chat con IA</a>
+                            <a href="#vinculacion" className="text-blue-600 dark:text-blue-400 hover:underline">7. Vinculación a Objetos</a>
+                        </li>
+                        <li>
+                            <a href="#notas" className="text-blue-600 dark:text-blue-400 hover:underline">8. Sistema de Notas</a>
+                        </li>
+                        <li>
+                            <a href="#chat" className="text-blue-600 dark:text-blue-400 hover:underline">9. Chat con IA</a>
                         </li>
                     </ol>
                 </nav>
@@ -319,10 +325,91 @@ export default function GuidePage() {
                     </div>
                 </section>
 
-                {/* Section 5: Procesamiento y Madurez */}
+                {/* Section 5: Cola de Procesamiento */}
                 <section id="procesamiento" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center text-teal-600 dark:text-teal-400 text-sm font-bold">5</span>
+                        Cola de Procesamiento
+                    </h2>
+                    <div className="space-y-6">
+                        <p className="text-gray-600 dark:text-gray-300">
+                            Cuando capturas contenido, la IA lo procesa automáticamente para extraer resumen, categorías,
+                            conceptos y entidades. La <strong>Cola de Procesamiento</strong> te permite gestionar este flujo.
+                        </p>
+
+                        {/* Estados de procesamiento */}
+                        <div>
+                            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Estados de procesamiento</h3>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                                    <div>
+                                        <span className="font-medium text-gray-900 dark:text-white">Pendiente</span>
+                                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— En cola, esperando ser procesado por la IA</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <div>
+                                        <span className="font-medium text-gray-900 dark:text-white">Procesando</span>
+                                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— La IA está analizando el contenido</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
+                                    <span className="text-green-500">✓</span>
+                                    <div>
+                                        <span className="font-medium text-gray-900 dark:text-white">Completado</span>
+                                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Procesado correctamente, listo para explorar</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-800">
+                                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                    <div>
+                                        <span className="font-medium text-gray-900 dark:text-white">Fallido</span>
+                                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Error al procesar, puedes reintentar</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Acciones disponibles */}
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">⚡</span>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">Procesar Todos</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Procesa en lote todos los contenidos pendientes. Útil después de importar muchos items.
+                                </p>
+                            </div>
+                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">🔄</span>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">Reintentar Fallidos</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Reintenta el procesamiento de contenidos que fallaron (problemas de red, etc.).
+                                </p>
+                            </div>
+                        </div>
+
+                        <Link
+                            href="/processing"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Ir a Cola de Procesamiento
+                        </Link>
+                    </div>
+                </section>
+
+                {/* Section 6: Niveles de Madurez */}
+                <section id="madurez" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <span className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm font-bold">6</span>
                         Niveles de Madurez
                     </h2>
                     <div className="space-y-6">
@@ -334,65 +421,180 @@ export default function GuidePage() {
                         <div className="space-y-3">
                             <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                 <span className="text-2xl">📥</span>
-                                <div>
+                                <div className="flex-1">
                                     <span className="font-medium text-gray-900 dark:text-white">Capturado</span>
                                     <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Contenido guardado, pendiente de revisar</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                                 <span className="text-2xl">⚙️</span>
-                                <div>
+                                <div className="flex-1">
                                     <span className="font-medium text-gray-900 dark:text-white">Procesado</span>
                                     <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Analizado por IA, listo para revisar</span>
                                 </div>
+                                <span className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Auto al añadir nota</span>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
                                 <span className="text-2xl">🔗</span>
-                                <div>
+                                <div className="flex-1">
                                     <span className="font-medium text-gray-900 dark:text-white">Conectado</span>
-                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Vinculado con otros contenidos relacionados</span>
+                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Vinculado a proyectos o modelos mentales</span>
                                 </div>
+                                <span className="text-xs bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">Auto al vincular</span>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
                                 <span className="text-2xl">✅</span>
-                                <div>
+                                <div className="flex-1">
                                     <span className="font-medium text-gray-900 dark:text-white">Integrado</span>
                                     <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Conocimiento asimilado y sintetizado</span>
                                 </div>
+                                <span className="text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">Manual</span>
                             </div>
                         </div>
 
-                        {/* Flujo de trabajo */}
-                        <div className="bg-gradient-to-r from-teal-50 to-blue-50 dark:from-teal-900/20 dark:to-blue-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
-                            <h4 className="font-medium text-teal-900 dark:text-teal-200 mb-2">Flujo de trabajo recomendado</h4>
-                            <ol className="text-sm text-teal-800 dark:text-teal-300 list-decimal list-inside space-y-1">
-                                <li><strong>Captura rápido</strong> - No pierdas tiempo organizando al guardar</li>
-                                <li><strong>Procesa con IA</strong> - Deja que extraiga categorías y conceptos</li>
-                                <li><strong>Revisa periódicamente</strong> - Usa los filtros para ver contenidos pendientes</li>
-                                <li><strong>Conecta ideas</strong> - Usa el grafo para descubrir relaciones</li>
-                                <li><strong>Integra</strong> - Marca como integrado lo que ya has asimilado</li>
-                            </ol>
+                        {/* Auto-avance */}
+                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
+                            <h4 className="font-medium text-indigo-900 dark:text-indigo-200 mb-2">🚀 Auto-avance de madurez</h4>
+                            <p className="text-sm text-indigo-800 dark:text-indigo-300 mb-2">
+                                El nivel de madurez avanza automáticamente cuando realizas ciertas acciones:
+                            </p>
+                            <ul className="text-sm text-indigo-800 dark:text-indigo-300 list-disc list-inside space-y-1">
+                                <li><strong>Capturado → Procesado:</strong> Al añadir una nota personal al contenido</li>
+                                <li><strong>Procesado → Conectado:</strong> Al vincular a un proyecto o modelo mental</li>
+                                <li><strong>→ Integrado:</strong> Marcado manualmente cuando has asimilado el conocimiento</li>
+                            </ul>
                         </div>
 
                         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                             <p className="text-sm text-blue-800 dark:text-blue-300">
-                                <strong>Consejo:</strong> Usa los filtros de "Nivel de Madurez" en el Explorador y Taxonomía
+                                <strong>Consejo:</strong> Usa los filtros de "Nivel de Madurez" en el Explorador y Dashboard
                                 para revisar contenidos por su estado de integración.
                             </p>
                         </div>
                     </div>
                 </section>
 
-                {/* Section 6: Sistema de Notas */}
+                {/* Section 7: Vinculación a Objetos */}
+                <section id="vinculacion" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <span className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-sm font-bold">7</span>
+                        Vinculación a Objetos
+                    </h2>
+                    <div className="space-y-6">
+                        <p className="text-gray-600 dark:text-gray-300">
+                            Conecta tus contenidos con <strong>Proyectos</strong> y <strong>Modelos Mentales</strong> para
+                            darles contexto y facilitar su organización. Esto automáticamente sube el nivel de madurez a "Conectado".
+                        </p>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            {/* Proyectos */}
+                            <div className="border border-indigo-200 dark:border-indigo-800 rounded-lg p-4 bg-indigo-50/50 dark:bg-indigo-900/20">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-2xl">📁</span>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">Proyectos</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                    Agrupa contenidos relacionados con un proyecto específico: investigación,
+                                    trabajo, aprendizaje de una habilidad, etc.
+                                </p>
+                                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                    <li className="flex items-center gap-2">
+                                        <span className="text-indigo-500">•</span>
+                                        Un contenido puede estar en un solo proyecto
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="text-indigo-500">•</span>
+                                        Ve los contenidos vinculados desde el Dashboard
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="text-indigo-500">•</span>
+                                        Estados: activo, completado, archivado
+                                    </li>
+                                </ul>
+                                <Link href="/projects" className="inline-block mt-3 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+                                    Gestionar proyectos →
+                                </Link>
+                            </div>
+
+                            {/* Modelos Mentales */}
+                            <div className="border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 bg-emerald-50/50 dark:bg-emerald-900/20">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-2xl">🧠</span>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">Modelos Mentales</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                    Frameworks de pensamiento que aplicas a tus contenidos: First Principles,
+                                    Pareto, Inversión, etc.
+                                </p>
+                                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                    <li className="flex items-center gap-2">
+                                        <span className="text-emerald-500">•</span>
+                                        Un contenido puede tener múltiples modelos
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="text-emerald-500">•</span>
+                                        Catálogo predefinido de modelos clásicos
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <span className="text-emerald-500">•</span>
+                                        Crea tus propios modelos personalizados
+                                    </li>
+                                </ul>
+                                <Link href="/mental-models" className="inline-block mt-3 text-sm text-emerald-600 dark:text-emerald-400 hover:underline">
+                                    Ver modelos mentales →
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Cómo vincular */}
+                        <div className="bg-gradient-to-r from-emerald-50 to-indigo-50 dark:from-emerald-900/20 dark:to-indigo-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+                            <h4 className="font-medium text-emerald-900 dark:text-emerald-200 mb-2">Cómo vincular contenidos</h4>
+                            <ol className="text-sm text-emerald-800 dark:text-emerald-300 list-decimal list-inside space-y-1">
+                                <li>Abre el detalle de cualquier contenido (clic en el título)</li>
+                                <li>En la sección "Maduración", haz clic en <strong>📁 Proyecto</strong> o <strong>🧠 Modelo Mental</strong></li>
+                                <li>Selecciona el proyecto o modelos mentales a vincular</li>
+                                <li>El nivel de madurez se actualizará automáticamente a "Conectado"</li>
+                            </ol>
+                        </div>
+
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <p className="text-sm text-blue-800 dark:text-blue-300">
+                                <strong>Consejo:</strong> En el Dashboard, al seleccionar "Proyectos" o "Modelos Mentales"
+                                puedes ver los contenidos vinculados a cada uno directamente.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Section 8: Sistema de Notas */}
                 <section id="notas" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center text-yellow-600 dark:text-yellow-400 text-sm font-bold">6</span>
+                        <span className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center text-yellow-600 dark:text-yellow-400 text-sm font-bold">8</span>
                         Sistema de Notas
                     </h2>
                     <div className="space-y-6">
                         <p className="text-gray-600 dark:text-gray-300">
-                            KBase distingue entre diferentes tipos de notas para ayudarte a organizar tu pensamiento:
+                            KBase distingue entre diferentes tipos de notas para ayudarte a organizar tu pensamiento.
+                            Puedes crearlas desde el <strong>Dashboard</strong>, el <strong>Journal</strong> o directamente desde el detalle de un contenido.
                         </p>
+
+                        {/* Acciones rápidas desde contenido */}
+                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                            <h4 className="font-medium text-purple-900 dark:text-purple-200 mb-2">⚡ Acciones rápidas desde contenido</h4>
+                            <p className="text-sm text-purple-800 dark:text-purple-300 mb-3">
+                                En la sección "Maduración" del detalle de cualquier contenido, tienes acceso directo a:
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                <span className="px-3 py-1.5 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-300 rounded-lg text-sm">💭 Nueva Reflexión</span>
+                                <span className="px-3 py-1.5 bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded-lg text-sm">💡 Nueva Idea</span>
+                                <span className="px-3 py-1.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded-lg text-sm">❓ Nueva Pregunta</span>
+                                <span className="px-3 py-1.5 bg-indigo-100 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-lg text-sm">📁 Vincular Proyecto</span>
+                                <span className="px-3 py-1.5 bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-lg text-sm">🧠 Modelo Mental</span>
+                            </div>
+                            <p className="text-sm text-purple-700 dark:text-purple-400 mt-2">
+                                Las notas creadas desde aquí quedan automáticamente vinculadas al contenido original.
+                            </p>
+                        </div>
 
                         {/* Tipos de notas */}
                         <div className="space-y-4">
@@ -426,7 +628,7 @@ export default function GuidePage() {
                                     </div>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">
                                         Captura rápida de ideas que surgen. Puedes vincularlas a contenidos relacionados
-                                        o a otras notas.
+                                        o crearlas desde el detalle de un contenido.
                                     </p>
                                 </div>
                                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -478,18 +680,28 @@ export default function GuidePage() {
                             <ol className="text-sm text-yellow-800 dark:text-yellow-300 list-decimal list-inside space-y-1">
                                 <li>Captura contenido interesante (artículo, vídeo, tweet)</li>
                                 <li>Léelo y añade una <strong>anotación</strong> con tus impresiones (auto-avanza a "Procesado")</li>
-                                <li>Si surge una idea importante, créala como <strong>nota independiente</strong></li>
+                                <li>Si surge una idea o pregunta, usa los <strong>botones de acción rápida</strong></li>
+                                <li>Vincula a un <strong>proyecto</strong> o <strong>modelo mental</strong> (auto-avanza a "Conectado")</li>
                                 <li>Usa el <strong>diario</strong> para reflexionar sobre lo aprendido al final del día</li>
-                                <li>Crea <strong>conexiones</strong> cuando veas patrones entre diferentes fuentes</li>
                             </ol>
                         </div>
+
+                        <Link
+                            href="/journal"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Ir al Journal
+                        </Link>
                     </div>
                 </section>
 
-                {/* Section 7: Chat con IA */}
+                {/* Section 9: Chat con IA */}
                 <section id="chat" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm font-bold">7</span>
+                        <span className="w-8 h-8 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm font-bold">9</span>
                         Chat con IA
                     </h2>
                     <div className="space-y-6">
