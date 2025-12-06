@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -37,6 +37,7 @@ const NOTE_TYPES = {
 
 export default function JournalPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
     const [notes, setNotes] = useState<Note[]>([]);
     const [loading, setLoading] = useState(true);
@@ -54,6 +55,7 @@ export default function JournalPage() {
     const [formType, setFormType] = useState<string>('reflection');
     const [formTags, setFormTags] = useState('');
     const [formLinkedContentIds, setFormLinkedContentIds] = useState<string[]>([]);
+    const [formLinkedContentTitle, setFormLinkedContentTitle] = useState<string>('');
     const [saving, setSaving] = useState(false);
     const [editMode, setEditMode] = useState(false);
 
@@ -61,6 +63,33 @@ export default function JournalPage() {
     const [availableContents, setAvailableContents] = useState<ContentItem[]>([]);
     const [contentSearchQuery, setContentSearchQuery] = useState('');
     const [showContentSelector, setShowContentSelector] = useState(false);
+
+    // Handle URL params for creating notes from content detail
+    useEffect(() => {
+        const newParam = searchParams.get('new');
+        const typeParam = searchParams.get('type');
+        const contentIdParam = searchParams.get('content_id');
+        const contentTitleParam = searchParams.get('content_title');
+
+        if (newParam === 'true') {
+            // Open create modal with pre-filled data
+            if (typeParam && Object.keys(NOTE_TYPES).includes(typeParam)) {
+                setFormType(typeParam);
+            }
+            if (contentIdParam) {
+                setFormLinkedContentIds([contentIdParam]);
+                if (contentTitleParam) {
+                    setFormLinkedContentTitle(contentTitleParam);
+                    // Pre-fill title with reference to content
+                    const typeLabel = typeParam ? NOTE_TYPES[typeParam as keyof typeof NOTE_TYPES]?.label || '' : '';
+                    setFormTitle(`${typeLabel} sobre: ${contentTitleParam}`);
+                }
+            }
+            setShowCreateModal(true);
+            // Clear URL params after processing
+            router.replace('/journal', { scroll: false });
+        }
+    }, [searchParams, router]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -247,6 +276,7 @@ export default function JournalPage() {
         setFormType('reflection');
         setFormTags('');
         setFormLinkedContentIds([]);
+        setFormLinkedContentTitle('');
         setShowContentSelector(false);
         setContentSearchQuery('');
         setEditMode(false);

@@ -59,10 +59,10 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 const MATURITY_LEVELS = [
-    { value: 'captured', label: 'Capturado', icon: '📥', color: 'gray', description: 'Guardado pero sin revisar' },
-    { value: 'processed', label: 'Procesado', icon: '⚙️', color: 'blue', description: 'Procesado por IA' },
-    { value: 'connected', label: 'Conectado', icon: '🔗', color: 'purple', description: 'Vinculado con otros contenidos' },
-    { value: 'integrated', label: 'Integrado', icon: '✅', color: 'green', description: 'Revisado y asimilado' },
+    { value: 'captured', label: 'Capturado', icon: '📥', color: 'gray', description: 'Guardado, pendiente de revisar' },
+    { value: 'processed', label: 'Procesado', icon: '👁️', color: 'blue', description: 'Revisado personalmente' },
+    { value: 'connected', label: 'Conectado', icon: '🔗', color: 'purple', description: 'Vinculado a proyectos o modelos' },
+    { value: 'integrated', label: 'Integrado', icon: '✅', color: 'green', description: 'Asimilado en tu conocimiento' },
 ];
 
 export function ContentDetailModal({
@@ -221,25 +221,7 @@ export function ContentDetailModal({
             });
             if (response.ok) {
                 setEditingNote(false);
-                let updatedContent = { ...content, user_note: userNote };
-
-                // Auto-upgrade maturity to 'processed' if currently 'captured' and adding a note
-                if (userNote.trim() && maturityLevel === 'captured') {
-                    try {
-                        const maturityResponse = await fetch(`${API_URL}/api/v1/content/${content.id}/maturity`, {
-                            method: 'PUT',
-                            headers,
-                            body: JSON.stringify({ maturity_level: 'processed' }),
-                        });
-                        if (maturityResponse.ok) {
-                            setMaturityLevel('processed');
-                            updatedContent = { ...updatedContent, maturity_level: 'processed' };
-                        }
-                    } catch (maturityError) {
-                        console.error('Error auto-upgrading maturity:', maturityError);
-                    }
-                }
-
+                const updatedContent = { ...content, user_note: userNote };
                 onUpdate?.(updatedContent);
             } else {
                 const errorData = await response.json().catch(() => ({}));
@@ -678,6 +660,45 @@ export function ContentDetailModal({
                             </div>
                         </div>
                     )}
+
+                    {/* Maturation Actions */}
+                    <div className="pt-4 border-t dark:border-gray-700">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                            Acciones de maduración
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                            <a
+                                href={`/journal?new=true&type=reflection&content_id=${content.id}&content_title=${encodeURIComponent(content.title)}`}
+                                className="px-3 py-2 text-sm rounded-lg border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-center"
+                            >
+                                💭 Reflexión
+                            </a>
+                            <a
+                                href={`/journal?new=true&type=idea&content_id=${content.id}&content_title=${encodeURIComponent(content.title)}`}
+                                className="px-3 py-2 text-sm rounded-lg border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 text-center"
+                            >
+                                💡 Idea
+                            </a>
+                            <a
+                                href={`/journal?new=true&type=question&content_id=${content.id}&content_title=${encodeURIComponent(content.title)}`}
+                                className="px-3 py-2 text-sm rounded-lg border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-center"
+                            >
+                                ❓ Pregunta
+                            </a>
+                            <a
+                                href={`/projects?link_content=${content.id}`}
+                                className="px-3 py-2 text-sm rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-center"
+                            >
+                                📁 Proyecto
+                            </a>
+                            <a
+                                href={`/mental-models?link_content=${content.id}`}
+                                className="px-3 py-2 text-sm rounded-lg border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-center"
+                            >
+                                🧠 Modelo Mental
+                            </a>
+                        </div>
+                    </div>
 
                     {/* Actions */}
                     <div className="flex flex-wrap gap-3 pt-4 border-t dark:border-gray-700">

@@ -426,3 +426,63 @@ async def bulk_delete_notes(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.post("/cleanup-orphans")
+async def cleanup_orphan_links(
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Clean up orphan content/note links from standalone notes.
+    Removes references to contents or notes that no longer exist.
+    """
+    try:
+        user_id = current_user["id"]
+
+        # Get all notes with linked_content_ids or linked_note_ids
+        notes_response = db.table("standalone_notes").select(
+            "id, linked_content_ids, linked_note_ids"
+        ).eq("user_id", user_id).execute()
+
+        if not notes_response.data:
+            return {"cleaned": 0, "message": "No hay notas que limpiar"}
+
+        # Get all existing content IDs for this user
+        contents_response = db.table("contents").select("id").eq("user_id", user_id).execute()
+        existing_content_ids = set(c["id"] for c in (contents_response.data or []))
+
+        # Get all existing note IDs for this user
+        notes_ids_response = db.table("standalone_notes").select("id").eq("user_id", user_id).execute()
+        existing_note_ids = set(n["id"] for n in (notes_ids_response.data or []))
+
+        cleaned_count = 0
+
+        for note in notes_response.data:
+            note_id = note["id"]
+            linked_content_ids = note.get("linked_content_ids") or []
+            linked_note_ids = note.get("linked_note_ids") or []
+
+            # Filter out orphan content IDs
+            valid_content_ids = [cid for cid in linked_content_ids if cid in existing_content_ids]
+            # Filter out orphan note IDs (and self-references)
+            valid_note_ids = [nid for nid in linked_note_ids if nid in existing_note_ids and nid != note_id]
+
+            # Check if anything changed
+            if len(valid_content_ids) != len(linked_content_ids) or len(valid_note_ids) != len(linked_note_ids):
+                db.table("standalone_notes").update({
+                    "linked_content_ids": valid_content_ids,
+                    "linked_note_ids": valid_note_ids
+                }).eq("id", note_id).execute()
+                cleaned_count += 1
+
+        return {
+            "cleaned": cleaned_count,
+            "message": f"{cleaned_count} nota(s) con enlaces huérfanos limpiadas"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

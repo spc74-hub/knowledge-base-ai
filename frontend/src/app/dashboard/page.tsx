@@ -553,22 +553,22 @@ export default function DashboardPage() {
         {/* Quick create */}
         <div className="flex gap-3 flex-wrap">
           <Link
-            href="/notes/new?type=journal"
-            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+            href="/journal?new=true&type=reflection"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
           >
-            📓 Nueva entrada de diario
+            💭 Nueva reflexión
           </Link>
           <Link
-            href="/notes/new?type=idea"
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+            href="/journal?new=true&type=idea"
+            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
           >
             💡 Nueva idea
           </Link>
           <Link
-            href="/notes/new"
-            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+            href="/journal?new=true&type=question"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
           >
-            📝 Nueva nota
+            ❓ Nueva pregunta
           </Link>
         </div>
       </div>
@@ -750,8 +750,7 @@ export default function DashboardPage() {
                       🔗 Guardar URL
                     </button>
                     <Link
-                      href="/notes/new"
-                      target="_blank"
+                      href="/journal?new=true"
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
