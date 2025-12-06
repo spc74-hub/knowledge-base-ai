@@ -433,7 +433,7 @@ export function ContentDetailModal({
             const response = await fetch(`${API_URL}/api/v1/mental-models/contents/${content.id}`, { headers });
             if (response.ok) {
                 const data = await response.json();
-                const ids = new Set((data.models || []).map((m: MentalModel) => m.id));
+                const ids = new Set<string>((data.models || []).map((m: MentalModel) => m.id));
                 setLinkedModelIds(ids);
             }
         } catch (error) {
