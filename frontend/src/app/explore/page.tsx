@@ -54,6 +54,7 @@ interface Content {
     note_category: string | null;
     metadata: Record<string, any> | null;
     created_at: string;
+    raw_content: string | null;
     // Fields from global search
     relevance_score?: number;
     match_fields?: string[];
