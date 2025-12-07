@@ -112,6 +112,79 @@ async def get_objectives_stats(
     return stats
 
 
+# =====================================================
+# Tree View and Reorder (MUST be before /{objective_id})
+# =====================================================
+
+class ReorderRequest(BaseModel):
+    objective_id: str
+    new_parent_id: Optional[str] = None
+    new_position: int = 0
+
+
+@router.get("/tree")
+async def get_objectives_tree(
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Get objectives as a tree structure."""
+    result = db.table("objectives").select(
+        "id, title, icon, color, status, progress, parent_id, position, horizon"
+    ).eq("user_id", current_user["id"]).order("position").execute()
+
+    objectives = result.data
+
+    # Build tree structure
+    objective_map = {obj["id"]: {**obj, "children": []} for obj in objectives}
+    tree = []
+
+    for obj in objectives:
+        obj_with_children = objective_map[obj["id"]]
+        if obj["parent_id"] and obj["parent_id"] in objective_map:
+            objective_map[obj["parent_id"]]["children"].append(obj_with_children)
+        else:
+            tree.append(obj_with_children)
+
+    return tree
+
+
+@router.post("/reorder")
+async def reorder_objective(
+    data: ReorderRequest,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Reorder an objective (change parent and/or position)."""
+    # Verify objective belongs to user
+    check = db.table("objectives").select("id").eq(
+        "id", data.objective_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Objective not found")
+
+    # If new_parent_id is provided, verify it belongs to user
+    if data.new_parent_id:
+        parent_check = db.table("objectives").select("id").eq(
+            "id", data.new_parent_id
+        ).eq("user_id", current_user["id"]).execute()
+
+        if not parent_check.data:
+            raise HTTPException(status_code=404, detail="Parent objective not found")
+
+    # Update the objective
+    db.table("objectives").update({
+        "parent_id": data.new_parent_id,
+        "position": data.new_position,
+    }).eq("id", data.objective_id).eq("user_id", current_user["id"]).execute()
+
+    return {"success": True}
+
+
+# =====================================================
+# Objectives CRUD (create, read by id, update, delete)
+# =====================================================
+
 @router.post("/")
 async def create_objective(
     data: ObjectiveCreate,
@@ -583,75 +656,6 @@ async def get_objective_contents(
 
     contents = [r["contents"] for r in result.data if r.get("contents")]
     return {"contents": contents}
-
-
-# =====================================================
-# Tree View and Reorder
-# =====================================================
-
-@router.get("/tree")
-async def get_objectives_tree(
-    current_user: CurrentUser,
-    db: Database,
-):
-    """Get objectives as a tree structure."""
-    result = db.table("objectives").select(
-        "id, title, icon, color, status, progress, parent_id, position, horizon"
-    ).eq("user_id", current_user["id"]).order("position").execute()
-
-    objectives = result.data
-
-    # Build tree structure
-    objective_map = {obj["id"]: {**obj, "children": []} for obj in objectives}
-    tree = []
-
-    for obj in objectives:
-        obj_with_children = objective_map[obj["id"]]
-        if obj["parent_id"] and obj["parent_id"] in objective_map:
-            objective_map[obj["parent_id"]]["children"].append(obj_with_children)
-        else:
-            tree.append(obj_with_children)
-
-    return tree
-
-
-class ReorderRequest(BaseModel):
-    objective_id: str
-    new_parent_id: Optional[str] = None
-    new_position: int = 0
-
-
-@router.post("/reorder")
-async def reorder_objective(
-    data: ReorderRequest,
-    current_user: CurrentUser,
-    db: Database,
-):
-    """Reorder an objective (change parent and/or position)."""
-    # Verify objective belongs to user
-    check = db.table("objectives").select("id").eq(
-        "id", data.objective_id
-    ).eq("user_id", current_user["id"]).execute()
-
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Objective not found")
-
-    # If new_parent_id is provided, verify it belongs to user
-    if data.new_parent_id:
-        parent_check = db.table("objectives").select("id").eq(
-            "id", data.new_parent_id
-        ).eq("user_id", current_user["id"]).execute()
-
-        if not parent_check.data:
-            raise HTTPException(status_code=404, detail="Parent objective not found")
-
-    # Update the objective
-    result = db.table("objectives").update({
-        "parent_id": data.new_parent_id,
-        "position": data.new_position,
-    }).eq("id", data.objective_id).eq("user_id", current_user["id"]).execute()
-
-    return {"success": True}
 
 
 # =====================================================
