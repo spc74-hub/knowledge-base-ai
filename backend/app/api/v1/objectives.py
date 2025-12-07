@@ -229,36 +229,57 @@ async def get_objective(
 
     objective = result.data
 
-    # Get linked mental models
-    mm_result = db.table("objective_mental_models").select(
-        "mental_model_id, mental_models(id, name, slug, icon, color)"
-    ).eq("objective_id", objective_id).execute()
-    objective["mental_models"] = [r["mental_models"] for r in mm_result.data if r.get("mental_models")]
+    # Get linked mental models (with error handling for missing tables)
+    try:
+        mm_result = db.table("objective_mental_models").select(
+            "mental_model_id, mental_models(id, name, slug, icon, color)"
+        ).eq("objective_id", objective_id).execute()
+        objective["mental_models"] = [r["mental_models"] for r in mm_result.data if r.get("mental_models")]
+    except Exception as e:
+        print(f"Error fetching mental models for objective: {e}")
+        objective["mental_models"] = []
 
     # Get linked projects
-    proj_result = db.table("objective_projects").select(
-        "project_id, projects(id, name, status, color, icon)"
-    ).eq("objective_id", objective_id).execute()
-    objective["projects"] = [r["projects"] for r in proj_result.data if r.get("projects")]
+    try:
+        proj_result = db.table("objective_projects").select(
+            "project_id, projects(id, name, status, color, icon)"
+        ).eq("objective_id", objective_id).execute()
+        objective["projects"] = [r["projects"] for r in proj_result.data if r.get("projects")]
+    except Exception as e:
+        print(f"Error fetching projects for objective: {e}")
+        objective["projects"] = []
 
     # Get linked contents
-    content_result = db.table("objective_contents").select(
-        "content_id, contents(id, title, content_type, is_favorite, created_at)"
-    ).eq("objective_id", objective_id).execute()
-    objective["contents"] = [r["contents"] for r in content_result.data if r.get("contents")]
-    objective["contents_count"] = len(objective["contents"])
+    try:
+        content_result = db.table("objective_contents").select(
+            "content_id, contents(id, title, type, is_favorite, created_at)"
+        ).eq("objective_id", objective_id).execute()
+        objective["contents"] = [r["contents"] for r in content_result.data if r.get("contents")]
+        objective["contents_count"] = len(objective["contents"])
+    except Exception as e:
+        print(f"Error fetching contents for objective: {e}")
+        objective["contents"] = []
+        objective["contents_count"] = 0
 
     # Get linked notes
-    notes_result = db.table("objective_notes").select(
-        "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
-    ).eq("objective_id", objective_id).execute()
-    objective["notes"] = [r["standalone_notes"] for r in notes_result.data if r.get("standalone_notes")]
+    try:
+        notes_result = db.table("objective_notes").select(
+            "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
+        ).eq("objective_id", objective_id).execute()
+        objective["notes"] = [r["standalone_notes"] for r in notes_result.data if r.get("standalone_notes")]
+    except Exception as e:
+        print(f"Error fetching notes for objective: {e}")
+        objective["notes"] = []
 
     # Get sub-objectives
-    children_result = db.table("objectives").select(
-        "id, title, status, progress, icon, color, horizon"
-    ).eq("parent_id", objective_id).order("position").execute()
-    objective["children"] = children_result.data
+    try:
+        children_result = db.table("objectives").select(
+            "id, title, status, progress, icon, color, horizon"
+        ).eq("parent_id", objective_id).order("position").execute()
+        objective["children"] = children_result.data
+    except Exception as e:
+        print(f"Error fetching children for objective: {e}")
+        objective["children"] = []
 
     return objective
 
