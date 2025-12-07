@@ -525,10 +525,14 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {noteTypes.map((noteType: any) => {
               const count = stats.by_type?.[noteType.value] || 0;
+              // Apple Notes go to Explorer, other types go to Journal
+              const href = noteType.value === 'apple_notes'
+                ? '/explore?types=apple_notes'
+                : `/journal?type=${noteType.value}`;
               return (
                 <Link
                   key={noteType.value}
-                  href={`/journal?type=${noteType.value}`}
+                  href={href}
                   className="bg-gray-900/50 hover:bg-gray-800 rounded-lg p-3 transition-colors cursor-pointer text-center"
                 >
                   <div className="text-2xl mb-1">{noteType.icon}</div>

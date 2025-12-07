@@ -322,14 +322,21 @@ async def get_object_summary(
             "id, title, note_type, is_pinned, created_at, updated_at"
         ).eq("user_id", user_id).eq("is_pinned", True).order("created_at", desc=True).limit(limit).execute())
 
-        # Full notes (contents with type='note')
+        # Full notes (contents with type='note' but NOT apple_notes)
+        # Apple Notes have type='note' AND metadata.source='apple_notes'
+        # Manual full notes have type='note' AND metadata.source != 'apple_notes' (or no source)
         recent_full_notes = safe_query(lambda: db.table("contents").select(
             "id, title, is_favorite, created_at, updated_at"
-        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).order("created_at", desc=True).limit(limit).execute())
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").order("created_at", desc=True).limit(limit).execute())
 
         full_notes_count = safe_query(lambda: db.table("contents").select(
             "id", count="exact"
-        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).execute())
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").execute())
+
+        # Apple Notes count (contents with type='note' AND metadata.source='apple_notes')
+        apple_notes_count = safe_query(lambda: db.table("contents").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).filter("metadata->>source", "eq", "apple_notes").execute())
 
         # Add note_type marker to full notes for UI display
         full_notes_data = safe_data(recent_full_notes)
@@ -353,15 +360,16 @@ async def get_object_summary(
             ).eq("user_id", user_id).eq("note_type", nt).execute())
             by_type[note_type] = safe_count(count_result)
 
-        # Add full notes count
+        # Add full notes and apple notes counts
         by_type["full_note"] = safe_count(full_notes_count)
+        by_type["apple_notes"] = safe_count(apple_notes_count)
 
-        # Total count (standalone + full notes)
+        # Total count (standalone + full notes + apple notes)
         standalone_total = safe_query(lambda: db.table("standalone_notes").select(
             "id", count="exact"
         ).eq("user_id", user_id).execute())
 
-        total = safe_count(standalone_total) + safe_count(full_notes_count)
+        total = safe_count(standalone_total) + safe_count(full_notes_count) + safe_count(apple_notes_count)
 
         return {
             "type": "notes",
@@ -379,6 +387,7 @@ async def get_object_summary(
                 {"value": "connection", "label": "Conexiones", "icon": "🔗"},
                 {"value": "journal", "label": "Diario", "icon": "📓"},
                 {"value": "full_note", "label": "Notas completas", "icon": "📄"},
+                {"value": "apple_notes", "label": "Apple Notes", "icon": "🍎"},
             ],
         }
 
