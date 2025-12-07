@@ -311,8 +311,10 @@ export default function TaxonomyExplorerPage() {
 
             const data = await response.json();
             setContents(data.contents || []);
-            setTotalContents(data.total || data.contents?.length || 0);
-            setHasMoreContents((data.contents?.length || 0) === PAGE_SIZE);
+            const total = data.total || data.contents?.length || 0;
+            setTotalContents(total);
+            // More contents available if total is greater than what we have
+            setHasMoreContents((data.contents?.length || 0) < total);
             setShowContents(true);
         } catch (err) {
             console.error('Contents fetch error:', err);
@@ -360,8 +362,11 @@ export default function TaxonomyExplorerPage() {
 
             const data = await response.json();
             if (data.contents && data.contents.length > 0) {
-                setContents(prev => [...prev, ...data.contents]);
-                setHasMoreContents(data.contents.length === PAGE_SIZE);
+                const newContents = [...contents, ...data.contents];
+                setContents(newContents);
+                // Check if we have all contents
+                const total = data.total || totalContents;
+                setHasMoreContents(newContents.length < total);
             } else {
                 setHasMoreContents(false);
             }
@@ -1128,7 +1133,7 @@ export default function TaxonomyExplorerPage() {
                                         </h2>
                                     </div>
                                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                                        {contents.length} resultados
+                                        {contents.length} de {totalContents} resultados
                                     </span>
                                 </div>
                                 <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -1190,7 +1195,7 @@ export default function TaxonomyExplorerPage() {
                                                         Cargando...
                                                     </span>
                                                 ) : (
-                                                    `Cargar más contenidos`
+                                                    `Cargar más (${totalContents - contents.length} restantes)`
                                                 )}
                                             </button>
                                         </div>
