@@ -31,6 +31,7 @@ class NoteUpdate(BaseModel):
     linked_content_ids: Optional[List[str]] = None
     linked_note_ids: Optional[List[str]] = None
     is_pinned: Optional[bool] = None
+    is_completed: Optional[bool] = None
     linked_project_id: Optional[str] = None
     linked_model_id: Optional[str] = None
 
@@ -47,6 +48,7 @@ class NoteResponse(BaseModel):
     linked_project_id: Optional[str] = None
     linked_model_id: Optional[str] = None
     is_pinned: bool = False
+    is_completed: bool = False
     created_at: str
     updated_at: str
 
@@ -58,7 +60,7 @@ class NoteDetailResponse(NoteResponse):
     linked_model: Optional[dict] = None  # Mental model info
 
 
-VALID_NOTE_TYPES = ["reflection", "idea", "question", "connection", "journal"]
+VALID_NOTE_TYPES = ["reflection", "idea", "question", "connection", "journal", "action"]
 
 
 @router.get("/", response_model=List[NoteResponse])
@@ -145,7 +147,8 @@ async def get_notes_stats(
                 {"value": "idea", "label": "Ideas", "icon": "💡"},
                 {"value": "question", "label": "Preguntas", "icon": "❓"},
                 {"value": "connection", "label": "Conexiones", "icon": "🔗"},
-                {"value": "journal", "label": "Diario", "icon": "📓"}
+                {"value": "journal", "label": "Diario", "icon": "📓"},
+                {"value": "action", "label": "Acciones", "icon": "✅"}
             ]
         }
 
@@ -415,6 +418,50 @@ async def toggle_pin_note(
             "id": note_id,
             "is_pinned": new_pinned,
             "message": "Nota fijada" if new_pinned else "Nota desanclada"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/{note_id}/complete")
+async def toggle_complete_note(
+    note_id: str,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Toggle completion status of an action note.
+    """
+    try:
+        # Get current status
+        existing = db.table("standalone_notes").select("id, is_completed, note_type").eq(
+            "id", note_id
+        ).eq(
+            "user_id", current_user["id"]
+        ).execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Note not found"
+            )
+
+        new_completed = not existing.data[0].get("is_completed", False)
+
+        db.table("standalone_notes").update({
+            "is_completed": new_completed
+        }).eq("id", note_id).execute()
+
+        return {
+            "id": note_id,
+            "is_completed": new_completed,
+            "message": "Accion completada" if new_completed else "Accion pendiente"
         }
 
     except HTTPException:
@@ -699,6 +746,7 @@ async def search_notes_with_facets(
                 {"value": "question", "label": "Preguntas", "icon": "❓", "count": note_type_counts.get("question", 0)},
                 {"value": "connection", "label": "Conexiones", "icon": "🔗", "count": note_type_counts.get("connection", 0)},
                 {"value": "journal", "label": "Diario", "icon": "📓", "count": note_type_counts.get("journal", 0)},
+                {"value": "action", "label": "Acciones", "icon": "✅", "count": note_type_counts.get("action", 0)},
                 {"value": "full_note", "label": "Notas completas", "icon": "📄", "count": full_notes_total},
             ],
             "linkage": [
