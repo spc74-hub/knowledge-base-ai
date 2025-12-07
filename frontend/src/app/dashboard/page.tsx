@@ -266,7 +266,7 @@ export default function DashboardPage() {
         { key: 'objectives', label: 'Objetivos', icon: '🎯', selectable: true },
         { key: 'projects', label: 'Proyectos', icon: '📁', selectable: true },
         { key: 'mental_models', label: 'Modelos Mentales', icon: '🧠', selectable: true },
-        { key: 'notes', label: 'Diario', icon: '📝', selectable: true },
+        { key: 'notes', label: 'Notas', icon: '📝', selectable: true },
         { key: 'tags', label: 'Tags', icon: '🏷️', selectable: true },
       ],
     },
@@ -958,7 +958,22 @@ export default function DashboardPage() {
       <header className="border-b border-gray-800 bg-gray-900/50 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold text-white">Dashboard</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {/* Direct Note Buttons */}
+            <Link
+              href="/journal?new=true"
+              className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
+              title="Nota rápida"
+            >
+              📝 Quick
+            </Link>
+            <Link
+              href="/notes/new"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
+              title="Nota completa"
+            >
+              📄 Note+
+            </Link>
             {/* Quick Actions Dropdown */}
             <div className="relative">
               <button
