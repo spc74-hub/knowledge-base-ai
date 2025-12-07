@@ -962,6 +962,7 @@ export default function DashboardPage() {
             {/* Direct Note Buttons */}
             <Link
               href="/journal?new=true"
+              target="_blank"
               className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
               title="Nota rápida"
             >
@@ -969,6 +970,7 @@ export default function DashboardPage() {
             </Link>
             <Link
               href="/notes/new"
+              target="_blank"
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
               title="Nota completa"
             >
