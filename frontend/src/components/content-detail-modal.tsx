@@ -23,6 +23,18 @@ interface MentalModel {
     color: string;
 }
 
+interface StandaloneNote {
+    id: string;
+    title: string;
+    content: string;
+    note_type: string;
+    tags: string[];
+    source_content_id: string | null;
+    is_pinned: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface ContentDetail {
     id: string;
     title: string;
@@ -122,6 +134,15 @@ export function ContentDetailModal({
     const [loadingModels, setLoadingModels] = useState(false);
     const [linkingModel, setLinkingModel] = useState(false);
     const [linkedModelIds, setLinkedModelIds] = useState<Set<string>>(new Set());
+
+    // Notes linked to this content
+    const [contentNotes, setContentNotes] = useState<StandaloneNote[]>([]);
+    const [loadingNotes, setLoadingNotes] = useState(false);
+    const [showNewNoteForm, setShowNewNoteForm] = useState(false);
+    const [newNoteTitle, setNewNoteTitle] = useState('');
+    const [newNoteContent, setNewNoteContent] = useState('');
+    const [newNoteType, setNewNoteType] = useState<string>('reflection');
+    const [savingNewNote, setSavingNewNote] = useState(false);
 
     useEffect(() => {
         if (content) {
@@ -497,6 +518,95 @@ export function ContentDetailModal({
         }
     };
 
+    // Fetch notes linked to this content
+    const fetchContentNotes = useCallback(async () => {
+        if (!content) return;
+        setLoadingNotes(true);
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/notes/?source_content_id=${content.id}`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setContentNotes(data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching content notes:', error);
+        } finally {
+            setLoadingNotes(false);
+        }
+    }, [content, getAuthHeaders]);
+
+    // Fetch notes when content changes
+    useEffect(() => {
+        if (content && isOpen) {
+            fetchContentNotes();
+        }
+    }, [content, isOpen, fetchContentNotes]);
+
+    // Create a new note linked to this content
+    const handleCreateNote = async () => {
+        if (!content || !newNoteTitle.trim() || !newNoteContent.trim()) return;
+        setSavingNewNote(true);
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/notes/`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    title: newNoteTitle.trim(),
+                    content: newNoteContent.trim(),
+                    note_type: newNoteType,
+                    tags: [],
+                    linked_content_ids: [content.id],
+                    linked_note_ids: [],
+                    source_content_id: content.id,
+                }),
+            });
+            if (response.ok) {
+                const newNote = await response.json();
+                setContentNotes(prev => [newNote, ...prev]);
+                setNewNoteTitle('');
+                setNewNoteContent('');
+                setNewNoteType('reflection');
+                setShowNewNoteForm(false);
+            } else {
+                const error = await response.json().catch(() => ({}));
+                console.error('Error creating note:', error);
+                alert('Error al crear la nota');
+            }
+        } catch (error) {
+            console.error('Error creating note:', error);
+            alert('Error de conexión');
+        } finally {
+            setSavingNewNote(false);
+        }
+    };
+
+    // Delete a note
+    const handleDeleteNote = async (noteId: string) => {
+        if (!confirm('¿Eliminar esta nota?')) return;
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/notes/${noteId}`, {
+                method: 'DELETE',
+                headers,
+            });
+            if (response.ok) {
+                setContentNotes(prev => prev.filter(n => n.id !== noteId));
+            }
+        } catch (error) {
+            console.error('Error deleting note:', error);
+        }
+    };
+
+    const NOTE_TYPE_ICONS: Record<string, string> = {
+        reflection: '💭',
+        idea: '💡',
+        question: '❓',
+        connection: '🔗',
+        journal: '📓',
+    };
+
     const getTypeIcon = (type: string) => TYPE_ICONS[type] || TYPE_ICONS.default;
 
     const getEntityName = (entity: string | { name: string }) => {
@@ -762,6 +872,137 @@ export function ContentDetailModal({
                         )}
                     </div>
 
+                    {/* Notes linked to this content */}
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                                Mis Notas sobre este contenido
+                            </h3>
+                            <button
+                                onClick={() => setShowNewNoteForm(!showNewNoteForm)}
+                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                                {showNewNoteForm ? 'Cancelar' : '+ Nueva nota'}
+                            </button>
+                        </div>
+
+                        {/* New note form */}
+                        {showNewNoteForm && (
+                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
+                                <div className="mb-3">
+                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tipo de nota</label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {[
+                                            { value: 'reflection', label: 'Reflexión', icon: '💭' },
+                                            { value: 'idea', label: 'Idea', icon: '💡' },
+                                            { value: 'question', label: 'Pregunta', icon: '❓' },
+                                            { value: 'connection', label: 'Conexión', icon: '🔗' },
+                                        ].map(type => (
+                                            <button
+                                                key={type.value}
+                                                onClick={() => setNewNoteType(type.value)}
+                                                className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
+                                                    newNoteType === type.value
+                                                        ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-400 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300'
+                                                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                                }`}
+                                            >
+                                                {type.icon} {type.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <input
+                                    type="text"
+                                    value={newNoteTitle}
+                                    onChange={(e) => setNewNoteTitle(e.target.value)}
+                                    placeholder="Título de la nota..."
+                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm mb-2"
+                                />
+                                <textarea
+                                    value={newNoteContent}
+                                    onChange={(e) => setNewNoteContent(e.target.value)}
+                                    rows={3}
+                                    placeholder="Escribe tu reflexión, idea o pregunta..."
+                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm mb-2"
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setShowNewNoteForm(false);
+                                            setNewNoteTitle('');
+                                            setNewNoteContent('');
+                                            setNewNoteType('reflection');
+                                        }}
+                                        className="px-3 py-1.5 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleCreateNote}
+                                        disabled={savingNewNote || !newNoteTitle.trim() || !newNoteContent.trim()}
+                                        className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
+                                    >
+                                        {savingNewNote ? 'Guardando...' : 'Guardar nota'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Notes list */}
+                        {loadingNotes ? (
+                            <p className="text-gray-400 text-sm">Cargando notas...</p>
+                        ) : contentNotes.length === 0 ? (
+                            <p className="text-gray-400 text-sm">
+                                Sin notas. Escribe reflexiones, ideas o preguntas mientras lees.
+                            </p>
+                        ) : (
+                            <div className="space-y-3">
+                                {contentNotes.map(note => (
+                                    <div
+                                        key={note.id}
+                                        className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3"
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <span className="text-lg">{NOTE_TYPE_ICONS[note.note_type] || '📝'}</span>
+                                                <span className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                                                    {note.title}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <a
+                                                    href={`/journal?note=${note.id}`}
+                                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                                                >
+                                                    Editar
+                                                </a>
+                                                <button
+                                                    onClick={() => handleDeleteNote(note.id)}
+                                                    className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 ml-2"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p className="text-gray-600 dark:text-gray-300 text-sm mt-1 line-clamp-2">
+                                            {note.content}
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-2">
+                                            {new Date(note.created_at).toLocaleDateString('es-ES', {
+                                                day: 'numeric',
+                                                month: 'short',
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     {/* Concepts */}
                     {content.concepts && content.concepts.length > 0 && (
                         <div className="mb-6">
@@ -955,6 +1196,12 @@ export function ContentDetailModal({
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
+                                            <a
+                                                href="/projects?new=true"
+                                                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm"
+                                            >
+                                                + Crear nuevo proyecto
+                                            </a>
                                             {currentProjectId && (
                                                 <button
                                                     onClick={() => handleLinkToProject(null)}
@@ -1017,6 +1264,12 @@ export function ContentDetailModal({
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
+                                            <a
+                                                href="/mental-models"
+                                                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-sm"
+                                            >
+                                                + Activar más modelos mentales
+                                            </a>
                                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                                                 Selecciona los modelos mentales aplicables a este contenido
                                             </p>

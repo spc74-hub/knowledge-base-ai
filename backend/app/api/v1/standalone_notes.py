@@ -18,6 +18,7 @@ class NoteCreate(BaseModel):
     tags: List[str] = []
     linked_content_ids: List[str] = []
     linked_note_ids: List[str] = []
+    source_content_id: Optional[str] = None  # Content from which the note was created
 
 
 class NoteUpdate(BaseModel):
@@ -38,6 +39,7 @@ class NoteResponse(BaseModel):
     tags: List[str] = []
     linked_content_ids: List[str] = []
     linked_note_ids: List[str] = []
+    source_content_id: Optional[str] = None
     is_pinned: bool = False
     created_at: str
     updated_at: str
@@ -59,11 +61,13 @@ async def list_notes(
     tags: Optional[str] = None,
     pinned_only: bool = False,
     q: Optional[str] = None,
+    source_content_id: Optional[str] = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0)
 ):
     """
     List all user's standalone notes.
+    Optionally filter by source_content_id to get notes created from a specific content.
     """
     try:
         query = db.table("standalone_notes").select("*").eq("user_id", current_user["id"])
@@ -77,6 +81,8 @@ async def list_notes(
             query = query.contains("tags", tag_list)
         if q:
             query = query.or_(f"title.ilike.%{q}%,content.ilike.%{q}%")
+        if source_content_id:
+            query = query.eq("source_content_id", source_content_id)
 
         # Order: pinned first, then by created_at desc
         query = query.order("is_pinned", desc=True).order("created_at", desc=True)
@@ -231,6 +237,7 @@ async def create_note(
             "tags": data.tags,
             "linked_content_ids": data.linked_content_ids,
             "linked_note_ids": data.linked_note_ids,
+            "source_content_id": data.source_content_id,
             "is_pinned": False
         }
 
