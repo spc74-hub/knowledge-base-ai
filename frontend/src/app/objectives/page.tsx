@@ -96,6 +96,7 @@ interface ObjectiveDetail {
     color: string;
     icon: string;
     parent_id: string | null;
+    is_favorite: boolean;
     created_at: string;
     updated_at: string;
     objective_actions: Action[];
@@ -245,6 +246,9 @@ export default function ObjectivesPage() {
 
     // Action form
     const [newActionTitle, setNewActionTitle] = useState('');
+
+    // Favorite toggling
+    const [togglingFavorite, setTogglingFavorite] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -904,6 +908,32 @@ export default function ObjectivesPage() {
         }
     };
 
+    const handleToggleFavorite = async () => {
+        if (!selectedObjective || togglingFavorite) return;
+        setTogglingFavorite(true);
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/objectives/${selectedObjective.id}/favorite`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setSelectedObjective({ ...selectedObjective, is_favorite: data.is_favorite });
+            }
+        } catch (error) {
+            console.error('Error toggling favorite:', error);
+        } finally {
+            setTogglingFavorite(false);
+        }
+    };
+
     const resetForm = () => {
         setFormTitle('');
         setFormDescription('');
@@ -1051,7 +1081,19 @@ export default function ObjectivesPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 flex-wrap">
+                                <div className="flex gap-2 flex-wrap items-center">
+                                    <button
+                                        onClick={handleToggleFavorite}
+                                        disabled={togglingFavorite}
+                                        className={`p-2 text-xl rounded-lg transition-colors ${
+                                            selectedObjective.is_favorite
+                                                ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                                                : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        }`}
+                                        title={selectedObjective.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                                    >
+                                        {selectedObjective.is_favorite ? '⭐' : '☆'}
+                                    </button>
                                     <button
                                         onClick={() => openCreateSubobjective(selectedObjective.id)}
                                         className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"

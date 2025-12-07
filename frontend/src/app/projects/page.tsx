@@ -20,6 +20,7 @@ interface Project {
     parent_project_id: string | null;
     content_count: number;
     children_count: number;
+    is_favorite: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -203,6 +204,9 @@ export default function ProjectsPage() {
     const [loadingNotes, setLoadingNotes] = useState(false);
     const [linkingContents, setLinkingContents] = useState(false);
     const [linkingNotes, setLinkingNotes] = useState(false);
+
+    // Favorite toggling
+    const [togglingFavorite, setTogglingFavorite] = useState(false);
 
     // Form state
     const [formName, setFormName] = useState('');
@@ -672,6 +676,32 @@ export default function ProjectsPage() {
         }
     };
 
+    const handleToggleFavorite = async () => {
+        if (!selectedProject || togglingFavorite) return;
+        setTogglingFavorite(true);
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProject.id}/favorite`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setSelectedProject({ ...selectedProject, is_favorite: data.is_favorite });
+            }
+        } catch (error) {
+            console.error('Error toggling favorite:', error);
+        } finally {
+            setTogglingFavorite(false);
+        }
+    };
+
     const resetForm = () => {
         setFormName('');
         setFormDescription('');
@@ -814,7 +844,19 @@ export default function ProjectsPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 flex-wrap">
+                                <div className="flex gap-2 flex-wrap items-center">
+                                    <button
+                                        onClick={handleToggleFavorite}
+                                        disabled={togglingFavorite}
+                                        className={`p-2 text-xl rounded-lg transition-colors ${
+                                            selectedProject.is_favorite
+                                                ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                                                : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        }`}
+                                        title={selectedProject.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                                    >
+                                        {selectedProject.is_favorite ? '⭐' : '☆'}
+                                    </button>
                                     <button
                                         onClick={openContentSelector}
                                         className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"

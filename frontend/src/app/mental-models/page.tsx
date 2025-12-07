@@ -16,6 +16,7 @@ interface MentalModel {
     description: string | null;
     notes: string;
     is_active: boolean;
+    is_favorite: boolean;
     color: string;
     icon: string;
     content_count: number;
@@ -69,6 +70,9 @@ export default function MentalModelsPage() {
         color: '#8b5cf6',
     });
     const [savingModel, setSavingModel] = useState(false);
+
+    // Favorite toggling
+    const [togglingFavorite, setTogglingFavorite] = useState(false);
 
     // Available icons for selection
     const availableIcons = ['🧠', '💡', '🎯', '🔬', '📊', '⚡', '🔄', '📈', '🎨', '🔍', '💭', '🌟', '🚀', '⭐', '✨', '🎲', '🧩', '🔮', '📐', '🧮'];
@@ -214,6 +218,29 @@ export default function MentalModelsPage() {
             color: model.color,
         });
         setShowCreateModal(true);
+    };
+
+    const handleToggleFavorite = async () => {
+        if (!selectedModel || togglingFavorite) return;
+        setTogglingFavorite(true);
+
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/mental-models/${selectedModel.id}/favorite`, {
+                method: 'POST',
+                headers,
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setSelectedModel({ ...selectedModel, is_favorite: data.is_favorite });
+                setMyModels(myModels.map(m => m.id === selectedModel.id ? { ...m, is_favorite: data.is_favorite } : m));
+            }
+        } catch (error) {
+            console.error('Error toggling favorite:', error);
+        } finally {
+            setTogglingFavorite(false);
+        }
     };
 
     const handleSaveModel = async () => {
@@ -464,6 +491,18 @@ export default function MentalModelsPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleToggleFavorite}
+                                            disabled={togglingFavorite}
+                                            className={`p-2 text-xl rounded-lg transition-colors ${
+                                                selectedModel.is_favorite
+                                                    ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                                                    : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                            }`}
+                                            title={selectedModel.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                                        >
+                                            {selectedModel.is_favorite ? '⭐' : '☆'}
+                                        </button>
                                         <button
                                             onClick={() => openEditModal(selectedModel)}
                                             className="px-3 py-1.5 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded"
