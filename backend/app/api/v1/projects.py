@@ -18,6 +18,7 @@ class ProjectCreate(BaseModel):
     deadline: Optional[str] = None  # ISO format
     color: str = "#6366f1"
     icon: str = "📁"
+    parent_project_id: Optional[str] = None  # For subprojects
 
 
 class ProjectUpdate(BaseModel):
@@ -28,6 +29,7 @@ class ProjectUpdate(BaseModel):
     color: Optional[str] = None
     icon: Optional[str] = None
     position: Optional[int] = None
+    parent_project_id: Optional[str] = None  # Move to different parent
 
 
 class ProjectResponse(BaseModel):
@@ -40,13 +42,27 @@ class ProjectResponse(BaseModel):
     color: str = "#6366f1"
     icon: str = "📁"
     position: int = 0
+    parent_project_id: Optional[str] = None
     content_count: int = 0  # Number of linked contents
+    children_count: int = 0  # Number of subprojects
     created_at: str
     updated_at: str
 
 
 class ProjectDetailResponse(ProjectResponse):
     contents: List[dict] = []  # Linked contents summary
+    children: List["ProjectResponse"] = []  # Subprojects
+
+
+class ProjectTreeResponse(BaseModel):
+    id: str
+    name: str
+    icon: str
+    color: str
+    status: str
+    parent_project_id: Optional[str] = None
+    children: List["ProjectTreeResponse"] = []
+    content_count: int = 0
 
 
 VALID_STATUSES = ["active", "completed", "archived", "on_hold"]
@@ -57,7 +73,8 @@ async def list_projects(
     current_user: CurrentUser,
     db: Database,
     status: Optional[str] = None,
-    include_archived: bool = False
+    include_archived: bool = False,
+    parent_id: Optional[str] = Query(None, description="Filter by parent project ID. Use 'root' for root projects only.")
 ):
     """
     List all user projects.
@@ -70,25 +87,92 @@ async def list_projects(
         elif not include_archived:
             query = query.neq("status", "archived")
 
+        # Filter by parent
+        if parent_id == "root":
+            query = query.is_("parent_project_id", "null")
+        elif parent_id:
+            query = query.eq("parent_project_id", parent_id)
+
         query = query.order("position", desc=False).order("created_at", desc=True)
 
         response = query.execute()
 
-        # Get content counts for each project
+        # Get content counts and children counts for each project
         projects = []
         for project in response.data or []:
-            count_response = db.table("contents").select("id", count="exact").eq(
+            content_response = db.table("contents").select("id", count="exact").eq(
                 "project_id", project["id"]
             ).eq("is_archived", False).execute()
+            project["content_count"] = content_response.count or 0
 
-            project["content_count"] = count_response.count or 0
+            children_response = db.table("projects").select("id", count="exact").eq(
+                "parent_project_id", project["id"]
+            ).execute()
+            project["children_count"] = children_response.count or 0
+
             projects.append(project)
 
         return projects
 
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
+            detail=str(e)
+        )
+
+
+@router.get("/tree", response_model=List[ProjectTreeResponse])
+async def get_projects_tree(
+    current_user: CurrentUser,
+    db: Database,
+    include_archived: bool = False
+):
+    """
+    Get all projects as a tree structure.
+    """
+    try:
+        query = db.table("projects").select("*").eq("user_id", current_user["id"])
+
+        if not include_archived:
+            query = query.neq("status", "archived")
+
+        query = query.order("position", desc=False).order("created_at", desc=True)
+        response = query.execute()
+
+        all_projects = response.data or []
+
+        # Get content counts for all projects
+        project_content_counts = {}
+        for project in all_projects:
+            count_response = db.table("contents").select("id", count="exact").eq(
+                "project_id", project["id"]
+            ).eq("is_archived", False).execute()
+            project_content_counts[project["id"]] = count_response.count or 0
+
+        # Build tree structure
+        def build_tree(parent_id: Optional[str] = None) -> List[dict]:
+            children = []
+            for project in all_projects:
+                if project.get("parent_project_id") == parent_id:
+                    node = {
+                        "id": project["id"],
+                        "name": project["name"],
+                        "icon": project.get("icon", "📁"),
+                        "color": project.get("color", "#6366f1"),
+                        "status": project.get("status", "active"),
+                        "parent_project_id": project.get("parent_project_id"),
+                        "content_count": project_content_counts.get(project["id"], 0),
+                        "children": build_tree(project["id"])
+                    }
+                    children.append(node)
+            return children
+
+        tree = build_tree(None)
+        return tree
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
             detail=str(e)
         )
 
@@ -100,7 +184,7 @@ async def get_project(
     db: Database
 ):
     """
-    Get a specific project with its linked contents.
+    Get a specific project with its linked contents and subprojects.
     """
     try:
         response = db.table("projects").select("*").eq(
@@ -111,7 +195,7 @@ async def get_project(
 
         if not response.data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail="Project not found"
             )
 
@@ -127,31 +211,65 @@ async def get_project(
         project["contents"] = contents_response.data or []
         project["content_count"] = len(project["contents"])
 
+        # Get children (subprojects)
+        children_response = db.table("projects").select("*").eq(
+            "parent_project_id", project_id
+        ).order("position", desc=False).execute()
+
+        children = []
+        for child in children_response.data or []:
+            child_content_response = db.table("contents").select("id", count="exact").eq(
+                "project_id", child["id"]
+            ).eq("is_archived", False).execute()
+            child["content_count"] = child_content_response.count or 0
+            child["children_count"] = 0  # Can be expanded if needed
+            children.append(child)
+
+        project["children"] = children
+        project["children_count"] = len(children)
+
         return project
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=str(e)
         )
 
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ProjectResponse, status_code=201)
 async def create_project(
     data: ProjectCreate,
     current_user: CurrentUser,
     db: Database
 ):
     """
-    Create a new project.
+    Create a new project or subproject.
     """
     try:
-        # Get next position
-        pos_response = db.table("projects").select("position").eq(
+        # If parent_project_id provided, verify it exists and belongs to user
+        if data.parent_project_id:
+            parent_check = db.table("projects").select("id").eq(
+                "id", data.parent_project_id
+            ).eq("user_id", current_user["id"]).execute()
+            if not parent_check.data:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Parent project not found"
+                )
+
+        # Get next position among siblings (same parent)
+        pos_query = db.table("projects").select("position").eq(
             "user_id", current_user["id"]
-        ).order("position", desc=True).limit(1).execute()
+        )
+        if data.parent_project_id:
+            pos_query = pos_query.eq("parent_project_id", data.parent_project_id)
+        else:
+            pos_query = pos_query.is_("parent_project_id", "null")
+
+        pos_response = pos_query.order("position", desc=True).limit(1).execute()
 
         next_position = 0
         if pos_response.data:
@@ -165,19 +283,21 @@ async def create_project(
             "color": data.color,
             "icon": data.icon,
             "position": next_position,
-            "status": "active"
+            "status": "active",
+            "parent_project_id": data.parent_project_id
         }
 
         response = db.table("projects").insert(project_data).execute()
 
         if not response.data:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=500,
                 detail="Failed to create project"
             )
 
         project = response.data[0]
         project["content_count"] = 0
+        project["children_count"] = 0
 
         return project
 
@@ -185,7 +305,7 @@ async def create_project(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=str(e)
         )
 
@@ -210,7 +330,7 @@ async def update_project(
 
         if not existing.data:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail="Project not found"
             )
 
@@ -218,16 +338,36 @@ async def update_project(
 
         if not update_data:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=400,
                 detail="No fields to update"
             )
 
         # Validate status if provided
         if "status" in update_data and update_data["status"] not in VALID_STATUSES:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=400,
                 detail=f"Invalid status. Must be one of: {', '.join(VALID_STATUSES)}"
             )
+
+        # Validate parent_project_id if provided
+        if "parent_project_id" in update_data:
+            new_parent = update_data["parent_project_id"]
+            # Can't set self as parent
+            if new_parent == project_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="A project cannot be its own parent"
+                )
+            # If not null, verify parent exists
+            if new_parent:
+                parent_check = db.table("projects").select("id").eq(
+                    "id", new_parent
+                ).eq("user_id", current_user["id"]).execute()
+                if not parent_check.data:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Parent project not found"
+                    )
 
         # Set completed_at if status changed to completed
         if update_data.get("status") == "completed" and existing.data[0].get("status") != "completed":
@@ -245,15 +385,91 @@ async def update_project(
         ).eq("is_archived", False).execute()
         project["content_count"] = count_response.count or 0
 
+        # Get children count
+        children_response = db.table("projects").select("id", count="exact").eq(
+            "parent_project_id", project_id
+        ).execute()
+        project["children_count"] = children_response.count or 0
+
         return project
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=str(e)
         )
+
+
+class ReorderRequest(BaseModel):
+    project_id: str
+    new_parent_id: Optional[str] = None  # None means root
+    new_position: int
+
+
+@router.post("/reorder")
+async def reorder_project(
+    data: ReorderRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Move a project to a new parent and/or position (for drag & drop).
+    """
+    try:
+        # Verify project exists and belongs to user
+        project_check = db.table("projects").select("id, parent_project_id, position").eq(
+            "id", data.project_id
+        ).eq("user_id", current_user["id"]).execute()
+
+        if not project_check.data:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        current_project = project_check.data[0]
+        old_parent_id = current_project.get("parent_project_id")
+        old_position = current_project.get("position", 0)
+
+        # Validate new parent if provided
+        if data.new_parent_id:
+            if data.new_parent_id == data.project_id:
+                raise HTTPException(status_code=400, detail="Cannot set project as its own parent")
+            parent_check = db.table("projects").select("id").eq(
+                "id", data.new_parent_id
+            ).eq("user_id", current_user["id"]).execute()
+            if not parent_check.data:
+                raise HTTPException(status_code=404, detail="Parent project not found")
+
+        # Get siblings in the target parent
+        siblings_query = db.table("projects").select("id, position").eq(
+            "user_id", current_user["id"]
+        ).neq("id", data.project_id)
+
+        if data.new_parent_id:
+            siblings_query = siblings_query.eq("parent_project_id", data.new_parent_id)
+        else:
+            siblings_query = siblings_query.is_("parent_project_id", "null")
+
+        siblings = siblings_query.order("position", desc=False).execute()
+
+        # Reorder siblings to make room
+        for i, sibling in enumerate(siblings.data or []):
+            new_pos = i if i < data.new_position else i + 1
+            if sibling["position"] != new_pos:
+                db.table("projects").update({"position": new_pos}).eq("id", sibling["id"]).execute()
+
+        # Update the moved project
+        db.table("projects").update({
+            "parent_project_id": data.new_parent_id,
+            "position": data.new_position
+        }).eq("id", data.project_id).execute()
+
+        return {"success": True, "message": "Project reordered successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/{project_id}")
