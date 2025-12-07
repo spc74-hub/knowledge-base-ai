@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.api.deps import Database, CurrentUser
-from app.services.google_drive import google_drive_service, SUPPORTED_MIME_TYPES
+from app.services.google_drive import google_drive_service, SUPPORTED_MIME_TYPES, AUDIO_MIME_TYPES
 from app.core.config import settings
 
 router = APIRouter()
@@ -251,12 +251,16 @@ async def _import_single_file(
         reading_time = max(1, word_count // 200)
 
         # Determine content type based on mime type
-        # Valid types in database: 'web', 'youtube', 'tiktok', 'twitter', 'pdf', 'note', 'docx'
+        # Valid types in database: 'web', 'youtube', 'tiktok', 'twitter', 'pdf', 'note', 'docx', 'email', 'audio'
         mime_type = file_data.get("mimeType", "")
         if mime_type in ['application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                          'application/msword',
                          'application/vnd.google-apps.document']:
             content_type = "docx"
+        elif mime_type == 'message/rfc822':
+            content_type = "email"
+        elif mime_type in AUDIO_MIME_TYPES:
+            content_type = "audio"
         else:
             content_type = "pdf"  # Default for PDFs and other documents
 

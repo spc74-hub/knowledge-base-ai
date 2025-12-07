@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS public.contents (
     processed_at TIMESTAMPTZ,
 
     -- Constraints
-    CONSTRAINT valid_type CHECK (type IN ('web', 'youtube', 'tiktok', 'twitter', 'pdf', 'note', 'docx')),
+    CONSTRAINT valid_type CHECK (type IN ('web', 'youtube', 'tiktok', 'twitter', 'pdf', 'note', 'docx', 'email', 'audio')),
     CONSTRAINT valid_status CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed')),
     CONSTRAINT unique_user_url UNIQUE (user_id, url)
 );

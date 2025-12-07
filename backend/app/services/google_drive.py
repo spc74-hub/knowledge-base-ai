@@ -29,6 +29,23 @@ SUPPORTED_MIME_TYPES = {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
+    'message/rfc822': 'Email',
+    # Audio files (transcribed via Whisper)
+    'audio/x-m4a': 'Audio',
+    'audio/mp4': 'Audio',
+    'audio/m4a': 'Audio',
+    'audio/mpeg': 'Audio',
+    'audio/mp3': 'Audio',
+    'audio/wav': 'Audio',
+    'audio/x-wav': 'Audio',
+    'audio/webm': 'Audio',
+    'audio/ogg': 'Audio',
+}
+
+# Audio MIME types for special handling
+AUDIO_MIME_TYPES = {
+    'audio/x-m4a', 'audio/mp4', 'audio/m4a', 'audio/mpeg',
+    'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/webm', 'audio/ogg'
 }
 
 # Export MIME types for Google Workspace files
@@ -291,6 +308,43 @@ class GoogleDriveService:
                                'application/vnd.ms-powerpoint']:
                 # PowerPoint - for now just note it's not fully supported
                 content = f"[PowerPoint file - text extraction limited]"
+
+            elif mime_type == 'message/rfc822':
+                # Email (.eml) - download and parse
+                try:
+                    from app.services.document_parser import document_parser
+                    response = service.files().get_media(fileId=file_id).execute()
+                    if response:
+                        _, content, _ = document_parser.parse_file(response, file_metadata['name'])
+                        # Remove null characters that cause database issues
+                        content = content.replace('\x00', '').replace('\u0000', '')
+                except Exception as e:
+                    content = f"[Error extracting email: {str(e)}]"
+
+            elif mime_type in AUDIO_MIME_TYPES:
+                # Audio files - download and transcribe with Whisper
+                try:
+                    from app.services.audio_transcriber import audio_transcriber
+                    if not audio_transcriber.is_available():
+                        content = "[Audio transcription not available - OPENAI_API_KEY not configured]"
+                    else:
+                        response = service.files().get_media(fileId=file_id).execute()
+                        if response:
+                            # Check file size
+                            if len(response) > audio_transcriber.MAX_FILE_SIZE:
+                                content = f"[Audio file too large for transcription - max {audio_transcriber.MAX_FILE_SIZE // (1024*1024)}MB]"
+                            else:
+                                transcription, detected_lang = audio_transcriber.transcribe(
+                                    response,
+                                    file_metadata['name']
+                                )
+                                content = transcription
+                                # Remove null characters that cause database issues
+                                content = content.replace('\x00', '').replace('\u0000', '')
+                        else:
+                            content = "[Error downloading audio file]"
+                except Exception as e:
+                    content = f"[Error transcribing audio: {str(e)}]"
 
             else:
                 # Other files - get metadata only

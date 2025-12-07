@@ -104,6 +104,7 @@ export default function ImportPage() {
     const [driveNextPageToken, setDriveNextPageToken] = useState<string | null>(null);
     const [driveSearchQuery, setDriveSearchQuery] = useState('');
     const [driveOrderBy, setDriveOrderBy] = useState('modifiedTime desc');
+    const [driveFileTypeFilter, setDriveFileTypeFilter] = useState<string>('all');
 
     const getAuthHeaders = useCallback(async () => {
         const session = await supabase.auth.getSession();
@@ -415,8 +416,36 @@ export default function ImportPage() {
         }
     };
 
+    // Filter files by type
+    const filterFileByType = (file: DriveFile): boolean => {
+        if (file.isFolder) return true; // Always show folders
+        if (driveFileTypeFilter === 'all') return true;
+
+        const mime = file.mimeType;
+        switch (driveFileTypeFilter) {
+            case 'pdf':
+                return mime.includes('pdf');
+            case 'doc':
+                return mime.includes('document') || mime.includes('msword') || mime.includes('wordprocessing');
+            case 'sheet':
+                return mime.includes('spreadsheet') || mime.includes('excel');
+            case 'slides':
+                return mime.includes('presentation') || mime.includes('powerpoint');
+            case 'email':
+                return mime === 'message/rfc822';
+            case 'audio':
+                return mime.startsWith('audio/');
+            case 'text':
+                return mime.includes('text/') || mime.includes('markdown');
+            default:
+                return true;
+        }
+    };
+
+    const filteredDriveFiles = driveFiles.filter(filterFileByType);
+
     const selectAllDriveFiles = () => {
-        const supportedFiles = driveFiles.filter(f => f.isSupported && !f.isFolder);
+        const supportedFiles = filteredDriveFiles.filter(f => f.isSupported && !f.isFolder);
         if (driveSelectedFiles.size === supportedFiles.length) {
             setDriveSelectedFiles(new Set());
         } else {
@@ -674,7 +703,7 @@ export default function ImportPage() {
                                 }`}
                             >
                                 <span className="block font-medium">Google Drive</span>
-                                <span className="block text-xs opacity-75">Docs, Sheets, PDF</span>
+                                <span className="block text-xs opacity-75">Docs, PDF, Email</span>
                             </button>
                         </div>
                     </div>
@@ -721,7 +750,7 @@ export default function ImportPage() {
                                 Se extrae solo el texto - el archivo original permanece en Drive.
                             </p>
                             <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                                Soporta: Google Docs, Sheets, Slides, PDF, Word, Excel, PowerPoint y archivos de texto
+                                Soporta: Google Docs, Sheets, Slides, PDF, Word, Excel, PowerPoint, Email (.eml), Audio (m4a, mp3, wav) y archivos de texto
                             </p>
                         </div>
                     )}
@@ -870,22 +899,59 @@ export default function ImportPage() {
                                                 <option value="name desc">Nombre Z-A</option>
                                                 <option value="createdTime desc">Creacion reciente</option>
                                             </select>
+                                            <select
+                                                value={driveFileTypeFilter}
+                                                onChange={(e) => setDriveFileTypeFilter(e.target.value)}
+                                                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            >
+                                                <option value="all">Todos los tipos</option>
+                                                <option value="pdf">📕 PDF</option>
+                                                <option value="doc">📄 Word/Docs</option>
+                                                <option value="sheet">📊 Excel/Sheets</option>
+                                                <option value="slides">📽️ PowerPoint/Slides</option>
+                                                <option value="email">📧 Email</option>
+                                                <option value="audio">🎵 Audio</option>
+                                                <option value="text">📃 Texto</option>
+                                            </select>
                                         </div>
                                     </div>
 
-                                    {/* Search indicator */}
-                                    {driveSearchQuery && (
-                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg">
-                                            <span>Resultados para: <strong>{driveSearchQuery}</strong></span>
-                                            <button
-                                                onClick={() => {
-                                                    setDriveSearchQuery('');
-                                                    loadDriveFiles(driveCurrentFolder, null, '', driveOrderBy);
-                                                }}
-                                                className="text-blue-600 dark:text-blue-400 hover:underline"
-                                            >
-                                                Limpiar busqueda
-                                            </button>
+                                    {/* Search and filter indicators */}
+                                    {(driveSearchQuery || driveFileTypeFilter !== 'all') && (
+                                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                                            {driveSearchQuery && (
+                                                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg">
+                                                    <span>Busqueda: <strong>{driveSearchQuery}</strong></span>
+                                                    <button
+                                                        onClick={() => {
+                                                            setDriveSearchQuery('');
+                                                            loadDriveFiles(driveCurrentFolder, null, '', driveOrderBy);
+                                                        }}
+                                                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {driveFileTypeFilter !== 'all' && (
+                                                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 bg-purple-50 dark:bg-purple-900/20 px-3 py-2 rounded-lg">
+                                                    <span>Tipo: <strong>
+                                                        {driveFileTypeFilter === 'pdf' && '📕 PDF'}
+                                                        {driveFileTypeFilter === 'doc' && '📄 Word/Docs'}
+                                                        {driveFileTypeFilter === 'sheet' && '📊 Excel/Sheets'}
+                                                        {driveFileTypeFilter === 'slides' && '📽️ Slides'}
+                                                        {driveFileTypeFilter === 'email' && '📧 Email'}
+                                                        {driveFileTypeFilter === 'audio' && '🎵 Audio'}
+                                                        {driveFileTypeFilter === 'text' && '📃 Texto'}
+                                                    </strong></span>
+                                                    <button
+                                                        onClick={() => setDriveFileTypeFilter('all')}
+                                                        className="text-purple-600 dark:text-purple-400 hover:underline"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -896,9 +962,11 @@ export default function ImportPage() {
                                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                                                 <p className="text-sm text-gray-500 mt-2">Cargando archivos...</p>
                                             </div>
-                                        ) : driveFiles.length === 0 ? (
+                                        ) : filteredDriveFiles.length === 0 ? (
                                             <div className="p-8 text-center text-gray-500">
-                                                Esta carpeta esta vacia
+                                                {driveFileTypeFilter !== 'all'
+                                                    ? 'No hay archivos de este tipo en esta carpeta'
+                                                    : 'Esta carpeta esta vacia'}
                                             </div>
                                         ) : (
                                             <div className="max-h-80 overflow-y-auto">
@@ -908,7 +976,7 @@ export default function ImportPage() {
                                                             <th className="px-4 py-2 text-left">
                                                                 <input
                                                                     type="checkbox"
-                                                                    checked={driveSelectedFiles.size > 0 && driveSelectedFiles.size === driveFiles.filter(f => f.isSupported && !f.isFolder).length}
+                                                                    checked={driveSelectedFiles.size > 0 && driveSelectedFiles.size === filteredDriveFiles.filter(f => f.isSupported && !f.isFolder).length}
                                                                     onChange={selectAllDriveFiles}
                                                                     className="rounded border-gray-300"
                                                                 />
@@ -922,7 +990,7 @@ export default function ImportPage() {
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
-                                                        {driveFiles.map(file => (
+                                                        {filteredDriveFiles.map(file => (
                                                             <tr
                                                                 key={file.id}
                                                                 onClick={() => handleDriveFileClick(file)}
@@ -947,7 +1015,9 @@ export default function ImportPage() {
                                                                          file.mimeType.includes('document') ? '📄' :
                                                                          file.mimeType.includes('spreadsheet') ? '📊' :
                                                                          file.mimeType.includes('presentation') ? '📽️' :
-                                                                         file.mimeType.includes('pdf') ? '📕' : '📃'}
+                                                                         file.mimeType.includes('pdf') ? '📕' :
+                                                                         file.mimeType === 'message/rfc822' ? '📧' :
+                                                                         file.mimeType.startsWith('audio/') ? '🎵' : '📃'}
                                                                     </span>
                                                                     <span className="text-sm text-gray-900 dark:text-white truncate max-w-xs">
                                                                         {file.name}
