@@ -599,3 +599,134 @@ async def unlink_contents_from_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.post("/{project_id}/link-notes")
+async def link_notes_to_project(
+    project_id: str,
+    note_ids: List[str],
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Link multiple standalone notes to a project.
+    """
+    try:
+        # Check project ownership
+        existing = db.table("projects").select("id").eq(
+            "id", project_id
+        ).eq(
+            "user_id", current_user["id"]
+        ).execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Update notes
+        linked = 0
+        for note_id in note_ids:
+            try:
+                result = db.table("standalone_notes").update({
+                    "linked_project_id": project_id
+                }).eq("id", note_id).eq("user_id", current_user["id"]).execute()
+
+                if result.data:
+                    linked += 1
+            except Exception:
+                continue
+
+        return {
+            "linked": linked,
+            "total": len(note_ids),
+            "project_id": project_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/{project_id}/unlink-notes")
+async def unlink_notes_from_project(
+    project_id: str,
+    note_ids: List[str],
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Unlink multiple standalone notes from a project.
+    """
+    try:
+        # Update notes
+        unlinked = 0
+        for note_id in note_ids:
+            try:
+                result = db.table("standalone_notes").update({
+                    "linked_project_id": None
+                }).eq("id", note_id).eq(
+                    "user_id", current_user["id"]
+                ).eq("linked_project_id", project_id).execute()
+
+                if result.data:
+                    unlinked += 1
+            except Exception:
+                continue
+
+        return {
+            "unlinked": unlinked,
+            "total": len(note_ids)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.get("/{project_id}/notes")
+async def get_project_notes(
+    project_id: str,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Get all standalone notes linked to a project.
+    """
+    try:
+        # Verify project exists and belongs to user
+        project_check = db.table("projects").select("id").eq(
+            "id", project_id
+        ).eq("user_id", current_user["id"]).execute()
+
+        if not project_check.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Get linked notes
+        notes_response = db.table("standalone_notes").select(
+            "id, title, content, note_type, tags, is_pinned, created_at, updated_at"
+        ).eq("linked_project_id", project_id).eq(
+            "user_id", current_user["id"]
+        ).order("is_pinned", desc=True).order("created_at", desc=True).execute()
+
+        return notes_response.data or []
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

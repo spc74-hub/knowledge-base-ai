@@ -571,10 +571,12 @@ export default function DashboardPage() {
               {notesSummary.recent.length > 0 ? (
                 notesSummary.recent.slice(0, 8).map((note: any) => {
                   const noteTypeInfo = noteTypes.find((t: any) => t.value === note.note_type) || { icon: '📝', label: 'Nota' };
+                  const isFullNote = note.is_full_note || note.note_type === 'full_note';
+                  const href = isFullNote ? `/dashboard?content=${note.id}` : `/notes/${note.id}`;
                   return (
                     <Link
                       key={note.id}
-                      href={`/notes/${note.id}`}
+                      href={href}
                       className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors"
                     >
                       <span className="text-lg">{noteTypeInfo.icon}</span>
@@ -592,6 +594,12 @@ export default function DashboardPage() {
 
         {/* Quick create */}
         <div className="flex gap-3 flex-wrap">
+          <Link
+            href="/notes/new"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+          >
+            📄 Nota completa
+          </Link>
           <Link
             href="/journal?new=true&type=reflection"
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"

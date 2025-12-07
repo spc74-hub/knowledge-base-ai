@@ -472,10 +472,11 @@ async def bulk_delete_notes(
 class NotesSearchRequest(BaseModel):
     """Request for searching notes with facets."""
     query: Optional[str] = None
-    note_types: Optional[List[str]] = None
+    note_types: Optional[List[str]] = None  # includes 'full_note' for contents with type='note'
     has_source_content: Optional[bool] = None  # True = linked, False = orphan, None = all
     linkage_type: Optional[str] = None  # 'content', 'project', 'model', 'independent'
     is_pinned: Optional[bool] = None
+    include_full_notes: Optional[bool] = True  # Whether to include contents with type='note'
     limit: int = 50
     offset: int = 0
 
@@ -591,6 +592,61 @@ async def search_notes_with_facets(
             else:
                 note["linked_model"] = None
 
+        # Get Full Notes (contents with type='note') if requested
+        include_full = data.include_full_notes is not False
+        want_full_notes = not data.note_types or 'full_note' in data.note_types
+
+        full_notes_data = []
+        full_notes_count = 0
+
+        if include_full and want_full_notes:
+            # Get full notes from contents table
+            full_notes_query = db.table("contents").select(
+                "id, title, summary, is_favorite, project_id, created_at, updated_at"
+            ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False)
+
+            if data.query:
+                full_notes_query = full_notes_query.or_(f"title.ilike.%{data.query}%,summary.ilike.%{data.query}%")
+
+            if data.is_pinned is not None:
+                full_notes_query = full_notes_query.eq("is_favorite", data.is_pinned)
+
+            full_notes_query = full_notes_query.order("created_at", desc=True)
+            full_notes_response = full_notes_query.execute()
+
+            # Transform full notes to match standalone_notes format
+            for fn in (full_notes_response.data or []):
+                full_notes_data.append({
+                    "id": fn["id"],
+                    "title": fn["title"],
+                    "content": fn.get("summary", "")[:200] or "",  # Use summary as preview
+                    "note_type": "full_note",
+                    "tags": [],
+                    "source_content_id": None,
+                    "linked_project_id": fn.get("project_id"),
+                    "linked_model_id": None,
+                    "is_pinned": fn.get("is_favorite", False),
+                    "is_full_note": True,
+                    "created_at": fn["created_at"],
+                    "updated_at": fn["updated_at"],
+                })
+
+            full_notes_count = len(full_notes_data)
+
+        # Combine results if full_note is the only filter or no type filter
+        if data.note_types and 'full_note' in data.note_types and len(data.note_types) == 1:
+            # Only full notes requested
+            combined_notes = full_notes_data
+        elif not data.note_types or 'full_note' in data.note_types:
+            # Combine both types
+            combined_notes = notes + full_notes_data
+            combined_notes.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        else:
+            combined_notes = notes
+
+        # Apply pagination to combined results
+        paginated_notes = combined_notes[data.offset:data.offset + data.limit]
+
         # Get facet counts (all notes, not filtered)
         # This query is separate and gets total counts for facets
         all_notes_query = db.table("standalone_notes").select(
@@ -599,6 +655,12 @@ async def search_notes_with_facets(
 
         all_notes_response = all_notes_query.execute()
         all_notes = all_notes_response.data or []
+
+        # Get full notes count for facets
+        full_notes_total_response = db.table("contents").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).execute()
+        full_notes_total = full_notes_total_response.count or 0
 
         # Calculate facets
         note_type_counts = {}
@@ -628,6 +690,8 @@ async def search_notes_with_facets(
             if n.get("is_pinned"):
                 pinned_count += 1
 
+        total_all = len(all_notes) + full_notes_total
+
         facets = {
             "note_types": [
                 {"value": "reflection", "label": "Reflexiones", "icon": "💭", "count": note_type_counts.get("reflection", 0)},
@@ -635,6 +699,7 @@ async def search_notes_with_facets(
                 {"value": "question", "label": "Preguntas", "icon": "❓", "count": note_type_counts.get("question", 0)},
                 {"value": "connection", "label": "Conexiones", "icon": "🔗", "count": note_type_counts.get("connection", 0)},
                 {"value": "journal", "label": "Diario", "icon": "📓", "count": note_type_counts.get("journal", 0)},
+                {"value": "full_note", "label": "Notas completas", "icon": "📄", "count": full_notes_total},
             ],
             "linkage": [
                 {"value": "content", "label": "Con contenido", "icon": "📄", "count": content_linked_count},
@@ -642,16 +707,16 @@ async def search_notes_with_facets(
                 {"value": "model", "label": "Con modelo mental", "icon": "🧠", "count": model_linked_count},
                 {"value": "independent", "label": "Independientes", "icon": "📝", "count": independent_count},
             ],
-            "total_notes": len(all_notes),
+            "total_notes": total_all,
             "pinned_count": pinned_count,
         }
 
         return {
-            "data": notes,
+            "data": paginated_notes,
             "facets": facets,
             "meta": {
-                "total_results": len(all_notes),  # Total without filters
-                "returned_results": len(notes),
+                "total_results": total_all,
+                "returned_results": len(paginated_notes),
                 "offset": data.offset,
                 "limit": data.limit,
             }

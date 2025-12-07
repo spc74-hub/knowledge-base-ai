@@ -42,11 +42,25 @@ interface Content {
     is_favorite: boolean;
     maturity_level: string;
     created_at: string;
+    project_id?: string | null;
+}
+
+interface StandaloneNote {
+    id: string;
+    title: string;
+    content: string;
+    note_type: string;
+    tags: string[];
+    is_pinned: boolean;
+    linked_project_id?: string | null;
+    created_at: string;
+    updated_at: string;
 }
 
 interface ProjectDetail extends Project {
     contents: Content[];
     children: Project[];
+    notes?: StandaloneNote[];
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -178,6 +192,18 @@ export default function ProjectsPage() {
     const [createParentId, setCreateParentId] = useState<string | null>(null);
     const [editMode, setEditMode] = useState(false);
 
+    // Content/Notes linking modals
+    const [showContentSelector, setShowContentSelector] = useState(false);
+    const [showNoteSelector, setShowNoteSelector] = useState(false);
+    const [availableContents, setAvailableContents] = useState<Content[]>([]);
+    const [availableNotes, setAvailableNotes] = useState<StandaloneNote[]>([]);
+    const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
+    const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
+    const [loadingContents, setLoadingContents] = useState(false);
+    const [loadingNotes, setLoadingNotes] = useState(false);
+    const [linkingContents, setLinkingContents] = useState(false);
+    const [linkingNotes, setLinkingNotes] = useState(false);
+
     // Form state
     const [formName, setFormName] = useState('');
     const [formDescription, setFormDescription] = useState('');
@@ -244,14 +270,28 @@ export default function ProjectsPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch(`${API_URL}/api/v1/projects/${projectId}`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
+            // Fetch project and linked notes in parallel
+            const [projectResponse, notesResponse] = await Promise.all([
+                fetch(`${API_URL}/api/v1/projects/${projectId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${session.data.session.access_token}`,
+                    },
+                }),
+                fetch(`${API_URL}/api/v1/projects/${projectId}/notes`, {
+                    headers: {
+                        'Authorization': `Bearer ${session.data.session.access_token}`,
+                    },
+                })
+            ]);
 
-            if (response.ok) {
-                const data = await response.json();
+            if (projectResponse.ok) {
+                const data = await projectResponse.json();
+                // Add notes to project data
+                if (notesResponse.ok) {
+                    data.notes = await notesResponse.json();
+                } else {
+                    data.notes = [];
+                }
                 setSelectedProject(data);
                 // Set form values for editing
                 setFormName(data.name);
@@ -265,6 +305,176 @@ export default function ProjectsPage() {
         } finally {
             setLoadingDetail(false);
         }
+    };
+
+    const fetchAvailableContents = async () => {
+        setLoadingContents(true);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/contents/?limit=200`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out contents already in this project
+                const filtered = data.data.filter((c: Content) => c.project_id !== selectedProjectId);
+                setAvailableContents(filtered);
+            }
+        } catch (error) {
+            console.error('Error fetching contents:', error);
+        } finally {
+            setLoadingContents(false);
+        }
+    };
+
+    const fetchAvailableNotes = async () => {
+        setLoadingNotes(true);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/notes/?limit=100`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out notes already linked to this project
+                const filtered = data.filter((n: StandaloneNote) => n.linked_project_id !== selectedProjectId);
+                setAvailableNotes(filtered);
+            }
+        } catch (error) {
+            console.error('Error fetching notes:', error);
+        } finally {
+            setLoadingNotes(false);
+        }
+    };
+
+    const handleLinkContents = async () => {
+        if (!selectedProjectId || selectedContentIds.length === 0) return;
+        setLinkingContents(true);
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProjectId}/link`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify(selectedContentIds),
+            });
+
+            if (response.ok) {
+                setShowContentSelector(false);
+                setSelectedContentIds([]);
+                fetchProjectTree();
+                fetchProjectDetail(selectedProjectId);
+            }
+        } catch (error) {
+            console.error('Error linking contents:', error);
+        } finally {
+            setLinkingContents(false);
+        }
+    };
+
+    const handleLinkNotes = async () => {
+        if (!selectedProjectId || selectedNoteIds.length === 0) return;
+        setLinkingNotes(true);
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProjectId}/link-notes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify(selectedNoteIds),
+            });
+
+            if (response.ok) {
+                setShowNoteSelector(false);
+                setSelectedNoteIds([]);
+                fetchProjectDetail(selectedProjectId);
+            }
+        } catch (error) {
+            console.error('Error linking notes:', error);
+        } finally {
+            setLinkingNotes(false);
+        }
+    };
+
+    const handleUnlinkNote = async (noteId: string) => {
+        if (!selectedProjectId) return;
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProjectId}/unlink-notes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify([noteId]),
+            });
+
+            if (response.ok) {
+                fetchProjectDetail(selectedProjectId);
+            }
+        } catch (error) {
+            console.error('Error unlinking note:', error);
+        }
+    };
+
+    const handleUnlinkContent = async (contentId: string) => {
+        if (!selectedProjectId) return;
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProjectId}/unlink`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify([contentId]),
+            });
+
+            if (response.ok) {
+                fetchProjectTree();
+                fetchProjectDetail(selectedProjectId);
+            }
+        } catch (error) {
+            console.error('Error unlinking content:', error);
+        }
+    };
+
+    const openContentSelector = () => {
+        setSelectedContentIds([]);
+        fetchAvailableContents();
+        setShowContentSelector(true);
+    };
+
+    const openNoteSelector = () => {
+        setSelectedNoteIds([]);
+        fetchAvailableNotes();
+        setShowNoteSelector(true);
     };
 
     const handleSelectProject = (id: string) => {
@@ -604,7 +814,21 @@ export default function ProjectsPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-wrap">
+                                    <button
+                                        onClick={openContentSelector}
+                                        className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        title="Asociar contenidos existentes"
+                                    >
+                                        + Contenido
+                                    </button>
+                                    <button
+                                        onClick={openNoteSelector}
+                                        className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        title="Asociar notas existentes"
+                                    >
+                                        + Nota
+                                    </button>
                                     <button
                                         onClick={() => openCreateSubproject(selectedProject.id)}
                                         className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -773,11 +997,76 @@ export default function ProjectsPage() {
                                         </div>
                                     )}
 
+                                    {/* Standalone Notes */}
+                                    <div className="mb-6">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-semibold dark:text-white">
+                                                Notas ({selectedProject.notes?.length || 0})
+                                            </h3>
+                                            <button
+                                                onClick={openNoteSelector}
+                                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                                            >
+                                                + Añadir
+                                            </button>
+                                        </div>
+                                        {!selectedProject.notes || selectedProject.notes.length === 0 ? (
+                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-4">
+                                                No hay notas vinculadas a este proyecto.
+                                            </p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {selectedProject.notes.map(note => (
+                                                    <div
+                                                        key={note.id}
+                                                        className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg group"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm">
+                                                                        {note.note_type === 'reflection' && '💭'}
+                                                                        {note.note_type === 'idea' && '💡'}
+                                                                        {note.note_type === 'question' && '❓'}
+                                                                        {note.note_type === 'connection' && '🔗'}
+                                                                        {note.note_type === 'journal' && '📓'}
+                                                                    </span>
+                                                                    <span className="font-medium dark:text-white truncate">
+                                                                        {note.title}
+                                                                    </span>
+                                                                    {note.is_pinned && <span className="text-xs">📌</span>}
+                                                                </div>
+                                                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                                                                    {note.content.substring(0, 100)}...
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleUnlinkNote(note.id)}
+                                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                title="Desvincular nota"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Contents */}
                                     <div>
-                                        <h3 className="font-semibold mb-3 dark:text-white">
-                                            Contenidos ({selectedProject.contents?.length || 0})
-                                        </h3>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-semibold dark:text-white">
+                                                Contenidos ({selectedProject.contents?.length || 0})
+                                            </h3>
+                                            <button
+                                                onClick={openContentSelector}
+                                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                                            >
+                                                + Añadir
+                                            </button>
+                                        </div>
                                         {!selectedProject.contents || selectedProject.contents.length === 0 ? (
                                             <p className="text-gray-500 dark:text-gray-400 text-sm py-4">
                                                 No hay contenidos vinculados a este proyecto.
@@ -785,21 +1074,32 @@ export default function ProjectsPage() {
                                         ) : (
                                             <div className="space-y-2">
                                                 {selectedProject.contents.map(content => (
-                                                    <Link
+                                                    <div
                                                         key={content.id}
-                                                        href={`/dashboard?content=${content.id}`}
-                                                        className="block p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow"
+                                                        className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg group"
                                                     >
                                                         <div className="flex items-center justify-between">
-                                                            <span className="dark:text-white">{content.title}</span>
+                                                            <Link
+                                                                href={`/dashboard?content=${content.id}`}
+                                                                className="flex-1 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                                            >
+                                                                <span className="dark:text-white">{content.title}</span>
+                                                            </Link>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
                                                                     {content.type}
                                                                 </span>
                                                                 {content.is_favorite && <span>⭐</span>}
+                                                                <button
+                                                                    onClick={() => handleUnlinkContent(content.id)}
+                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                    title="Desvincular contenido"
+                                                                >
+                                                                    ✕
+                                                                </button>
                                                             </div>
                                                         </div>
-                                                    </Link>
+                                                    </div>
                                                 ))}
                                             </div>
                                         )}
@@ -897,6 +1197,169 @@ export default function ProjectsPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Content Selector Modal */}
+            {showContentSelector && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                            Asociar contenidos a {selectedProject?.name}
+                        </h2>
+
+                        {loadingContents ? (
+                            <div className="flex-1 flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                            </div>
+                        ) : availableContents.length === 0 ? (
+                            <p className="text-gray-500 dark:text-gray-400 py-8 text-center">
+                                No hay contenidos disponibles para asociar.
+                            </p>
+                        ) : (
+                            <>
+                                <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                                    Selecciona los contenidos que quieres vincular ({selectedContentIds.length} seleccionados)
+                                </div>
+                                <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+                                    {availableContents.map(content => (
+                                        <label
+                                            key={content.id}
+                                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-colors
+                                                ${selectedContentIds.includes(content.id)
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedContentIds.includes(content.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedContentIds([...selectedContentIds, content.id]);
+                                                    } else {
+                                                        setSelectedContentIds(selectedContentIds.filter(id => id !== content.id));
+                                                    }
+                                                }}
+                                                className="w-4 h-4 text-indigo-600"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <span className="font-medium dark:text-white block truncate">{content.title}</span>
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">{content.type}</span>
+                                            </div>
+                                            {content.is_favorite && <span>⭐</span>}
+                                        </label>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowContentSelector(false);
+                                    setSelectedContentIds([]);
+                                }}
+                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleLinkContents}
+                                disabled={linkingContents || selectedContentIds.length === 0}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                {linkingContents ? 'Vinculando...' : `Vincular (${selectedContentIds.length})`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Note Selector Modal */}
+            {showNoteSelector && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                            Asociar notas a {selectedProject?.name}
+                        </h2>
+
+                        {loadingNotes ? (
+                            <div className="flex-1 flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                            </div>
+                        ) : availableNotes.length === 0 ? (
+                            <p className="text-gray-500 dark:text-gray-400 py-8 text-center">
+                                No hay notas disponibles para asociar.
+                            </p>
+                        ) : (
+                            <>
+                                <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                                    Selecciona las notas que quieres vincular ({selectedNoteIds.length} seleccionadas)
+                                </div>
+                                <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+                                    {availableNotes.map(note => (
+                                        <label
+                                            key={note.id}
+                                            className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-colors
+                                                ${selectedNoteIds.includes(note.id)
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedNoteIds.includes(note.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedNoteIds([...selectedNoteIds, note.id]);
+                                                    } else {
+                                                        setSelectedNoteIds(selectedNoteIds.filter(id => id !== note.id));
+                                                    }
+                                                }}
+                                                className="w-4 h-4 text-indigo-600 mt-1"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm">
+                                                        {note.note_type === 'reflection' && '💭'}
+                                                        {note.note_type === 'idea' && '💡'}
+                                                        {note.note_type === 'question' && '❓'}
+                                                        {note.note_type === 'connection' && '🔗'}
+                                                        {note.note_type === 'journal' && '📓'}
+                                                    </span>
+                                                    <span className="font-medium dark:text-white truncate">{note.title}</span>
+                                                    {note.is_pinned && <span className="text-xs">📌</span>}
+                                                </div>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                                                    {note.content.substring(0, 80)}...
+                                                </p>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowNoteSelector(false);
+                                    setSelectedNoteIds([]);
+                                }}
+                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleLinkNotes}
+                                disabled={linkingNotes || selectedNoteIds.length === 0}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                {linkingNotes ? 'Vinculando...' : `Vincular (${selectedNoteIds.length})`}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

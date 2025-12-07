@@ -313,7 +313,8 @@ async def get_object_summary(
         }
 
     elif object_type == "notes":
-        recent = safe_query(lambda: db.table("standalone_notes").select(
+        # Standalone notes (journal/reflections)
+        recent_standalone = safe_query(lambda: db.table("standalone_notes").select(
             "id, title, note_type, is_pinned, created_at, updated_at"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
@@ -321,7 +322,29 @@ async def get_object_summary(
             "id, title, note_type, is_pinned, created_at, updated_at"
         ).eq("user_id", user_id).eq("is_pinned", True).order("created_at", desc=True).limit(limit).execute())
 
-        # Get counts by note_type
+        # Full notes (contents with type='note')
+        recent_full_notes = safe_query(lambda: db.table("contents").select(
+            "id, title, is_favorite, created_at, updated_at"
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).order("created_at", desc=True).limit(limit).execute())
+
+        full_notes_count = safe_query(lambda: db.table("contents").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).execute())
+
+        # Add note_type marker to full notes for UI display
+        full_notes_data = safe_data(recent_full_notes)
+        for fn in full_notes_data:
+            fn["note_type"] = "full_note"
+            fn["is_pinned"] = fn.get("is_favorite", False)
+            fn["is_full_note"] = True
+
+        # Combine recent from both sources
+        combined_recent = safe_data(recent_standalone) + full_notes_data
+        # Sort by created_at and limit
+        combined_recent.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        combined_recent = combined_recent[:limit]
+
+        # Get counts by note_type for standalone notes
         note_types = ["reflection", "idea", "question", "connection", "journal"]
         by_type = {}
         for note_type in note_types:
@@ -330,17 +353,23 @@ async def get_object_summary(
             ).eq("user_id", user_id).eq("note_type", nt).execute())
             by_type[note_type] = safe_count(count_result)
 
-        # Total count
-        total_result = safe_query(lambda: db.table("standalone_notes").select(
+        # Add full notes count
+        by_type["full_note"] = safe_count(full_notes_count)
+
+        # Total count (standalone + full notes)
+        standalone_total = safe_query(lambda: db.table("standalone_notes").select(
             "id", count="exact"
         ).eq("user_id", user_id).execute())
 
+        total = safe_count(standalone_total) + safe_count(full_notes_count)
+
         return {
             "type": "notes",
-            "recent": safe_data(recent),
+            "recent": combined_recent,
             "pinned": safe_data(pinned),
+            "full_notes": full_notes_data,
             "stats": {
-                "total": safe_count(total_result),
+                "total": total,
                 "by_type": by_type,
             },
             "note_types": [
@@ -349,6 +378,7 @@ async def get_object_summary(
                 {"value": "question", "label": "Preguntas", "icon": "❓"},
                 {"value": "connection", "label": "Conexiones", "icon": "🔗"},
                 {"value": "journal", "label": "Diario", "icon": "📓"},
+                {"value": "full_note", "label": "Notas completas", "icon": "📄"},
             ],
         }
 

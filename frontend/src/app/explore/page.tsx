@@ -51,6 +51,7 @@ interface StandaloneNote {
         taxonomy_value: string;
     } | null;
     is_pinned: boolean;
+    is_full_note?: boolean;  // True for contents with type='note'
     created_at: string;
     updated_at: string;
 }
@@ -1658,7 +1659,8 @@ function ExplorePageContent() {
                                                      note.note_type === 'idea' ? '💡' :
                                                      note.note_type === 'question' ? '❓' :
                                                      note.note_type === 'connection' ? '🔗' :
-                                                     note.note_type === 'journal' ? '📓' : '📝'}
+                                                     note.note_type === 'journal' ? '📓' :
+                                                     note.note_type === 'full_note' ? '📄' : '📝'}
                                                 </span>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2">
@@ -1737,7 +1739,8 @@ function ExplorePageContent() {
                                                              note.note_type === 'idea' ? 'Idea' :
                                                              note.note_type === 'question' ? 'Pregunta' :
                                                              note.note_type === 'connection' ? 'Conexion' :
-                                                             note.note_type === 'journal' ? 'Diario' : note.note_type}
+                                                             note.note_type === 'journal' ? 'Diario' :
+                                                             note.note_type === 'full_note' ? 'Nota completa' : note.note_type}
                                                         </span>
                                                         {note.tags?.map(tag => (
                                                             <span key={tag} className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
