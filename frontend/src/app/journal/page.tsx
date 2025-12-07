@@ -162,6 +162,7 @@ export default function JournalPage() {
             const requestBody: Record<string, unknown> = {
                 limit: 100,
                 offset: 0,
+                include_full_notes: false, // Journal only shows standalone notes, not contents with type='note'
             };
 
             if (filterType !== 'all') {
