@@ -119,10 +119,15 @@ async def get_dashboard_summary(
         "id", count="exact"
     ).eq("user_id", user_id).eq("is_active", True).execute())
 
-    # Notes
+    # Notes (standalone/quick notes)
     notes_result = safe_query(lambda: db.table("standalone_notes").select(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
+
+    # Full Notes (contents with type='note', excluding apple_notes)
+    full_notes_result = safe_query(lambda: db.table("contents").select(
+        "id", count="exact"
+    ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").execute())
 
     # Tags
     tags_result = safe_query(lambda: db.table("taxonomy_tags").select(
@@ -185,6 +190,9 @@ async def get_dashboard_summary(
             },
             "notes": {
                 "total": safe_count(notes_result),
+            },
+            "full_notes": {
+                "total": safe_count(full_notes_result),
             },
             "tags": {
                 "total": safe_count(tags_result),
@@ -389,6 +397,22 @@ async def get_object_summary(
                 {"value": "full_note", "label": "Notas completas", "icon": "📄"},
                 {"value": "apple_notes", "label": "Apple Notes", "icon": "🍎"},
             ],
+        }
+
+    elif object_type == "full_notes":
+        # Full notes (contents with type='note', excluding apple_notes)
+        recent = safe_query(lambda: db.table("contents").select(
+            "id, title, type, is_favorite, created_at, maturity_level"
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").order("created_at", desc=True).limit(limit).execute())
+
+        favorites = safe_query(lambda: db.table("contents").select(
+            "id, title, type, is_favorite, created_at, maturity_level"
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).eq("is_favorite", True).neq("metadata->>source", "apple_notes").order("created_at", desc=True).limit(limit).execute())
+
+        return {
+            "type": "full_notes",
+            "recent": safe_data(recent),
+            "favorites": safe_data(favorites),
         }
 
     elif object_type == "tags":

@@ -16,6 +16,7 @@ interface DashboardSummary {
     projects: { active: number; total: number };
     mental_models: { active: number };
     notes: { total: number };
+    full_notes: { total: number };
     tags: { total: number };
     folders: { total: number };
     usage: { cost_30d: number };
@@ -38,7 +39,7 @@ interface ObjectSummary {
   items?: any[];
 }
 
-type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'tags';
+type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'full_notes' | 'tags';
 
 interface SidebarItem {
   key: string;
@@ -244,8 +245,8 @@ export default function DashboardPage() {
     { key: 'objectives', label: 'Objetivos', value: kpis?.objectives.active || 0, icon: '🎯', href: '/objectives', color: 'bg-purple-600' },
     { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-green-600' },
     { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-pink-600' },
-    { key: 'notes', label: 'Notas', value: kpis?.notes.total || 0, icon: '📝', href: '/journal', color: 'bg-yellow-600' },
-    { key: 'tags', label: 'Tags', value: kpis?.tags.total || 0, icon: '🏷️', href: '/tags', color: 'bg-orange-600' },
+    { key: 'notes', label: 'Quick Notes', value: kpis?.notes.total || 0, icon: '📝', href: '/journal', color: 'bg-yellow-600' },
+    { key: 'full_notes', label: 'Notes+', value: kpis?.full_notes?.total || 0, icon: '📄', href: '/explore?types=note', color: 'bg-orange-600' },
   ];
 
   // Sidebar navigation
@@ -266,8 +267,8 @@ export default function DashboardPage() {
         { key: 'objectives', label: 'Objetivos', icon: '🎯', selectable: true },
         { key: 'projects', label: 'Proyectos', icon: '📁', selectable: true },
         { key: 'mental_models', label: 'Modelos Mentales', icon: '🧠', selectable: true },
-        { key: 'notes', label: 'Notas', icon: '📝', selectable: true },
-        { key: 'tags', label: 'Tags', icon: '🏷️', selectable: true },
+        { key: 'notes', label: 'Quick Notes', icon: '📝', selectable: true },
+        { key: 'full_notes', label: 'Notes+', icon: '📄', selectable: true },
       ],
     },
     {
@@ -276,6 +277,7 @@ export default function DashboardPage() {
         { key: 'import', label: 'Importar URLs', icon: '📥', href: '/import' },
         { key: 'apple-notes', label: 'Apple Notes', icon: '🍎', href: '/import-apple-notes' },
         { key: 'quick-save', label: 'Quick Save', icon: '⚡', href: '/quick-save' },
+        { key: 'tags', label: 'Tags', icon: '🏷️', selectable: true },
         {
           key: 'processing',
           label: `Cola (${kpis?.contents.pending || 0} pend, ${kpis?.contents.failed || 0} fall)`,
@@ -823,7 +825,8 @@ export default function DashboardPage() {
       objectives: { title: 'Objetivos', href: '/objectives' },
       projects: { title: 'Proyectos', href: '/projects' },
       mental_models: { title: 'Modelos Mentales', href: '/mental-models' },
-      notes: { title: 'Notas', href: '/journal' },
+      notes: { title: 'Quick Notes', href: '/journal' },
+      full_notes: { title: 'Notes+', href: '/explore?types=note' },
       tags: { title: 'Tags', href: '/tags' },
     };
 

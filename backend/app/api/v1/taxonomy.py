@@ -38,6 +38,7 @@ class TaxonomyRequest(BaseModel):
     processing_status: Optional[List[str]] = None
     maturity_level: Optional[List[str]] = None
     has_comment: Optional[bool] = None  # Filter by presence of user_note
+    is_favorite: Optional[bool] = None  # Filter by favorite status
 
 
 class TaxonomyResponse(BaseModel):
@@ -61,6 +62,7 @@ class ContentListRequest(BaseModel):
     processing_status: Optional[List[str]] = None
     maturity_level: Optional[List[str]] = None
     has_comment: Optional[bool] = None  # Filter by presence of user_note
+    is_favorite: Optional[bool] = None  # Filter by favorite status
     limit: int = 100  # Default smaller batch for performance
     offset: int = 0
 
@@ -101,7 +103,8 @@ async def get_taxonomy_nodes(
         if data.root_type == "category" and not data.parent_type:
             nodes, total = await _get_category_nodes_optimized(
                 db, user_id, active_type_filters,
-                data.processing_status, data.maturity_level, data.has_comment
+                data.processing_status, data.maturity_level, data.has_comment,
+                data.is_favorite
             )
             return TaxonomyResponse(nodes=nodes, path=[], total_contents=total)
 
@@ -110,7 +113,8 @@ async def get_taxonomy_nodes(
         nodes, total = await _get_nodes_batched(
             db, user_id, data.root_type, active_type_filters,
             data.parent_type, data.parent_value,
-            data.processing_status, data.maturity_level, data.has_comment
+            data.processing_status, data.maturity_level, data.has_comment,
+            data.is_favorite
         )
 
         # Build breadcrumb path
@@ -140,7 +144,7 @@ async def get_taxonomy_nodes(
 async def _get_category_nodes_optimized(
     db, user_id: str, type_filters: Optional[List[str]],
     processing_status: Optional[List[str]], maturity_level: Optional[List[str]],
-    has_comment: Optional[bool]
+    has_comment: Optional[bool], is_favorite: Optional[bool] = None
 ) -> tuple:
     """
     Optimized category aggregation using SQL GROUP BY.
@@ -236,7 +240,7 @@ async def _get_nodes_batched(
     db, user_id: str, root_type: str, type_filters: Optional[List[str]],
     parent_type: Optional[str], parent_value: Optional[str],
     processing_status: Optional[List[str]], maturity_level: Optional[List[str]],
-    has_comment: Optional[bool]
+    has_comment: Optional[bool], is_favorite: Optional[bool] = None
 ) -> tuple:
     """
     Get taxonomy nodes with batched fetching for better memory management.
@@ -250,7 +254,7 @@ async def _get_nodes_batched(
     while True:
         # Build query for this batch
         query = db.table("contents").select(
-            "id, type, iab_tier1, concepts, entities, metadata, processing_status, maturity_level, user_note"
+            "id, type, iab_tier1, concepts, entities, metadata, processing_status, maturity_level, user_note, is_favorite"
         ).eq("user_id", user_id).eq("is_archived", False)
 
         # Apply parent filter if drilling down
@@ -309,6 +313,14 @@ async def _get_nodes_batched(
                 if has_comment and not has_note:
                     continue
                 if not has_comment and has_note:
+                    continue
+
+            # Favorite filter
+            if is_favorite is not None:
+                item_favorite = item.get("is_favorite") is True
+                if is_favorite and not item_favorite:
+                    continue
+                if not is_favorite and item_favorite:
                     continue
 
             total_items += 1
@@ -377,7 +389,8 @@ async def get_taxonomy_contents(
             active_type_filters or
             (data.processing_status and len(data.processing_status) > 1) or
             (data.maturity_level and len(data.maturity_level) > 1) or
-            data.has_comment is not None
+            data.has_comment is not None or
+            data.is_favorite is not None
         )
 
         # Build base query
@@ -465,12 +478,20 @@ async def get_taxonomy_contents(
                 if not data.has_comment and has_note:
                     return False
 
+            # Favorite filter
+            if data.is_favorite is not None:
+                item_favorite = item.get("is_favorite") is True
+                if data.is_favorite and not item_favorite:
+                    return False
+                if not data.is_favorite and item_favorite:
+                    return False
+
             return True
 
         # Fetch and filter in batches until we have enough for pagination
         while True:
             query = build_base_query(
-                "id, title, type, url, iab_tier1, summary, created_at, metadata, processing_status, maturity_level, user_note"
+                "id, title, type, url, iab_tier1, summary, created_at, metadata, processing_status, maturity_level, user_note, is_favorite"
             ).order("created_at", desc=True).range(offset, offset + BATCH_SIZE - 1)
 
             response = query.execute()

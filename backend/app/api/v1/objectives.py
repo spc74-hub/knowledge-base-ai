@@ -327,6 +327,34 @@ async def delete_objective(
     return {"success": True}
 
 
+@router.post("/{objective_id}/favorite")
+async def toggle_objective_favorite(
+    objective_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Toggle favorite status for an objective."""
+    # Get current status
+    existing = db.table("objectives").select("id, is_favorite").eq(
+        "id", objective_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Objective not found")
+
+    current_favorite = existing.data[0].get("is_favorite", False)
+    new_favorite = not current_favorite
+
+    db.table("objectives").update({
+        "is_favorite": new_favorite
+    }).eq("id", objective_id).execute()
+
+    return {
+        "success": True,
+        "is_favorite": new_favorite
+    }
+
+
 # =====================================================
 # Actions CRUD
 # =====================================================

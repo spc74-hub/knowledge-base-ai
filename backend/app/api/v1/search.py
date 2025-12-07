@@ -922,6 +922,7 @@ class FacetedSearchRequest(BaseModel):
     processing_status: Optional[List[str]] = None
     maturity_level: Optional[List[str]] = None
     has_comment: Optional[bool] = None  # Filter by presence of user_note
+    is_favorite: Optional[bool] = None  # Filter by favorite status
     limit: int = 50  # Reduced from 100 for faster initial load
     offset: int = 0
 
@@ -1267,6 +1268,21 @@ async def search_faceted(
                 results = [
                     r for r in results
                     if not r.get("user_note") or not r.get("user_note").strip()
+                ]
+
+        # Filter by is_favorite
+        if data.is_favorite is not None:
+            if data.is_favorite:
+                # Only favorite contents
+                results = [
+                    r for r in results
+                    if r.get("is_favorite") is True
+                ]
+            else:
+                # Only non-favorite contents
+                results = [
+                    r for r in results
+                    if not r.get("is_favorite")
                 ]
 
         # If text query provided, filter and score results

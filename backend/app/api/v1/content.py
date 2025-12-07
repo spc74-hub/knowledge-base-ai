@@ -521,6 +521,48 @@ async def delete_content(content_id: str, current_user: CurrentUser, db: Databas
         )
 
 
+@router.post("/{content_id}/favorite")
+async def toggle_content_favorite(
+    content_id: str,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Toggle favorite status for a content.
+    """
+    try:
+        # Check ownership and get current status
+        existing = db.table("contents").select("id, is_favorite").eq(
+            "id", content_id
+        ).eq("user_id", current_user["id"]).execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Content not found"
+            )
+
+        current_favorite = existing.data[0].get("is_favorite", False)
+        new_favorite = not current_favorite
+
+        db.table("contents").update({
+            "is_favorite": new_favorite
+        }).eq("id", content_id).execute()
+
+        return {
+            "success": True,
+            "is_favorite": new_favorite
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 class BulkActionRequest(BaseModel):
     content_ids: List[str]
 

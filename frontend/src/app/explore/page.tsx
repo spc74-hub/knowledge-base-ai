@@ -134,6 +134,7 @@ interface Filters {
     processing_status: string[];
     maturity_level: string[];
     has_comment: boolean | null;
+    is_favorite: boolean | null;
 }
 
 function ExplorePageContent() {
@@ -156,7 +157,8 @@ function ExplorePageContent() {
         inherited_tags: [],
         processing_status: [],
         maturity_level: [],
-        has_comment: null
+        has_comment: null,
+        is_favorite: null
     });
     const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
@@ -296,6 +298,7 @@ function ExplorePageContent() {
                     processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
                     maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
                     has_comment: filters.has_comment,
+                    is_favorite: filters.is_favorite,
                     limit: PAGE_SIZE,
                     offset: 0
                 };
@@ -365,6 +368,7 @@ function ExplorePageContent() {
                         processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
                         maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
                         has_comment: filters.has_comment,
+                        is_favorite: filters.is_favorite,
                         limit: PAGE_SIZE,
                         offset: results.length
                     }),
@@ -638,13 +642,14 @@ function ExplorePageContent() {
             inherited_tags: [],
             processing_status: [],
             maturity_level: [],
-            has_comment: null
+            has_comment: null,
+            is_favorite: null
         });
         setSearchQuery('');
     };
 
     const hasActiveFilters = Object.entries(filters).some(([key, val]) => {
-        if (key === 'has_comment') return val !== null;
+        if (key === 'has_comment' || key === 'is_favorite') return val !== null;
         return Array.isArray(val) && val.length > 0;
     }) || searchQuery;
 
@@ -903,6 +908,22 @@ function ExplorePageContent() {
 
                             {facets && (
                                 <div className="space-y-4">
+                                    {/* Favorites Filter - Quick Access */}
+                                    <div>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Favoritos</span>
+                                        <div className="space-y-1 ml-1">
+                                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={filters.is_favorite === true}
+                                                    onChange={() => setFilters(prev => ({ ...prev, is_favorite: prev.is_favorite === true ? null : true }))}
+                                                    className="rounded"
+                                                />
+                                                <span className="flex-1">⭐ Solo favoritos</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
                                     {/* Types */}
                                     <div>
                                         <button

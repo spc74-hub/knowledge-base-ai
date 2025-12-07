@@ -103,6 +103,7 @@ export default function TaxonomyExplorerPage() {
         processing_status: string[];
         maturity_level: string[];
         has_comment: boolean | null;
+        is_favorite: boolean | null;
     }>({
         categories: [],
         concepts: [],
@@ -112,6 +113,7 @@ export default function TaxonomyExplorerPage() {
         processing_status: [],
         maturity_level: [],
         has_comment: null,
+        is_favorite: null,
     });
     const [facetSearch, setFacetSearch] = useState({
         categories: '',
@@ -199,12 +201,13 @@ export default function TaxonomyExplorerPage() {
             processing_status: [],
             maturity_level: [],
             has_comment: null,
+            is_favorite: null,
         });
     };
 
     // Check if any facet filters are active
     const hasActiveFacetFilters = Object.entries(facetFilters).some(([key, val]) => {
-        if (key === 'has_comment') return val !== null;
+        if (key === 'has_comment' || key === 'is_favorite') return val !== null;
         return Array.isArray(val) && val.length > 0;
     });
 
@@ -234,6 +237,7 @@ export default function TaxonomyExplorerPage() {
                 processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                 maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
                 has_comment: facetFilters.has_comment,
+                is_favorite: facetFilters.is_favorite,
             };
             console.log('Taxonomy nodes request:', requestBody);
             const response = await fetch(`${API_URL}/api/v1/taxonomy/nodes`, {
@@ -300,6 +304,7 @@ export default function TaxonomyExplorerPage() {
                     processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                     maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
                     has_comment: facetFilters.has_comment,
+                    is_favorite: facetFilters.is_favorite,
                     limit: PAGE_SIZE,
                     offset: 0,
                 }),
@@ -351,6 +356,7 @@ export default function TaxonomyExplorerPage() {
                     processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
                     maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
                     has_comment: facetFilters.has_comment,
+                    is_favorite: facetFilters.is_favorite,
                     limit: PAGE_SIZE,
                     offset: contents.length,
                 }),
@@ -709,6 +715,26 @@ export default function TaxonomyExplorerPage() {
                                         );
                                     })}
                                 </div>
+                            </div>
+
+                            {/* Favorites Filter */}
+                            <div className="mb-6">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 block">Favoritos</span>
+                                <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={facetFilters.is_favorite === true}
+                                        onChange={() => setFacetFilters(prev => ({ ...prev, is_favorite: prev.is_favorite === true ? null : true }))}
+                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className={`flex-1 text-sm ${
+                                        facetFilters.is_favorite === true
+                                            ? 'text-gray-900 dark:text-white font-medium'
+                                            : 'text-gray-700 dark:text-gray-300'
+                                    }`}>
+                                        ⭐ Solo favoritos
+                                    </span>
+                                </label>
                             </div>
 
                             {/* Type Filter */}

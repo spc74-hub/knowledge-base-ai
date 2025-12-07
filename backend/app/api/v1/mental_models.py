@@ -298,6 +298,31 @@ async def update_mental_model(
     return result.data[0]
 
 
+@router.post("/{model_id}/favorite")
+async def toggle_mental_model_favorite(
+    model_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Toggle favorite status for a mental model."""
+    existing = db.table("mental_models").select("id, is_favorite").eq(
+        "id", model_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not existing.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Modelo mental no encontrado"
+        )
+
+    current_favorite = existing.data[0].get("is_favorite", False)
+    new_favorite = not current_favorite
+
+    db.table("mental_models").update({"is_favorite": new_favorite}).eq("id", model_id).execute()
+
+    return {"success": True, "is_favorite": new_favorite}
+
+
 @router.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_mental_model(
     model_id: str,

@@ -472,6 +472,42 @@ async def reorder_project(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{project_id}/favorite")
+async def toggle_project_favorite(
+    project_id: str,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Toggle favorite status for a project.
+    """
+    try:
+        existing = db.table("projects").select("id, is_favorite").eq(
+            "id", project_id
+        ).eq("user_id", current_user["id"]).execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        current_favorite = existing.data[0].get("is_favorite", False)
+        new_favorite = not current_favorite
+
+        db.table("projects").update({"is_favorite": new_favorite}).eq("id", project_id).execute()
+
+        return {"success": True, "is_favorite": new_favorite}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: str,
