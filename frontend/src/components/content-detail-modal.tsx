@@ -92,6 +92,14 @@ const TYPE_ICONS: Record<string, string> = {
     default: '📄',
 };
 
+const NOTE_TYPE_ICONS: Record<string, string> = {
+    reflection: '💭',
+    idea: '💡',
+    question: '❓',
+    connection: '🔗',
+    journal: '📓',
+};
+
 const MATURITY_LEVELS = [
     { value: 'captured', label: 'Capturado', icon: '📥', color: 'gray', description: 'Guardado, pendiente de revisar' },
     { value: 'processed', label: 'Procesado', icon: '👁️', color: 'blue', description: 'Revisado personalmente' },
@@ -135,9 +143,11 @@ export function ContentDetailModal({
     const [linkingModel, setLinkingModel] = useState(false);
     const [linkedModelIds, setLinkedModelIds] = useState<Set<string>>(new Set());
 
-    // Notes linked to this content
+    // Notes linked to this content (lazy loaded)
     const [contentNotes, setContentNotes] = useState<StandaloneNote[]>([]);
     const [loadingNotes, setLoadingNotes] = useState(false);
+    const [notesExpanded, setNotesExpanded] = useState(false);
+    const [notesLoaded, setNotesLoaded] = useState(false);
     const [showNewNoteForm, setShowNewNoteForm] = useState(false);
     const [newNoteTitle, setNewNoteTitle] = useState('');
     const [newNoteContent, setNewNoteContent] = useState('');
@@ -536,12 +546,23 @@ export function ContentDetailModal({
         }
     }, [content, getAuthHeaders]);
 
-    // Fetch notes when content changes
+    // Reset notes state when content changes (lazy loading)
     useEffect(() => {
-        if (content && isOpen) {
-            fetchContentNotes();
+        if (content) {
+            setNotesExpanded(false);
+            setNotesLoaded(false);
+            setContentNotes([]);
         }
-    }, [content, isOpen, fetchContentNotes]);
+    }, [content?.id]);
+
+    // Lazy load notes when section is expanded
+    const handleExpandNotes = () => {
+        setNotesExpanded(!notesExpanded);
+        if (!notesLoaded && !notesExpanded) {
+            fetchContentNotes();
+            setNotesLoaded(true);
+        }
+    };
 
     // Create a new note linked to this content
     const handleCreateNote = async () => {
@@ -597,14 +618,6 @@ export function ContentDetailModal({
         } catch (error) {
             console.error('Error deleting note:', error);
         }
-    };
-
-    const NOTE_TYPE_ICONS: Record<string, string> = {
-        reflection: '💭',
-        idea: '💡',
-        question: '❓',
-        connection: '🔗',
-        journal: '📓',
     };
 
     const getTypeIcon = (type: string) => TYPE_ICONS[type] || TYPE_ICONS.default;
@@ -872,133 +885,149 @@ export function ContentDetailModal({
                         )}
                     </div>
 
-                    {/* Notes linked to this content */}
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    {/* Notes linked to this content (lazy loaded) */}
+                    <div className="mb-6 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <button
+                            onClick={handleExpandNotes}
+                            className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase flex items-center gap-2">
+                                <span>{notesExpanded ? '▼' : '▶'}</span>
                                 Mis Notas sobre este contenido
+                                {notesLoaded && contentNotes.length > 0 && (
+                                    <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-xs px-2 py-0.5 rounded-full">
+                                        {contentNotes.length}
+                                    </span>
+                                )}
                             </h3>
-                            <button
-                                onClick={() => setShowNewNoteForm(!showNewNoteForm)}
-                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                            >
-                                {showNewNoteForm ? 'Cancelar' : '+ Nueva nota'}
-                            </button>
-                        </div>
+                            {notesExpanded && (
+                                <span
+                                    onClick={(e) => { e.stopPropagation(); setShowNewNoteForm(!showNewNoteForm); }}
+                                    className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                                >
+                                    {showNewNoteForm ? 'Cancelar' : '+ Nueva nota'}
+                                </span>
+                            )}
+                        </button>
 
-                        {/* New note form */}
-                        {showNewNoteForm && (
-                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
-                                <div className="mb-3">
-                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tipo de nota</label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {[
-                                            { value: 'reflection', label: 'Reflexión', icon: '💭' },
-                                            { value: 'idea', label: 'Idea', icon: '💡' },
-                                            { value: 'question', label: 'Pregunta', icon: '❓' },
-                                            { value: 'connection', label: 'Conexión', icon: '🔗' },
-                                        ].map(type => (
-                                            <button
-                                                key={type.value}
-                                                onClick={() => setNewNoteType(type.value)}
-                                                className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
-                                                    newNoteType === type.value
-                                                        ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-400 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300'
-                                                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600'
-                                                }`}
-                                            >
-                                                {type.icon} {type.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <input
-                                    type="text"
-                                    value={newNoteTitle}
-                                    onChange={(e) => setNewNoteTitle(e.target.value)}
-                                    placeholder="Título de la nota..."
-                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm mb-2"
-                                />
-                                <textarea
-                                    value={newNoteContent}
-                                    onChange={(e) => setNewNoteContent(e.target.value)}
-                                    rows={3}
-                                    placeholder="Escribe tu reflexión, idea o pregunta..."
-                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm mb-2"
-                                />
-                                <div className="flex justify-end gap-2">
-                                    <button
-                                        onClick={() => {
-                                            setShowNewNoteForm(false);
-                                            setNewNoteTitle('');
-                                            setNewNoteContent('');
-                                            setNewNoteType('reflection');
-                                        }}
-                                        className="px-3 py-1.5 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={handleCreateNote}
-                                        disabled={savingNewNote || !newNoteTitle.trim() || !newNoteContent.trim()}
-                                        className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
-                                    >
-                                        {savingNewNote ? 'Guardando...' : 'Guardar nota'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Notes list */}
-                        {loadingNotes ? (
-                            <p className="text-gray-400 text-sm">Cargando notas...</p>
-                        ) : contentNotes.length === 0 ? (
-                            <p className="text-gray-400 text-sm">
-                                Sin notas. Escribe reflexiones, ideas o preguntas mientras lees.
-                            </p>
-                        ) : (
-                            <div className="space-y-3">
-                                {contentNotes.map(note => (
-                                    <div
-                                        key={note.id}
-                                        className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3"
-                                    >
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                <span className="text-lg">{NOTE_TYPE_ICONS[note.note_type] || '📝'}</span>
-                                                <span className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                                                    {note.title}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <a
-                                                    href={`/journal?note=${note.id}`}
-                                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                                                >
-                                                    Editar
-                                                </a>
-                                                <button
-                                                    onClick={() => handleDeleteNote(note.id)}
-                                                    className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 ml-2"
-                                                >
-                                                    ×
-                                                </button>
+                        {/* Expanded content */}
+                        {notesExpanded && (
+                            <div className="p-3">
+                                {/* New note form */}
+                                {showNewNoteForm && (
+                                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
+                                        <div className="mb-3">
+                                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tipo de nota</label>
+                                            <div className="flex gap-2 flex-wrap">
+                                                {[
+                                                    { value: 'reflection', label: 'Reflexión', icon: '💭' },
+                                                    { value: 'idea', label: 'Idea', icon: '💡' },
+                                                    { value: 'question', label: 'Pregunta', icon: '❓' },
+                                                    { value: 'connection', label: 'Conexión', icon: '🔗' },
+                                                ].map(type => (
+                                                    <button
+                                                        key={type.value}
+                                                        onClick={() => setNewNoteType(type.value)}
+                                                        className={`px-3 py-1.5 text-sm rounded-lg border transition-all ${
+                                                            newNoteType === type.value
+                                                                ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-400 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300'
+                                                                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                                        }`}
+                                                    >
+                                                        {type.icon} {type.label}
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
-                                        <p className="text-gray-600 dark:text-gray-300 text-sm mt-1 line-clamp-2">
-                                            {note.content}
-                                        </p>
-                                        <p className="text-xs text-gray-400 mt-2">
-                                            {new Date(note.created_at).toLocaleDateString('es-ES', {
-                                                day: 'numeric',
-                                                month: 'short',
-                                                year: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </p>
+                                        <input
+                                            type="text"
+                                            value={newNoteTitle}
+                                            onChange={(e) => setNewNoteTitle(e.target.value)}
+                                            placeholder="Título de la nota..."
+                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm mb-2"
+                                        />
+                                        <textarea
+                                            value={newNoteContent}
+                                            onChange={(e) => setNewNoteContent(e.target.value)}
+                                            rows={3}
+                                            placeholder="Escribe tu reflexión, idea o pregunta..."
+                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm mb-2"
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setShowNewNoteForm(false);
+                                                    setNewNoteTitle('');
+                                                    setNewNoteContent('');
+                                                    setNewNoteType('reflection');
+                                                }}
+                                                className="px-3 py-1.5 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                onClick={handleCreateNote}
+                                                disabled={savingNewNote || !newNoteTitle.trim() || !newNoteContent.trim()}
+                                                className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
+                                            >
+                                                {savingNewNote ? 'Guardando...' : 'Guardar nota'}
+                                            </button>
+                                        </div>
                                     </div>
-                                ))}
+                                )}
+
+                                {/* Notes list */}
+                                {loadingNotes ? (
+                                    <p className="text-gray-400 text-sm">Cargando notas...</p>
+                                ) : contentNotes.length === 0 ? (
+                                    <p className="text-gray-400 text-sm">
+                                        Sin notas. Escribe reflexiones, ideas o preguntas mientras lees.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {contentNotes.map(note => (
+                                            <div
+                                                key={note.id}
+                                                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-3"
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <span className="text-lg">{NOTE_TYPE_ICONS[note.note_type] || '📝'}</span>
+                                                        <span className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                                                            {note.title}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <a
+                                                            href={`/journal?note=${note.id}`}
+                                                            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                                                        >
+                                                            Editar
+                                                        </a>
+                                                        <button
+                                                            onClick={() => handleDeleteNote(note.id)}
+                                                            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 ml-2"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <p className="text-gray-600 dark:text-gray-300 text-sm mt-1 line-clamp-2">
+                                                    {note.content}
+                                                </p>
+                                                <p className="text-xs text-gray-400 mt-2">
+                                                    {new Date(note.created_at).toLocaleDateString('es-ES', {
+                                                        day: 'numeric',
+                                                        month: 'short',
+                                                        year: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

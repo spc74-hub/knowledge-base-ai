@@ -121,6 +121,47 @@ class StatsResponse(BaseModel):
     this_month: int
 
 
+# =====================================================
+# OPTIMIZED LISTING FIELDS (for faster queries)
+# =====================================================
+# Fields needed for list/card display (NOT raw_content, embedding, etc.)
+LIST_FIELDS = (
+    "id, url, type, title, summary, schema_type, schema_subtype, "
+    "iab_tier1, iab_tier2, concepts, user_tags, is_favorite, is_archived, "
+    "is_asset, processing_status, maturity_level, project_id, created_at, "
+    "reading_time_minutes"
+)
+
+
+# In-memory cache for facets (simple TTL cache)
+import time
+_facets_cache: dict = {}
+FACETS_CACHE_TTL = 300  # 5 minutes
+
+
+def get_cached_facets(user_id: str):
+    """Get cached facets if still valid."""
+    if user_id in _facets_cache:
+        cached = _facets_cache[user_id]
+        if time.time() - cached["timestamp"] < FACETS_CACHE_TTL:
+            return cached["data"]
+    return None
+
+
+def set_cached_facets(user_id: str, data: dict):
+    """Cache facets for user."""
+    _facets_cache[user_id] = {
+        "timestamp": time.time(),
+        "data": data
+    }
+
+
+def invalidate_facets_cache(user_id: str):
+    """Invalidate facets cache for user."""
+    if user_id in _facets_cache:
+        del _facets_cache[user_id]
+
+
 @router.get("/", response_model=PaginatedResponse)
 async def list_contents(
     current_user: CurrentUser,
@@ -142,10 +183,11 @@ async def list_contents(
 ):
     """
     List user's contents with pagination and filters.
+    Uses selective fields for faster queries (no raw_content, embedding).
     """
     try:
-        # Build query
-        query = db.table("contents").select("*").eq("user_id", current_user["id"])
+        # Build query with selective fields (NOT "*" - much faster)
+        query = db.table("contents").select(LIST_FIELDS).eq("user_id", current_user["id"])
 
         # Apply filters
         if type:
@@ -1393,3 +1435,128 @@ async def bulk_update_maturity(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+# =====================================================
+# CACHED FACETS ENDPOINT (for Explorer/Taxonomy sidebar)
+# =====================================================
+
+@router.get("/facets")
+async def get_facets(
+    current_user: CurrentUser,
+    db: Database,
+    force_refresh: bool = Query(False, description="Force cache refresh")
+):
+    """
+    Get aggregated facets for filtering (cached for 5 minutes).
+    Returns counts by type, category, maturity level, etc.
+    Much faster than calculating on every request.
+    """
+    user_id = current_user["id"]
+
+    # Check cache first
+    if not force_refresh:
+        cached = get_cached_facets(user_id)
+        if cached:
+            return {**cached, "cached": True}
+
+    try:
+        # Get all non-archived contents with minimal fields for counting
+        response = db.table("contents").select(
+            "type, iab_tier1, iab_tier2, schema_type, maturity_level, "
+            "processing_status, is_favorite, is_archived, project_id"
+        ).eq("user_id", user_id).execute()
+
+        contents = response.data or []
+
+        # Calculate facets
+        type_counts = {}
+        category_counts = {}  # iab_tier1
+        subcategory_counts = {}  # iab_tier2
+        schema_counts = {}
+        maturity_counts = {level: 0 for level in VALID_MATURITY_LEVELS}
+        status_counts = {"pending": 0, "processing": 0, "completed": 0, "failed": 0}
+        project_counts = {}
+
+        total = 0
+        archived = 0
+        favorites = 0
+
+        for item in contents:
+            if item.get("is_archived"):
+                archived += 1
+                continue  # Don't count archived in other facets
+
+            total += 1
+
+            # Type
+            t = item.get("type") or "web"
+            type_counts[t] = type_counts.get(t, 0) + 1
+
+            # Category (IAB Tier 1)
+            cat = item.get("iab_tier1")
+            if cat:
+                category_counts[cat] = category_counts.get(cat, 0) + 1
+
+            # Subcategory (IAB Tier 2)
+            subcat = item.get("iab_tier2")
+            if subcat:
+                subcategory_counts[subcat] = subcategory_counts.get(subcat, 0) + 1
+
+            # Schema type
+            schema = item.get("schema_type")
+            if schema:
+                schema_counts[schema] = schema_counts.get(schema, 0) + 1
+
+            # Maturity
+            mat = item.get("maturity_level") or "captured"
+            if mat in maturity_counts:
+                maturity_counts[mat] += 1
+
+            # Processing status
+            ps = item.get("processing_status") or "pending"
+            if ps in status_counts:
+                status_counts[ps] += 1
+
+            # Favorites
+            if item.get("is_favorite"):
+                favorites += 1
+
+            # Projects
+            proj = item.get("project_id")
+            if proj:
+                project_counts[proj] = project_counts.get(proj, 0) + 1
+
+        facets = {
+            "total": total,
+            "archived": archived,
+            "favorites": favorites,
+            "by_type": dict(sorted(type_counts.items(), key=lambda x: -x[1])),
+            "by_category": dict(sorted(category_counts.items(), key=lambda x: -x[1])),
+            "by_subcategory": dict(sorted(subcategory_counts.items(), key=lambda x: -x[1])[:20]),  # Top 20
+            "by_schema": dict(sorted(schema_counts.items(), key=lambda x: -x[1])),
+            "by_maturity": maturity_counts,
+            "by_status": status_counts,
+            "by_project": project_counts,
+        }
+
+        # Cache the result
+        set_cached_facets(user_id, facets)
+
+        return {**facets, "cached": False}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/facets/invalidate")
+async def invalidate_facets(current_user: CurrentUser):
+    """
+    Manually invalidate facets cache.
+    Called after bulk operations that change many items.
+    """
+    invalidate_facets_cache(current_user["id"])
+    return {"message": "Cache invalidated"}

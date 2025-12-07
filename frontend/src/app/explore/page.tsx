@@ -24,6 +24,54 @@ interface Facets {
     total_contents: number;
 }
 
+// Standalone Notes (Reflexiones) types
+interface StandaloneNote {
+    id: string;
+    title: string;
+    content: string;
+    note_type: string;
+    tags: string[];
+    source_content_id: string | null;
+    source_content?: {
+        id: string;
+        title: string;
+        type: string;
+        url: string;
+    } | null;
+    is_pinned: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+interface NoteTypeFacet {
+    value: string;
+    label: string;
+    icon: string;
+    count: number;
+}
+
+interface LinkageFacet {
+    value: string;
+    label: string;
+    icon: string;
+    count: number;
+}
+
+interface NotesFacets {
+    note_types: NoteTypeFacet[];
+    linkage: LinkageFacet[];
+    total_notes: number;
+    pinned_count: number;
+}
+
+interface NotesFilters {
+    note_types: string[];
+    has_source_content: boolean | null;  // true = linked, false = orphan, null = all
+    is_pinned: boolean | null;
+}
+
+type ExplorerTab = 'contents' | 'notes';
+
 interface Content {
     id: string;
     title: string;
@@ -124,8 +172,28 @@ function ExplorePageContent() {
     const [archivingContents, setArchivingContents] = useState(false);
     const [deletingContents, setDeletingContents] = useState(false);
 
-    // Pagination state
-    const PAGE_SIZE = 100;
+    // Tab state
+    const [activeTab, setActiveTab] = useState<ExplorerTab>('contents');
+
+    // Notes (Reflexiones) state
+    const [notes, setNotes] = useState<StandaloneNote[]>([]);
+    const [notesFacets, setNotesFacets] = useState<NotesFacets | null>(null);
+    const [notesFilters, setNotesFilters] = useState<NotesFilters>({
+        note_types: [],
+        has_source_content: null,
+        is_pinned: null
+    });
+    const [notesSearchQuery, setNotesSearchQuery] = useState('');
+    const [searchingNotes, setSearchingNotes] = useState(false);
+    const [notesLoaded, setNotesLoaded] = useState(false);
+    const [totalNotes, setTotalNotes] = useState(0);
+    const [hasMoreNotes, setHasMoreNotes] = useState(true);
+    const [loadingMoreNotes, setLoadingMoreNotes] = useState(false);
+    const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
+    const [deletingNotes, setDeletingNotes] = useState(false);
+
+    // Pagination state - reduced from 100 to 50 for faster initial load
+    const PAGE_SIZE = 50;
     const [totalResults, setTotalResults] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -147,40 +215,18 @@ function ExplorePageContent() {
         };
     };
 
-    const fetchFacets = async (currentFilters?: Filters) => {
+    const fetchFacets = async (forceRefresh: boolean = false) => {
         try {
             const headers = await getAuthHeader();
-            const filtersToUse = currentFilters || filters;
-            const hasFilters = Object.entries(filtersToUse).some(([key, val]) => {
-                if (key === 'has_comment') return val !== null;
-                return Array.isArray(val) && val.length > 0;
-            });
-
-            if (hasFilters) {
-                // Use dynamic facets when filters are active
-                const response = await fetch(`${API_BASE}/search/facets/dynamic`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        types: filtersToUse.types.length > 0 ? filtersToUse.types : null,
-                        categories: filtersToUse.categories.length > 0 ? filtersToUse.categories : null,
-                        concepts: filtersToUse.concepts.length > 0 ? filtersToUse.concepts : null,
-                        organizations: filtersToUse.organizations.length > 0 ? filtersToUse.organizations : null,
-                        products: filtersToUse.products.length > 0 ? filtersToUse.products : null,
-                        persons: filtersToUse.persons.length > 0 ? filtersToUse.persons : null,
-                    }),
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    setFacets(data);
-                }
-            } else {
-                // Use regular facets when no filters
-                const response = await fetch(`${API_BASE}/search/facets`, { headers });
-                if (response.ok) {
-                    const data = await response.json();
-                    setFacets(data);
-                }
+            // Always use static facets (total counts per category)
+            // This provides a consistent UX - filters don't make options disappear
+            const url = forceRefresh
+                ? `${API_BASE}/search/facets?force_refresh=true`
+                : `${API_BASE}/search/facets`;
+            const response = await fetch(url, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setFacets(data);
             }
         } catch (error) {
             console.error('Error fetching facets:', error);
@@ -335,6 +381,151 @@ function ExplorePageContent() {
         }
     };
 
+    // Notes (Reflexiones) functions
+    const searchNotes = useCallback(async (reset: boolean = true) => {
+        if (reset) {
+            setSearchingNotes(true);
+            setNotes([]);
+        }
+        try {
+            const headers = await getAuthHeader();
+            const requestBody = {
+                query: notesSearchQuery || null,
+                note_types: notesFilters.note_types.length > 0 ? notesFilters.note_types : null,
+                has_source_content: notesFilters.has_source_content,
+                is_pinned: notesFilters.is_pinned,
+                limit: PAGE_SIZE,
+                offset: 0
+            };
+
+            const response = await fetch(`${API_BASE}/notes/search`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(requestBody),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setNotes(data.data);
+                setNotesFacets(data.facets);
+                setTotalNotes(data.facets?.total_notes || data.data.length);
+                setHasMoreNotes(data.data.length === PAGE_SIZE);
+                setNotesLoaded(true);
+            }
+        } catch (error) {
+            console.error('Error searching notes:', error);
+        } finally {
+            setSearchingNotes(false);
+        }
+    }, [notesSearchQuery, notesFilters]);
+
+    const loadMoreNotes = async () => {
+        if (loadingMoreNotes || !hasMoreNotes) return;
+
+        setLoadingMoreNotes(true);
+        try {
+            const headers = await getAuthHeader();
+            const response = await fetch(`${API_BASE}/notes/search`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    query: notesSearchQuery || null,
+                    note_types: notesFilters.note_types.length > 0 ? notesFilters.note_types : null,
+                    has_source_content: notesFilters.has_source_content,
+                    is_pinned: notesFilters.is_pinned,
+                    limit: PAGE_SIZE,
+                    offset: notes.length
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setNotes(prev => [...prev, ...data.data]);
+                setHasMoreNotes(data.data.length === PAGE_SIZE);
+            }
+        } catch (error) {
+            console.error('Error loading more notes:', error);
+        } finally {
+            setLoadingMoreNotes(false);
+        }
+    };
+
+    const toggleNoteTypeFilter = (noteType: string) => {
+        setNotesFilters(prev => {
+            if (prev.note_types.includes(noteType)) {
+                return { ...prev, note_types: prev.note_types.filter(t => t !== noteType) };
+            } else {
+                return { ...prev, note_types: [...prev.note_types, noteType] };
+            }
+        });
+    };
+
+    const toggleNoteLinkageFilter = (value: string) => {
+        setNotesFilters(prev => {
+            if (value === 'linked') {
+                return { ...prev, has_source_content: prev.has_source_content === true ? null : true };
+            } else if (value === 'orphan') {
+                return { ...prev, has_source_content: prev.has_source_content === false ? null : false };
+            }
+            return prev;
+        });
+    };
+
+    const clearNotesFilters = () => {
+        setNotesFilters({
+            note_types: [],
+            has_source_content: null,
+            is_pinned: null
+        });
+        setNotesSearchQuery('');
+    };
+
+    const hasActiveNotesFilters = notesFilters.note_types.length > 0 ||
+        notesFilters.has_source_content !== null ||
+        notesFilters.is_pinned !== null ||
+        notesSearchQuery !== '';
+
+    const handleBulkDeleteNotes = async () => {
+        if (selectedNoteIds.size === 0) return;
+        if (!confirm(`¿Eliminar ${selectedNoteIds.size} nota(s)?`)) return;
+
+        setDeletingNotes(true);
+        try {
+            const headers = await getAuthHeader();
+            const response = await fetch(`${API_BASE}/notes/bulk/delete`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(Array.from(selectedNoteIds)),
+            });
+
+            if (response.ok) {
+                setSelectedNoteIds(new Set());
+                searchNotes();
+            }
+        } catch (error) {
+            console.error('Error deleting notes:', error);
+        } finally {
+            setDeletingNotes(false);
+        }
+    };
+
+    const toggleNotePin = async (noteId: string) => {
+        try {
+            const headers = await getAuthHeader();
+            const response = await fetch(`${API_BASE}/notes/${noteId}/pin`, {
+                method: 'POST',
+                headers,
+            });
+
+            if (response.ok) {
+                // Refresh notes list
+                searchNotes(false);
+            }
+        } catch (error) {
+            console.error('Error toggling pin:', error);
+        }
+    };
+
     useEffect(() => {
         if (user) {
             fetchFacets();
@@ -342,6 +533,23 @@ function ExplorePageContent() {
             fetchAvailableTags();
         }
     }, [user]);
+
+    // Load notes when switching to notes tab (lazy loading)
+    useEffect(() => {
+        if (activeTab === 'notes' && !notesLoaded && user) {
+            searchNotes();
+        }
+    }, [activeTab, notesLoaded, user]);
+
+    // Search notes with debounce when filters change
+    useEffect(() => {
+        if (activeTab === 'notes' && user && notesLoaded) {
+            const debounce = setTimeout(() => {
+                searchNotes();
+            }, 500);
+            return () => clearTimeout(debounce);
+        }
+    }, [notesFilters, notesSearchQuery, activeTab, user, notesLoaded]);
 
     // Handle ?content=ID query parameter to open content detail from chat links
     useEffect(() => {
@@ -379,10 +587,12 @@ function ExplorePageContent() {
 
     useEffect(() => {
         if (user) {
+            // Increased debounce to 500ms for better performance
             const debounce = setTimeout(() => {
                 searchWithFilters();
-                fetchFacets(filters);
-            }, 300);
+                // Note: We don't refetch facets on filter changes
+                // Facets are static and cached, showing total counts
+            }, 500);
             return () => clearTimeout(debounce);
         }
     }, [filters, searchQuery, searchWithFilters, user]);
@@ -521,7 +731,7 @@ function ExplorePageContent() {
 
             setSelectedContentIds(new Set());
             searchWithFilters();
-            fetchFacets();
+            fetchFacets(true); // Force refresh after bulk archive
         } catch (error) {
             console.error('Error archiving contents:', error);
         } finally {
@@ -556,7 +766,7 @@ function ExplorePageContent() {
 
             setSelectedContentIds(new Set());
             searchWithFilters();
-            fetchFacets();
+            fetchFacets(true); // Force refresh after bulk delete
         } catch (error) {
             console.error('Error deleting contents:', error);
         } finally {
@@ -601,6 +811,43 @@ function ExplorePageContent() {
             </header>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                {/* Tabs */}
+                <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+                    <nav className="flex gap-4">
+                        <button
+                            onClick={() => setActiveTab('contents')}
+                            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                activeTab === 'contents'
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                        >
+                            <span className="flex items-center gap-2">
+                                <span>📚</span>
+                                <span>Contenidos</span>
+                                {facets && <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{facets.total_contents}</span>}
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('notes')}
+                            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                activeTab === 'notes'
+                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                        >
+                            <span className="flex items-center gap-2">
+                                <span>💭</span>
+                                <span>Mis Reflexiones</span>
+                                {notesFacets && <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{notesFacets.total_notes}</span>}
+                            </span>
+                        </button>
+                    </nav>
+                </div>
+
+                {/* Contents Tab */}
+                {activeTab === 'contents' && (
+                    <>
                 {/* Search Bar */}
                 <div className="mb-6">
                     <div className="flex gap-4">
@@ -1062,6 +1309,34 @@ function ExplorePageContent() {
 
                         {/* Results Grid */}
                         <div className="grid gap-4">
+                            {/* Loading Skeletons */}
+                            {searching && results.length === 0 && (
+                                <>
+                                    {[1, 2, 3, 4, 5].map(i => (
+                                        <div key={`skeleton-${i}`} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 animate-pulse">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-5 h-5 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                                                <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                                                <div className="flex-1">
+                                                    <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+                                                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-1"></div>
+                                                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-3"></div>
+                                                    <div className="flex gap-2">
+                                                        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                                                        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+                                                        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-14"></div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+                                                    <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
+
                             {results.map(content => (
                                 <div
                                     key={content.id}
@@ -1186,6 +1461,308 @@ function ExplorePageContent() {
                         </div>
                     </div>
                 </div>
+                </>
+                )}
+
+                {/* Notes Tab */}
+                {activeTab === 'notes' && (
+                    <>
+                        {/* Notes Search Bar */}
+                        <div className="mb-6">
+                            <div className="flex gap-4">
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="text"
+                                        value={notesSearchQuery}
+                                        onChange={(e) => setNotesSearchQuery(e.target.value)}
+                                        placeholder="Buscar en tus reflexiones, ideas, preguntas..."
+                                        className="w-full px-4 py-3 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                                    />
+                                    <span className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500">🔍</span>
+                                </div>
+                                {hasActiveNotesFilters && (
+                                    <button
+                                        onClick={clearNotesFilters}
+                                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
+                                    >
+                                        Limpiar filtros
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-6">
+                            {/* Notes Sidebar with Facets */}
+                            <div className="w-64 flex-shrink-0">
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
+                                    <h2 className="font-semibold text-gray-900 dark:text-white mb-4">Filtros</h2>
+
+                                    {notesFacets && (
+                                        <div className="space-y-4">
+                                            {/* Note Types */}
+                                            <div>
+                                                <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Tipo de Nota</span>
+                                                <div className="space-y-1 ml-1">
+                                                    {notesFacets.note_types.map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={notesFilters.note_types.includes(facet.value)}
+                                                                onChange={() => toggleNoteTypeFilter(facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1">{facet.icon} {facet.label}</span>
+                                                            <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Linkage */}
+                                            <div>
+                                                <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Vinculacion</span>
+                                                <div className="space-y-1 ml-1">
+                                                    {notesFacets.linkage.map(facet => (
+                                                        <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={
+                                                                    (facet.value === 'linked' && notesFilters.has_source_content === true) ||
+                                                                    (facet.value === 'orphan' && notesFilters.has_source_content === false)
+                                                                }
+                                                                onChange={() => toggleNoteLinkageFilter(facet.value)}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1">{facet.icon} {facet.label}</span>
+                                                            <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Pinned filter */}
+                                            <div>
+                                                <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Fijadas</span>
+                                                <div className="space-y-1 ml-1">
+                                                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={notesFilters.is_pinned === true}
+                                                            onChange={() => setNotesFilters(prev => ({ ...prev, is_pinned: prev.is_pinned === true ? null : true }))}
+                                                            className="rounded"
+                                                        />
+                                                        <span className="flex-1">📌 Solo fijadas</span>
+                                                        <span className="text-gray-400 dark:text-gray-500">({notesFacets.pinned_count})</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Notes Results */}
+                            <div className="flex-1">
+                                {/* Notes Bulk Actions Bar */}
+                                {selectedNoteIds.size > 0 && (
+                                    <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg flex items-center justify-between">
+                                        <span className="text-sm text-purple-700 dark:text-purple-300">
+                                            {selectedNoteIds.size} nota(s) seleccionada(s)
+                                        </span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setSelectedNoteIds(new Set())}
+                                                className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                onClick={handleBulkDeleteNotes}
+                                                disabled={deletingNotes}
+                                                className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                                            >
+                                                {deletingNotes ? 'Eliminando...' : 'Eliminar'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Notes Count */}
+                                <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {searchingNotes ? (
+                                        'Buscando...'
+                                    ) : (
+                                        `${notes.length} reflexion(es) de ${totalNotes} totales`
+                                    )}
+                                </div>
+
+                                {/* Notes Grid */}
+                                <div className="space-y-3">
+                                    {searchingNotes && notes.length === 0 && (
+                                        <>
+                                            {[1, 2, 3].map(i => (
+                                                <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 animate-pulse">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                                                        <div className="flex-1">
+                                                            <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+                                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-1"></div>
+                                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+
+                                    {notes.map(note => (
+                                        <div
+                                            key={note.id}
+                                            className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:shadow-md transition-shadow ${
+                                                note.is_pinned ? 'border-l-4 border-purple-500' : ''
+                                            }`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedNoteIds.has(note.id)}
+                                                    onChange={() => {
+                                                        setSelectedNoteIds(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(note.id)) {
+                                                                next.delete(note.id);
+                                                            } else {
+                                                                next.add(note.id);
+                                                            }
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className="mt-1 rounded border-gray-300 dark:border-gray-600"
+                                                />
+                                                <span className="text-2xl">
+                                                    {note.note_type === 'reflection' ? '💭' :
+                                                     note.note_type === 'idea' ? '💡' :
+                                                     note.note_type === 'question' ? '❓' :
+                                                     note.note_type === 'connection' ? '🔗' :
+                                                     note.note_type === 'journal' ? '📓' : '📝'}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-lg font-medium text-gray-900 dark:text-white line-clamp-1">
+                                                            {note.title}
+                                                        </span>
+                                                        {note.is_pinned && <span className="text-purple-500">📌</span>}
+                                                    </div>
+                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                                                        {note.content}
+                                                    </p>
+                                                    {/* Source content link */}
+                                                    {note.source_content && (
+                                                        <button
+                                                            onClick={() => {
+                                                                // Switch to contents tab and open the content detail
+                                                                setActiveTab('contents');
+                                                                // Fetch and open the linked content
+                                                                const fetchAndOpenContent = async () => {
+                                                                    setLoadingDetail(true);
+                                                                    setShowDetailModal(true);
+                                                                    try {
+                                                                        const { data, error } = await supabase
+                                                                            .from('contents')
+                                                                            .select('*')
+                                                                            .eq('id', note.source_content!.id)
+                                                                            .single();
+                                                                        if (!error && data) {
+                                                                            setSelectedContent(data);
+                                                                        }
+                                                                    } catch (err) {
+                                                                        console.error('Error fetching content:', err);
+                                                                        setShowDetailModal(false);
+                                                                    } finally {
+                                                                        setLoadingDetail(false);
+                                                                    }
+                                                                };
+                                                                fetchAndOpenContent();
+                                                            }}
+                                                            className="mt-2 flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:underline"
+                                                        >
+                                                            <span>Vinculado a:</span>
+                                                            <span className="font-medium truncate max-w-xs">
+                                                                {note.source_content.title}
+                                                            </span>
+                                                            <span>→</span>
+                                                        </button>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-2 mt-2">
+                                                        <span className="text-xs px-2 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                                                            {note.note_type === 'reflection' ? 'Reflexion' :
+                                                             note.note_type === 'idea' ? 'Idea' :
+                                                             note.note_type === 'question' ? 'Pregunta' :
+                                                             note.note_type === 'connection' ? 'Conexion' :
+                                                             note.note_type === 'journal' ? 'Diario' : note.note_type}
+                                                        </span>
+                                                        {note.tags?.map(tag => (
+                                                            <span key={tag} className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
+                                                                {tag}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                                                        {new Date(note.created_at).toLocaleDateString()}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => toggleNotePin(note.id)}
+                                                        className="text-xs px-2 py-1 text-gray-500 hover:text-purple-600 dark:text-gray-400 dark:hover:text-purple-400"
+                                                        title={note.is_pinned ? 'Desanclar' : 'Fijar'}
+                                                    >
+                                                        {note.is_pinned ? '📌 Fijada' : 'Fijar'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {notes.length === 0 && !searchingNotes && (
+                                        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                                            <p className="text-lg mb-2">No hay reflexiones</p>
+                                            <p className="text-sm">Las reflexiones, ideas y preguntas que crees al leer contenidos apareceran aqui</p>
+                                        </div>
+                                    )}
+
+                                    {/* Load more notes button */}
+                                    {hasMoreNotes && notes.length > 0 && (
+                                        <div className="py-6 text-center">
+                                            <button
+                                                onClick={loadMoreNotes}
+                                                disabled={loadingMoreNotes}
+                                                className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                                            >
+                                                {loadingMoreNotes ? (
+                                                    <span className="flex items-center gap-2">
+                                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                        </svg>
+                                                        Cargando...
+                                                    </span>
+                                                ) : (
+                                                    `Cargar mas (${notes.length} de ${totalNotes})`
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
+                                    {!hasMoreNotes && notes.length > 0 && (
+                                        <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            Mostrando todas las {notes.length} reflexiones
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Detail Modal */}
@@ -1199,11 +1776,11 @@ function ExplorePageContent() {
                 }}
                 onArchive={(contentId) => {
                     setResults(results.filter(c => c.id !== contentId));
-                    fetchFacets();
+                    fetchFacets(true); // Force refresh after archive
                 }}
                 onDelete={(contentId) => {
                     setResults(results.filter(c => c.id !== contentId));
-                    fetchFacets();
+                    fetchFacets(true); // Force refresh after delete
                 }}
                 onFilterClick={(filterType, value) => {
                     if (filterType === 'concepts') toggleFilter('concepts', value);

@@ -3,13 +3,41 @@ Dashboard API endpoints.
 Consolidated endpoint for dashboard KPIs and summaries.
 """
 import logging
+import time
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from app.api.deps import CurrentUser, Database
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# In-memory cache for dashboard summary (reduces DB load)
+_dashboard_cache: dict = {}
+DASHBOARD_CACHE_TTL = 120  # 2 minutes
+
+
+def get_cached_dashboard(user_id: str):
+    """Get cached dashboard if still valid."""
+    if user_id in _dashboard_cache:
+        cached = _dashboard_cache[user_id]
+        if time.time() - cached["timestamp"] < DASHBOARD_CACHE_TTL:
+            return cached["data"]
+    return None
+
+
+def set_cached_dashboard(user_id: str, data: dict):
+    """Cache dashboard for user."""
+    _dashboard_cache[user_id] = {
+        "timestamp": time.time(),
+        "data": data
+    }
+
+
+def invalidate_dashboard_cache(user_id: str):
+    """Invalidate dashboard cache for user."""
+    if user_id in _dashboard_cache:
+        del _dashboard_cache[user_id]
 
 
 def safe_query(func):
@@ -40,12 +68,19 @@ def safe_data(result) -> list:
 async def get_dashboard_summary(
     current_user: CurrentUser,
     db: Database,
+    force_refresh: bool = Query(False, description="Force cache refresh")
 ):
     """
-    Get all dashboard KPIs in a single call.
+    Get all dashboard KPIs in a single call (cached for 2 minutes).
     Returns counts for all object types and recent items.
     """
     user_id = current_user["id"]
+
+    # Check cache first
+    if not force_refresh:
+        cached = get_cached_dashboard(user_id)
+        if cached:
+            return {**cached, "cached": True}
 
     # Safe queries for all counts
     # Contents
@@ -130,7 +165,7 @@ async def get_dashboard_summary(
         "id, title, is_pinned, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
-    return {
+    result = {
         "kpis": {
             "contents": {
                 "total": safe_count(contents_result),
@@ -169,6 +204,11 @@ async def get_dashboard_summary(
             "notes": safe_data(recent_notes),
         },
     }
+
+    # Cache the result
+    set_cached_dashboard(user_id, result)
+
+    return {**result, "cached": False}
 
 
 @router.get("/objects/{object_type}")

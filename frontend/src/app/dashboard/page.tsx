@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
+import { QuickViewPopup } from '@/components/quick-view-popup';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -75,6 +76,28 @@ export default function DashboardPage() {
 
   // Quick actions dropdown
   const [showQuickActions, setShowQuickActions] = useState(false);
+
+  // Quick View Popup state
+  const [quickViewItem, setQuickViewItem] = useState<any>(null);
+  const [quickViewType, setQuickViewType] = useState<'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag'>('content');
+  const [quickViewPosition, setQuickViewPosition] = useState<{ x: number; y: number } | undefined>(undefined);
+
+  // Handle quick view on item click
+  const handleQuickView = (item: any, type: 'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag', event?: React.MouseEvent) => {
+    if (event) {
+      const rect = (event.target as HTMLElement).getBoundingClientRect();
+      setQuickViewPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 10
+      });
+    }
+    setQuickViewItem(item);
+    setQuickViewType(type);
+  };
+
+  const closeQuickView = () => {
+    setQuickViewItem(null);
+  };
 
   const getAuthHeaders = useCallback(() => {
     return {
@@ -310,7 +333,11 @@ export default function DashboardPage() {
           {summary.recent.objectives.length > 0 ? (
             <div className="space-y-2">
               {summary.recent.objectives.filter(o => o.status === 'active').slice(0, 3).map((obj) => (
-                <div key={obj.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                <button
+                  key={obj.id}
+                  onClick={(e) => handleQuickView(obj, 'objective', e)}
+                  className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left"
+                >
                   <span className="text-lg">{obj.icon}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm truncate">{obj.title}</p>
@@ -322,7 +349,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <span className="text-xs text-gray-400">{obj.progress}%</span>
-                </div>
+                </button>
               ))}
             </div>
           ) : (
@@ -343,13 +370,17 @@ export default function DashboardPage() {
           {summary.recent.projects.filter(p => p.status === 'active').length > 0 ? (
             <div className="space-y-2">
               {summary.recent.projects.filter(p => p.status === 'active').slice(0, 3).map((proj) => (
-                <div key={proj.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                <button
+                  key={proj.id}
+                  onClick={(e) => handleQuickView(proj, 'project', e)}
+                  className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left"
+                >
                   <span className="text-lg">{proj.icon || '📁'}</span>
                   <p className="text-white text-sm flex-1 truncate">{proj.name}</p>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-green-600/20 text-green-400">
                     activo
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           ) : (
@@ -370,13 +401,14 @@ export default function DashboardPage() {
           {summary.recent.mental_models.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {summary.recent.mental_models.slice(0, 5).map((mm) => (
-                <span
+                <button
                   key={mm.id}
-                  className="px-2 py-1 rounded-lg text-sm text-white"
+                  onClick={(e) => handleQuickView(mm, 'mental_model', e)}
+                  className="px-2 py-1 rounded-lg text-sm text-white hover:opacity-80 transition-opacity cursor-pointer"
                   style={{ backgroundColor: mm.color || '#8b5cf6' }}
                 >
                   {mm.icon} {mm.name}
-                </span>
+                </button>
               ))}
             </div>
           ) : (
@@ -397,13 +429,17 @@ export default function DashboardPage() {
           {summary.recent.contents.length > 0 ? (
             <div className="space-y-2">
               {summary.recent.contents.slice(0, 5).map((content) => (
-                <div key={content.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                <button
+                  key={content.id}
+                  onClick={(e) => handleQuickView(content, 'content', e)}
+                  className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left"
+                >
                   <span className="text-lg">
                     {content.type === 'youtube' || content.type === 'video' ? '🎬' :
                      content.type === 'tiktok' ? '📱' : content.type === 'twitter' ? '🐦' : '📄'}
                   </span>
                   <p className="text-white text-sm flex-1 truncate">{content.title || 'Sin titulo'}</p>
-                </div>
+                </button>
               ))}
             </div>
           ) : (
@@ -424,10 +460,14 @@ export default function DashboardPage() {
           {summary.recent.notes.length > 0 ? (
             <div className="space-y-2">
               {summary.recent.notes.slice(0, 3).map((note) => (
-                <div key={note.id} className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg">
+                <button
+                  key={note.id}
+                  onClick={(e) => handleQuickView(note, 'note', e)}
+                  className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left"
+                >
                   <span className="text-lg">{note.is_pinned ? '📌' : '📝'}</span>
                   <p className="text-white text-sm flex-1 truncate">{note.title}</p>
-                </div>
+                </button>
               ))}
             </div>
           ) : (
@@ -841,6 +881,7 @@ export default function DashboardPage() {
                     <button
                       key={item.id}
                       onClick={() => handleContentClick(item.id)}
+      
                       className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer w-full text-left"
                     >
                       <span className="text-lg">
@@ -1122,6 +1163,19 @@ export default function DashboardPage() {
         onUpdate={(updated) => {
           setSelectedContent(updated);
         }}
+      />
+
+      {/* Quick View Popup */}
+      <QuickViewPopup
+        item={quickViewItem}
+        type={quickViewType}
+        isOpen={!!quickViewItem}
+        onClose={closeQuickView}
+        position={quickViewPosition}
+        onOpenFull={quickViewType === 'content' ? () => {
+          closeQuickView();
+          handleContentClick(quickViewItem?.id);
+        } : undefined}
       />
     </div>
   );

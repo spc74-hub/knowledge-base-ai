@@ -59,6 +59,20 @@ export default function MentalModelsPage() {
     const [editingNotes, setEditingNotes] = useState(false);
     const [notesValue, setNotesValue] = useState('');
 
+    // Create/Edit model modal
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [editingModel, setEditingModel] = useState<MentalModel | null>(null);
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        icon: '🧠',
+        color: '#8b5cf6',
+    });
+    const [savingModel, setSavingModel] = useState(false);
+
+    // Available icons for selection
+    const availableIcons = ['🧠', '💡', '🎯', '🔬', '📊', '⚡', '🔄', '📈', '🎨', '🔍', '💭', '🌟', '🚀', '⭐', '✨', '🎲', '🧩', '🔮', '📐', '🧮'];
+
     const getAuthHeaders = async () => {
         const session = await supabase.auth.getSession();
         if (!session.data.session?.access_token) {
@@ -180,6 +194,92 @@ export default function MentalModelsPage() {
         }
     };
 
+    const openCreateModal = () => {
+        setEditingModel(null);
+        setFormData({
+            name: '',
+            description: '',
+            icon: '🧠',
+            color: '#8b5cf6',
+        });
+        setShowCreateModal(true);
+    };
+
+    const openEditModal = (model: MentalModel) => {
+        setEditingModel(model);
+        setFormData({
+            name: model.name,
+            description: model.description || '',
+            icon: model.icon,
+            color: model.color,
+        });
+        setShowCreateModal(true);
+    };
+
+    const handleSaveModel = async () => {
+        if (!formData.name.trim()) {
+            setError('El nombre es obligatorio');
+            return;
+        }
+
+        setSavingModel(true);
+        try {
+            const headers = await getAuthHeaders();
+
+            if (editingModel) {
+                // Update existing model
+                const response = await fetch(`${API_URL}/api/v1/mental-models/${editingModel.id}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({
+                        name: formData.name,
+                        description: formData.description || null,
+                        icon: formData.icon,
+                        color: formData.color,
+                    }),
+                });
+
+                if (response.ok) {
+                    const updated = await response.json();
+                    setMyModels(myModels.map(m => m.id === editingModel.id ? updated : m));
+                    if (selectedModel?.id === editingModel.id) {
+                        setSelectedModel(updated);
+                    }
+                    setShowCreateModal(false);
+                } else {
+                    const data = await response.json();
+                    setError(data.detail || 'Error al actualizar modelo');
+                }
+            } else {
+                // Create new custom model
+                const slug = formData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                const response = await fetch(`${API_URL}/api/v1/mental-models/`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        slug: `custom-${slug}-${Date.now()}`,
+                        name: formData.name,
+                        description: formData.description || null,
+                        icon: formData.icon,
+                        color: formData.color,
+                    }),
+                });
+
+                if (response.ok) {
+                    await fetchMyModels();
+                    setShowCreateModal(false);
+                } else {
+                    const data = await response.json();
+                    setError(data.detail || 'Error al crear modelo');
+                }
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setSavingModel(false);
+        }
+    };
+
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
@@ -224,6 +324,12 @@ export default function MentalModelsPage() {
                             </h1>
                         </div>
                         <div className="flex items-center gap-2">
+                            <button
+                                onClick={openCreateModal}
+                                className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1"
+                            >
+                                <span>+</span> Nuevo Modelo
+                            </button>
                             <ThemeToggle />
                             <Link
                                 href="/dashboard"
@@ -357,12 +463,20 @@ export default function MentalModelsPage() {
                                             </p>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => deactivateModel(selectedModel.id)}
-                                        className="px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                                    >
-                                        Desactivar
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => openEditModal(selectedModel)}
+                                            className="px-3 py-1.5 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded"
+                                        >
+                                            Editar
+                                        </button>
+                                        <button
+                                            onClick={() => deactivateModel(selectedModel.id)}
+                                            className="px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                                        >
+                                            Desactivar
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -474,6 +588,135 @@ export default function MentalModelsPage() {
                     )}
                 </div>
             </div>
+
+            {/* Create/Edit Modal */}
+            {showCreateModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md mx-4 overflow-hidden">
+                        <div className="px-6 py-4 border-b dark:border-gray-700">
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                {editingModel ? 'Editar Modelo Mental' : 'Crear Nuevo Modelo Mental'}
+                            </h2>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {/* Name */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Nombre *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="Ej: Pensamiento Lateral"
+                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                                />
+                            </div>
+
+                            {/* Description */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Descripcion
+                                </label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    placeholder="Describe brevemente este modelo mental..."
+                                    rows={3}
+                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                                />
+                            </div>
+
+                            {/* Icon selector */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Icono
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {availableIcons.map((icon) => (
+                                        <button
+                                            key={icon}
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, icon })}
+                                            className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center text-xl transition-all ${
+                                                formData.icon === icon
+                                                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
+                                                    : 'border-gray-200 dark:border-gray-600 hover:border-purple-300'
+                                            }`}
+                                        >
+                                            {icon}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Color selector */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Color
+                                </label>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="color"
+                                        value={formData.color}
+                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                        className="w-12 h-10 rounded border dark:border-gray-600 cursor-pointer"
+                                    />
+                                    <div className="flex gap-2">
+                                        {['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'].map((color) => (
+                                            <button
+                                                key={color}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, color })}
+                                                className={`w-8 h-8 rounded-full border-2 ${
+                                                    formData.color === color ? 'border-gray-800 dark:border-white' : 'border-transparent'
+                                                }`}
+                                                style={{ backgroundColor: color }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Preview */}
+                            <div className="pt-4 border-t dark:border-gray-700">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Vista previa</p>
+                                <div className="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-600">
+                                    <div
+                                        className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
+                                        style={{ backgroundColor: `${formData.color}20` }}
+                                    >
+                                        {formData.icon}
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                            {formData.name || 'Nombre del modelo'}
+                                        </p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                            {formData.description || 'Descripcion del modelo'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 border-t dark:border-gray-700 flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowCreateModal(false)}
+                                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSaveModel}
+                                disabled={savingModel || !formData.name.trim()}
+                                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                            >
+                                {savingModel ? 'Guardando...' : (editingModel ? 'Guardar cambios' : 'Crear modelo')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

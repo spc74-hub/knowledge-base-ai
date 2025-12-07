@@ -435,6 +435,142 @@ async def bulk_delete_notes(
         )
 
 
+class NotesSearchRequest(BaseModel):
+    """Request for searching notes with facets."""
+    query: Optional[str] = None
+    note_types: Optional[List[str]] = None
+    has_source_content: Optional[bool] = None  # True = linked, False = orphan, None = all
+    is_pinned: Optional[bool] = None
+    limit: int = 50
+    offset: int = 0
+
+
+@router.post("/search")
+async def search_notes_with_facets(
+    data: NotesSearchRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Search standalone notes with facets for Explorer integration.
+    Returns notes with their source content info and facet counts.
+    Optimized for performance with pagination.
+    """
+    try:
+        user_id = current_user["id"]
+
+        # Build base query for notes
+        query = db.table("standalone_notes").select(
+            "id, title, content, note_type, tags, source_content_id, is_pinned, created_at, updated_at"
+        ).eq("user_id", user_id)
+
+        # Apply filters
+        if data.note_types:
+            query = query.in_("note_type", data.note_types)
+
+        if data.has_source_content is True:
+            query = query.neq("source_content_id", None)
+        elif data.has_source_content is False:
+            query = query.is_("source_content_id", "null")
+
+        if data.is_pinned is not None:
+            query = query.eq("is_pinned", data.is_pinned)
+
+        if data.query:
+            query = query.or_(f"title.ilike.%{data.query}%,content.ilike.%{data.query}%")
+
+        # Execute paginated query
+        query = query.order("is_pinned", desc=True).order("created_at", desc=True)
+        query = query.range(data.offset, data.offset + data.limit - 1)
+
+        response = query.execute()
+        notes = response.data or []
+
+        # Get source content info for notes that have it
+        source_content_ids = list(set(
+            n["source_content_id"] for n in notes if n.get("source_content_id")
+        ))
+
+        source_contents_map = {}
+        if source_content_ids:
+            contents_response = db.table("contents").select(
+                "id, title, type, url"
+            ).in_("id", source_content_ids).execute()
+
+            for c in (contents_response.data or []):
+                source_contents_map[c["id"]] = c
+
+        # Enrich notes with source content info
+        for note in notes:
+            if note.get("source_content_id") and note["source_content_id"] in source_contents_map:
+                note["source_content"] = source_contents_map[note["source_content_id"]]
+            else:
+                note["source_content"] = None
+
+        # Get facet counts (all notes, not filtered)
+        # This query is separate and gets total counts for facets
+        all_notes_query = db.table("standalone_notes").select(
+            "note_type, source_content_id, is_pinned"
+        ).eq("user_id", user_id)
+
+        all_notes_response = all_notes_query.execute()
+        all_notes = all_notes_response.data or []
+
+        # Calculate facets
+        note_type_counts = {}
+        linked_count = 0
+        orphan_count = 0
+        pinned_count = 0
+
+        for n in all_notes:
+            nt = n.get("note_type", "reflection")
+            note_type_counts[nt] = note_type_counts.get(nt, 0) + 1
+
+            if n.get("source_content_id"):
+                linked_count += 1
+            else:
+                orphan_count += 1
+
+            if n.get("is_pinned"):
+                pinned_count += 1
+
+        facets = {
+            "note_types": [
+                {"value": "reflection", "label": "Reflexiones", "icon": "💭", "count": note_type_counts.get("reflection", 0)},
+                {"value": "idea", "label": "Ideas", "icon": "💡", "count": note_type_counts.get("idea", 0)},
+                {"value": "question", "label": "Preguntas", "icon": "❓", "count": note_type_counts.get("question", 0)},
+                {"value": "connection", "label": "Conexiones", "icon": "🔗", "count": note_type_counts.get("connection", 0)},
+                {"value": "journal", "label": "Diario", "icon": "📓", "count": note_type_counts.get("journal", 0)},
+            ],
+            "linkage": [
+                {"value": "linked", "label": "Con contenido", "icon": "🔗", "count": linked_count},
+                {"value": "orphan", "label": "Independientes", "icon": "📝", "count": orphan_count},
+            ],
+            "total_notes": len(all_notes),
+            "pinned_count": pinned_count,
+        }
+
+        return {
+            "data": notes,
+            "facets": facets,
+            "meta": {
+                "total_results": len(all_notes),  # Total without filters
+                "returned_results": len(notes),
+                "offset": data.offset,
+                "limit": data.limit,
+            }
+        }
+
+    except Exception as e:
+        import traceback
+        print(f"Notes search error: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.post("/cleanup-orphans")
 async def cleanup_orphan_links(
     current_user: CurrentUser,

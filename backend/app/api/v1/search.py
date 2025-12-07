@@ -2,6 +2,7 @@
 Search endpoints.
 """
 from typing import List, Optional
+import time
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
@@ -9,6 +10,36 @@ from app.api.deps import Database, CurrentUser
 from app.services.embeddings import embeddings_service
 
 router = APIRouter()
+
+
+# =====================================================
+# FACETS CACHE (shared with content.py cache)
+# =====================================================
+_search_facets_cache: dict = {}
+SEARCH_FACETS_CACHE_TTL = 300  # 5 minutes
+
+
+def get_cached_search_facets(user_id: str):
+    """Get cached facets if still valid."""
+    if user_id in _search_facets_cache:
+        cached = _search_facets_cache[user_id]
+        if time.time() - cached["timestamp"] < SEARCH_FACETS_CACHE_TTL:
+            return cached["data"]
+    return None
+
+
+def set_cached_search_facets(user_id: str, data: dict):
+    """Cache facets for user."""
+    _search_facets_cache[user_id] = {
+        "timestamp": time.time(),
+        "data": data
+    }
+
+
+def invalidate_search_facets_cache(user_id: str):
+    """Invalidate facets cache for user."""
+    if user_id in _search_facets_cache:
+        del _search_facets_cache[user_id]
 
 
 class SearchResult(BaseModel):
@@ -617,13 +648,23 @@ def _aggregate_facets(items: list) -> dict:
 @router.get("/facets")
 async def get_facets(
     current_user: CurrentUser,
-    db: Database
+    db: Database,
+    force_refresh: bool = Query(False, description="Force cache refresh")
 ):
     """
     Get available facets for filtering (no filters applied).
     Returns counts for each category, type, concept, and entity.
     Calculates facets from ALL user contents for accurate filtering.
+    CACHED for 5 minutes to improve Explorer performance.
     """
+    user_id = current_user["id"]
+
+    # Check cache first (unless force refresh)
+    if not force_refresh:
+        cached = get_cached_search_facets(user_id)
+        if cached:
+            return {**cached, "cached": True}
+
     try:
         # Get ALL content data for complete facet calculation
         # We fetch only the fields needed for facet aggregation
@@ -634,7 +675,7 @@ async def get_facets(
         while True:
             batch_response = db.table("contents").select(
                 "type, metadata, iab_tier1, concepts, entities, user_tags"
-            ).eq("user_id", current_user["id"]).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
+            ).eq("user_id", user_id).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
 
             batch_data = batch_response.data or []
             if not batch_data:
@@ -706,7 +747,7 @@ async def get_facets(
                 sorted_items = sorted_items[:limit]
             return [{"value": k, "count": v} for k, v in sorted_items]
 
-        return {
+        facets_data = {
             "types": to_facet_list(types),
             "categories": to_facet_list(categories),
             "concepts": to_facet_list(concepts),
@@ -716,6 +757,11 @@ async def get_facets(
             "user_tags": to_facet_list(user_tags),
             "total_contents": total_contents
         }
+
+        # Cache the result
+        set_cached_search_facets(user_id, facets_data)
+
+        return {**facets_data, "cached": False}
 
     except Exception as e:
         import traceback
@@ -747,18 +793,35 @@ async def get_dynamic_facets(
     Returns counts that reflect what's available given the current filters.
     """
     try:
-        # Helper to apply type filter including apple_notes handling
+        # Helper to apply type filter including apple_notes and manual notes handling
         def apply_type_filter_dynamic(query, types):
             if not types:
                 return query
             has_apple_notes = "apple_notes" in types
-            other_types = [t for t in types if t != "apple_notes"]
-            if has_apple_notes and not other_types:
-                # Use ->> operator for text comparison (extracts as text, not JSON)
-                return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
-            elif not has_apple_notes:
+            has_manual_notes = "note" in types
+            other_types = [t for t in types if t not in ("apple_notes", "note")]
+
+            if has_apple_notes and has_manual_notes:
+                # Both apple_notes and manual notes - just filter by type="note"
+                if other_types:
+                    return query.in_("type", other_types + ["note"])
+                else:
+                    return query.eq("type", "note")
+            elif has_apple_notes:
+                # Only apple_notes (no manual notes)
+                if other_types:
+                    return query.in_("type", other_types + ["note"])
+                else:
+                    return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
+            elif has_manual_notes:
+                # Only manual notes (exclude apple_notes)
+                if other_types:
+                    return query.in_("type", other_types + ["note"])
+                else:
+                    return query.eq("type", "note").neq("metadata->>source", "apple_notes")
+            else:
+                # No note types at all
                 return query.in_("type", types)
-            return query.in_("type", other_types + ["note"])
 
         # Check if we have any entity filters
         has_entity_filters = data.organizations or data.products or data.persons
@@ -859,8 +922,16 @@ class FacetedSearchRequest(BaseModel):
     processing_status: Optional[List[str]] = None
     maturity_level: Optional[List[str]] = None
     has_comment: Optional[bool] = None  # Filter by presence of user_note
-    limit: int = 100  # Reduced from 10000 for better performance
+    limit: int = 50  # Reduced from 100 for faster initial load
     offset: int = 0
+
+
+# Optimized fields for faceted search list display (no raw_content, embedding)
+FACETED_SEARCH_FIELDS = (
+    "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
+    "processing_status, maturity_level, is_favorite, user_note, user_tags, "
+    "metadata, created_at"
+)
 
 
 import json as json_module
@@ -903,19 +974,37 @@ async def search_faceted(
         has_entity_filters = data.organizations or data.products or data.persons
         logger.info(f"has_entity_filters={has_entity_filters}")
 
-        # Helper to apply type filter including apple_notes handling
+        # Helper to apply type filter including apple_notes and manual notes handling
         def apply_type_filter(query, types):
             if not types:
                 return query
             has_apple_notes = "apple_notes" in types
-            other_types = [t for t in types if t != "apple_notes"]
-            if has_apple_notes and not other_types:
-                # Only apple_notes
-                return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
-            elif not has_apple_notes:
+            has_manual_notes = "note" in types
+            other_types = [t for t in types if t not in ("apple_notes", "note")]
+
+            if has_apple_notes and has_manual_notes:
+                # Both apple_notes and manual notes - just filter by type="note"
+                if other_types:
+                    return query.in_("type", other_types + ["note"])
+                else:
+                    return query.eq("type", "note")
+            elif has_apple_notes:
+                # Only apple_notes (no manual notes)
+                if other_types:
+                    # Can't handle in single query, return broad filter
+                    return query.in_("type", other_types + ["note"])
+                else:
+                    return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
+            elif has_manual_notes:
+                # Only manual notes (exclude apple_notes)
+                if other_types:
+                    # Can't handle in single query, return broad filter
+                    return query.in_("type", other_types + ["note"])
+                else:
+                    return query.eq("type", "note").neq("metadata->>source", "apple_notes")
+            else:
+                # No note types at all
                 return query.in_("type", types)
-            # Both apple_notes and other types - can't handle in single query for ID fetch
-            return query.in_("type", other_types + ["note"])
 
         if has_entity_filters:
             # For entity filters, we need to do multiple queries and combine results
@@ -968,11 +1057,7 @@ async def search_faceted(
 
             # If we have matching IDs, fetch full content
             if all_ids:
-                select_fields = (
-                    "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
-                    "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
-                )
-                response = db.table("contents").select(select_fields).in_("id", list(all_ids)).neq("is_archived", True).order("created_at", desc=True).range(
+                response = db.table("contents").select(FACETED_SEARCH_FIELDS).in_("id", list(all_ids)).neq("is_archived", True).order("created_at", desc=True).range(
                     data.offset, data.offset + data.limit - 1
                 ).execute()
                 results = response.data or []
@@ -980,11 +1065,10 @@ async def search_faceted(
                 results = []
         else:
             # Standard query without entity filters
-            # Use simpler select to avoid potential missing column issues
+            # Use FACETED_SEARCH_FIELDS for consistent selective field queries
             # Use neq(True) instead of eq(False) to also include NULL values
             query = db.table("contents").select(
-                "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
-                "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
+                FACETED_SEARCH_FIELDS
             ).eq("user_id", current_user["id"]).neq("is_archived", True)
 
             # Apply facet filters - handle apple_notes as special case
@@ -996,17 +1080,13 @@ async def search_faceted(
                 if has_apple_notes and other_types:
                     # Need to combine: (type in other_types) OR (type=note AND metadata.source=apple_notes)
                     # Supabase doesn't support complex OR, so we do two queries
-                    select_fields = (
-                        "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
-                        "processing_status, maturity_level, is_favorite, user_note, metadata, created_at"
-                    )
-                    query1 = db.table("contents").select(select_fields).eq("user_id", current_user["id"]).neq("is_archived", True).in_("type", other_types)
+                    query1 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).in_("type", other_types)
                     if data.categories:
                         query1 = query1.in_("iab_tier1", data.categories)
                     if data.concepts:
                         query1 = query1.overlaps("concepts", data.concepts)
 
-                    query2 = db.table("contents").select(select_fields).eq("user_id", current_user["id"]).neq("is_archived", True).eq("type", "note").filter(
+                    query2 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).eq("type", "note").filter(
                         "metadata->>source", "eq", "apple_notes"
                     )
                     if data.categories:
@@ -1041,16 +1121,64 @@ async def search_faceted(
                     ).execute()
                     results = response.data or []
                 else:
-                    # No apple_notes, use standard in_ filter
-                    query = query.in_("type", data.types)
-                    if data.categories:
-                        query = query.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        query = query.overlaps("concepts", data.concepts)
-                    response = query.order("created_at", desc=True).range(
-                        data.offset, data.offset + data.limit - 1
-                    ).execute()
-                    results = response.data or []
+                    # No apple_notes in filter - need to handle "note" type specially
+                    # to exclude apple_notes (which have type="note" + metadata.source="apple_notes")
+                    has_manual_notes = "note" in data.types
+                    non_note_types = [t for t in data.types if t != "note"]
+
+                    if has_manual_notes and non_note_types:
+                        # Both manual notes and other types - need two queries
+                        # Query 1: other types (web, youtube, etc.)
+                        query1 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).in_("type", non_note_types)
+                        if data.categories:
+                            query1 = query1.in_("iab_tier1", data.categories)
+                        if data.concepts:
+                            query1 = query1.overlaps("concepts", data.concepts)
+
+                        # Query 2: manual notes (type=note AND metadata.source != apple_notes)
+                        query2 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).eq("type", "note").neq("metadata->>source", "apple_notes")
+                        if data.categories:
+                            query2 = query2.in_("iab_tier1", data.categories)
+                        if data.concepts:
+                            query2 = query2.overlaps("concepts", data.concepts)
+
+                        resp1 = query1.order("created_at", desc=True).execute()
+                        resp2 = query2.order("created_at", desc=True).execute()
+
+                        # Combine and dedupe
+                        seen_ids = set()
+                        combined = []
+                        for item in (resp1.data or []) + (resp2.data or []):
+                            if item["id"] not in seen_ids:
+                                seen_ids.add(item["id"])
+                                combined.append(item)
+
+                        # Sort by created_at and paginate
+                        combined.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                        results = combined[data.offset:data.offset + data.limit]
+
+                    elif has_manual_notes:
+                        # Only manual notes (exclude apple_notes)
+                        query = query.eq("type", "note").neq("metadata->>source", "apple_notes")
+                        if data.categories:
+                            query = query.in_("iab_tier1", data.categories)
+                        if data.concepts:
+                            query = query.overlaps("concepts", data.concepts)
+                        response = query.order("created_at", desc=True).range(
+                            data.offset, data.offset + data.limit - 1
+                        ).execute()
+                        results = response.data or []
+                    else:
+                        # No note type, use standard in_ filter
+                        query = query.in_("type", data.types)
+                        if data.categories:
+                            query = query.in_("iab_tier1", data.categories)
+                        if data.concepts:
+                            query = query.overlaps("concepts", data.concepts)
+                        response = query.order("created_at", desc=True).range(
+                            data.offset, data.offset + data.limit - 1
+                        ).execute()
+                        results = response.data or []
             else:
                 if data.categories:
                     query = query.in_("iab_tier1", data.categories)
