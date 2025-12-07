@@ -985,7 +985,14 @@ export default function DashboardPage() {
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
-                      📝 Nueva Nota
+                      📝 Nueva Nota Rápida
+                    </Link>
+                    <Link
+                      href="/notes/new"
+                      onClick={() => setShowQuickActions(false)}
+                      className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      📄 Nueva Nota Completa
                     </Link>
                     <Link
                       href="/objectives?create=true"
