@@ -15,6 +15,9 @@ interface Note {
     tags: string[];
     linked_content_ids: string[];
     linked_note_ids: string[];
+    source_content_id: string | null;
+    linked_project_id: string | null;
+    linked_model_id: string | null;
     is_pinned: boolean;
     created_at: string;
     updated_at: string;
@@ -26,6 +29,27 @@ interface ContentItem {
     type: string;
 }
 
+interface ProjectItem {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+}
+
+interface ModelItem {
+    id: string;
+    tag: string;
+    taxonomy_value: string;
+}
+
+interface NoteItem {
+    id: string;
+    title: string;
+    note_type: string;
+}
+
+type LinkType = 'content' | 'note' | 'project' | 'model';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const NOTE_TYPES = {
@@ -33,6 +57,7 @@ const NOTE_TYPES = {
     idea: { label: 'Idea', icon: '💡', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
     question: { label: 'Pregunta', icon: '❓', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
     connection: { label: 'Conexion', icon: '🔗', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+    journal: { label: 'Diario', icon: '📓', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
 } as const;
 
 export default function JournalPage() {
@@ -59,8 +84,23 @@ export default function JournalPage() {
     const [saving, setSaving] = useState(false);
     const [editMode, setEditMode] = useState(false);
 
-    // Available contents for linking
+    // Available items for linking
     const [availableContents, setAvailableContents] = useState<ContentItem[]>([]);
+    const [availableProjects, setAvailableProjects] = useState<ProjectItem[]>([]);
+    const [availableModels, setAvailableModels] = useState<ModelItem[]>([]);
+    const [availableNotes, setAvailableNotes] = useState<NoteItem[]>([]);
+
+    // Link selector state
+    const [showLinkSelector, setShowLinkSelector] = useState(false);
+    const [linkSelectorType, setLinkSelectorType] = useState<LinkType>('content');
+    const [linkSearchQuery, setLinkSearchQuery] = useState('');
+
+    // Form link state
+    const [formLinkedProjectId, setFormLinkedProjectId] = useState<string | null>(null);
+    const [formLinkedModelId, setFormLinkedModelId] = useState<string | null>(null);
+    const [formLinkedNoteIds, setFormLinkedNoteIds] = useState<string[]>([]);
+
+    // Legacy - keep for backwards compatibility
     const [contentSearchQuery, setContentSearchQuery] = useState('');
     const [showContentSelector, setShowContentSelector] = useState(false);
 
@@ -100,26 +140,65 @@ export default function JournalPage() {
     useEffect(() => {
         if (user) {
             fetchNotes();
-            fetchAvailableContents();
+            fetchAvailableItems();
         }
     }, [user, filterType, searchQuery]);
 
-    const fetchAvailableContents = async () => {
+    const fetchAvailableItems = async () => {
         try {
-            const { data, error } = await supabase
+            // Fetch contents
+            const { data: contents, error: contentsError } = await supabase
                 .from('contents')
                 .select('id, title, type')
                 .eq('is_archived', false)
                 .order('created_at', { ascending: false })
                 .limit(100);
 
-            if (!error && data) {
-                setAvailableContents(data);
+            if (!contentsError && contents) {
+                setAvailableContents(contents);
+            }
+
+            // Fetch projects
+            const { data: projects, error: projectsError } = await supabase
+                .from('projects')
+                .select('id, name, icon, color')
+                .order('created_at', { ascending: false });
+
+            if (!projectsError && projects) {
+                setAvailableProjects(projects);
+            }
+
+            // Fetch mental models (taxonomy_tags with tag = 'mental_model')
+            const { data: models, error: modelsError } = await supabase
+                .from('taxonomy_tags')
+                .select('id, tag, taxonomy_value')
+                .eq('tag', 'mental_model')
+                .order('taxonomy_value', { ascending: true });
+
+            if (!modelsError && models) {
+                setAvailableModels(models);
+            }
+
+            // Fetch other notes for linking
+            const session = await supabase.auth.getSession();
+            if (session.data.session) {
+                const response = await fetch(`${API_URL}/api/v1/notes/?limit=100`, {
+                    headers: {
+                        'Authorization': `Bearer ${session.data.session.access_token}`,
+                    },
+                });
+                if (response.ok) {
+                    const notesData = await response.json();
+                    setAvailableNotes(notesData.map((n: Note) => ({ id: n.id, title: n.title, note_type: n.note_type })));
+                }
             }
         } catch (error) {
-            console.error('Error fetching contents:', error);
+            console.error('Error fetching available items:', error);
         }
     };
+
+    // Legacy function for backwards compatibility
+    const fetchAvailableContents = fetchAvailableItems;
 
     const fetchNotes = async () => {
         try {
@@ -171,6 +250,9 @@ export default function JournalPage() {
                     note_type: formType,
                     tags: formTags ? formTags.split(',').map(t => t.trim()) : [],
                     linked_content_ids: formLinkedContentIds,
+                    linked_note_ids: formLinkedNoteIds,
+                    linked_project_id: formLinkedProjectId,
+                    linked_model_id: formLinkedModelId,
                 }),
             });
 
@@ -207,6 +289,9 @@ export default function JournalPage() {
                     note_type: formType,
                     tags: formTags ? formTags.split(',').map(t => t.trim()) : [],
                     linked_content_ids: formLinkedContentIds,
+                    linked_note_ids: formLinkedNoteIds,
+                    linked_project_id: formLinkedProjectId,
+                    linked_model_id: formLinkedModelId,
                 }),
             });
 
@@ -277,7 +362,12 @@ export default function JournalPage() {
         setFormTags('');
         setFormLinkedContentIds([]);
         setFormLinkedContentTitle('');
+        setFormLinkedNoteIds([]);
+        setFormLinkedProjectId(null);
+        setFormLinkedModelId(null);
         setShowContentSelector(false);
+        setShowLinkSelector(false);
+        setLinkSearchQuery('');
         setContentSearchQuery('');
         setEditMode(false);
     };
@@ -289,6 +379,9 @@ export default function JournalPage() {
         setFormType(note.note_type);
         setFormTags(note.tags.join(', '));
         setFormLinkedContentIds(note.linked_content_ids || []);
+        setFormLinkedNoteIds(note.linked_note_ids || []);
+        setFormLinkedProjectId(note.linked_project_id);
+        setFormLinkedModelId(note.linked_model_id);
         setShowDetailModal(true);
     };
 
@@ -299,6 +392,47 @@ export default function JournalPage() {
                 : [...prev, contentId]
         );
     };
+
+    const toggleNoteLink = (noteId: string) => {
+        setFormLinkedNoteIds(prev =>
+            prev.includes(noteId)
+                ? prev.filter(id => id !== noteId)
+                : [...prev, noteId]
+        );
+    };
+
+    // Helper to get filtered items based on link type and search
+    const getFilteredContents = () => {
+        const query = linkSearchQuery.toLowerCase();
+        return availableContents.filter(c => c.title.toLowerCase().includes(query));
+    };
+
+    const getFilteredNotes = () => {
+        const query = linkSearchQuery.toLowerCase();
+        return availableNotes.filter(n => n.title.toLowerCase().includes(query) && n.id !== selectedNote?.id);
+    };
+
+    const getFilteredProjects = () => {
+        const query = linkSearchQuery.toLowerCase();
+        return availableProjects.filter(p => p.name.toLowerCase().includes(query));
+    };
+
+    const getFilteredModels = () => {
+        const query = linkSearchQuery.toLowerCase();
+        return availableModels.filter(m => m.taxonomy_value.toLowerCase().includes(query));
+    };
+
+    // Count total links
+    const getTotalLinksCount = () => {
+        return formLinkedContentIds.length +
+               formLinkedNoteIds.length +
+               (formLinkedProjectId ? 1 : 0) +
+               (formLinkedModelId ? 1 : 0);
+    };
+
+    // Get selected items for display
+    const getSelectedProject = () => availableProjects.find(p => p.id === formLinkedProjectId);
+    const getSelectedModel = () => availableModels.find(m => m.id === formLinkedModelId);
 
     const filteredAvailableContents = availableContents.filter(c =>
         c.title.toLowerCase().includes(contentSearchQuery.toLowerCase())
@@ -475,45 +609,121 @@ export default function JournalPage() {
                                     placeholder="idea, proyecto, reflexion"
                                 />
                             </div>
+                            {/* Links section */}
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">
-                                    Vincular contenidos ({formLinkedContentIds.length} seleccionados)
+                                <label className="block text-sm font-medium mb-2 dark:text-gray-300">
+                                    Vincular ({getTotalLinksCount()} vinculados)
                                 </label>
+
+                                {/* Current links display */}
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    {formLinkedContentIds.map(id => {
+                                        const content = availableContents.find(c => c.id === id);
+                                        return content ? (
+                                            <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 text-xs rounded">
+                                                📄 {content.title.slice(0, 20)}...
+                                                <button type="button" onClick={() => toggleContentLink(id)} className="ml-1 hover:text-red-500">×</button>
+                                            </span>
+                                        ) : null;
+                                    })}
+                                    {formLinkedNoteIds.map(id => {
+                                        const note = availableNotes.find(n => n.id === id);
+                                        return note ? (
+                                            <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200 text-xs rounded">
+                                                📝 {note.title.slice(0, 20)}...
+                                                <button type="button" onClick={() => toggleNoteLink(id)} className="ml-1 hover:text-red-500">×</button>
+                                            </span>
+                                        ) : null;
+                                    })}
+                                    {getSelectedProject() && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 text-xs rounded">
+                                            {getSelectedProject()?.icon || '📁'} {getSelectedProject()?.name}
+                                            <button type="button" onClick={() => setFormLinkedProjectId(null)} className="ml-1 hover:text-red-500">×</button>
+                                        </span>
+                                    )}
+                                    {getSelectedModel() && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-xs rounded">
+                                            🧠 {getSelectedModel()?.taxonomy_value}
+                                            <button type="button" onClick={() => setFormLinkedModelId(null)} className="ml-1 hover:text-red-500">×</button>
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Add link button */}
                                 <button
                                     type="button"
-                                    onClick={() => setShowContentSelector(!showContentSelector)}
+                                    onClick={() => setShowLinkSelector(!showLinkSelector)}
                                     className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-left flex items-center justify-between"
                                 >
-                                    <span>{formLinkedContentIds.length > 0 ? `${formLinkedContentIds.length} contenidos vinculados` : 'Seleccionar contenidos...'}</span>
-                                    <span>{showContentSelector ? '▲' : '▼'}</span>
+                                    <span>+ Añadir vinculo...</span>
+                                    <span>{showLinkSelector ? '▲' : '▼'}</span>
                                 </button>
-                                {showContentSelector && (
-                                    <div className="mt-2 border dark:border-gray-600 rounded-lg max-h-48 overflow-y-auto">
+
+                                {showLinkSelector && (
+                                    <div className="mt-2 border dark:border-gray-600 rounded-lg overflow-hidden">
+                                        {/* Link type tabs */}
+                                        <div className="flex border-b dark:border-gray-600">
+                                            {[
+                                                { type: 'content' as LinkType, label: '📄 Contenido', count: availableContents.length },
+                                                { type: 'note' as LinkType, label: '📝 Nota', count: availableNotes.length },
+                                                { type: 'project' as LinkType, label: '📁 Proyecto', count: availableProjects.length },
+                                                { type: 'model' as LinkType, label: '🧠 Modelo', count: availableModels.length },
+                                            ].map(tab => (
+                                                <button
+                                                    key={tab.type}
+                                                    type="button"
+                                                    onClick={() => { setLinkSelectorType(tab.type); setLinkSearchQuery(''); }}
+                                                    className={`flex-1 px-2 py-2 text-xs ${linkSelectorType === tab.type ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}
+                                                >
+                                                    {tab.label} ({tab.count})
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Search input */}
                                         <input
                                             type="text"
-                                            value={contentSearchQuery}
-                                            onChange={(e) => setContentSearchQuery(e.target.value)}
-                                            placeholder="Buscar contenidos..."
-                                            className="w-full px-3 py-2 border-b dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                            value={linkSearchQuery}
+                                            onChange={(e) => setLinkSearchQuery(e.target.value)}
+                                            placeholder={`Buscar ${linkSelectorType === 'content' ? 'contenidos' : linkSelectorType === 'note' ? 'notas' : linkSelectorType === 'project' ? 'proyectos' : 'modelos'}...`}
+                                            className="w-full px-3 py-2 border-b dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
                                         />
-                                        {filteredAvailableContents.slice(0, 20).map(content => (
-                                            <label
-                                                key={content.id}
-                                                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formLinkedContentIds.includes(content.id)}
-                                                    onChange={() => toggleContentLink(content.id)}
-                                                    className="rounded"
-                                                />
-                                                <span className="text-sm dark:text-gray-300 truncate">{content.title}</span>
-                                                <span className="text-xs text-gray-400 ml-auto">{content.type}</span>
-                                            </label>
-                                        ))}
-                                        {filteredAvailableContents.length === 0 && (
-                                            <div className="px-3 py-2 text-sm text-gray-500">No hay contenidos</div>
-                                        )}
+
+                                        {/* Items list */}
+                                        <div className="max-h-40 overflow-y-auto">
+                                            {linkSelectorType === 'content' && getFilteredContents().slice(0, 15).map((item) => (
+                                                <label key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                    <input type="checkbox" checked={formLinkedContentIds.includes(item.id)} onChange={() => toggleContentLink(item.id)} className="rounded" />
+                                                    <span className="text-sm dark:text-gray-300 truncate flex-1">{item.title}</span>
+                                                    <span className="text-xs text-gray-400">{item.type}</span>
+                                                </label>
+                                            ))}
+                                            {linkSelectorType === 'note' && getFilteredNotes().slice(0, 15).map((item) => (
+                                                <label key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                    <input type="checkbox" checked={formLinkedNoteIds.includes(item.id)} onChange={() => toggleNoteLink(item.id)} className="rounded" />
+                                                    <span className="text-sm dark:text-gray-300 truncate flex-1">{item.title}</span>
+                                                    <span className="text-xs text-gray-400">{NOTE_TYPES[item.note_type as keyof typeof NOTE_TYPES]?.icon || '📝'}</span>
+                                                </label>
+                                            ))}
+                                            {linkSelectorType === 'project' && getFilteredProjects().slice(0, 15).map((item) => (
+                                                <label key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                    <input type="radio" name="project" checked={formLinkedProjectId === item.id} onChange={() => setFormLinkedProjectId(item.id)} className="rounded" />
+                                                    <span className="text-sm dark:text-gray-300 truncate flex-1">{item.icon || '📁'} {item.name}</span>
+                                                </label>
+                                            ))}
+                                            {linkSelectorType === 'model' && getFilteredModels().slice(0, 15).map((item) => (
+                                                <label key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                    <input type="radio" name="model" checked={formLinkedModelId === item.id} onChange={() => setFormLinkedModelId(item.id)} className="rounded" />
+                                                    <span className="text-sm dark:text-gray-300 truncate flex-1">🧠 {item.taxonomy_value}</span>
+                                                </label>
+                                            ))}
+                                            {((linkSelectorType === 'content' && getFilteredContents().length === 0) ||
+                                              (linkSelectorType === 'note' && getFilteredNotes().length === 0) ||
+                                              (linkSelectorType === 'project' && getFilteredProjects().length === 0) ||
+                                              (linkSelectorType === 'model' && getFilteredModels().length === 0)) && (
+                                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No hay items</div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -629,41 +839,103 @@ export default function JournalPage() {
                                             className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
                                         />
                                     </div>
+                                    {/* Links section in edit mode */}
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">
-                                            Vincular contenidos ({formLinkedContentIds.length})
+                                        <label className="block text-sm font-medium mb-2 dark:text-gray-300">
+                                            Vincular ({getTotalLinksCount()} vinculados)
                                         </label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {formLinkedContentIds.map(id => {
+                                                const content = availableContents.find(c => c.id === id);
+                                                return content ? (
+                                                    <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 text-xs rounded">
+                                                        📄 {content.title.slice(0, 20)}...
+                                                        <button type="button" onClick={() => toggleContentLink(id)} className="ml-1 hover:text-red-500">×</button>
+                                                    </span>
+                                                ) : null;
+                                            })}
+                                            {formLinkedNoteIds.map(id => {
+                                                const note = availableNotes.find(n => n.id === id);
+                                                return note ? (
+                                                    <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200 text-xs rounded">
+                                                        📝 {note.title.slice(0, 20)}...
+                                                        <button type="button" onClick={() => toggleNoteLink(id)} className="ml-1 hover:text-red-500">×</button>
+                                                    </span>
+                                                ) : null;
+                                            })}
+                                            {getSelectedProject() && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 text-xs rounded">
+                                                    {getSelectedProject()?.icon || '📁'} {getSelectedProject()?.name}
+                                                    <button type="button" onClick={() => setFormLinkedProjectId(null)} className="ml-1 hover:text-red-500">×</button>
+                                                </span>
+                                            )}
+                                            {getSelectedModel() && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-xs rounded">
+                                                    🧠 {getSelectedModel()?.taxonomy_value}
+                                                    <button type="button" onClick={() => setFormLinkedModelId(null)} className="ml-1 hover:text-red-500">×</button>
+                                                </span>
+                                            )}
+                                        </div>
                                         <button
                                             type="button"
-                                            onClick={() => setShowContentSelector(!showContentSelector)}
+                                            onClick={() => setShowLinkSelector(!showLinkSelector)}
                                             className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-left flex items-center justify-between"
                                         >
-                                            <span>{formLinkedContentIds.length > 0 ? `${formLinkedContentIds.length} contenidos vinculados` : 'Seleccionar...'}</span>
-                                            <span>{showContentSelector ? '▲' : '▼'}</span>
+                                            <span>+ Añadir vinculo...</span>
+                                            <span>{showLinkSelector ? '▲' : '▼'}</span>
                                         </button>
-                                        {showContentSelector && (
-                                            <div className="mt-2 border dark:border-gray-600 rounded-lg max-h-40 overflow-y-auto">
+                                        {showLinkSelector && (
+                                            <div className="mt-2 border dark:border-gray-600 rounded-lg overflow-hidden">
+                                                <div className="flex border-b dark:border-gray-600">
+                                                    {[
+                                                        { type: 'content' as LinkType, label: '📄 Contenido' },
+                                                        { type: 'note' as LinkType, label: '📝 Nota' },
+                                                        { type: 'project' as LinkType, label: '📁 Proyecto' },
+                                                        { type: 'model' as LinkType, label: '🧠 Modelo' },
+                                                    ].map(tab => (
+                                                        <button
+                                                            key={tab.type}
+                                                            type="button"
+                                                            onClick={() => { setLinkSelectorType(tab.type); setLinkSearchQuery(''); }}
+                                                            className={`flex-1 px-2 py-2 text-xs ${linkSelectorType === tab.type ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}
+                                                        >
+                                                            {tab.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                                 <input
                                                     type="text"
-                                                    value={contentSearchQuery}
-                                                    onChange={(e) => setContentSearchQuery(e.target.value)}
+                                                    value={linkSearchQuery}
+                                                    onChange={(e) => setLinkSearchQuery(e.target.value)}
                                                     placeholder="Buscar..."
-                                                    className="w-full px-3 py-2 border-b dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                    className="w-full px-3 py-2 border-b dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
                                                 />
-                                                {filteredAvailableContents.slice(0, 15).map(content => (
-                                                    <label
-                                                        key={content.id}
-                                                        className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={formLinkedContentIds.includes(content.id)}
-                                                            onChange={() => toggleContentLink(content.id)}
-                                                            className="rounded"
-                                                        />
-                                                        <span className="text-sm dark:text-gray-300 truncate">{content.title}</span>
-                                                    </label>
-                                                ))}
+                                                <div className="max-h-32 overflow-y-auto">
+                                                    {linkSelectorType === 'content' && getFilteredContents().slice(0, 10).map((item) => (
+                                                        <label key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                            <input type="checkbox" checked={formLinkedContentIds.includes(item.id)} onChange={() => toggleContentLink(item.id)} className="rounded" />
+                                                            <span className="text-sm dark:text-gray-300 truncate">{item.title}</span>
+                                                        </label>
+                                                    ))}
+                                                    {linkSelectorType === 'note' && getFilteredNotes().slice(0, 10).map((item) => (
+                                                        <label key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                            <input type="checkbox" checked={formLinkedNoteIds.includes(item.id)} onChange={() => toggleNoteLink(item.id)} className="rounded" />
+                                                            <span className="text-sm dark:text-gray-300 truncate">{item.title}</span>
+                                                        </label>
+                                                    ))}
+                                                    {linkSelectorType === 'project' && getFilteredProjects().slice(0, 10).map((item) => (
+                                                        <label key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                            <input type="radio" name="editProject" checked={formLinkedProjectId === item.id} onChange={() => setFormLinkedProjectId(item.id)} />
+                                                            <span className="text-sm dark:text-gray-300 truncate">{item.icon || '📁'} {item.name}</span>
+                                                        </label>
+                                                    ))}
+                                                    {linkSelectorType === 'model' && getFilteredModels().slice(0, 10).map((item) => (
+                                                        <label key={item.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                            <input type="radio" name="editModel" checked={formLinkedModelId === item.id} onChange={() => setFormLinkedModelId(item.id)} />
+                                                            <span className="text-sm dark:text-gray-300 truncate">🧠 {item.taxonomy_value}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
