@@ -275,6 +275,37 @@ export default function GuidePage() {
                             KBase ofrece múltiples formas de navegar y descubrir tu conocimiento:
                         </p>
 
+                        {/* Tabs del Explorador */}
+                        <div className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+                            <h4 className="font-medium text-orange-900 dark:text-orange-200 mb-3">📑 Tabs del Explorador</h4>
+                            <p className="text-sm text-orange-800 dark:text-orange-300 mb-3">
+                                El Explorador tiene dos vistas principales accesibles mediante tabs:
+                            </p>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-orange-200 dark:border-orange-700">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-lg">📚</span>
+                                        <span className="font-medium text-gray-900 dark:text-white">Contenidos</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                                        Todos tus contenidos capturados: artículos, vídeos, Apple Notes. Búsqueda semántica y filtros por tipo, categoría, madurez, etc.
+                                    </p>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-orange-200 dark:border-orange-700">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-lg">💭</span>
+                                        <span className="font-medium text-gray-900 dark:text-white">Mis Reflexiones</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                                        Tus notas personales: reflexiones, ideas, preguntas. Filtra por tipo de nota, estado de vinculación y notas fijadas.
+                                    </p>
+                                </div>
+                            </div>
+                            <p className="text-xs text-orange-700 dark:text-orange-400 mt-3">
+                                <strong>Tip:</strong> En "Mis Reflexiones", las notas vinculadas muestran "Vinculado a:" con un enlace clickeable al contenido original.
+                            </p>
+                        </div>
+
                         <div className="space-y-4">
                             <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -671,6 +702,16 @@ export default function GuidePage() {
                                 En el <strong>Explorador</strong> y <strong>Taxonomía</strong> puedes filtrar por contenidos que tienen
                                 o no tienen anotaciones. Esto te ayuda a identificar qué contenidos ya has procesado
                                 y cuáles necesitan tu atención.
+                            </p>
+                        </div>
+
+                        {/* Distinción Apple Notes vs Notas Manuales */}
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                            <h4 className="font-medium text-amber-900 dark:text-amber-200 mb-2">🍎 Apple Notes vs Notas Manuales</h4>
+                            <p className="text-sm text-amber-800 dark:text-amber-300">
+                                El sistema distingue entre <strong>Apple Notes</strong> (importadas desde la app de Apple) y
+                                <strong> Notas Manuales</strong> (creadas directamente en KBase). Al filtrar por tipo "Nota" en el
+                                Explorador, solo verás tus notas manuales. Las Apple Notes tienen su propia categoría en los filtros.
                             </p>
                         </div>
 
