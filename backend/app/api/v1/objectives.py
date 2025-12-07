@@ -168,15 +168,22 @@ async def get_objective(
     ).eq("objective_id", objective_id).execute()
     objective["projects"] = [r["projects"] for r in proj_result.data if r.get("projects")]
 
-    # Get linked contents count
+    # Get linked contents
     content_result = db.table("objective_contents").select(
-        "content_id", count="exact"
+        "content_id, contents(id, title, content_type, is_favorite, created_at)"
     ).eq("objective_id", objective_id).execute()
-    objective["contents_count"] = content_result.count or 0
+    objective["contents"] = [r["contents"] for r in content_result.data if r.get("contents")]
+    objective["contents_count"] = len(objective["contents"])
+
+    # Get linked notes
+    notes_result = db.table("objective_notes").select(
+        "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
+    ).eq("objective_id", objective_id).execute()
+    objective["notes"] = [r["standalone_notes"] for r in notes_result.data if r.get("standalone_notes")]
 
     # Get sub-objectives
     children_result = db.table("objectives").select(
-        "id, title, status, progress, icon, color"
+        "id, title, status, progress, icon, color, horizon"
     ).eq("parent_id", objective_id).order("position").execute()
     objective["children"] = children_result.data
 
@@ -415,6 +422,150 @@ async def unlink_content(
     return {"success": True}
 
 
+@router.post("/{objective_id}/link-contents")
+async def link_contents_to_objective(
+    objective_id: str,
+    content_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link multiple contents to an objective."""
+    # Verify objective belongs to user
+    obj_check = db.table("objectives").select("id").eq(
+        "id", objective_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not obj_check.data:
+        raise HTTPException(status_code=404, detail="Objective not found")
+
+    linked = 0
+    for content_id in content_ids:
+        try:
+            db.table("objective_contents").insert({
+                "objective_id": objective_id,
+                "content_id": content_id,
+                "user_id": current_user["id"],
+            }).execute()
+            linked += 1
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                print(f"Error linking content {content_id}: {e}")
+
+    return {"success": True, "linked": linked}
+
+
+@router.post("/{objective_id}/unlink-contents")
+async def unlink_contents_from_objective(
+    objective_id: str,
+    content_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink multiple contents from an objective."""
+    for content_id in content_ids:
+        db.table("objective_contents").delete().eq(
+            "objective_id", objective_id
+        ).eq("content_id", content_id).eq("user_id", current_user["id"]).execute()
+
+    return {"success": True}
+
+
+@router.post("/{objective_id}/link-projects")
+async def link_projects_to_objective(
+    objective_id: str,
+    project_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link multiple projects to an objective."""
+    # Verify objective belongs to user
+    obj_check = db.table("objectives").select("id").eq(
+        "id", objective_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not obj_check.data:
+        raise HTTPException(status_code=404, detail="Objective not found")
+
+    linked = 0
+    for project_id in project_ids:
+        try:
+            db.table("objective_projects").insert({
+                "objective_id": objective_id,
+                "project_id": project_id,
+                "user_id": current_user["id"],
+            }).execute()
+            linked += 1
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                print(f"Error linking project {project_id}: {e}")
+
+    return {"success": True, "linked": linked}
+
+
+@router.post("/{objective_id}/unlink-projects")
+async def unlink_projects_from_objective(
+    objective_id: str,
+    project_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink multiple projects from an objective."""
+    for project_id in project_ids:
+        db.table("objective_projects").delete().eq(
+            "objective_id", objective_id
+        ).eq("project_id", project_id).eq("user_id", current_user["id"]).execute()
+
+    return {"success": True}
+
+
+@router.post("/{objective_id}/link-mental-models")
+async def link_mental_models_to_objective(
+    objective_id: str,
+    model_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link multiple mental models to an objective."""
+    # Verify objective belongs to user
+    obj_check = db.table("objectives").select("id").eq(
+        "id", objective_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not obj_check.data:
+        raise HTTPException(status_code=404, detail="Objective not found")
+
+    linked = 0
+    for model_id in model_ids:
+        try:
+            db.table("objective_mental_models").insert({
+                "objective_id": objective_id,
+                "mental_model_id": model_id,
+                "user_id": current_user["id"],
+            }).execute()
+            linked += 1
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                print(f"Error linking mental model {model_id}: {e}")
+
+    return {"success": True, "linked": linked}
+
+
+@router.post("/{objective_id}/unlink-mental-models")
+async def unlink_mental_models_from_objective(
+    objective_id: str,
+    model_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink multiple mental models from an objective."""
+    for model_id in model_ids:
+        db.table("objective_mental_models").delete().eq(
+            "objective_id", objective_id
+        ).eq("mental_model_id", model_id).eq("user_id", current_user["id"]).execute()
+
+    return {"success": True}
+
+
 @router.get("/{objective_id}/contents")
 async def get_objective_contents(
     objective_id: str,
@@ -432,3 +583,141 @@ async def get_objective_contents(
 
     contents = [r["contents"] for r in result.data if r.get("contents")]
     return {"contents": contents}
+
+
+# =====================================================
+# Tree View and Reorder
+# =====================================================
+
+@router.get("/tree")
+async def get_objectives_tree(
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Get objectives as a tree structure."""
+    result = db.table("objectives").select(
+        "id, title, icon, color, status, progress, parent_id, position, horizon"
+    ).eq("user_id", current_user["id"]).order("position").execute()
+
+    objectives = result.data
+
+    # Build tree structure
+    objective_map = {obj["id"]: {**obj, "children": []} for obj in objectives}
+    tree = []
+
+    for obj in objectives:
+        obj_with_children = objective_map[obj["id"]]
+        if obj["parent_id"] and obj["parent_id"] in objective_map:
+            objective_map[obj["parent_id"]]["children"].append(obj_with_children)
+        else:
+            tree.append(obj_with_children)
+
+    return tree
+
+
+class ReorderRequest(BaseModel):
+    objective_id: str
+    new_parent_id: Optional[str] = None
+    new_position: int = 0
+
+
+@router.post("/reorder")
+async def reorder_objective(
+    data: ReorderRequest,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Reorder an objective (change parent and/or position)."""
+    # Verify objective belongs to user
+    check = db.table("objectives").select("id").eq(
+        "id", data.objective_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Objective not found")
+
+    # If new_parent_id is provided, verify it belongs to user
+    if data.new_parent_id:
+        parent_check = db.table("objectives").select("id").eq(
+            "id", data.new_parent_id
+        ).eq("user_id", current_user["id"]).execute()
+
+        if not parent_check.data:
+            raise HTTPException(status_code=404, detail="Parent objective not found")
+
+    # Update the objective
+    result = db.table("objectives").update({
+        "parent_id": data.new_parent_id,
+        "position": data.new_position,
+    }).eq("id", data.objective_id).eq("user_id", current_user["id"]).execute()
+
+    return {"success": True}
+
+
+# =====================================================
+# Notes Linking
+# =====================================================
+
+@router.post("/{objective_id}/link-notes")
+async def link_notes_to_objective(
+    objective_id: str,
+    note_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link multiple standalone notes to an objective."""
+    # Verify objective belongs to user
+    obj_check = db.table("objectives").select("id").eq(
+        "id", objective_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not obj_check.data:
+        raise HTTPException(status_code=404, detail="Objective not found")
+
+    linked = 0
+    for note_id in note_ids:
+        try:
+            db.table("objective_notes").insert({
+                "objective_id": objective_id,
+                "note_id": note_id,
+                "user_id": current_user["id"],
+            }).execute()
+            linked += 1
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                print(f"Error linking note {note_id}: {e}")
+
+    return {"success": True, "linked": linked}
+
+
+@router.post("/{objective_id}/unlink-notes")
+async def unlink_notes_from_objective(
+    objective_id: str,
+    note_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink multiple standalone notes from an objective."""
+    for note_id in note_ids:
+        db.table("objective_notes").delete().eq(
+            "objective_id", objective_id
+        ).eq("note_id", note_id).eq("user_id", current_user["id"]).execute()
+
+    return {"success": True}
+
+
+@router.get("/{objective_id}/notes")
+async def get_objective_notes(
+    objective_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Get standalone notes linked to an objective."""
+    result = db.table("objective_notes").select(
+        "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
+    ).eq("objective_id", objective_id).eq(
+        "user_id", current_user["id"]
+    ).execute()
+
+    notes = [r["standalone_notes"] for r in result.data if r.get("standalone_notes")]
+    return notes
