@@ -19,6 +19,8 @@ class NoteCreate(BaseModel):
     linked_content_ids: List[str] = []
     linked_note_ids: List[str] = []
     source_content_id: Optional[str] = None  # Content from which the note was created
+    linked_project_id: Optional[str] = None  # Project linked to this note
+    linked_model_id: Optional[str] = None  # Mental model linked to this note
 
 
 class NoteUpdate(BaseModel):
@@ -29,6 +31,8 @@ class NoteUpdate(BaseModel):
     linked_content_ids: Optional[List[str]] = None
     linked_note_ids: Optional[List[str]] = None
     is_pinned: Optional[bool] = None
+    linked_project_id: Optional[str] = None
+    linked_model_id: Optional[str] = None
 
 
 class NoteResponse(BaseModel):
@@ -40,6 +44,8 @@ class NoteResponse(BaseModel):
     linked_content_ids: List[str] = []
     linked_note_ids: List[str] = []
     source_content_id: Optional[str] = None
+    linked_project_id: Optional[str] = None
+    linked_model_id: Optional[str] = None
     is_pinned: bool = False
     created_at: str
     updated_at: str
@@ -48,6 +54,8 @@ class NoteResponse(BaseModel):
 class NoteDetailResponse(NoteResponse):
     linked_contents: List[dict] = []  # Content summaries
     linked_notes: List[dict] = []  # Note summaries
+    linked_project: Optional[dict] = None  # Project info
+    linked_model: Optional[dict] = None  # Mental model info
 
 
 VALID_NOTE_TYPES = ["reflection", "idea", "question", "connection", "journal"]
@@ -201,6 +209,30 @@ async def get_note(
         note["linked_contents"] = linked_contents
         note["linked_notes"] = linked_notes
 
+        # Get linked project
+        note["linked_project"] = None
+        if note.get("linked_project_id"):
+            try:
+                project = db.table("projects").select(
+                    "id, name, icon, color, status"
+                ).eq("id", note["linked_project_id"]).eq("user_id", current_user["id"]).single().execute()
+                if project.data:
+                    note["linked_project"] = project.data
+            except Exception:
+                pass
+
+        # Get linked mental model
+        note["linked_model"] = None
+        if note.get("linked_model_id"):
+            try:
+                model = db.table("taxonomy_tags").select(
+                    "id, tag, taxonomy_value, description"
+                ).eq("id", note["linked_model_id"]).eq("user_id", current_user["id"]).single().execute()
+                if model.data:
+                    note["linked_model"] = model.data
+            except Exception:
+                pass
+
         return note
 
     except HTTPException:
@@ -238,6 +270,8 @@ async def create_note(
             "linked_content_ids": data.linked_content_ids,
             "linked_note_ids": data.linked_note_ids,
             "source_content_id": data.source_content_id,
+            "linked_project_id": data.linked_project_id,
+            "linked_model_id": data.linked_model_id,
             "is_pinned": False
         }
 
@@ -440,6 +474,7 @@ class NotesSearchRequest(BaseModel):
     query: Optional[str] = None
     note_types: Optional[List[str]] = None
     has_source_content: Optional[bool] = None  # True = linked, False = orphan, None = all
+    linkage_type: Optional[str] = None  # 'content', 'project', 'model', 'independent'
     is_pinned: Optional[bool] = None
     limit: int = 50
     offset: int = 0
@@ -461,17 +496,28 @@ async def search_notes_with_facets(
 
         # Build base query for notes
         query = db.table("standalone_notes").select(
-            "id, title, content, note_type, tags, source_content_id, is_pinned, created_at, updated_at"
+            "id, title, content, note_type, tags, source_content_id, linked_project_id, linked_model_id, is_pinned, created_at, updated_at"
         ).eq("user_id", user_id)
 
         # Apply filters
         if data.note_types:
             query = query.in_("note_type", data.note_types)
 
+        # Legacy filter (keep for backwards compatibility)
         if data.has_source_content is True:
             query = query.neq("source_content_id", None)
         elif data.has_source_content is False:
             query = query.is_("source_content_id", "null")
+
+        # New linkage type filter
+        if data.linkage_type == 'content':
+            query = query.not_.is_("source_content_id", "null")
+        elif data.linkage_type == 'project':
+            query = query.not_.is_("linked_project_id", "null")
+        elif data.linkage_type == 'model':
+            query = query.not_.is_("linked_model_id", "null")
+        elif data.linkage_type == 'independent':
+            query = query.is_("source_content_id", "null").is_("linked_project_id", "null").is_("linked_model_id", "null")
 
         if data.is_pinned is not None:
             query = query.eq("is_pinned", data.is_pinned)
@@ -500,17 +546,55 @@ async def search_notes_with_facets(
             for c in (contents_response.data or []):
                 source_contents_map[c["id"]] = c
 
-        # Enrich notes with source content info
+        # Get project info for notes that have it
+        project_ids = list(set(
+            n["linked_project_id"] for n in notes if n.get("linked_project_id")
+        ))
+
+        projects_map = {}
+        if project_ids:
+            projects_response = db.table("projects").select(
+                "id, name, icon, color"
+            ).in_("id", project_ids).execute()
+
+            for p in (projects_response.data or []):
+                projects_map[p["id"]] = p
+
+        # Get mental model info for notes that have it
+        model_ids = list(set(
+            n["linked_model_id"] for n in notes if n.get("linked_model_id")
+        ))
+
+        models_map = {}
+        if model_ids:
+            models_response = db.table("taxonomy_tags").select(
+                "id, tag, taxonomy_value"
+            ).in_("id", model_ids).execute()
+
+            for m in (models_response.data or []):
+                models_map[m["id"]] = m
+
+        # Enrich notes with linked info
         for note in notes:
             if note.get("source_content_id") and note["source_content_id"] in source_contents_map:
                 note["source_content"] = source_contents_map[note["source_content_id"]]
             else:
                 note["source_content"] = None
 
+            if note.get("linked_project_id") and note["linked_project_id"] in projects_map:
+                note["linked_project"] = projects_map[note["linked_project_id"]]
+            else:
+                note["linked_project"] = None
+
+            if note.get("linked_model_id") and note["linked_model_id"] in models_map:
+                note["linked_model"] = models_map[note["linked_model_id"]]
+            else:
+                note["linked_model"] = None
+
         # Get facet counts (all notes, not filtered)
         # This query is separate and gets total counts for facets
         all_notes_query = db.table("standalone_notes").select(
-            "note_type, source_content_id, is_pinned"
+            "note_type, source_content_id, linked_project_id, linked_model_id, is_pinned"
         ).eq("user_id", user_id)
 
         all_notes_response = all_notes_query.execute()
@@ -518,18 +602,28 @@ async def search_notes_with_facets(
 
         # Calculate facets
         note_type_counts = {}
-        linked_count = 0
-        orphan_count = 0
+        content_linked_count = 0
+        project_linked_count = 0
+        model_linked_count = 0
+        independent_count = 0
         pinned_count = 0
 
         for n in all_notes:
             nt = n.get("note_type", "reflection")
             note_type_counts[nt] = note_type_counts.get(nt, 0) + 1
 
-            if n.get("source_content_id"):
-                linked_count += 1
-            else:
-                orphan_count += 1
+            has_content = n.get("source_content_id") is not None
+            has_project = n.get("linked_project_id") is not None
+            has_model = n.get("linked_model_id") is not None
+
+            if has_content:
+                content_linked_count += 1
+            if has_project:
+                project_linked_count += 1
+            if has_model:
+                model_linked_count += 1
+            if not has_content and not has_project and not has_model:
+                independent_count += 1
 
             if n.get("is_pinned"):
                 pinned_count += 1
@@ -543,8 +637,10 @@ async def search_notes_with_facets(
                 {"value": "journal", "label": "Diario", "icon": "📓", "count": note_type_counts.get("journal", 0)},
             ],
             "linkage": [
-                {"value": "linked", "label": "Con contenido", "icon": "🔗", "count": linked_count},
-                {"value": "orphan", "label": "Independientes", "icon": "📝", "count": orphan_count},
+                {"value": "content", "label": "Con contenido", "icon": "📄", "count": content_linked_count},
+                {"value": "project", "label": "Con proyecto", "icon": "📁", "count": project_linked_count},
+                {"value": "model", "label": "Con modelo mental", "icon": "🧠", "count": model_linked_count},
+                {"value": "independent", "label": "Independientes", "icon": "📝", "count": independent_count},
             ],
             "total_notes": len(all_notes),
             "pinned_count": pinned_count,

@@ -38,6 +38,18 @@ interface StandaloneNote {
         type: string;
         url: string;
     } | null;
+    linked_project_id: string | null;
+    linked_project?: {
+        id: string;
+        name: string;
+        icon: string;
+        color: string;
+    } | null;
+    linked_model_id: string | null;
+    linked_model?: {
+        id: string;
+        taxonomy_value: string;
+    } | null;
     is_pinned: boolean;
     created_at: string;
     updated_at: string;
@@ -66,7 +78,8 @@ interface NotesFacets {
 
 interface NotesFilters {
     note_types: string[];
-    has_source_content: boolean | null;  // true = linked, false = orphan, null = all
+    has_source_content: boolean | null;  // true = linked, false = orphan, null = all (legacy)
+    linkage_type: string | null;  // 'content', 'project', 'model', 'independent', null = all
     is_pinned: boolean | null;
 }
 
@@ -181,6 +194,7 @@ function ExplorePageContent() {
     const [notesFilters, setNotesFilters] = useState<NotesFilters>({
         note_types: [],
         has_source_content: null,
+        linkage_type: null,
         is_pinned: null
     });
     const [notesSearchQuery, setNotesSearchQuery] = useState('');
@@ -393,6 +407,7 @@ function ExplorePageContent() {
                 query: notesSearchQuery || null,
                 note_types: notesFilters.note_types.length > 0 ? notesFilters.note_types : null,
                 has_source_content: notesFilters.has_source_content,
+                linkage_type: notesFilters.linkage_type,
                 is_pinned: notesFilters.is_pinned,
                 limit: PAGE_SIZE,
                 offset: 0
@@ -432,6 +447,7 @@ function ExplorePageContent() {
                     query: notesSearchQuery || null,
                     note_types: notesFilters.note_types.length > 0 ? notesFilters.note_types : null,
                     has_source_content: notesFilters.has_source_content,
+                    linkage_type: notesFilters.linkage_type,
                     is_pinned: notesFilters.is_pinned,
                     limit: PAGE_SIZE,
                     offset: notes.length
@@ -462,12 +478,11 @@ function ExplorePageContent() {
 
     const toggleNoteLinkageFilter = (value: string) => {
         setNotesFilters(prev => {
-            if (value === 'linked') {
-                return { ...prev, has_source_content: prev.has_source_content === true ? null : true };
-            } else if (value === 'orphan') {
-                return { ...prev, has_source_content: prev.has_source_content === false ? null : false };
+            // Toggle: if already selected, deselect (null), otherwise select
+            if (prev.linkage_type === value) {
+                return { ...prev, linkage_type: null };
             }
-            return prev;
+            return { ...prev, linkage_type: value };
         });
     };
 
@@ -475,6 +490,7 @@ function ExplorePageContent() {
         setNotesFilters({
             note_types: [],
             has_source_content: null,
+            linkage_type: null,
             is_pinned: null
         });
         setNotesSearchQuery('');
@@ -482,6 +498,7 @@ function ExplorePageContent() {
 
     const hasActiveNotesFilters = notesFilters.note_types.length > 0 ||
         notesFilters.has_source_content !== null ||
+        notesFilters.linkage_type !== null ||
         notesFilters.is_pinned !== null ||
         notesSearchQuery !== '';
 
@@ -1526,10 +1543,7 @@ function ExplorePageContent() {
                                                         <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
                                                             <input
                                                                 type="checkbox"
-                                                                checked={
-                                                                    (facet.value === 'linked' && notesFilters.has_source_content === true) ||
-                                                                    (facet.value === 'orphan' && notesFilters.has_source_content === false)
-                                                                }
+                                                                checked={notesFilters.linkage_type === facet.value}
                                                                 onChange={() => toggleNoteLinkageFilter(facet.value)}
                                                                 className="rounded"
                                                             />
@@ -1656,43 +1670,67 @@ function ExplorePageContent() {
                                                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
                                                         {note.content}
                                                     </p>
-                                                    {/* Source content link */}
-                                                    {note.source_content && (
-                                                        <button
-                                                            onClick={() => {
-                                                                // Switch to contents tab and open the content detail
-                                                                setActiveTab('contents');
-                                                                // Fetch and open the linked content
-                                                                const fetchAndOpenContent = async () => {
-                                                                    setLoadingDetail(true);
-                                                                    setShowDetailModal(true);
-                                                                    try {
-                                                                        const { data, error } = await supabase
-                                                                            .from('contents')
-                                                                            .select('*')
-                                                                            .eq('id', note.source_content!.id)
-                                                                            .single();
-                                                                        if (!error && data) {
-                                                                            setSelectedContent(data);
+                                                    {/* Links section */}
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {/* Source content link */}
+                                                        {note.source_content && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setActiveTab('contents');
+                                                                    const fetchAndOpenContent = async () => {
+                                                                        setLoadingDetail(true);
+                                                                        setShowDetailModal(true);
+                                                                        try {
+                                                                            const { data, error } = await supabase
+                                                                                .from('contents')
+                                                                                .select('*')
+                                                                                .eq('id', note.source_content!.id)
+                                                                                .single();
+                                                                            if (!error && data) {
+                                                                                setSelectedContent(data);
+                                                                            }
+                                                                        } catch (err) {
+                                                                            console.error('Error fetching content:', err);
+                                                                            setShowDetailModal(false);
+                                                                        } finally {
+                                                                            setLoadingDetail(false);
                                                                         }
-                                                                    } catch (err) {
-                                                                        console.error('Error fetching content:', err);
-                                                                        setShowDetailModal(false);
-                                                                    } finally {
-                                                                        setLoadingDetail(false);
-                                                                    }
-                                                                };
-                                                                fetchAndOpenContent();
-                                                            }}
-                                                            className="mt-2 flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:underline"
-                                                        >
-                                                            <span>Vinculado a:</span>
-                                                            <span className="font-medium truncate max-w-xs">
-                                                                {note.source_content.title}
-                                                            </span>
-                                                            <span>→</span>
-                                                        </button>
-                                                    )}
+                                                                    };
+                                                                    fetchAndOpenContent();
+                                                                }}
+                                                                className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                                                            >
+                                                                <span>📄</span>
+                                                                <span className="font-medium truncate max-w-[150px]">
+                                                                    {note.source_content.title}
+                                                                </span>
+                                                            </button>
+                                                        )}
+                                                        {/* Project link */}
+                                                        {note.linked_project && (
+                                                            <Link
+                                                                href={`/projects/${note.linked_project.id}`}
+                                                                className="flex items-center gap-1 text-xs px-2 py-1 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded hover:bg-green-100 dark:hover:bg-green-900/50"
+                                                            >
+                                                                <span>{note.linked_project.icon || '📁'}</span>
+                                                                <span className="font-medium truncate max-w-[150px]">
+                                                                    {note.linked_project.name}
+                                                                </span>
+                                                            </Link>
+                                                        )}
+                                                        {/* Mental model link */}
+                                                        {note.linked_model && (
+                                                            <Link
+                                                                href={`/mental-models/${note.linked_model.id}`}
+                                                                className="flex items-center gap-1 text-xs px-2 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                                                            >
+                                                                <span>🧠</span>
+                                                                <span className="font-medium truncate max-w-[150px]">
+                                                                    {note.linked_model.taxonomy_value}
+                                                                </span>
+                                                            </Link>
+                                                        )}
+                                                    </div>
                                                     <div className="flex flex-wrap gap-2 mt-2">
                                                         <span className="text-xs px-2 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
                                                             {note.note_type === 'reflection' ? 'Reflexion' :
