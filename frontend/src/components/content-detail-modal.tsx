@@ -74,6 +74,9 @@ const TYPE_ICONS: Record<string, string> = {
     apple_notes: '🍎',
     article: '📰',
     video: '🎬',
+    pdf: '📕',
+    docx: '📘',
+    email: '📧',
     default: '📄',
 };
 

@@ -428,7 +428,9 @@ function ExplorePageContent() {
         switch (type) {
             case 'youtube': return '▶';
             case 'article': return '📄';
-            case 'pdf': return '📑';
+            case 'pdf': return '📕';
+            case 'docx': return '📘';
+            case 'email': return '📧';
             case 'web': return '🌐';
             case 'tiktok': return '🎵';
             case 'note': return '📝';

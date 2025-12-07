@@ -37,6 +37,21 @@ interface ImportResponse {
     results: ImportResult[];
 }
 
+interface StreamProgress {
+    current: number;
+    total: number;
+    percent: number;
+    successful: number;
+    failed: number;
+    duplicates: number;
+    empty: number;
+    currentNote: string;
+    currentFolder: string;
+    status: 'loading' | 'importing' | 'complete' | 'error';
+    message: string;
+    lastError?: string;
+}
+
 type ImportMode = 'folders' | 'notes' | 'all';
 
 export default function ImportAppleNotesPage() {
@@ -62,6 +77,7 @@ export default function ImportAppleNotesPage() {
     const [error, setError] = useState<string | null>(null);
     const [results, setResults] = useState<ImportResponse | null>(null);
     const [progress, setProgress] = useState<string | null>(null);
+    const [streamProgress, setStreamProgress] = useState<StreamProgress | null>(null);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -199,10 +215,133 @@ export default function ImportAppleNotesPage() {
         setSelectedNotes(newSelection);
     };
 
-    const handleImport = async () => {
+    const handleImportStream = async () => {
+        // Use streaming endpoint for "import all"
         setError(null);
         setResults(null);
         setImporting(true);
+        setStreamProgress({
+            current: 0,
+            total: 0,
+            percent: 0,
+            successful: 0,
+            failed: 0,
+            duplicates: 0,
+            empty: 0,
+            currentNote: '',
+            currentFolder: '',
+            status: 'loading',
+            message: 'Conectando con Apple Notes...'
+        });
+
+        try {
+            const headers = await getAuthHeaders();
+            const tagsList = tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+
+            const response = await fetch(`${API_URL}/api/v1/apple-notes/import-all-stream`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ tags: tagsList }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Error en la importacion');
+            }
+
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+
+            if (!reader) {
+                throw new Error('No se pudo iniciar la lectura del stream');
+            }
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.type === 'status') {
+                                setStreamProgress(prev => prev ? {
+                                    ...prev,
+                                    status: 'loading',
+                                    message: data.message
+                                } : null);
+                            } else if (data.type === 'total') {
+                                setStreamProgress(prev => prev ? {
+                                    ...prev,
+                                    total: data.total,
+                                    status: 'importing',
+                                    message: data.message
+                                } : null);
+                            } else if (data.type === 'progress') {
+                                setStreamProgress({
+                                    current: data.current,
+                                    total: data.total,
+                                    percent: data.percent,
+                                    successful: data.successful,
+                                    failed: data.failed,
+                                    duplicates: data.duplicates,
+                                    empty: data.empty,
+                                    currentNote: data.note_name,
+                                    currentFolder: data.folder,
+                                    status: 'importing',
+                                    message: `Procesando ${data.current} de ${data.total}...`,
+                                    lastError: data.error || undefined
+                                });
+                            } else if (data.type === 'complete') {
+                                setStreamProgress(prev => prev ? {
+                                    ...prev,
+                                    status: 'complete',
+                                    message: data.message
+                                } : null);
+                                // Convert to results format
+                                setResults({
+                                    total: data.total,
+                                    successful: data.successful,
+                                    failed: data.failed + data.duplicates + data.empty,
+                                    results: [] // No individual results in stream mode
+                                });
+                            } else if (data.type === 'error') {
+                                setStreamProgress(prev => prev ? {
+                                    ...prev,
+                                    status: 'error',
+                                    message: data.message
+                                } : null);
+                                setError(data.message);
+                            }
+                        } catch (parseErr) {
+                            console.error('Error parsing SSE:', parseErr);
+                        }
+                    }
+                }
+            }
+        } catch (err: any) {
+            setError(err.message || 'Error en la importacion');
+            setStreamProgress(prev => prev ? { ...prev, status: 'error', message: err.message } : null);
+        } finally {
+            setImporting(false);
+        }
+    };
+
+    const handleImport = async () => {
+        setError(null);
+        setResults(null);
+        setStreamProgress(null);
+        setImporting(true);
+
+        // Use streaming for "import all" mode
+        if (importMode === 'all') {
+            await handleImportStream();
+            return;
+        }
 
         try {
             const headers = await getAuthHeaders();
@@ -211,41 +350,58 @@ export default function ImportAppleNotesPage() {
             let endpoint: string;
             let body: any;
 
-            if (importMode === 'all') {
-                endpoint = `${API_URL}/api/v1/apple-notes/import-all`;
-                body = { tags: tagsList };
-                setProgress('Importando todas las notas...');
-            } else if (importMode === 'folders' && selectedFolders.size > 0) {
+            if (importMode === 'folders' && selectedFolders.size > 0) {
                 // Import folders one by one
                 const allResults: ImportResult[] = [];
                 let totalSuccessful = 0;
                 let totalFailed = 0;
+                let totalDuplicates = 0;
+                const foldersArray = Array.from(selectedFolders);
+                const totalFolders = foldersArray.length;
 
-                for (const folderName of selectedFolders) {
-                    setProgress(`Importando carpeta: ${folderName}...`);
+                for (let i = 0; i < foldersArray.length; i++) {
+                    const folderName = foldersArray[i];
+                    setProgress(`Importando carpeta ${i + 1}/${totalFolders}: ${folderName}... (${totalSuccessful} importadas, ${totalDuplicates} duplicadas)`);
 
-                    const response = await fetch(`${API_URL}/api/v1/apple-notes/import-folder`, {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify({ folder_name: folderName, tags: tagsList }),
-                    });
+                    try {
+                        const response = await fetch(`${API_URL}/api/v1/apple-notes/import-folder`, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify({ folder_name: folderName, tags: tagsList }),
+                        });
 
-                    if (response.ok) {
-                        const data: ImportResponse = await response.json();
-                        allResults.push(...data.results);
-                        totalSuccessful += data.successful;
-                        totalFailed += data.failed;
+                        if (response.ok) {
+                            const data: ImportResponse = await response.json();
+                            allResults.push(...data.results);
+                            totalSuccessful += data.successful;
+                            // Count duplicates from failed results
+                            const duplicatesInFolder = data.results.filter(r =>
+                                !r.success && r.error && (r.error.includes('duplicate') || r.error.includes('already exists'))
+                            ).length;
+                            totalDuplicates += duplicatesInFolder;
+                            totalFailed += (data.failed - duplicatesInFolder);
+
+                            // Update results in real-time
+                            setResults({
+                                total: allResults.length,
+                                successful: totalSuccessful,
+                                failed: totalFailed,
+                                results: allResults,
+                            });
+                        } else {
+                            console.error(`Error importing folder ${folderName}:`, response.status);
+                        }
+                    } catch (err) {
+                        console.error(`Error importing folder ${folderName}:`, err);
                     }
                 }
 
-                setResults({
-                    total: allResults.length,
-                    successful: totalSuccessful,
-                    failed: totalFailed,
-                    results: allResults,
-                });
-                setProgress(null);
-                setImporting(false);
+                setProgress(`Completado: ${totalSuccessful} importadas, ${totalDuplicates} duplicadas, ${totalFailed} errores`);
+                // Keep the completion message for 3 seconds
+                setTimeout(() => {
+                    setProgress(null);
+                    setImporting(false);
+                }, 3000);
                 return;
 
             } else if (importMode === 'notes' && selectedNotes.size > 0) {
@@ -561,8 +717,8 @@ export default function ImportAppleNotesPage() {
                         </Link>
                     </div>
 
-                    {/* Progress */}
-                    {progress && (
+                    {/* Simple Progress (for folders/notes mode) */}
+                    {progress && !streamProgress && (
                         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                             <div className="flex items-center gap-3">
                                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 dark:border-blue-400"></div>
@@ -571,28 +727,140 @@ export default function ImportAppleNotesPage() {
                         </div>
                     )}
 
-                    {/* Results */}
-                    {results && (
-                        <div className="mt-6">
-                            <h3 className="text-lg font-semibold mb-4 dark:text-white">Resultados</h3>
-
-                            {/* Summary */}
-                            <div className="grid grid-cols-3 gap-4 mb-6">
-                                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-center">
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{results.total}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">Total</p>
+                    {/* Stream Progress (for import all mode) */}
+                    {streamProgress && (
+                        <div className="mt-6 p-6 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                            {/* Progress bar */}
+                            <div className="mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        {streamProgress.status === 'loading' && 'Preparando...'}
+                                        {streamProgress.status === 'importing' && `Importando: ${streamProgress.current} de ${streamProgress.total}`}
+                                        {streamProgress.status === 'complete' && 'Completado'}
+                                        {streamProgress.status === 'error' && 'Error'}
+                                    </span>
+                                    <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                        {streamProgress.percent}%
+                                    </span>
                                 </div>
-                                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg text-center">
-                                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{results.successful}</p>
-                                    <p className="text-sm text-green-700 dark:text-green-400">Exitosas</p>
-                                </div>
-                                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
-                                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">{results.failed}</p>
-                                    <p className="text-sm text-red-700 dark:text-red-400">Fallidas</p>
+                                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4 overflow-hidden">
+                                    <div
+                                        className={`h-4 rounded-full transition-all duration-300 ${
+                                            streamProgress.status === 'error' ? 'bg-red-500' :
+                                            streamProgress.status === 'complete' ? 'bg-green-500' :
+                                            'bg-blue-500'
+                                        }`}
+                                        style={{ width: `${streamProgress.percent}%` }}
+                                    />
                                 </div>
                             </div>
 
-                            {/* Detailed results */}
+                            {/* Current note being processed */}
+                            {streamProgress.status === 'importing' && streamProgress.currentNote && (
+                                <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                                        <span className="truncate">
+                                            <span className="text-gray-500">Carpeta:</span> {streamProgress.currentFolder} /
+                                            <span className="ml-1 font-medium">{streamProgress.currentNote}</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Stats grid */}
+                            <div className="grid grid-cols-5 gap-3 text-center">
+                                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                                    <p className="text-xl font-bold text-gray-900 dark:text-white">{streamProgress.current}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Procesadas</p>
+                                </div>
+                                <div className="bg-green-50 dark:bg-green-900/30 p-3 rounded-lg">
+                                    <p className="text-xl font-bold text-green-600 dark:text-green-400">{streamProgress.successful}</p>
+                                    <p className="text-xs text-green-700 dark:text-green-400">Exitosas</p>
+                                </div>
+                                <div className="bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-lg">
+                                    <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{streamProgress.duplicates}</p>
+                                    <p className="text-xs text-yellow-700 dark:text-yellow-400">Duplicadas</p>
+                                </div>
+                                <div className="bg-gray-100 dark:bg-gray-600 p-3 rounded-lg">
+                                    <p className="text-xl font-bold text-gray-600 dark:text-gray-300">{streamProgress.empty}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Vacías</p>
+                                </div>
+                                <div className="bg-red-50 dark:bg-red-900/30 p-3 rounded-lg">
+                                    <p className="text-xl font-bold text-red-600 dark:text-red-400">{streamProgress.failed}</p>
+                                    <p className="text-xs text-red-700 dark:text-red-400">Fallidas</p>
+                                </div>
+                            </div>
+
+                            {/* Last error if any */}
+                            {streamProgress.lastError && (
+                                <div className="mt-3 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                                    Último error: {streamProgress.lastError}
+                                </div>
+                            )}
+
+                            {/* Status message */}
+                            <div className="mt-4 text-sm text-center text-gray-600 dark:text-gray-400">
+                                {streamProgress.message}
+                            </div>
+
+                            {/* Time estimate */}
+                            {streamProgress.status === 'importing' && streamProgress.current > 10 && (
+                                <div className="mt-2 text-xs text-center text-gray-500 dark:text-gray-500">
+                                    Tiempo estimado restante: ~{Math.ceil((streamProgress.total - streamProgress.current) * 1.5 / 60)} minutos
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Results */}
+                    {results && !importing && (
+                        <div className="mt-6">
+                            <h3 className="text-lg font-semibold mb-4 dark:text-white">Resultados Finales</h3>
+
+                            {/* Summary - show extended stats if we have streamProgress */}
+                            {streamProgress && streamProgress.status === 'complete' ? (
+                                <div className="grid grid-cols-5 gap-3 mb-6 text-center">
+                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{streamProgress.total}</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300">Total</p>
+                                    </div>
+                                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">{streamProgress.successful}</p>
+                                        <p className="text-sm text-green-700 dark:text-green-400">Exitosas</p>
+                                    </div>
+                                    <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                                        <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{streamProgress.duplicates}</p>
+                                        <p className="text-sm text-yellow-700 dark:text-yellow-400">Duplicadas</p>
+                                    </div>
+                                    <div className="bg-gray-100 dark:bg-gray-600 p-4 rounded-lg">
+                                        <p className="text-2xl font-bold text-gray-600 dark:text-gray-300">{streamProgress.empty}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Vacías</p>
+                                    </div>
+                                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
+                                        <p className="text-2xl font-bold text-red-600 dark:text-red-400">{streamProgress.failed}</p>
+                                        <p className="text-sm text-red-700 dark:text-red-400">Fallidas</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-4 mb-6">
+                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-center">
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{results.total}</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300">Total</p>
+                                    </div>
+                                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg text-center">
+                                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">{results.successful}</p>
+                                        <p className="text-sm text-green-700 dark:text-green-400">Exitosas</p>
+                                    </div>
+                                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
+                                        <p className="text-2xl font-bold text-red-600 dark:text-red-400">{results.failed}</p>
+                                        <p className="text-sm text-red-700 dark:text-red-400">Fallidas</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Detailed results - only show if we have individual results */}
+                            {results.results.length > 0 && (
                             <div className="border dark:border-gray-600 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
                                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
                                     <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
@@ -635,6 +903,7 @@ export default function ImportAppleNotesPage() {
                                     </tbody>
                                 </table>
                             </div>
+                            )}
 
                             {results.successful > 0 && (
                                 <div className="mt-4">

@@ -38,7 +38,41 @@ interface QueueResponse {
     details: { url: string; status: string; error?: string }[];
 }
 
-type ImportMode = 'normal' | 'queue' | 'csv';
+type ImportMode = 'normal' | 'queue' | 'csv' | 'files' | 'google-drive';
+
+interface FileUploadResult {
+    filename: string;
+    success: boolean;
+    content_id?: string;
+    title?: string;
+    error?: string;
+}
+
+interface FileUploadResponse {
+    total: number;
+    successful: number;
+    failed: number;
+    results: FileUploadResult[];
+}
+
+interface DriveFile {
+    id: string;
+    name: string;
+    mimeType: string;
+    isFolder: boolean;
+    isSupported: boolean;
+    fileType: string;
+    webViewLink?: string;
+    modifiedTime?: string;
+}
+
+interface DriveImportResult {
+    file_id: string;
+    file_name: string;
+    success: boolean;
+    content_id?: string;
+    error?: string;
+}
 
 export default function ImportPage() {
     const router = useRouter();
@@ -55,6 +89,21 @@ export default function ImportPage() {
     const [importStatus, setImportStatus] = useState<ImportStatus | null>(null);
     const [loadingStatus, setLoadingStatus] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const docInputRef = useRef<HTMLInputElement>(null);
+    const [fileResults, setFileResults] = useState<FileUploadResponse | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    // Google Drive state
+    const [driveConnected, setDriveConnected] = useState(false);
+    const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
+    const [driveLoading, setDriveLoading] = useState(false);
+    const [driveCurrentFolder, setDriveCurrentFolder] = useState<string | null>(null);
+    const [driveFolderPath, setDriveFolderPath] = useState<{id: string; name: string}[]>([]);
+    const [driveSelectedFiles, setDriveSelectedFiles] = useState<Set<string>>(new Set());
+    const [driveImportResults, setDriveImportResults] = useState<DriveImportResult[] | null>(null);
+    const [driveNextPageToken, setDriveNextPageToken] = useState<string | null>(null);
+    const [driveSearchQuery, setDriveSearchQuery] = useState('');
+    const [driveOrderBy, setDriveOrderBy] = useState('modifiedTime desc');
 
     const getAuthHeaders = useCallback(async () => {
         const session = await supabase.auth.getSession();
@@ -182,6 +231,256 @@ export default function ImportPage() {
             setImporting(false);
         }
     };
+
+    const handleFileUpload = async (files: FileList | null) => {
+        if (!files || files.length === 0) return;
+
+        setError(null);
+        setResults(null);
+        setQueueResults(null);
+        setFileResults(null);
+        setImporting(true);
+        setProgress(`Subiendo ${files.length} archivo(s)...`);
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) {
+                throw new Error('No session');
+            }
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            if (tags.trim()) {
+                formData.append('tags', tags);
+            }
+
+            const response = await fetch(`${API_URL}/api/v1/files/upload`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Error al subir archivos');
+            }
+
+            const data: FileUploadResponse = await response.json();
+            setFileResults(data);
+            setProgress(null);
+            fetchImportStatus();
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Error al subir archivos';
+            setError(errorMessage);
+            setProgress(null);
+        } finally {
+            setImporting(false);
+            if (docInputRef.current) {
+                docInputRef.current.value = '';
+            }
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        handleFileUpload(e.dataTransfer.files);
+    };
+
+    // Google Drive functions
+    const checkDriveConnection = useCallback(async () => {
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/google-drive/auth/status`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setDriveConnected(data.connected);
+                if (data.connected) {
+                    loadDriveFiles();
+                }
+            }
+        } catch (err) {
+            console.error('Error checking Drive connection:', err);
+        }
+    }, [getAuthHeaders]);
+
+    const connectToDrive = async () => {
+        console.log('connectToDrive called');
+        setError(null);
+        try {
+            console.log('Getting auth headers...');
+            const headers = await getAuthHeaders();
+            console.log('Auth headers obtained, calling API...');
+            const response = await fetch(`${API_URL}/api/v1/google-drive/auth/url`, { headers });
+            console.log('API response status:', response.status);
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Auth URL received, redirecting...');
+                window.location.href = data.auth_url;
+            } else {
+                const errorData = await response.json();
+                console.error('API error:', errorData);
+                setError(errorData.detail || 'Error al obtener URL de autorizacion');
+            }
+        } catch (err) {
+            console.error('Error getting auth URL:', err);
+            setError(`Error al conectar con Google Drive: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+        }
+    };
+
+    const disconnectDrive = async () => {
+        try {
+            const headers = await getAuthHeaders();
+            await fetch(`${API_URL}/api/v1/google-drive/auth/disconnect`, {
+                method: 'POST',
+                headers
+            });
+            setDriveConnected(false);
+            setDriveFiles([]);
+            setDriveSelectedFiles(new Set());
+            setDriveCurrentFolder(null);
+            setDriveFolderPath([]);
+            setDriveNextPageToken(null);
+        } catch (err) {
+            console.error('Error disconnecting:', err);
+        }
+    };
+
+    const loadDriveFiles = useCallback(async (
+        folderId?: string | null,
+        pageToken?: string | null,
+        searchQuery?: string,
+        orderBy?: string
+    ) => {
+        setDriveLoading(true);
+        try {
+            const headers = await getAuthHeaders();
+            const params = new URLSearchParams();
+            if (folderId) params.append('folder_id', folderId);
+            if (pageToken) params.append('page_token', pageToken);
+            if (searchQuery) params.append('search', searchQuery);
+            if (orderBy) params.append('order_by', orderBy);
+
+            const url = `${API_URL}/api/v1/google-drive/files${params.toString() ? '?' + params.toString() : ''}`;
+            const response = await fetch(url, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                // If loading more (pageToken exists), append to existing files
+                if (pageToken) {
+                    setDriveFiles(prev => [...prev, ...data.files]);
+                } else {
+                    setDriveFiles(data.files);
+                    setDriveFolderPath(data.folderPath || []);
+                    if (!searchQuery) {
+                        setDriveCurrentFolder(folderId || null);
+                    }
+                }
+                setDriveNextPageToken(data.nextPageToken || null);
+            } else if (response.status === 401) {
+                setDriveConnected(false);
+            }
+        } catch (err) {
+            console.error('Error loading files:', err);
+        } finally {
+            setDriveLoading(false);
+        }
+    }, [getAuthHeaders]);
+
+    const handleDriveFileClick = (file: DriveFile) => {
+        if (file.isFolder) {
+            setDriveSearchQuery('');
+            loadDriveFiles(file.id, null, '', driveOrderBy);
+        } else if (file.isSupported) {
+            const newSelected = new Set(driveSelectedFiles);
+            if (newSelected.has(file.id)) {
+                newSelected.delete(file.id);
+            } else {
+                newSelected.add(file.id);
+            }
+            setDriveSelectedFiles(newSelected);
+        }
+    };
+
+    const selectAllDriveFiles = () => {
+        const supportedFiles = driveFiles.filter(f => f.isSupported && !f.isFolder);
+        if (driveSelectedFiles.size === supportedFiles.length) {
+            setDriveSelectedFiles(new Set());
+        } else {
+            setDriveSelectedFiles(new Set(supportedFiles.map(f => f.id)));
+        }
+    };
+
+    const importSelectedDriveFiles = async () => {
+        if (driveSelectedFiles.size === 0) return;
+
+        setImporting(true);
+        setDriveImportResults(null);
+        setProgress(`Importando ${driveSelectedFiles.size} archivos...`);
+
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/google-drive/import`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    file_ids: Array.from(driveSelectedFiles),
+                    tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0)
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setDriveImportResults(data.results);
+                setDriveSelectedFiles(new Set());
+                fetchImportStatus();
+            } else {
+                const errorData = await response.json();
+                setError(errorData.detail || 'Error al importar archivos');
+            }
+        } catch (err) {
+            console.error('Error importing files:', err);
+            setError('Error al importar archivos');
+        } finally {
+            setImporting(false);
+            setProgress(null);
+        }
+    };
+
+    // Check for Google Drive callback
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('source') === 'google-drive') {
+            setImportMode('google-drive');
+            if (params.get('connected') === 'true') {
+                checkDriveConnection();
+            } else if (params.get('error')) {
+                setError(`Error de Google Drive: ${params.get('error')}`);
+            }
+            // Clean URL
+            window.history.replaceState({}, '', '/import');
+        }
+    }, [checkDriveConnection]);
+
+    // Check Drive connection when mode changes
+    useEffect(() => {
+        if (importMode === 'google-drive' && user) {
+            checkDriveConnection();
+        }
+    }, [importMode, user, checkDriveConnection]);
 
     const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -316,7 +615,7 @@ export default function ImportPage() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Modo de importacion
                         </label>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                             <button
                                 type="button"
                                 onClick={() => setImportMode('normal')}
@@ -353,6 +652,30 @@ export default function ImportPage() {
                                 <span className="block font-medium">Archivo CSV</span>
                                 <span className="block text-xs opacity-75">Con tags</span>
                             </button>
+                            <button
+                                type="button"
+                                onClick={() => setImportMode('files')}
+                                className={`p-3 rounded-lg border text-sm text-center transition-colors ${
+                                    importMode === 'files'
+                                        ? 'border-gray-900 dark:border-gray-100 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
+                                        : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                }`}
+                            >
+                                <span className="block font-medium">Documentos</span>
+                                <span className="block text-xs opacity-75">PDF, Word, Email</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setImportMode('google-drive')}
+                                className={`p-3 rounded-lg border text-sm text-center transition-colors ${
+                                    importMode === 'google-drive'
+                                        ? 'border-blue-500 dark:border-blue-400 bg-blue-500 dark:bg-blue-600 text-white'
+                                        : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                }`}
+                            >
+                                <span className="block font-medium">Google Drive</span>
+                                <span className="block text-xs opacity-75">Docs, Sheets, PDF</span>
+                            </button>
                         </div>
                     </div>
 
@@ -379,13 +702,399 @@ export default function ImportPage() {
                         </div>
                     )}
 
+                    {importMode === 'files' && (
+                        <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                            <p className="text-sm text-purple-800 dark:text-purple-300">
+                                <strong>Documentos:</strong> Sube archivos PDF, Word (.docx) o emails (.eml).
+                                El contenido se extraera automaticamente y se procesara en segundo plano.
+                            </p>
+                            <p className="text-xs text-purple-700 dark:text-purple-400 mt-1">
+                                Tamano maximo: 50MB por archivo
+                            </p>
+                        </div>
+                    )}
+
+                    {importMode === 'google-drive' && (
+                        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <p className="text-sm text-blue-800 dark:text-blue-300">
+                                <strong>Google Drive:</strong> Conecta tu cuenta de Google para importar documentos.
+                                Se extrae solo el texto - el archivo original permanece en Drive.
+                            </p>
+                            <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                                Soporta: Google Docs, Sheets, Slides, PDF, Word, Excel, PowerPoint y archivos de texto
+                            </p>
+                        </div>
+                    )}
+
                     {error && (
                         <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
                             {error}
                         </div>
                     )}
 
-                    {importMode === 'csv' ? (
+                    {importMode === 'google-drive' ? (
+                        /* Google Drive Browser */
+                        <div className="space-y-4">
+                            {!driveConnected ? (
+                                <div className="text-center py-8">
+                                    <div className="text-6xl mb-4">📁</div>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                        Conectar con Google Drive
+                                    </h3>
+                                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                        Autoriza el acceso para ver y seleccionar tus documentos
+                                    </p>
+                                    <button
+                                        onClick={connectToDrive}
+                                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
+                                    >
+                                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0zm6.804 16.25H5.196L1.5 9.75l3.696-6.5h13.608l3.696 6.5-3.696 6.5z"/>
+                                        </svg>
+                                        Conectar Google Drive
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Drive Header */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-green-600 dark:text-green-400">●</span>
+                                            <span className="text-sm text-gray-600 dark:text-gray-400">Conectado</span>
+                                            <button
+                                                onClick={disconnectDrive}
+                                                className="text-xs text-red-600 dark:text-red-400 hover:underline ml-2"
+                                            >
+                                                Desconectar
+                                            </button>
+                                        </div>
+                                        <button
+                                            onClick={() => loadDriveFiles(
+                                                driveSearchQuery ? null : driveCurrentFolder,
+                                                null,
+                                                driveSearchQuery || '',
+                                                driveOrderBy
+                                            )}
+                                            disabled={driveLoading}
+                                            className="text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                                        >
+                                            {driveLoading ? 'Cargando...' : 'Actualizar'}
+                                        </button>
+                                    </div>
+
+                                    {/* Breadcrumb navigation */}
+                                    <div className="flex items-center gap-1 text-sm flex-wrap">
+                                        <button
+                                            onClick={() => {
+                                                setDriveSearchQuery('');
+                                                loadDriveFiles(null, null, '', driveOrderBy);
+                                            }}
+                                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                            Mi Drive
+                                        </button>
+                                        {driveFolderPath.map((folder) => (
+                                            <span key={folder.id} className="flex items-center gap-1">
+                                                <span className="text-gray-400">/</span>
+                                                <button
+                                                    onClick={() => {
+                                                        setDriveSearchQuery('');
+                                                        loadDriveFiles(folder.id, null, '', driveOrderBy);
+                                                    }}
+                                                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                    {folder.name}
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+
+                                    {/* Search and sort controls */}
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <div className="flex-1">
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={driveSearchQuery}
+                                                    onChange={(e) => setDriveSearchQuery(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && driveSearchQuery.trim()) {
+                                                            loadDriveFiles(null, null, driveSearchQuery.trim(), driveOrderBy);
+                                                        }
+                                                    }}
+                                                    placeholder="Buscar en todo Drive..."
+                                                    className="w-full px-3 py-2 pl-9 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                />
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                                                {driveSearchQuery && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setDriveSearchQuery('');
+                                                            loadDriveFiles(driveCurrentFolder, null, '', driveOrderBy);
+                                                        }}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    if (driveSearchQuery.trim()) {
+                                                        loadDriveFiles(null, null, driveSearchQuery.trim(), driveOrderBy);
+                                                    }
+                                                }}
+                                                disabled={!driveSearchQuery.trim() || driveLoading}
+                                                className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Buscar
+                                            </button>
+                                            <select
+                                                value={driveOrderBy}
+                                                onChange={(e) => {
+                                                    setDriveOrderBy(e.target.value);
+                                                    loadDriveFiles(
+                                                        driveSearchQuery ? null : driveCurrentFolder,
+                                                        null,
+                                                        driveSearchQuery || '',
+                                                        e.target.value
+                                                    );
+                                                }}
+                                                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            >
+                                                <option value="modifiedTime desc">Recientes primero</option>
+                                                <option value="modifiedTime">Antiguos primero</option>
+                                                <option value="name">Nombre A-Z</option>
+                                                <option value="name desc">Nombre Z-A</option>
+                                                <option value="createdTime desc">Creacion reciente</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Search indicator */}
+                                    {driveSearchQuery && (
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg">
+                                            <span>Resultados para: <strong>{driveSearchQuery}</strong></span>
+                                            <button
+                                                onClick={() => {
+                                                    setDriveSearchQuery('');
+                                                    loadDriveFiles(driveCurrentFolder, null, '', driveOrderBy);
+                                                }}
+                                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                Limpiar busqueda
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* File list */}
+                                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                                        {driveLoading ? (
+                                            <div className="p-8 text-center">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                                <p className="text-sm text-gray-500 mt-2">Cargando archivos...</p>
+                                            </div>
+                                        ) : driveFiles.length === 0 ? (
+                                            <div className="p-8 text-center text-gray-500">
+                                                Esta carpeta esta vacia
+                                            </div>
+                                        ) : (
+                                            <div className="max-h-80 overflow-y-auto">
+                                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+                                                    <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                                                        <tr>
+                                                            <th className="px-4 py-2 text-left">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={driveSelectedFiles.size > 0 && driveSelectedFiles.size === driveFiles.filter(f => f.isSupported && !f.isFolder).length}
+                                                                    onChange={selectAllDriveFiles}
+                                                                    className="rounded border-gray-300"
+                                                                />
+                                                            </th>
+                                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                                                Nombre
+                                                            </th>
+                                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                                                Tipo
+                                                            </th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                                                        {driveFiles.map(file => (
+                                                            <tr
+                                                                key={file.id}
+                                                                onClick={() => handleDriveFileClick(file)}
+                                                                className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                                                                    driveSelectedFiles.has(file.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                                                } ${!file.isSupported && !file.isFolder ? 'opacity-50' : ''}`}
+                                                            >
+                                                                <td className="px-4 py-2">
+                                                                    {!file.isFolder && (
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={driveSelectedFiles.has(file.id)}
+                                                                            onChange={() => {}}
+                                                                            disabled={!file.isSupported}
+                                                                            className="rounded border-gray-300"
+                                                                        />
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-2 flex items-center gap-2">
+                                                                    <span className="text-xl">
+                                                                        {file.isFolder ? '📁' :
+                                                                         file.mimeType.includes('document') ? '📄' :
+                                                                         file.mimeType.includes('spreadsheet') ? '📊' :
+                                                                         file.mimeType.includes('presentation') ? '📽️' :
+                                                                         file.mimeType.includes('pdf') ? '📕' : '📃'}
+                                                                    </span>
+                                                                    <span className="text-sm text-gray-900 dark:text-white truncate max-w-xs">
+                                                                        {file.name}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                                                    {file.fileType}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+
+                                                {/* Load more button */}
+                                                {driveNextPageToken && (
+                                                    <div className="mt-4 flex justify-center">
+                                                        <button
+                                                            onClick={() => loadDriveFiles(
+                                                                driveSearchQuery ? null : driveCurrentFolder,
+                                                                driveNextPageToken,
+                                                                driveSearchQuery || '',
+                                                                driveOrderBy
+                                                            )}
+                                                            disabled={driveLoading}
+                                                            className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-blue-300 dark:border-blue-600 disabled:opacity-50"
+                                                        >
+                                                            {driveLoading ? 'Cargando...' : 'Cargar más archivos'}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Selection info and import button */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                                            {driveSelectedFiles.size} archivo(s) seleccionado(s)
+                                        </span>
+                                        <button
+                                            onClick={importSelectedDriveFiles}
+                                            disabled={driveSelectedFiles.size === 0 || importing}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {importing ? 'Importando...' : 'Importar seleccionados'}
+                                        </button>
+                                    </div>
+
+                                    {/* Tags input */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Tags (opcional, separados por coma)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={tags}
+                                            onChange={(e) => setTags(e.target.value)}
+                                            placeholder="trabajo, investigacion, referencia"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            disabled={importing}
+                                        />
+                                    </div>
+
+                                    {/* Drive Import Results */}
+                                    {driveImportResults && (
+                                        <div className="mt-4">
+                                            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                                                Resultados de importacion
+                                            </h4>
+                                            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600 text-sm">
+                                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                                                        {driveImportResults.map((result, idx) => (
+                                                            <tr key={idx} className={result.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}>
+                                                                <td className="px-4 py-2">
+                                                                    {result.success ? '✓' : '✗'}
+                                                                </td>
+                                                                <td className="px-4 py-2">{result.file_name}</td>
+                                                                <td className="px-4 py-2 text-gray-500">
+                                                                    {result.success ? 'Importado' : result.error}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    ) : importMode === 'files' ? (
+                        /* Document Upload */
+                        <div className="space-y-4">
+                            <div
+                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                                    isDragging
+                                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                        : 'border-gray-300 dark:border-gray-600'
+                                }`}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
+                            >
+                                <input
+                                    type="file"
+                                    accept=".pdf,.docx,.doc,.eml"
+                                    onChange={(e) => handleFileUpload(e.target.files)}
+                                    ref={docInputRef}
+                                    className="hidden"
+                                    id="doc-upload"
+                                    multiple
+                                    disabled={importing}
+                                />
+                                <label
+                                    htmlFor="doc-upload"
+                                    className={`cursor-pointer ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    <div className="text-4xl mb-2">📕📘📧</div>
+                                    <p className="text-gray-600 dark:text-gray-300 mb-2">
+                                        {importing ? 'Subiendo...' : isDragging ? 'Suelta los archivos aqui' : 'Arrastra documentos o haz clic para seleccionar'}
+                                    </p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                                        PDF, Word (.docx, .doc), Email (.eml)
+                                    </p>
+                                    <span className="inline-block px-4 py-2 bg-purple-600 dark:bg-purple-500 text-white rounded-lg">
+                                        Seleccionar archivos
+                                    </span>
+                                </label>
+                            </div>
+
+                            {/* Tags input for files */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Tags (opcional, separados por coma)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={tags}
+                                    onChange={(e) => setTags(e.target.value)}
+                                    placeholder="trabajo, investigacion, referencia"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    disabled={importing}
+                                />
+                            </div>
+                        </div>
+                    ) : importMode === 'csv' ? (
                         /* CSV Upload */
                         <div className="space-y-4">
                             <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
@@ -551,6 +1260,87 @@ export default function ImportPage() {
                                             </p>
                                         )}
                                     </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* File Upload Results */}
+                    {fileResults && (
+                        <div className="mt-6">
+                            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Archivos importados</h3>
+                            <div className="grid grid-cols-3 gap-4 mb-4">
+                                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-center">
+                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{fileResults.total}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
+                                </div>
+                                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg text-center">
+                                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{fileResults.successful}</p>
+                                    <p className="text-sm text-green-700 dark:text-green-400">Exitosos</p>
+                                </div>
+                                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
+                                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">{fileResults.failed}</p>
+                                    <p className="text-sm text-red-700 dark:text-red-400">Fallidos</p>
+                                </div>
+                            </div>
+
+                            {/* File results list */}
+                            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+                                    <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                                Estado
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                                Archivo
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                                Detalle
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                                        {fileResults.results.map((result, idx) => (
+                                            <tr key={idx} className={result.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    {result.success ? (
+                                                        <span className="text-green-600 dark:text-green-400 text-lg">✓</span>
+                                                    ) : (
+                                                        <span className="text-red-600 dark:text-red-400 text-lg">✗</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <span className="text-sm font-mono break-all text-gray-900 dark:text-gray-100">
+                                                        {result.filename}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {result.success ? (
+                                                        <span className="text-sm text-green-700 dark:text-green-400">
+                                                            {result.title || 'Importado correctamente'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-sm text-red-700 dark:text-red-400">{result.error}</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {fileResults.successful > 0 && (
+                                <div className="mt-4">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                        Los archivos se procesaran automaticamente en segundo plano.
+                                    </p>
+                                    <Link
+                                        href="/dashboard"
+                                        className="inline-flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200"
+                                    >
+                                        Ver contenidos importados →
+                                    </Link>
                                 </div>
                             )}
                         </div>

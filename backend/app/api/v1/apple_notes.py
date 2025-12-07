@@ -4,8 +4,11 @@ Apple Notes import endpoints.
 NOTE: These endpoints only work when the backend is running locally on macOS.
 They will return a 503 Service Unavailable error when accessed from cloud deployments.
 """
+import json
+import asyncio
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.deps import Database, CurrentUser
@@ -250,7 +253,10 @@ async def _import_single_note(
             "embedding": None
         }
 
+        print(f"[IMPORT] Inserting note: {note.name} from folder {note.folder}")
         response = db.table("contents").insert(content_data).execute()
+        print(f"[IMPORT] Response data: {response.data}")
+        print(f"[IMPORT] Response count: {getattr(response, 'count', 'N/A')}")
 
         if response.data:
             return ImportResult(
@@ -268,9 +274,13 @@ async def _import_single_note(
             )
 
     except Exception as e:
+        import traceback
+        print(f"[IMPORT ERROR] Exception importing note: {original_name}")
+        print(f"[IMPORT ERROR] Error: {str(e)}")
+        traceback.print_exc()
         return ImportResult(
-            note_id=note.id,
-            note_name=note.name,
+            note_id=original_id,
+            note_name=original_name,
             success=False,
             error=str(e)
         )
@@ -333,7 +343,9 @@ async def import_folder(
     usage_tracker.set_db(db)
 
     try:
+        print(f"[FOLDER IMPORT] Starting import for folder: {data.folder_name}")
         notes = apple_notes_service.get_notes_in_folder(data.folder_name)
+        print(f"[FOLDER IMPORT] Found {len(notes)} notes in folder: {data.folder_name}")
     except AppleNotesNotAvailableError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -347,9 +359,11 @@ async def import_folder(
 
     results: List[ImportResult] = []
 
-    for note in notes:
+    for idx, note in enumerate(notes):
+        print(f"[FOLDER IMPORT] Processing note {idx+1}/{len(notes)}: {note.name}")
         # Fetch full note with content using name+folder (ID lookup doesn't work with x-coredata:// URLs)
         full_note = apple_notes_service.get_note_by_name_and_folder(note.name, data.folder_name)
+        print(f"[FOLDER IMPORT] Full note fetched: {full_note is not None}")
         if full_note:
             result = await _import_single_note(full_note, user_id, db, data.tags)
             results.append(result)
@@ -419,4 +433,155 @@ async def import_all_notes(
         successful=successful,
         failed=len(results) - successful,
         results=results
+    )
+
+
+@router.post("/import-all-stream")
+async def import_all_notes_stream(
+    data: ImportAllRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Import all notes from all folders with real-time progress streaming (SSE).
+    Returns Server-Sent Events with progress updates.
+    Processes folder by folder for better performance and progress feedback.
+    """
+    user_id = current_user["id"]
+    usage_tracker.set_db(db)
+
+    async def generate_progress():
+        try:
+            # IMPORTANT: Send initial event immediately to establish SSE connection
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Conectando con Apple Notes...'})}\n\n"
+            await asyncio.sleep(0.05)  # Force flush to client
+
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Obteniendo lista de carpetas...'})}\n\n"
+            await asyncio.sleep(0.05)  # Force flush
+
+            try:
+                # Get folders first (fast operation)
+                loop = asyncio.get_event_loop()
+                folders = await loop.run_in_executor(None, apple_notes_service.get_folders)
+            except AppleNotesNotAvailableError as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                return
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': f'Error al obtener carpetas: {str(e)}'})}\n\n"
+                return
+
+            # Calculate total notes from folder counts
+            total = sum(f.note_count for f in folders)
+            yield f"data: {json.dumps({'type': 'total', 'total': total, 'folders': len(folders), 'message': f'Encontradas {len(folders)} carpetas con {total} notas'})}\n\n"
+            await asyncio.sleep(0.05)  # Force flush
+
+            successful = 0
+            failed = 0
+            duplicates = 0
+            empty = 0
+            current = 0
+
+            # Process folder by folder
+            for folder_idx, folder in enumerate(folders):
+                folder_name = folder.name
+
+                yield f"data: {json.dumps({'type': 'folder_start', 'folder': folder_name, 'folder_index': folder_idx + 1, 'total_folders': len(folders), 'note_count': folder.note_count})}\n\n"
+                await asyncio.sleep(0.02)
+
+                try:
+                    # Get notes in this folder (faster than get_all_notes)
+                    loop = asyncio.get_event_loop()
+                    folder_notes = await loop.run_in_executor(
+                        None,
+                        lambda fn=folder_name: apple_notes_service.get_notes_in_folder(fn)
+                    )
+                except Exception as e:
+                    # Skip this folder on error
+                    yield f"data: {json.dumps({'type': 'folder_error', 'folder': folder_name, 'error': str(e)})}\n\n"
+                    current += folder.note_count
+                    failed += folder.note_count
+                    continue
+
+                # Process each note in the folder
+                for note in folder_notes:
+                    current += 1
+
+                    # Fetch full note with content
+                    try:
+                        loop = asyncio.get_event_loop()
+                        full_note = await loop.run_in_executor(
+                            None,
+                            lambda n=note, fn=folder_name: apple_notes_service.get_note_by_name_and_folder(n.name, fn)
+                        )
+                    except Exception:
+                        full_note = None
+
+                    if full_note:
+                        result = await _import_single_note(full_note, user_id, db, data.tags)
+
+                        if result.success:
+                            successful += 1
+                            status_type = "success"
+                        elif result.error and ("already exists" in result.error.lower() or "duplicate key" in result.error.lower()):
+                            duplicates += 1
+                            status_type = "duplicate"
+                        elif result.error and "no text content" in result.error.lower():
+                            empty += 1
+                            status_type = "empty"
+                        else:
+                            failed += 1
+                            status_type = "failed"
+                    else:
+                        failed += 1
+                        status_type = "failed"
+                        result = ImportResult(
+                            note_id=note.id,
+                            note_name=note.name,
+                            success=False,
+                            error="Failed to fetch note content"
+                        )
+
+                    # Send progress update
+                    progress_data = {
+                        "type": "progress",
+                        "current": current,
+                        "total": total,
+                        "percent": round((current / total) * 100, 1) if total > 0 else 0,
+                        "successful": successful,
+                        "failed": failed,
+                        "duplicates": duplicates,
+                        "empty": empty,
+                        "status": status_type,
+                        "note_name": note.name[:50] + "..." if len(note.name) > 50 else note.name,
+                        "folder": folder_name,
+                        "error": result.error if not result.success else None
+                    }
+                    yield f"data: {json.dumps(progress_data)}\n\n"
+
+                    # Small delay to prevent overwhelming the client
+                    await asyncio.sleep(0.01)
+
+            # Final summary
+            summary = {
+                "type": "complete",
+                "total": current,
+                "successful": successful,
+                "failed": failed,
+                "duplicates": duplicates,
+                "empty": empty,
+                "message": f"Importación completada: {successful} exitosas, {duplicates} duplicadas, {empty} vacías, {failed} fallidas"
+            }
+            yield f"data: {json.dumps(summary)}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': f'Error inesperado: {str(e)}'})}\n\n"
+
+    return StreamingResponse(
+        generate_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
     )
