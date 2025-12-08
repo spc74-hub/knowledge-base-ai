@@ -26,7 +26,7 @@ export function TagFilter({
     onInheritedTagsChange,
     compact = false,
 }: TagFilterProps) {
-    const [isExpanded, setIsExpanded] = useState(true);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     const toggleUserTag = (tag: string) => {
         if (selectedUserTags.includes(tag)) {

@@ -918,6 +918,7 @@ async def get_dynamic_facets(
 class FacetedSearchRequest(BaseModel):
     query: Optional[str] = None
     types: Optional[List[str]] = None
+    types_exclude: Optional[List[str]] = None  # Types to exclude
     categories: Optional[List[str]] = None
     concepts: Optional[List[str]] = None
     organizations: Optional[List[str]] = None
@@ -927,10 +928,83 @@ class FacetedSearchRequest(BaseModel):
     inherited_tags: Optional[List[str]] = None
     processing_status: Optional[List[str]] = None
     maturity_level: Optional[List[str]] = None
+    maturity_level_exclude: Optional[List[str]] = None  # Maturity levels to exclude
     has_comment: Optional[bool] = None  # Filter by presence of user_note
     is_favorite: Optional[bool] = None  # Filter by favorite status
     limit: int = 50  # Reduced from 100 for faster initial load
     offset: int = 0
+
+
+def apply_sql_filters(query, data, db=None, user_id=None):
+    """
+    Apply SQL-level filters that can be efficiently handled by the database.
+    Returns (query, needs_special_maturity_handling) tuple.
+
+    needs_special_maturity_handling is True when maturity_level includes both
+    'captured' (NULL) and other values, requiring two queries due to Supabase OR limitation.
+    """
+    needs_special_maturity_handling = False
+
+    # Filter by processing_status
+    if data.processing_status:
+        query = query.in_("processing_status", data.processing_status)
+
+    # Filter by maturity_level (include)
+    if data.maturity_level:
+        has_captured = "captured" in data.maturity_level
+        other_levels = [m for m in data.maturity_level if m != "captured"]
+
+        if has_captured and other_levels:
+            # Need special handling - can't do OR in single Supabase query
+            # We'll handle this by doing two queries in the caller
+            needs_special_maturity_handling = True
+        elif has_captured:
+            # Only include captured (NULL)
+            query = query.is_("maturity_level", "null")
+        elif other_levels:
+            # Only include specific levels
+            query = query.in_("maturity_level", other_levels)
+
+    # Filter by maturity_level_exclude
+    if data.maturity_level_exclude:
+        has_captured = "captured" in data.maturity_level_exclude
+        other_levels = [m for m in data.maturity_level_exclude if m != "captured"]
+
+        if has_captured and other_levels:
+            # Exclude both NULL and other levels
+            query = query.not_.is_("maturity_level", "null")
+            if other_levels:
+                query = query.not_.in_("maturity_level", other_levels)
+        elif has_captured:
+            # Only exclude captured (NULL)
+            query = query.not_.is_("maturity_level", "null")
+        elif other_levels:
+            # Only exclude specific levels (keep NULL)
+            query = query.not_.in_("maturity_level", other_levels)
+
+    # Filter by has_comment (presence of user_note)
+    if data.has_comment is not None:
+        if data.has_comment:
+            # Has comment - user_note is not null and not empty
+            query = query.not_.is_("user_note", "null").neq("user_note", "")
+        else:
+            # No comment - user_note is null or empty
+            # Supabase can't do OR easily, so we use is_null which covers most cases
+            query = query.or_("user_note.is.null,user_note.eq.")
+
+    # Filter by is_favorite
+    if data.is_favorite is not None:
+        if data.is_favorite:
+            query = query.eq("is_favorite", True)
+        else:
+            # Not favorite - is_favorite is false or null
+            query = query.neq("is_favorite", True)
+
+    # Filter by user_tags
+    if data.user_tags:
+        query = query.overlaps("user_tags", data.user_tags)
+
+    return query, needs_special_maturity_handling
 
 
 # Optimized fields for faceted search list display (no raw_content, embedding)
@@ -1029,6 +1103,8 @@ async def search_faceted(
                         q = q.in_("iab_tier1", data.categories)
                     if data.concepts:
                         q = q.overlaps("concepts", data.concepts)
+                    # Apply SQL filters for maturity_level, processing_status, etc.
+                    q, _ = apply_sql_filters(q, data)
                     # Use filter with 'cs' (contains) for JSONB array matching
                     pattern = json_module.dumps([{"name": org}])
                     q = q.filter("entities->organizations", "cs", pattern)
@@ -1044,6 +1120,8 @@ async def search_faceted(
                         q = q.in_("iab_tier1", data.categories)
                     if data.concepts:
                         q = q.overlaps("concepts", data.concepts)
+                    # Apply SQL filters for maturity_level, processing_status, etc.
+                    q, _ = apply_sql_filters(q, data)
                     pattern = json_module.dumps([{"name": prod}])
                     q = q.filter("entities->products", "cs", pattern)
                     resp = q.execute()
@@ -1059,6 +1137,8 @@ async def search_faceted(
                         q1 = q1.in_("iab_tier1", data.categories)
                     if data.concepts:
                         q1 = q1.overlaps("concepts", data.concepts)
+                    # Apply SQL filters for maturity_level, processing_status, etc.
+                    q1, _ = apply_sql_filters(q1, data)
                     pattern = json_module.dumps([{"name": person}])
                     q1 = q1.filter("entities->persons", "cs", pattern)
                     resp1 = q1.execute()
@@ -1072,6 +1152,8 @@ async def search_faceted(
                         q2 = q2.in_("iab_tier1", data.categories)
                     if data.concepts:
                         q2 = q2.overlaps("concepts", data.concepts)
+                    # Apply SQL filters for maturity_level, processing_status, etc.
+                    q2, _ = apply_sql_filters(q2, data)
                     # user_entities stores persons as simple strings array
                     q2 = q2.contains("user_entities", {"persons": [person]})
                     resp2 = q2.execute()
@@ -1107,6 +1189,8 @@ async def search_faceted(
                         query1 = query1.in_("iab_tier1", data.categories)
                     if data.concepts:
                         query1 = query1.overlaps("concepts", data.concepts)
+                    # Apply SQL filters for maturity_level, processing_status, etc.
+                    query1, _ = apply_sql_filters(query1, data)
 
                     query2 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).eq("type", "note").filter(
                         "metadata->>source", "eq", "apple_notes"
@@ -1115,6 +1199,8 @@ async def search_faceted(
                         query2 = query2.in_("iab_tier1", data.categories)
                     if data.concepts:
                         query2 = query2.overlaps("concepts", data.concepts)
+                    # Apply SQL filters for maturity_level, processing_status, etc.
+                    query2, _ = apply_sql_filters(query2, data)
 
                     resp1 = query1.order("created_at", desc=True).execute()
                     resp2 = query2.order("created_at", desc=True).execute()
@@ -1138,6 +1224,8 @@ async def search_faceted(
                         query = query.in_("iab_tier1", data.categories)
                     if data.concepts:
                         query = query.overlaps("concepts", data.concepts)
+                    # Apply SQL filters for maturity_level, processing_status, etc.
+                    query, _ = apply_sql_filters(query, data)
                     response = query.order("created_at", desc=True).range(
                         data.offset, data.offset + data.limit - 1
                     ).execute()
@@ -1156,6 +1244,8 @@ async def search_faceted(
                             query1 = query1.in_("iab_tier1", data.categories)
                         if data.concepts:
                             query1 = query1.overlaps("concepts", data.concepts)
+                        # Apply SQL filters for maturity_level, processing_status, etc.
+                        query1, _ = apply_sql_filters(query1, data)
 
                         # Query 2: manual notes (type=note AND metadata.source != apple_notes)
                         query2 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).eq("type", "note").neq("metadata->>source", "apple_notes")
@@ -1163,6 +1253,8 @@ async def search_faceted(
                             query2 = query2.in_("iab_tier1", data.categories)
                         if data.concepts:
                             query2 = query2.overlaps("concepts", data.concepts)
+                        # Apply SQL filters for maturity_level, processing_status, etc.
+                        query2, _ = apply_sql_filters(query2, data)
 
                         resp1 = query1.order("created_at", desc=True).execute()
                         resp2 = query2.order("created_at", desc=True).execute()
@@ -1186,6 +1278,8 @@ async def search_faceted(
                             query = query.in_("iab_tier1", data.categories)
                         if data.concepts:
                             query = query.overlaps("concepts", data.concepts)
+                        # Apply SQL filters for maturity_level, processing_status, etc.
+                        query, _ = apply_sql_filters(query, data)
                         response = query.order("created_at", desc=True).range(
                             data.offset, data.offset + data.limit - 1
                         ).execute()
@@ -1197,6 +1291,8 @@ async def search_faceted(
                             query = query.in_("iab_tier1", data.categories)
                         if data.concepts:
                             query = query.overlaps("concepts", data.concepts)
+                        # Apply SQL filters for maturity_level, processing_status, etc.
+                        query, _ = apply_sql_filters(query, data)
                         response = query.order("created_at", desc=True).range(
                             data.offset, data.offset + data.limit - 1
                         ).execute()
@@ -1222,6 +1318,10 @@ async def search_faceted(
                     if data.concepts:
                         query1 = query1.overlaps("concepts", data.concepts)
                         query2 = query2.overlaps("concepts", data.concepts)
+
+                    # Apply SQL filters for maturity_level, processing_status, etc.
+                    query1, _ = apply_sql_filters(query1, data)
+                    query2, _ = apply_sql_filters(query2, data)
 
                     resp1 = query1.order("created_at", desc=True).execute()
                     resp2 = query2.order("created_at", desc=True).execute()
@@ -1273,6 +1373,9 @@ async def search_faceted(
                 if data.concepts:
                     query = query.overlaps("concepts", data.concepts)
 
+                # Apply SQL filters for maturity_level, processing_status, etc.
+                query, _ = apply_sql_filters(query, data)
+
                 # Execute query with proper pagination
                 logger.info(f"Executing standard query: offset={data.offset}, limit={data.limit}")
                 try:
@@ -1287,14 +1390,25 @@ async def search_faceted(
                     logger.error(f"Query execution error: {query_error}", exc_info=True)
                     results = []
 
-        # Filter by user_tags (post-query for simplicity)
-        if data.user_tags:
+        # POST-QUERY FILTERS (only for complex cases that can't be done in SQL)
+        # Most filters are now applied at SQL level via apply_sql_filters()
+
+        # Filter by types_exclude (post-query due to apple_notes complexity)
+        if data.types_exclude:
+            def get_effective_type(r):
+                """Get effective type, handling apple_notes specially."""
+                content_type = r.get("type")
+                metadata = r.get("metadata") or {}
+                if content_type == "note" and metadata.get("source") == "apple_notes":
+                    return "apple_notes"
+                return content_type
+
             results = [
                 r for r in results
-                if any(tag in (r.get("user_tags") or []) for tag in data.user_tags)
+                if get_effective_type(r) not in data.types_exclude
             ]
 
-        # Filter by inherited_tags (requires checking taxonomy rules)
+        # Filter by inherited_tags (requires checking taxonomy rules - complex logic)
         if data.inherited_tags:
             # Get taxonomy_tags rules for current user
             taxonomy_result = db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
@@ -1325,50 +1439,6 @@ async def search_faceted(
                 return False
 
             results = [r for r in results if content_matches_inherited_tag(r)]
-
-        # Filter by processing_status
-        if data.processing_status:
-            results = [
-                r for r in results
-                if r.get("processing_status") in data.processing_status
-            ]
-
-        # Filter by maturity_level
-        if data.maturity_level:
-            results = [
-                r for r in results
-                if (r.get("maturity_level") or "captured") in data.maturity_level
-            ]
-
-        # Filter by has_comment (presence of user_note)
-        if data.has_comment is not None:
-            if data.has_comment:
-                # Only contents with annotations
-                results = [
-                    r for r in results
-                    if r.get("user_note") and r.get("user_note").strip()
-                ]
-            else:
-                # Only contents without annotations
-                results = [
-                    r for r in results
-                    if not r.get("user_note") or not r.get("user_note").strip()
-                ]
-
-        # Filter by is_favorite
-        if data.is_favorite is not None:
-            if data.is_favorite:
-                # Only favorite contents
-                results = [
-                    r for r in results
-                    if r.get("is_favorite") is True
-                ]
-            else:
-                # Only non-favorite contents
-                results = [
-                    r for r in results
-                    if not r.get("is_favorite")
-                ]
 
         # If text query provided, filter and score results
         if data.query:

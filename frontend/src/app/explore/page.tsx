@@ -124,6 +124,7 @@ interface Content {
 
 interface Filters {
     types: string[];
+    types_exclude: string[];  // Types to exclude
     categories: string[];
     concepts: string[];
     organizations: string[];
@@ -133,6 +134,7 @@ interface Filters {
     inherited_tags: string[];
     processing_status: string[];
     maturity_level: string[];
+    maturity_level_exclude: string[];  // Maturity levels to exclude
     has_comment: boolean | null;
     is_favorite: boolean | null;
 }
@@ -148,6 +150,7 @@ function ExplorePageContent() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState<Filters>({
         types: [],
+        types_exclude: [],
         categories: [],
         concepts: [],
         organizations: [],
@@ -157,19 +160,21 @@ function ExplorePageContent() {
         inherited_tags: [],
         processing_status: [],
         maturity_level: [],
+        maturity_level_exclude: [],
         has_comment: null,
         is_favorite: null
     });
     const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
-        types: true,
+        types: false,
         categories: true,
         concepts: false,
         organizations: false,
         products: false,
         persons: false,
-        processing_status: true,
-        maturity_level: true
+        processing_status: false,
+        maturity_level: false,
+        has_comment: false
     });
     // Search within facets
     const [facetSearch, setFacetSearch] = useState({
@@ -288,6 +293,7 @@ function ExplorePageContent() {
                 const requestBody = {
                     query: searchQuery || null,
                     types: filters.types.length > 0 ? filters.types : null,
+                    types_exclude: filters.types_exclude.length > 0 ? filters.types_exclude : null,
                     categories: filters.categories.length > 0 ? filters.categories : null,
                     concepts: filters.concepts.length > 0 ? filters.concepts : null,
                     organizations: filters.organizations.length > 0 ? filters.organizations : null,
@@ -297,6 +303,7 @@ function ExplorePageContent() {
                     inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
                     processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
                     maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
+                    maturity_level_exclude: filters.maturity_level_exclude.length > 0 ? filters.maturity_level_exclude : null,
                     has_comment: filters.has_comment,
                     is_favorite: filters.is_favorite,
                     limit: PAGE_SIZE,
@@ -358,6 +365,7 @@ function ExplorePageContent() {
                     body: JSON.stringify({
                         query: searchQuery || null,
                         types: filters.types.length > 0 ? filters.types : null,
+                        types_exclude: filters.types_exclude.length > 0 ? filters.types_exclude : null,
                         categories: filters.categories.length > 0 ? filters.categories : null,
                         concepts: filters.concepts.length > 0 ? filters.concepts : null,
                         organizations: filters.organizations.length > 0 ? filters.organizations : null,
@@ -367,6 +375,7 @@ function ExplorePageContent() {
                         inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
                         processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
                         maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
+                        maturity_level_exclude: filters.maturity_level_exclude.length > 0 ? filters.maturity_level_exclude : null,
                         has_comment: filters.has_comment,
                         is_favorite: filters.is_favorite,
                         limit: PAGE_SIZE,
@@ -651,6 +660,7 @@ function ExplorePageContent() {
     const clearFilters = () => {
         setFilters({
             types: [],
+            types_exclude: [],
             categories: [],
             concepts: [],
             organizations: [],
@@ -660,6 +670,7 @@ function ExplorePageContent() {
             inherited_tags: [],
             processing_status: [],
             maturity_level: [],
+            maturity_level_exclude: [],
             has_comment: null,
             is_favorite: null
         });
@@ -942,7 +953,7 @@ function ExplorePageContent() {
                                         </div>
                                     </div>
 
-                                    {/* Types */}
+                                    {/* Types with Include/Exclude toggle */}
                                     <div>
                                         <button
                                             onClick={() => toggleSection('types')}
@@ -953,106 +964,52 @@ function ExplorePageContent() {
                                         </button>
                                         {expandedSections.types && (
                                             <div className="space-y-1 ml-1">
-                                                {facets.types.map(facet => (
-                                                    <label key={facet.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={filters.types.includes(facet.value)}
-                                                            onChange={() => toggleFilter('types', facet.value)}
-                                                            className="rounded"
-                                                        />
-                                                        <span className="flex-1">{getTypeIcon(facet.value)} {facet.value}</span>
-                                                        <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
-                                                    </label>
-                                                ))}
+                                                {facets.types.map(facet => {
+                                                    const isIncluded = filters.types.includes(facet.value);
+                                                    const isExcluded = filters.types_exclude.includes(facet.value);
+                                                    return (
+                                                        <div key={facet.value} className="flex items-center gap-1 text-sm p-1 rounded text-gray-900 dark:text-gray-200">
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (isIncluded) {
+                                                                        // Was included -> go to excluded
+                                                                        setFilters(prev => ({
+                                                                            ...prev,
+                                                                            types: prev.types.filter(t => t !== facet.value),
+                                                                            types_exclude: [...prev.types_exclude, facet.value]
+                                                                        }));
+                                                                    } else if (isExcluded) {
+                                                                        // Was excluded -> go to neutral
+                                                                        setFilters(prev => ({
+                                                                            ...prev,
+                                                                            types_exclude: prev.types_exclude.filter(t => t !== facet.value)
+                                                                        }));
+                                                                    } else {
+                                                                        // Was neutral -> go to included
+                                                                        setFilters(prev => ({
+                                                                            ...prev,
+                                                                            types: [...prev.types, facet.value]
+                                                                        }));
+                                                                    }
+                                                                }}
+                                                                className={`w-5 h-5 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
+                                                                    isIncluded
+                                                                        ? 'bg-green-500 border-green-500 text-white'
+                                                                        : isExcluded
+                                                                            ? 'bg-red-500 border-red-500 text-white'
+                                                                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                                                                }`}
+                                                                title={isIncluded ? 'Incluido (click para excluir)' : isExcluded ? 'Excluido (click para quitar filtro)' : 'Sin filtro (click para incluir)'}
+                                                            >
+                                                                {isIncluded ? '✓' : isExcluded ? '−' : ''}
+                                                            </button>
+                                                            <span className="flex-1">{getTypeIcon(facet.value)} {facet.value}</span>
+                                                            <span className="text-gray-400 dark:text-gray-500">({facet.count})</span>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
-                                    </div>
-
-                                    {/* Processing Status */}
-                                    <div>
-                                        <button
-                                            onClick={() => toggleSection('processing_status')}
-                                            className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
-                                        >
-                                            <span>Estado</span>
-                                            <span>{expandedSections.processing_status ? '−' : '+'}</span>
-                                        </button>
-                                        {expandedSections.processing_status && (
-                                            <div className="space-y-1 ml-1">
-                                                {[
-                                                    { value: 'completed', label: 'Procesado', icon: '✅' },
-                                                    { value: 'pending', label: 'Pendiente', icon: '⏳' },
-                                                    { value: 'error', label: 'Error', icon: '❌' }
-                                                ].map(status => (
-                                                    <label key={status.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={filters.processing_status.includes(status.value)}
-                                                            onChange={() => toggleFilter('processing_status', status.value)}
-                                                            className="rounded"
-                                                        />
-                                                        <span className="flex-1">{status.icon} {status.label}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Maturity Level */}
-                                    <div>
-                                        <button
-                                            onClick={() => toggleSection('maturity_level')}
-                                            className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
-                                        >
-                                            <span>Nivel de Madurez</span>
-                                            <span>{expandedSections.maturity_level ? '−' : '+'}</span>
-                                        </button>
-                                        {expandedSections.maturity_level && (
-                                            <div className="space-y-1 ml-1">
-                                                {[
-                                                    { value: 'captured', label: 'Capturado', icon: '📥' },
-                                                    { value: 'processed', label: 'Procesado', icon: '⚙️' },
-                                                    { value: 'connected', label: 'Conectado', icon: '🔗' },
-                                                    { value: 'integrated', label: 'Integrado', icon: '✅' }
-                                                ].map(level => (
-                                                    <label key={level.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={filters.maturity_level.includes(level.value)}
-                                                            onChange={() => toggleFilter('maturity_level', level.value)}
-                                                            className="rounded"
-                                                        />
-                                                        <span className="flex-1">{level.icon} {level.label}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Has Comment Filter */}
-                                    <div>
-                                        <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Anotaciones</span>
-                                        <div className="space-y-1 ml-1">
-                                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={filters.has_comment === true}
-                                                    onChange={() => setFilters(prev => ({ ...prev, has_comment: prev.has_comment === true ? null : true }))}
-                                                    className="rounded"
-                                                />
-                                                <span className="flex-1">💬 Con anotaciones</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={filters.has_comment === false}
-                                                    onChange={() => setFilters(prev => ({ ...prev, has_comment: prev.has_comment === false ? null : false }))}
-                                                    className="rounded"
-                                                />
-                                                <span className="flex-1">Sin anotaciones</span>
-                                            </label>
-                                        </div>
                                     </div>
 
                                     {/* Categories */}
@@ -1251,6 +1208,132 @@ function ExplorePageContent() {
                                         </div>
                                     )}
 
+                                    {/* Maturity Level with Include/Exclude toggle */}
+                                    <div>
+                                        <button
+                                            onClick={() => toggleSection('maturity_level')}
+                                            className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Nivel de Madurez</span>
+                                            <span>{expandedSections.maturity_level ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedSections.maturity_level && (
+                                            <div className="space-y-1 ml-1">
+                                                {[
+                                                    { value: 'captured', label: 'Capturado', icon: '📥' },
+                                                    { value: 'processed', label: 'Procesado', icon: '⚙️' },
+                                                    { value: 'connected', label: 'Conectado', icon: '🔗' },
+                                                    { value: 'integrated', label: 'Integrado', icon: '✅' }
+                                                ].map(level => {
+                                                    const isIncluded = filters.maturity_level.includes(level.value);
+                                                    const isExcluded = filters.maturity_level_exclude.includes(level.value);
+                                                    return (
+                                                        <div key={level.value} className="flex items-center gap-1 text-sm p-1 rounded text-gray-900 dark:text-gray-200">
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (isIncluded) {
+                                                                        // Was included -> go to excluded
+                                                                        setFilters(prev => ({
+                                                                            ...prev,
+                                                                            maturity_level: prev.maturity_level.filter(t => t !== level.value),
+                                                                            maturity_level_exclude: [...prev.maturity_level_exclude, level.value]
+                                                                        }));
+                                                                    } else if (isExcluded) {
+                                                                        // Was excluded -> go to neutral
+                                                                        setFilters(prev => ({
+                                                                            ...prev,
+                                                                            maturity_level_exclude: prev.maturity_level_exclude.filter(t => t !== level.value)
+                                                                        }));
+                                                                    } else {
+                                                                        // Was neutral -> go to included
+                                                                        setFilters(prev => ({
+                                                                            ...prev,
+                                                                            maturity_level: [...prev.maturity_level, level.value]
+                                                                        }));
+                                                                    }
+                                                                }}
+                                                                className={`w-5 h-5 rounded border flex items-center justify-center text-xs font-bold transition-colors ${
+                                                                    isIncluded
+                                                                        ? 'bg-green-500 border-green-500 text-white'
+                                                                        : isExcluded
+                                                                            ? 'bg-red-500 border-red-500 text-white'
+                                                                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                                                                }`}
+                                                                title={isIncluded ? 'Incluido (click para excluir)' : isExcluded ? 'Excluido (click para quitar filtro)' : 'Sin filtro (click para incluir)'}
+                                                            >
+                                                                {isIncluded ? '✓' : isExcluded ? '−' : ''}
+                                                            </button>
+                                                            <span className="flex-1">{level.icon} {level.label}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Anotaciones Filter */}
+                                    <div>
+                                        <button
+                                            onClick={() => toggleSection('has_comment')}
+                                            className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Anotaciones</span>
+                                            <span>{expandedSections.has_comment ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedSections.has_comment && (
+                                            <div className="space-y-1 ml-1">
+                                                <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={filters.has_comment === true}
+                                                        onChange={() => setFilters(prev => ({ ...prev, has_comment: prev.has_comment === true ? null : true }))}
+                                                        className="rounded"
+                                                    />
+                                                    <span className="flex-1">💬 Con anotaciones</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={filters.has_comment === false}
+                                                        onChange={() => setFilters(prev => ({ ...prev, has_comment: prev.has_comment === false ? null : false }))}
+                                                        className="rounded"
+                                                    />
+                                                    <span className="flex-1">Sin anotaciones</span>
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Processing Status */}
+                                    <div>
+                                        <button
+                                            onClick={() => toggleSection('processing_status')}
+                                            className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Estado</span>
+                                            <span>{expandedSections.processing_status ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedSections.processing_status && (
+                                            <div className="space-y-1 ml-1">
+                                                {[
+                                                    { value: 'completed', label: 'Procesado', icon: '✅' },
+                                                    { value: 'pending', label: 'Pendiente', icon: '⏳' },
+                                                    { value: 'error', label: 'Error', icon: '❌' }
+                                                ].map(status => (
+                                                    <label key={status.value} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={filters.processing_status.includes(status.value)}
+                                                            onChange={() => toggleFilter('processing_status', status.value)}
+                                                            className="rounded"
+                                                        />
+                                                        <span className="flex-1">{status.icon} {status.label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Tags Section */}
                                     {(availableTags.user_tags.length > 0 || availableTags.inherited_tags.length > 0) && (
                                         <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -1277,8 +1360,14 @@ function ExplorePageContent() {
                             <div className="mb-4 flex flex-wrap gap-2">
                                 {filters.types.map(t => (
                                     <span key={t} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 rounded-full text-sm">
-                                        {t}
-                                        <button onClick={() => toggleFilter('types', t)} className="hover:text-blue-600 dark:hover:text-blue-400">×</button>
+                                        ✓ {t}
+                                        <button onClick={() => setFilters(prev => ({ ...prev, types: prev.types.filter(x => x !== t) }))} className="hover:text-blue-600 dark:hover:text-blue-400">×</button>
+                                    </span>
+                                ))}
+                                {filters.types_exclude.map(t => (
+                                    <span key={`ex-${t}`} className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-300 rounded-full text-sm">
+                                        − {t}
+                                        <button onClick={() => setFilters(prev => ({ ...prev, types_exclude: prev.types_exclude.filter(x => x !== t) }))} className="hover:text-red-600 dark:hover:text-red-400">×</button>
                                     </span>
                                 ))}
                                 {filters.categories.map(c => (
@@ -1309,6 +1398,18 @@ function ExplorePageContent() {
                                     <span key={p} className="inline-flex items-center gap-1 px-3 py-1 bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-300 rounded-full text-sm">
                                         {p}
                                         <button onClick={() => toggleFilter('persons', p)} className="hover:text-teal-600 dark:hover:text-teal-400">×</button>
+                                    </span>
+                                ))}
+                                {filters.maturity_level.map(m => (
+                                    <span key={m} className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-300 rounded-full text-sm">
+                                        ✓ {m}
+                                        <button onClick={() => setFilters(prev => ({ ...prev, maturity_level: prev.maturity_level.filter(x => x !== m) }))} className="hover:text-amber-600 dark:hover:text-amber-400">×</button>
+                                    </span>
+                                ))}
+                                {filters.maturity_level_exclude.map(m => (
+                                    <span key={`ex-ml-${m}`} className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-300 rounded-full text-sm">
+                                        − {m}
+                                        <button onClick={() => setFilters(prev => ({ ...prev, maturity_level_exclude: prev.maturity_level_exclude.filter(x => x !== m) }))} className="hover:text-red-600 dark:hover:text-red-400">×</button>
                                     </span>
                                 ))}
                                 {filters.user_tags.map(t => (
