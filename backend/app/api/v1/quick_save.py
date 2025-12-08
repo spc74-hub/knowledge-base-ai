@@ -34,14 +34,17 @@ class QuickSaveResponse(BaseModel):
 
 @router.post("/", response_model=QuickSaveResponse)
 async def quick_save_url(
-    data: QuickSaveRequest,
     current_user: CurrentUser,
-    db: Database
+    db: Database,
+    data: QuickSaveRequest = None,
+    url: str = Query(None, description="URL to save (alternative to body)")
 ):
     """
     Quick save a URL - simplified endpoint for bookmarklet and iOS Shortcut.
     By default, only fetches and saves content without AI processing (instant).
     Set process_now=True to process immediately.
+
+    Accepts URL either in JSON body or as query parameter for Shortcuts compatibility.
     """
     import asyncio
     import logging
@@ -49,8 +52,20 @@ async def quick_save_url(
     logger = logging.getLogger(__name__)
 
     try:
-        # Keep original URL for fetching, normalize for storage/dedup
-        original_url = str(data.url)
+        # Support both JSON body and query parameter
+        if url:
+            # URL from query parameter (Shortcuts fallback)
+            original_url = url
+        elif data and data.url:
+            # URL from JSON body
+            original_url = str(data.url)
+        else:
+            return QuickSaveResponse(
+                success=False,
+                message="URL is required",
+                error="missing_url"
+            )
+
         url_str = normalize_url(original_url)
         user_id = current_user["id"]
 
@@ -108,12 +123,12 @@ async def quick_save_url(
                 **fetch_result.metadata,
                 "saved_via": "quick_save"
             },
-            "user_tags": data.tags,
+            "user_tags": data.tags if data else [],
             "processing_status": "pending"  # Mark as pending for later processing
         }
 
         # If process_now is True, do full AI processing
-        if data.process_now:
+        if data and data.process_now:
             usage_tracker.set_db(db)
 
             # Classify content
@@ -174,7 +189,7 @@ async def quick_save_url(
                 error="database_error"
             )
 
-        status_msg = "saved and processed" if data.process_now else "saved (pending processing)"
+        status_msg = "saved and processed" if (data and data.process_now) else "saved (pending processing)"
 
         return QuickSaveResponse(
             success=True,
