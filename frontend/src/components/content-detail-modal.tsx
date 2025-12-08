@@ -187,13 +187,11 @@ export function ContentDetailModal({
             setIsFavorite(content.is_favorite || false);
             setProcessingStatus(content.processing_status || 'pending');
             setMaturityLevel(content.maturity_level || 'captured');
-            // Initialize user classification from user_* fields or fallback to AI data
-            setUserCategory(content.user_category || content.iab_tier1 || '');
-            setUserConcepts(content.user_concepts || content.concepts || []);
-            // Extract persons from user_entities or entities
-            const persons = content.user_entities?.persons ||
-                (content.entities?.persons?.map(p => typeof p === 'string' ? p : p.name) || []);
-            setUserPersons(persons);
+            // Initialize user classification ONLY from user_* fields (no fallback to AI)
+            // User must explicitly add items from AI suggestions
+            setUserCategory(content.user_category || '');
+            setUserConcepts(content.user_concepts || []);
+            setUserPersons(content.user_entities?.persons || []);
         }
     }, [content]);
 
@@ -405,37 +403,26 @@ export function ContentDetailModal({
         setSavingClassification(true);
         try {
             const headers = await getAuthHeaders();
-            const updateData: Record<string, unknown> = {};
+            const updateData: Record<string, unknown> = {
+                // Save user selections (null if empty, meaning "no user override")
+                user_category: userCategory || null,
+                user_concepts: userConcepts.length > 0 ? userConcepts : null,
+                user_entities: userPersons.length > 0 ? {
+                    persons: userPersons,
+                    // Preserve other entities if they exist
+                    organizations: content.user_entities?.organizations || [],
+                    products: content.user_entities?.products || [],
+                } : null,
+            };
 
-            // Only save if different from AI-generated values
-            if (userCategory !== (content.iab_tier1 || '')) {
-                updateData.user_category = userCategory || null;
-            }
-
-            const aiConcepts = content.concepts || [];
-            if (JSON.stringify(userConcepts.sort()) !== JSON.stringify(aiConcepts.sort())) {
-                updateData.user_concepts = userConcepts.length > 0 ? userConcepts : null;
-            }
-
-            const aiPersons = content.entities?.persons?.map(p => typeof p === 'string' ? p : p.name) || [];
-            if (JSON.stringify(userPersons.sort()) !== JSON.stringify(aiPersons.sort())) {
-                updateData.user_entities = {
-                    persons: userPersons.length > 0 ? userPersons : [],
-                    organizations: content.user_entities?.organizations || content.entities?.organizations?.map(o => typeof o === 'string' ? o : o.name) || [],
-                    products: content.user_entities?.products || content.entities?.products?.map(p => typeof p === 'string' ? p : p.name) || [],
-                };
-            }
-
-            if (Object.keys(updateData).length > 0) {
-                const response = await fetch(`${API_URL}/api/v1/content/${content.id}`, {
-                    method: 'PUT',
-                    headers,
-                    body: JSON.stringify(updateData),
-                });
-                if (response.ok) {
-                    const updated = await response.json();
-                    onUpdate?.({ ...content, ...updated });
-                }
+            const response = await fetch(`${API_URL}/api/v1/content/${content.id}`, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify(updateData),
+            });
+            if (response.ok) {
+                const updated = await response.json();
+                onUpdate?.({ ...content, ...updated });
             }
             setEditingClassification(false);
         } catch (error) {
@@ -1331,12 +1318,10 @@ export function ContentDetailModal({
                                 <div className="flex justify-end gap-2 pt-2 border-t dark:border-gray-700">
                                     <button
                                         onClick={() => {
-                                            // Reset to original values
-                                            setUserCategory(content.user_category || content.iab_tier1 || '');
-                                            setUserConcepts(content.user_concepts || content.concepts || []);
-                                            const persons = content.user_entities?.persons ||
-                                                (content.entities?.persons?.map(p => typeof p === 'string' ? p : p.name) || []);
-                                            setUserPersons(persons);
+                                            // Reset to original user_* values only (no AI fallback)
+                                            setUserCategory(content.user_category || '');
+                                            setUserConcepts(content.user_concepts || []);
+                                            setUserPersons(content.user_entities?.persons || []);
                                             setEditingClassification(false);
                                         }}
                                         className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
