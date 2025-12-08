@@ -191,6 +191,109 @@ async def quick_save_url(
         )
 
 
+@router.get("/shortcut")
+async def quick_save_shortcut(
+    url: str = Query(..., description="URL to save"),
+    current_user: CurrentUser = None,
+    db: Database = None
+):
+    """
+    Simplified GET endpoint for iOS/macOS Shortcuts.
+    Uses query parameter instead of JSON body for better compatibility.
+
+    Usage in Shortcuts:
+    GET https://api/quick-save/shortcut?url=[URL]
+    Authorization: Bearer [token]
+    """
+    import asyncio
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Normalize URL
+        original_url = url
+        url_str = normalize_url(original_url)
+        user_id = current_user["id"]
+
+        logger.info(f"Shortcut quick save: {original_url} -> normalized: {url_str}")
+
+        # Check if URL already exists
+        existing = db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
+
+        if existing.data:
+            return JSONResponse(content={
+                "success": False,
+                "message": "Ya guardado",
+                "title": existing.data[0]["title"],
+                "error": "duplicate"
+            })
+
+        # Fetch content with timeout
+        try:
+            fetch_result = await asyncio.wait_for(
+                fetcher_service.fetch(original_url),
+                timeout=60.0
+            )
+        except asyncio.TimeoutError:
+            return JSONResponse(content={
+                "success": False,
+                "message": "Timeout al obtener contenido",
+                "error": "timeout"
+            })
+
+        if not fetch_result.success:
+            return JSONResponse(content={
+                "success": False,
+                "message": f"Error: {fetch_result.error}",
+                "error": fetch_result.error
+            })
+
+        # Calculate reading time
+        word_count = len(fetch_result.content.split())
+        reading_time = max(1, word_count // 200)
+
+        # Save without AI processing (instant save)
+        content_data = {
+            "user_id": user_id,
+            "url": url_str,
+            "type": fetch_result.type,
+            "title": fetch_result.title,
+            "raw_content": fetch_result.content[:50000],
+            "reading_time_minutes": reading_time,
+            "metadata": {
+                **fetch_result.metadata,
+                "saved_via": "ios_shortcut_v2"
+            },
+            "user_tags": [],
+            "processing_status": "pending"
+        }
+
+        response = db.table("contents").insert(content_data).execute()
+
+        if not response.data:
+            return JSONResponse(content={
+                "success": False,
+                "message": "Error al guardar",
+                "error": "database_error"
+            })
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "¡Guardado!",
+            "title": fetch_result.title,
+            "content_id": response.data[0]["id"]
+        })
+
+    except Exception as e:
+        logger.error(f"Shortcut save error: {str(e)}")
+        return JSONResponse(content={
+            "success": False,
+            "message": f"Error: {str(e)}",
+            "error": str(e)
+        })
+
+
 @router.get("/bookmarklet.js")
 async def get_bookmarklet_code():
     """
