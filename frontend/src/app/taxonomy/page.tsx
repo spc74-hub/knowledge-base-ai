@@ -84,6 +84,15 @@ export default function TaxonomyExplorerPage() {
         new Set(['category', 'concept'])
     );
 
+    // User experts state
+    interface Expert {
+        id: string;
+        person_name: string;
+        expert_categories: string[];
+    }
+    const [userExperts, setUserExperts] = useState<Expert[]>([]);
+    const [filterByExperts, setFilterByExperts] = useState(false);
+
     // Facet filters state (similar to explorer)
     interface Facet { value: string; count: number; }
     interface Facets {
@@ -171,6 +180,21 @@ export default function TaxonomyExplorerPage() {
             }
         } catch (err) {
             console.error('Error fetching facets:', err);
+        }
+    }, [user]);
+
+    // Fetch user experts for filtering
+    const fetchUserExperts = useCallback(async () => {
+        if (!user) return;
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/experts/`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setUserExperts(data.experts || []);
+            }
+        } catch (err) {
+            console.error('Error fetching user experts:', err);
         }
     }, [user]);
 
@@ -394,9 +418,10 @@ export default function TaxonomyExplorerPage() {
         if (user) {
             fetchTypes();
             fetchFacets();
+            fetchUserExperts();
             fetchNodes(rootType);
         }
-    }, [user, fetchTypes, fetchFacets, fetchNodes, rootType]);
+    }, [user, fetchTypes, fetchFacets, fetchUserExperts, fetchNodes, rootType]);
 
     // Handle root type change
     const handleRootTypeChange = (newType: RootType) => {
@@ -736,6 +761,59 @@ export default function TaxonomyExplorerPage() {
                                     </span>
                                 </label>
                             </div>
+
+                            {/* Experts Filter */}
+                            {userExperts.length > 0 && (
+                                <div className="mb-6">
+                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 block">Mis Expertos</span>
+                                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={filterByExperts}
+                                            onChange={() => {
+                                                const newValue = !filterByExperts;
+                                                setFilterByExperts(newValue);
+                                                if (newValue) {
+                                                    // Set persons filter to expert names
+                                                    const expertNames = userExperts.map(e => e.person_name);
+                                                    setFacetFilters(prev => ({ ...prev, persons: expertNames }));
+                                                } else {
+                                                    setFacetFilters(prev => ({ ...prev, persons: [] }));
+                                                }
+                                            }}
+                                            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-teal-600 focus:ring-teal-500"
+                                        />
+                                        <span className={`flex-1 text-sm ${
+                                            filterByExperts
+                                                ? 'text-gray-900 dark:text-white font-medium'
+                                                : 'text-gray-700 dark:text-gray-300'
+                                        }`}>
+                                            👤 Solo mis gurus ({userExperts.length})
+                                        </span>
+                                    </label>
+                                    {filterByExperts && (
+                                        <div className="mt-2 ml-3 flex flex-wrap gap-1">
+                                            {userExperts.slice(0, 5).map(expert => (
+                                                <span
+                                                    key={expert.id}
+                                                    className="px-2 py-0.5 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 rounded text-xs"
+                                                >
+                                                    {expert.person_name}
+                                                </span>
+                                            ))}
+                                            {userExperts.length > 5 && (
+                                                <span className="text-xs text-gray-400">+{userExperts.length - 5} mas</span>
+                                            )}
+                                        </div>
+                                    )}
+                                    <Link
+                                        href="/experts"
+                                        className="block text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-2 ml-3"
+                                    >
+                                        Gestionar expertos →
+                                    </Link>
+                                </div>
+                            )}
 
                             {/* Type Filter */}
                             <div>

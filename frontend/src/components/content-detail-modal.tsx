@@ -65,6 +65,14 @@ export interface ContentDetail {
     metadata: Record<string, any> | null;
     created_at: string;
     raw_content: string | null;
+    // User classification overrides
+    user_entities?: {
+        organizations?: string[];
+        products?: string[];
+        persons?: string[];
+    } | null;
+    user_concepts?: string[] | null;
+    user_category?: string | null;
 }
 
 interface ContentDetailModalProps {
@@ -163,6 +171,15 @@ export function ContentDetailModal({
     const [newNoteType, setNewNoteType] = useState<string>('reflection');
     const [savingNewNote, setSavingNewNote] = useState(false);
 
+    // User classification editing
+    const [editingClassification, setEditingClassification] = useState(false);
+    const [userCategory, setUserCategory] = useState<string>('');
+    const [userConcepts, setUserConcepts] = useState<string[]>([]);
+    const [userPersons, setUserPersons] = useState<string[]>([]);
+    const [newConcept, setNewConcept] = useState('');
+    const [newPerson, setNewPerson] = useState('');
+    const [savingClassification, setSavingClassification] = useState(false);
+
     useEffect(() => {
         if (content) {
             setUserTags(content.user_tags || []);
@@ -170,6 +187,13 @@ export function ContentDetailModal({
             setIsFavorite(content.is_favorite || false);
             setProcessingStatus(content.processing_status || 'pending');
             setMaturityLevel(content.maturity_level || 'captured');
+            // Initialize user classification from user_* fields or fallback to AI data
+            setUserCategory(content.user_category || content.iab_tier1 || '');
+            setUserConcepts(content.user_concepts || content.concepts || []);
+            // Extract persons from user_entities or entities
+            const persons = content.user_entities?.persons ||
+                (content.entities?.persons?.map(p => typeof p === 'string' ? p : p.name) || []);
+            setUserPersons(persons);
         }
     }, [content]);
 
@@ -372,6 +396,53 @@ export function ContentDetailModal({
             console.error('Error updating maturity level:', error);
         } finally {
             setUpdatingMaturity(false);
+        }
+    };
+
+    // Save user classification overrides
+    const handleSaveClassification = async () => {
+        if (!content) return;
+        setSavingClassification(true);
+        try {
+            const headers = await getAuthHeaders();
+            const updateData: Record<string, unknown> = {};
+
+            // Only save if different from AI-generated values
+            if (userCategory !== (content.iab_tier1 || '')) {
+                updateData.user_category = userCategory || null;
+            }
+
+            const aiConcepts = content.concepts || [];
+            if (JSON.stringify(userConcepts.sort()) !== JSON.stringify(aiConcepts.sort())) {
+                updateData.user_concepts = userConcepts.length > 0 ? userConcepts : null;
+            }
+
+            const aiPersons = content.entities?.persons?.map(p => typeof p === 'string' ? p : p.name) || [];
+            if (JSON.stringify(userPersons.sort()) !== JSON.stringify(aiPersons.sort())) {
+                updateData.user_entities = {
+                    persons: userPersons.length > 0 ? userPersons : [],
+                    organizations: content.user_entities?.organizations || content.entities?.organizations?.map(o => typeof o === 'string' ? o : o.name) || [],
+                    products: content.user_entities?.products || content.entities?.products?.map(p => typeof p === 'string' ? p : p.name) || [],
+                };
+            }
+
+            if (Object.keys(updateData).length > 0) {
+                const response = await fetch(`${API_URL}/api/v1/content/${content.id}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify(updateData),
+                });
+                if (response.ok) {
+                    const updated = await response.json();
+                    onUpdate?.({ ...content, ...updated });
+                }
+            }
+            setEditingClassification(false);
+        } catch (error) {
+            console.error('Error saving classification:', error);
+            alert('Error al guardar la clasificacion');
+        } finally {
+            setSavingClassification(false);
         }
     };
 
@@ -1061,6 +1132,172 @@ export function ContentDetailModal({
                                         ))}
                                     </div>
                                 )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* User Classification Edit Section */}
+                    <div className="mb-6 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <button
+                            onClick={() => setEditingClassification(!editingClassification)}
+                            className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase flex items-center gap-2">
+                                <span>{editingClassification ? '▼' : '▶'}</span>
+                                Editar Clasificacion
+                                {(content.user_category || content.user_concepts || content.user_entities) && (
+                                    <span className="bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 text-xs px-2 py-0.5 rounded-full">
+                                        Editado
+                                    </span>
+                                )}
+                            </h3>
+                        </button>
+
+                        {editingClassification && (
+                            <div className="p-4 space-y-4">
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Edita la clasificacion generada por IA. Tus cambios tienen prioridad en los filtros.
+                                </p>
+
+                                {/* Category */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Categoria
+                                        {content.iab_tier1 && userCategory !== content.iab_tier1 && (
+                                            <span className="text-xs text-gray-400 ml-2">(IA: {content.iab_tier1})</span>
+                                        )}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={userCategory}
+                                        onChange={(e) => setUserCategory(e.target.value)}
+                                        placeholder="Ej: Technology, Business, Health..."
+                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                    />
+                                </div>
+
+                                {/* Concepts */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Conceptos
+                                    </label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {userConcepts.map(concept => (
+                                            <span
+                                                key={concept}
+                                                className="px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 rounded-full text-sm flex items-center gap-1"
+                                            >
+                                                {concept}
+                                                <button
+                                                    onClick={() => setUserConcepts(prev => prev.filter(c => c !== concept))}
+                                                    className="text-blue-600 dark:text-blue-400 hover:text-red-600 dark:hover:text-red-400"
+                                                >
+                                                    x
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newConcept}
+                                            onChange={(e) => setNewConcept(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newConcept.trim()) {
+                                                    setUserConcepts(prev => [...prev, newConcept.trim()]);
+                                                    setNewConcept('');
+                                                }
+                                            }}
+                                            placeholder="Nuevo concepto..."
+                                            className="flex-1 px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                if (newConcept.trim()) {
+                                                    setUserConcepts(prev => [...prev, newConcept.trim()]);
+                                                    setNewConcept('');
+                                                }
+                                            }}
+                                            className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Persons (Gurus) */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Personas / Gurus
+                                    </label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {userPersons.map(person => (
+                                            <span
+                                                key={person}
+                                                className="px-2 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-300 rounded-full text-sm flex items-center gap-1"
+                                            >
+                                                {person}
+                                                <button
+                                                    onClick={() => setUserPersons(prev => prev.filter(p => p !== person))}
+                                                    className="text-teal-600 dark:text-teal-400 hover:text-red-600 dark:hover:text-red-400"
+                                                >
+                                                    x
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newPerson}
+                                            onChange={(e) => setNewPerson(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newPerson.trim()) {
+                                                    setUserPersons(prev => [...prev, newPerson.trim()]);
+                                                    setNewPerson('');
+                                                }
+                                            }}
+                                            placeholder="Nueva persona..."
+                                            className="flex-1 px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                if (newPerson.trim()) {
+                                                    setUserPersons(prev => [...prev, newPerson.trim()]);
+                                                    setNewPerson('');
+                                                }
+                                            }}
+                                            className="px-3 py-2 bg-teal-600 text-white rounded-lg text-sm hover:bg-teal-700"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Save/Cancel buttons */}
+                                <div className="flex justify-end gap-2 pt-2 border-t dark:border-gray-700">
+                                    <button
+                                        onClick={() => {
+                                            // Reset to original values
+                                            setUserCategory(content.user_category || content.iab_tier1 || '');
+                                            setUserConcepts(content.user_concepts || content.concepts || []);
+                                            const persons = content.user_entities?.persons ||
+                                                (content.entities?.persons?.map(p => typeof p === 'string' ? p : p.name) || []);
+                                            setUserPersons(persons);
+                                            setEditingClassification(false);
+                                        }}
+                                        className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleSaveClassification}
+                                        disabled={savingClassification}
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
+                                    >
+                                        {savingClassification ? 'Guardando...' : 'Guardar cambios'}
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

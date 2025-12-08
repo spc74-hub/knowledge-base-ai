@@ -67,6 +67,10 @@ class ContentUpdate(BaseModel):
     is_asset: Optional[bool] = None  # Mark as reusable asset/template
     maturity_level: Optional[str] = None  # captured, processed, connected, integrated
     project_id: Optional[str] = None  # Link to project (can be null to unlink)
+    # User classification overrides (takes priority over AI-generated)
+    user_entities: Optional[dict] = None  # Override entities
+    user_concepts: Optional[List[str]] = None  # Override concepts
+    user_category: Optional[str] = None  # Override iab_tier1 category
 
 
 class MaturityUpdate(BaseModel):
@@ -104,6 +108,10 @@ class ContentDetailResponse(ContentResponse):
     reading_time_minutes: Optional[int] = None
     metadata: Optional[dict] = None
     last_reviewed_at: Optional[str] = None
+    # User classification overrides
+    user_entities: Optional[dict] = None
+    user_concepts: Optional[List[str]] = None
+    user_category: Optional[str] = None
 
 
 class PaginatedResponse(BaseModel):
