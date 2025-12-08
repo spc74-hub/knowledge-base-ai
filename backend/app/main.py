@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import content, chat, search, usage, folders, apple_notes, quick_save, process, taxonomy, tags, system_notes, projects, standalone_notes, mental_models, objectives, dashboard, files, google_drive, user_experts
+from app.api.v1 import content, chat, search, usage, folders, apple_notes, quick_save, process, taxonomy, tags, system_notes, projects, standalone_notes, mental_models, objectives, dashboard, files, google_drive, user_experts, podcasts
 from app.services.batch_processor import batch_processor
 
 
@@ -74,6 +74,7 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboar
 app.include_router(files.router, prefix="/api/v1/files", tags=["files"])
 app.include_router(google_drive.router, prefix="/api/v1/google-drive", tags=["google-drive"])
 app.include_router(user_experts.router, prefix="/api/v1/experts", tags=["experts"])
+app.include_router(podcasts.router, prefix="/api/v1/podcasts", tags=["podcasts"])
 
 
 @app.get("/")

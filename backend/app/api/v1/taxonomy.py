@@ -635,6 +635,7 @@ def _get_type_label(type_value: str) -> str:
         "thread": "Threads",
         "tiktok": "Tiktok",
         "web": "Web",
+        "podcast": "Podcasts",
     }
     return labels.get(type_value, type_value.capitalize())
 
