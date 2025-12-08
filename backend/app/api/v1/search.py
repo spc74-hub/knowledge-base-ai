@@ -1202,21 +1202,21 @@ async def search_faceted(
                         ).execute()
                         results = response.data or []
             else:
-                # OPTION A: Category filter searches BOTH iab_tier1 AND user_category
-                # User category takes priority when filtering
+                # CORRECTED OPTION A: user_category REPLACES iab_tier1 for filtering
+                # A content matches category X if:
+                # - user_category = X, OR
+                # - user_category IS NULL AND iab_tier1 = X
                 if data.categories:
-                    # We need to find contents where either:
-                    # 1. iab_tier1 matches one of the filter categories, OR
-                    # 2. user_category matches one of the filter categories
-                    # Since Supabase doesn't support OR across columns easily,
-                    # we do two queries and merge
+                    # Query 1: Contents where user_category matches the filter
                     query1 = db.table("contents").select(
                         FACETED_SEARCH_FIELDS
-                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("iab_tier1", data.categories)
+                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("user_category", data.categories)
 
+                    # Query 2: Contents where iab_tier1 matches AND user_category is NULL
+                    # (user hasn't overridden the category)
                     query2 = db.table("contents").select(
                         FACETED_SEARCH_FIELDS
-                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("user_category", data.categories)
+                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("iab_tier1", data.categories).is_("user_category", "null")
 
                     # Apply concepts filter if present
                     if data.concepts:
@@ -1226,16 +1226,16 @@ async def search_faceted(
                     resp1 = query1.order("created_at", desc=True).execute()
                     resp2 = query2.order("created_at", desc=True).execute()
 
-                    # Merge and deduplicate, preferring user_category matches
+                    # Merge and deduplicate
                     seen_ids = set()
                     combined = []
-                    # First add user_category matches (priority)
-                    for item in (resp2.data or []):
+                    # Add user_category matches first
+                    for item in (resp1.data or []):
                         if item["id"] not in seen_ids:
                             seen_ids.add(item["id"])
                             combined.append(item)
-                    # Then add iab_tier1 matches
-                    for item in (resp1.data or []):
+                    # Then add iab_tier1 matches (only those without user_category)
+                    for item in (resp2.data or []):
                         if item["id"] not in seen_ids:
                             seen_ids.add(item["id"])
                             combined.append(item)
@@ -1246,7 +1246,7 @@ async def search_faceted(
 
                     # Skip standard query execution since we already have results
                     search_time = int((time.time() - start_time) * 1000)
-                    logger.info(f"Faceted search (Option A categories) returning {len(results)} results in {search_time}ms")
+                    logger.info(f"Faceted search (corrected Option A) returning {len(results)} results in {search_time}ms")
 
                     return {
                         "data": results,

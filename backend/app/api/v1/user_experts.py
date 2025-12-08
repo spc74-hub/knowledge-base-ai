@@ -227,8 +227,9 @@ async def get_expert(
 
     # Search both AI entities and user entities
     # Get contents from AI entities (entities.persons)
+    # Include user_category to show effective category
     ai_contents = db.table("contents").select(
-        "id, title, url, type, summary, iab_tier1, created_at"
+        "id, title, url, type, summary, iab_tier1, user_category, created_at"
     ).eq(
         "user_id", current_user["id"]
     ).contains(
@@ -237,7 +238,7 @@ async def get_expert(
 
     # Get contents from user entities (user_entities.persons)
     user_contents = db.table("contents").select(
-        "id, title, url, type, summary, iab_tier1, created_at"
+        "id, title, url, type, summary, iab_tier1, user_category, created_at"
     ).eq(
         "user_id", current_user["id"]
     ).contains(

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ContentDetailModal } from '@/components/content-detail-modal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -29,6 +30,39 @@ interface Content {
     type: string;
     summary: string | null;
     iab_tier1: string | null;
+    user_category: string | null;
+    created_at: string;
+}
+
+// Full content for modal
+interface FullContent {
+    id: string;
+    title: string;
+    url: string;
+    type: string;
+    summary: string | null;
+    full_text: string | null;
+    iab_tier1: string | null;
+    iab_tier2: string | null;
+    user_category: string | null;
+    concepts: string[];
+    entities: {
+        persons?: string[];
+        organizations?: string[];
+        products?: string[];
+    } | null;
+    user_entities: {
+        persons?: string[];
+        organizations?: string[];
+        products?: string[];
+    } | null;
+    user_concepts: string[] | null;
+    user_tags: string[];
+    user_note: string | null;
+    is_favorite: boolean;
+    maturity_level: string | null;
+    processing_status: string;
+    metadata: Record<string, unknown> | null;
     created_at: string;
 }
 
@@ -50,6 +84,11 @@ export default function ExpertsPage() {
     const [expertContents, setExpertContents] = useState<Content[]>([]);
     const [loadingContents, setLoadingContents] = useState(false);
     const [hasMoreContents, setHasMoreContents] = useState(false);
+
+    // Content detail modal - use any to match ContentDetailModal's expected type
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [selectedContent, setSelectedContent] = useState<any>(null);
+    const [loadingContent, setLoadingContent] = useState(false);
 
     // Available persons for autocomplete
     const [availablePersons, setAvailablePersons] = useState<string[]>([]);
@@ -146,6 +185,22 @@ export default function ExpertsPage() {
             console.error('Error fetching expert detail:', error);
         } finally {
             setLoadingContents(false);
+        }
+    }, [getAuthHeaders]);
+
+    const fetchContentDetail = useCallback(async (contentId: string) => {
+        setLoadingContent(true);
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/content/${contentId}`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setSelectedContent(data);
+            }
+        } catch (error) {
+            console.error('Error fetching content detail:', error);
+        } finally {
+            setLoadingContent(false);
         }
     }, [getAuthHeaders]);
 
@@ -535,44 +590,52 @@ export default function ExpertsPage() {
                                             </p>
                                         ) : (
                                             <div className="space-y-3">
-                                                {expertContents.map(content => (
-                                                    <div
-                                                        key={content.id}
-                                                        className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                                                    >
-                                                        <div className="flex items-start justify-between gap-4">
-                                                            <div className="flex-1 min-w-0">
-                                                                <h4 className="font-medium text-gray-900 dark:text-white line-clamp-1">
-                                                                    {content.title}
-                                                                </h4>
-                                                                {content.summary && (
-                                                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">
-                                                                        {content.summary}
-                                                                    </p>
-                                                                )}
-                                                                <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                                                    <span className="uppercase">{content.type}</span>
-                                                                    {content.iab_tier1 && (
-                                                                        <>
-                                                                            <span>·</span>
-                                                                            <span>{content.iab_tier1}</span>
-                                                                        </>
+                                                {expertContents.map(content => {
+                                                    // Effective category: user > AI
+                                                    const effectiveCategory = content.user_category || content.iab_tier1;
+                                                    return (
+                                                        <div
+                                                            key={content.id}
+                                                            onClick={() => fetchContentDetail(content.id)}
+                                                            className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                                        >
+                                                            <div className="flex items-start justify-between gap-4">
+                                                                <div className="flex-1 min-w-0">
+                                                                    <h4 className="font-medium text-gray-900 dark:text-white line-clamp-1">
+                                                                        {content.title}
+                                                                    </h4>
+                                                                    {content.summary && (
+                                                                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">
+                                                                            {content.summary}
+                                                                        </p>
                                                                     )}
-                                                                    <span>·</span>
-                                                                    <span>{new Date(content.created_at).toLocaleDateString()}</span>
+                                                                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                        <span className="uppercase">{content.type}</span>
+                                                                        {effectiveCategory && (
+                                                                            <>
+                                                                                <span>·</span>
+                                                                                <span className={content.user_category ? 'text-indigo-600 dark:text-indigo-400' : ''}>
+                                                                                    {effectiveCategory}
+                                                                                </span>
+                                                                            </>
+                                                                        )}
+                                                                        <span>·</span>
+                                                                        <span>{new Date(content.created_at).toLocaleDateString()}</span>
+                                                                    </div>
                                                                 </div>
+                                                                <a
+                                                                    href={content.url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm shrink-0"
+                                                                >
+                                                                    Abrir link
+                                                                </a>
                                                             </div>
-                                                            <a
-                                                                href={content.url}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm"
-                                                            >
-                                                                Abrir
-                                                            </a>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                                 {hasMoreContents && (
                                                     <div className="text-center pt-2">
                                                         <Link
@@ -716,6 +779,19 @@ export default function ExpertsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Content Detail Modal */}
+            <ContentDetailModal
+                content={selectedContent}
+                isOpen={!!selectedContent}
+                onClose={() => setSelectedContent(null)}
+                onUpdate={() => {
+                    // Refresh the expert contents after update
+                    if (selectedExpert) {
+                        fetchExpertDetail(selectedExpert.id);
+                    }
+                }}
+            />
         </div>
     );
 }
