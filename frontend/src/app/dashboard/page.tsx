@@ -256,6 +256,7 @@ export default function DashboardPage() {
       items: [
         { key: 'explore', label: 'Explorar', icon: '🔍', href: '/explore' },
         { key: 'taxonomy', label: 'Taxonomia', icon: '🌿', href: '/taxonomy' },
+        { key: 'experts', label: 'Mis Gurus', icon: '👤', href: '/experts' },
         { key: 'knowledge-graph', label: 'Knowledge Graph', icon: '🕸️', href: '/knowledge-graph' },
         { key: 'chat', label: 'Chat IA', icon: '💬', href: '/chat' },
       ],

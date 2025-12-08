@@ -180,6 +180,11 @@ export function ContentDetailModal({
     const [newPerson, setNewPerson] = useState('');
     const [savingClassification, setSavingClassification] = useState(false);
 
+    // Guru management
+    const [existingGurus, setExistingGurus] = useState<Set<string>>(new Set());
+    const [addingGuru, setAddingGuru] = useState<string | null>(null);
+    const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+
     useEffect(() => {
         if (content) {
             setUserTags(content.user_tags || []);
@@ -202,6 +207,60 @@ export function ContentDetailModal({
             ...(session.data.session ? { Authorization: `Bearer ${session.data.session.access_token}` } : {}),
         };
     }, []);
+
+    // Load existing gurus and categories when editing classification
+    const loadGurusAndCategories = useCallback(async () => {
+        try {
+            const headers = await getAuthHeaders();
+            // Load existing gurus
+            const gurusRes = await fetch(`${API_URL}/api/v1/experts/`, { headers });
+            if (gurusRes.ok) {
+                const data = await gurusRes.json();
+                const guruNames = new Set<string>(data.experts?.map((e: { person_name: string }) => e.person_name) || []);
+                setExistingGurus(guruNames);
+            }
+            // Load available categories from existing contents
+            const catsRes = await fetch(`${API_URL}/api/v1/taxonomy/`, { headers });
+            if (catsRes.ok) {
+                const data = await catsRes.json();
+                const categories = data.categories?.map((c: { name: string }) => c.name) || [];
+                setAvailableCategories(categories);
+            }
+        } catch (error) {
+            console.error('Error loading gurus/categories:', error);
+        }
+    }, [getAuthHeaders]);
+
+    useEffect(() => {
+        if (editingClassification) {
+            loadGurusAndCategories();
+        }
+    }, [editingClassification, loadGurusAndCategories]);
+
+    // Add person as guru (expert)
+    const handleAddAsGuru = async (personName: string) => {
+        setAddingGuru(personName);
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${API_URL}/api/v1/experts/`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    person_name: personName,
+                    expert_categories: content?.iab_tier1 ? [content.iab_tier1] : [],
+                    description: null,
+                }),
+            });
+            if (response.ok || response.status === 409) {
+                // 409 means already exists, which is fine
+                setExistingGurus(prev => new Set([...prev, personName]));
+            }
+        } catch (error) {
+            console.error('Error adding guru:', error);
+        } finally {
+            setAddingGuru(null);
+        }
+    };
 
     const handleToggleFavorite = async () => {
         if (!content) return;
@@ -1154,13 +1213,42 @@ export function ContentDetailModal({
                                             <span className="text-xs text-gray-400 ml-2">(IA: {content.iab_tier1})</span>
                                         )}
                                     </label>
-                                    <input
-                                        type="text"
-                                        value={userCategory}
-                                        onChange={(e) => setUserCategory(e.target.value)}
-                                        placeholder="Ej: Technology, Business, Health..."
-                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            list="category-options"
+                                            value={userCategory}
+                                            onChange={(e) => setUserCategory(e.target.value)}
+                                            placeholder="Selecciona o escribe una categoria..."
+                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        />
+                                        <datalist id="category-options">
+                                            {availableCategories.map(cat => (
+                                                <option key={cat} value={cat} />
+                                            ))}
+                                        </datalist>
+                                    </div>
+                                    {/* Quick category buttons */}
+                                    {availableCategories.length > 0 && (
+                                        <div className="mt-2">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Categorias existentes:</p>
+                                            <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                                                {availableCategories.slice(0, 15).map(cat => (
+                                                    <button
+                                                        key={cat}
+                                                        onClick={() => setUserCategory(cat)}
+                                                        className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                                                            userCategory === cat
+                                                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 hover:text-indigo-700 dark:hover:text-indigo-300'
+                                                        }`}
+                                                    >
+                                                        {cat}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Concepts */}
@@ -1248,7 +1336,20 @@ export function ContentDetailModal({
                                                 key={person}
                                                 className="px-2 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-300 rounded-full text-sm flex items-center gap-1"
                                             >
+                                                {existingGurus.has(person) && (
+                                                    <span title="Es un Gurú">⭐</span>
+                                                )}
                                                 {person}
+                                                {!existingGurus.has(person) && (
+                                                    <button
+                                                        onClick={() => handleAddAsGuru(person)}
+                                                        disabled={addingGuru === person}
+                                                        className="ml-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 disabled:opacity-50"
+                                                        title="Marcar como Gurú"
+                                                    >
+                                                        {addingGuru === person ? '...' : '👤+'}
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => setUserPersons(prev => prev.filter(p => p !== person))}
                                                     className="text-teal-600 dark:text-teal-400 hover:text-red-600 dark:hover:text-red-400"
