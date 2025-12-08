@@ -311,3 +311,124 @@ async def capture_podcast_simple(
         process_now=True
     )
     return await capture_podcast(request, current_user, db)
+
+
+class PodcastBookmarkRequest(BaseModel):
+    """Request model for simple podcast bookmark (URL only)."""
+    podcast_url: str  # URL from Apple Podcasts share
+    note: Optional[str] = None  # Optional user note
+
+
+@router.post("/bookmark", response_model=PodcastCaptureResponse)
+async def bookmark_podcast(
+    data: PodcastBookmarkRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Bookmark a podcast episode with just the URL.
+    Fetches metadata from iTunes API automatically.
+    No transcript required - just saves the reference with metadata.
+
+    Flow:
+    1. Receive URL from iOS Shortcut
+    2. Fetch metadata from Apple Podcasts (title, podcast name, artwork, description)
+    3. Save to database with type "podcast"
+    4. User can add notes later in the app
+    """
+    try:
+        user_id = current_user["id"]
+        url_str = str(data.podcast_url).strip()
+
+        if not url_str:
+            return PodcastCaptureResponse(
+                success=False,
+                message="URL is required",
+                error="missing_url"
+            )
+
+        logger.info(f"Podcast bookmark request: {url_str[:50]}...")
+
+        # Check if URL already exists
+        existing = db.table("contents").select("id, title").eq(
+            "user_id", user_id
+        ).eq("url", url_str).execute()
+
+        if existing.data:
+            return PodcastCaptureResponse(
+                success=False,
+                message="This podcast episode is already saved",
+                content_id=existing.data[0]["id"],
+                title=existing.data[0]["title"],
+                error="duplicate"
+            )
+
+        # Fetch metadata from Apple Podcasts
+        metadata = await fetch_podcast_metadata(url_str)
+
+        episode_title = metadata.get("episode_title") or "Podcast Episode"
+        podcast_name = metadata.get("podcast_name") or "Unknown Podcast"
+        description = metadata.get("description") or ""
+
+        # Build full title
+        title = f"{episode_title}"
+        if podcast_name and podcast_name != "Unknown Podcast":
+            title = f"{podcast_name}: {episode_title}"
+
+        # Format duration if available
+        duration_str = None
+        if metadata.get("duration_ms"):
+            duration_min = metadata["duration_ms"] // 60000
+            duration_str = f"{duration_min} min"
+
+        # Content data - minimal, no AI processing
+        content_data = {
+            "user_id": user_id,
+            "url": url_str,
+            "type": "podcast",
+            "title": title,
+            "summary": description[:500] if description else None,  # Use iTunes description as summary
+            "raw_content": description or f"Podcast episode: {title}",
+            "reading_time_minutes": metadata.get("duration_ms", 0) // 60000 if metadata.get("duration_ms") else None,
+            "metadata": {
+                "source": "apple_podcasts",
+                "podcast_name": podcast_name,
+                "episode_title": episode_title,
+                "artwork_url": metadata.get("artwork_url"),
+                "duration": duration_str,
+                "duration_ms": metadata.get("duration_ms"),
+                "release_date": metadata.get("release_date"),
+                "saved_via": "ios_shortcut_bookmark"
+            },
+            "user_tags": [],
+            "user_note": data.note if data.note else None,
+            "processing_status": "completed"  # No AI processing needed
+        }
+
+        # Save to database
+        response = db.table("contents").insert(content_data).execute()
+
+        if not response.data:
+            return PodcastCaptureResponse(
+                success=False,
+                message="Failed to save podcast",
+                error="database_error"
+            )
+
+        return PodcastCaptureResponse(
+            success=True,
+            message="Podcast bookmarked!",
+            content_id=response.data[0]["id"],
+            title=title,
+            podcast_name=podcast_name
+        )
+
+    except Exception as e:
+        logger.error(f"Podcast bookmark error: {e}")
+        import traceback
+        traceback.print_exc()
+        return PodcastCaptureResponse(
+            success=False,
+            message="An error occurred",
+            error=str(e)
+        )
