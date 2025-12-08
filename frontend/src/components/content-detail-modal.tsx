@@ -1181,6 +1181,7 @@ export function ContentDetailModal({
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Conceptos
                                     </label>
+                                    {/* Current user concepts */}
                                     <div className="flex flex-wrap gap-2 mb-2">
                                         {userConcepts.map(concept => (
                                             <span
@@ -1196,7 +1197,30 @@ export function ContentDetailModal({
                                                 </button>
                                             </span>
                                         ))}
+                                        {userConcepts.length === 0 && (
+                                            <span className="text-gray-400 text-sm italic">Sin conceptos</span>
+                                        )}
                                     </div>
+                                    {/* AI suggested concepts (click to add) */}
+                                    {content.concepts && content.concepts.length > 0 && (
+                                        <div className="mb-2">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sugeridos por IA (clic para añadir):</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {content.concepts.filter(c => !userConcepts.includes(c)).map(concept => (
+                                                    <button
+                                                        key={concept}
+                                                        onClick={() => setUserConcepts(prev => [...prev, concept])}
+                                                        className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 border border-dashed border-gray-300 dark:border-gray-600"
+                                                    >
+                                                        + {concept}
+                                                    </button>
+                                                ))}
+                                                {content.concepts.filter(c => !userConcepts.includes(c)).length === 0 && (
+                                                    <span className="text-xs text-green-600 dark:text-green-400">Todos añadidos</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
@@ -1230,6 +1254,7 @@ export function ContentDetailModal({
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Personas / Gurus
                                     </label>
+                                    {/* Current user persons */}
                                     <div className="flex flex-wrap gap-2 mb-2">
                                         {userPersons.map(person => (
                                             <span
@@ -1245,7 +1270,35 @@ export function ContentDetailModal({
                                                 </button>
                                             </span>
                                         ))}
+                                        {userPersons.length === 0 && (
+                                            <span className="text-gray-400 text-sm italic">Sin personas</span>
+                                        )}
                                     </div>
+                                    {/* AI suggested persons (click to add) */}
+                                    {content.entities?.persons && content.entities.persons.length > 0 && (
+                                        <div className="mb-2">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sugeridos por IA (clic para añadir):</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {content.entities.persons
+                                                    .map(p => typeof p === 'string' ? p : p.name)
+                                                    .filter(p => !userPersons.includes(p))
+                                                    .map(person => (
+                                                        <button
+                                                            key={person}
+                                                            onClick={() => setUserPersons(prev => [...prev, person])}
+                                                            className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs hover:bg-teal-100 dark:hover:bg-teal-900/50 hover:text-teal-700 dark:hover:text-teal-300 border border-dashed border-gray-300 dark:border-gray-600"
+                                                        >
+                                                            + {person}
+                                                        </button>
+                                                    ))}
+                                                {content.entities.persons
+                                                    .map(p => typeof p === 'string' ? p : p.name)
+                                                    .filter(p => !userPersons.includes(p)).length === 0 && (
+                                                    <span className="text-xs text-green-600 dark:text-green-400">Todos añadidos</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
