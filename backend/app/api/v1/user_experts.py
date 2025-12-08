@@ -10,6 +10,40 @@ from app.api.deps import Database, CurrentUser
 router = APIRouter()
 
 
+def get_expert_content_categories(db, user_id: str, person_name: str) -> list[str]:
+    """
+    Get effective categories (user_category > iab_tier1) from contents
+    where this person appears.
+    """
+    # Get contents from AI entities (entities.persons)
+    ai_contents = db.table("contents").select(
+        "iab_tier1, user_category"
+    ).eq(
+        "user_id", user_id
+    ).contains(
+        "entities", {"persons": [person_name]}
+    ).execute()
+
+    # Get contents from user entities (user_entities.persons)
+    user_contents = db.table("contents").select(
+        "iab_tier1, user_category"
+    ).eq(
+        "user_id", user_id
+    ).contains(
+        "user_entities", {"persons": [person_name]}
+    ).execute()
+
+    # Collect unique effective categories
+    categories = set()
+    for content in (ai_contents.data or []) + (user_contents.data or []):
+        # Effective category: user_category takes priority over iab_tier1
+        effective_cat = content.get("user_category") or content.get("iab_tier1")
+        if effective_cat:
+            categories.add(effective_cat)
+
+    return sorted(list(categories))
+
+
 class ExpertCreate(BaseModel):
     person_name: str
     expert_categories: List[str] = []
@@ -60,13 +94,14 @@ async def list_experts(
     result = query.order("person_name").execute()
     experts = result.data or []
 
-    # Filter by category if provided
-    if category:
-        experts = [e for e in experts if category in (e.get("expert_categories") or [])]
-
-    # Get content counts for each expert (searching both AI and user entities)
+    # Calculate categories and counts for each expert from their associated contents
     for expert in experts:
         person_name = expert["person_name"]
+
+        # Get effective categories from contents (user_category > iab_tier1)
+        expert["expert_categories"] = get_expert_content_categories(
+            db, current_user["id"], person_name
+        )
 
         # Count from AI entities (entities.persons)
         ai_result = db.table("contents").select(
@@ -89,8 +124,11 @@ async def list_experts(
         # Combine counts (note: some may overlap, but this gives a reasonable estimate)
         ai_count = ai_result.count or 0
         user_count = user_result.count or 0
-        # Use max to avoid double counting - will be accurate for most cases
         expert["content_count"] = max(ai_count, user_count) if ai_count > 0 or user_count > 0 else 0
+
+    # Filter by category if provided (now using calculated categories)
+    if category:
+        experts = [e for e in experts if category in e.get("expert_categories", [])]
 
     return {
         "experts": experts,
@@ -99,19 +137,25 @@ async def list_experts(
 
 
 @router.get("/categories")
-async def get_expert_categories(
+async def get_all_expert_categories(
     current_user: CurrentUser,
     db: Database,
 ):
-    """Get all unique categories used across experts."""
-    result = db.table("user_experts").select("expert_categories").eq(
+    """
+    Get all unique effective categories from contents associated with experts.
+    Categories are derived from user_category (priority) or iab_tier1.
+    """
+    # Get all active experts
+    experts_result = db.table("user_experts").select("person_name").eq(
         "user_id", current_user["id"]
     ).eq("is_active", True).execute()
 
     all_categories = set()
-    for expert in (result.data or []):
-        for cat in (expert.get("expert_categories") or []):
-            all_categories.add(cat)
+    for expert in (experts_result.data or []):
+        person_name = expert["person_name"]
+        # Get effective categories for this expert
+        categories = get_expert_content_categories(db, current_user["id"], person_name)
+        all_categories.update(categories)
 
     return {
         "categories": sorted(list(all_categories))
@@ -280,6 +324,11 @@ async def get_expert(
     total_count = len(all_contents)
     # If we fetched more than preview_limit, there are more
     has_more = len(all_contents) > preview_limit
+
+    # Calculate effective categories from contents (user_category > iab_tier1)
+    expert["expert_categories"] = get_expert_content_categories(
+        db, current_user["id"], person_name
+    )
 
     return {
         "expert": expert,
