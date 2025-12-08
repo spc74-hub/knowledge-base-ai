@@ -580,10 +580,12 @@ def _aggregate_facets(items: list) -> dict:
             else:
                 types[t] = types.get(t, 0) + 1
 
-        # Count categories (IAB tier1)
-        cat = item.get("iab_tier1")
-        if cat:
-            categories[cat] = categories.get(cat, 0) + 1
+        # Count categories - OPTION A: user_category takes priority over iab_tier1
+        user_cat = item.get("user_category")
+        ai_cat = item.get("iab_tier1")
+        effective_cat = user_cat if user_cat else ai_cat
+        if effective_cat:
+            categories[effective_cat] = categories.get(effective_cat, 0) + 1
 
         # Count concepts
         for concept in item.get("concepts") or []:
@@ -674,7 +676,7 @@ async def get_facets(
         batch_size = 1000
         while True:
             batch_response = db.table("contents").select(
-                "type, metadata, iab_tier1, concepts, entities, user_tags"
+                "type, metadata, iab_tier1, user_category, concepts, entities, user_tags"
             ).eq("user_id", user_id).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
 
             batch_data = batch_response.data or []
@@ -709,10 +711,14 @@ async def get_facets(
                 else:
                     types[t] = types.get(t, 0) + 1
 
-            # Count categories
-            cat = item.get("iab_tier1")
-            if cat:
-                categories[cat] = categories.get(cat, 0) + 1
+            # Count categories - OPTION A: include both iab_tier1 and user_category
+            # User category takes priority (show it if it exists, otherwise show AI category)
+            user_cat = item.get("user_category")
+            ai_cat = item.get("iab_tier1")
+            # Use user_category if it exists, otherwise fall back to iab_tier1
+            effective_cat = user_cat if user_cat else ai_cat
+            if effective_cat:
+                categories[effective_cat] = categories.get(effective_cat, 0) + 1
 
             # Count concepts
             for concept in item.get("concepts") or []:
@@ -1196,8 +1202,72 @@ async def search_faceted(
                         ).execute()
                         results = response.data or []
             else:
+                # OPTION A: Category filter searches BOTH iab_tier1 AND user_category
+                # User category takes priority when filtering
                 if data.categories:
-                    query = query.in_("iab_tier1", data.categories)
+                    # We need to find contents where either:
+                    # 1. iab_tier1 matches one of the filter categories, OR
+                    # 2. user_category matches one of the filter categories
+                    # Since Supabase doesn't support OR across columns easily,
+                    # we do two queries and merge
+                    query1 = db.table("contents").select(
+                        FACETED_SEARCH_FIELDS
+                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("iab_tier1", data.categories)
+
+                    query2 = db.table("contents").select(
+                        FACETED_SEARCH_FIELDS
+                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("user_category", data.categories)
+
+                    # Apply concepts filter if present
+                    if data.concepts:
+                        query1 = query1.overlaps("concepts", data.concepts)
+                        query2 = query2.overlaps("concepts", data.concepts)
+
+                    resp1 = query1.order("created_at", desc=True).execute()
+                    resp2 = query2.order("created_at", desc=True).execute()
+
+                    # Merge and deduplicate, preferring user_category matches
+                    seen_ids = set()
+                    combined = []
+                    # First add user_category matches (priority)
+                    for item in (resp2.data or []):
+                        if item["id"] not in seen_ids:
+                            seen_ids.add(item["id"])
+                            combined.append(item)
+                    # Then add iab_tier1 matches
+                    for item in (resp1.data or []):
+                        if item["id"] not in seen_ids:
+                            seen_ids.add(item["id"])
+                            combined.append(item)
+
+                    # Sort by created_at and paginate
+                    combined.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                    results = combined[data.offset:data.offset + data.limit]
+
+                    # Skip standard query execution since we already have results
+                    search_time = int((time.time() - start_time) * 1000)
+                    logger.info(f"Faceted search (Option A categories) returning {len(results)} results in {search_time}ms")
+
+                    return {
+                        "data": results,
+                        "meta": {
+                            "query": data.query,
+                            "filters": {
+                                "types": data.types,
+                                "categories": data.categories,
+                                "concepts": data.concepts,
+                                "organizations": data.organizations,
+                                "products": data.products,
+                                "persons": data.persons,
+                                "user_tags": data.user_tags,
+                                "inherited_tags": data.inherited_tags
+                            },
+                            "total_results": len(combined),
+                            "search_time_ms": search_time,
+                            "offset": data.offset,
+                            "limit": data.limit
+                        }
+                    }
 
                 # For concepts, check if any of the filter concepts are in the array
                 if data.concepts:

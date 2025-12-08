@@ -637,3 +637,62 @@ def _get_type_label(type_value: str) -> str:
         "web": "Web",
     }
     return labels.get(type_value, type_value.capitalize())
+
+
+@router.get("/")
+async def get_available_categories(
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Get all available categories for the classification editor dropdown.
+    Returns both AI-assigned categories (iab_tier1) and user-created categories (user_category).
+    """
+    try:
+        user_id = current_user["id"]
+
+        # Get all unique categories from both iab_tier1 and user_category
+        # Use batched fetching for large datasets
+        all_categories = set()
+        offset = 0
+        batch_size = 1000
+
+        while True:
+            response = db.table("contents").select(
+                "iab_tier1, user_category"
+            ).eq("user_id", user_id).neq("is_archived", True).range(
+                offset, offset + batch_size - 1
+            ).execute()
+
+            items = response.data or []
+            if not items:
+                break
+
+            for item in items:
+                # Add AI category
+                if item.get("iab_tier1"):
+                    all_categories.add(item["iab_tier1"])
+                # Add user category
+                if item.get("user_category"):
+                    all_categories.add(item["user_category"])
+
+            if len(items) < batch_size:
+                break
+            offset += batch_size
+
+        # Sort and format for dropdown
+        sorted_categories = sorted(list(all_categories))
+        categories = [{"name": cat} for cat in sorted_categories]
+
+        return {
+            "categories": categories,
+            "total": len(categories)
+        }
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Categories error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
