@@ -607,6 +607,24 @@ function ExplorePageContent() {
         }
     }, [searchParams, user, router]);
 
+    // Handle ?person=NAME query parameter to filter by person (from Experts page)
+    useEffect(() => {
+        const personParam = searchParams.get('person');
+        if (personParam && user) {
+            // Set the person filter and expand the persons section
+            setFilters(prev => ({
+                ...prev,
+                persons: [personParam]
+            }));
+            setExpandedSections(prev => ({
+                ...prev,
+                persons: true
+            }));
+            // Clear the query param from URL without navigation
+            router.replace('/explore', { scroll: false });
+        }
+    }, [searchParams, user, router]);
+
     useEffect(() => {
         if (user) {
             // Increased debounce to 500ms for better performance

@@ -1044,17 +1044,31 @@ async def search_faceted(
 
             if data.persons:
                 for person in data.persons:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
+                    # Search in AI entities (entities->persons)
+                    q1 = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
                     if data.types:
-                        q = apply_type_filter(q, data.types)
+                        q1 = apply_type_filter(q1, data.types)
                     if data.categories:
-                        q = q.in_("iab_tier1", data.categories)
+                        q1 = q1.in_("iab_tier1", data.categories)
                     if data.concepts:
-                        q = q.overlaps("concepts", data.concepts)
+                        q1 = q1.overlaps("concepts", data.concepts)
                     pattern = json_module.dumps([{"name": person}])
-                    q = q.filter("entities->persons", "cs", pattern)
-                    resp = q.execute()
-                    all_ids.update(item["id"] for item in resp.data or [])
+                    q1 = q1.filter("entities->persons", "cs", pattern)
+                    resp1 = q1.execute()
+                    all_ids.update(item["id"] for item in resp1.data or [])
+
+                    # Also search in user entities (user_entities->persons)
+                    q2 = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
+                    if data.types:
+                        q2 = apply_type_filter(q2, data.types)
+                    if data.categories:
+                        q2 = q2.in_("iab_tier1", data.categories)
+                    if data.concepts:
+                        q2 = q2.overlaps("concepts", data.concepts)
+                    # user_entities stores persons as simple strings array
+                    q2 = q2.contains("user_entities", {"persons": [person]})
+                    resp2 = q2.execute()
+                    all_ids.update(item["id"] for item in resp2.data or [])
 
             # If we have matching IDs, fetch full content
             if all_ids:

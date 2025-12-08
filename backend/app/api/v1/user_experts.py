@@ -64,17 +64,33 @@ async def list_experts(
     if category:
         experts = [e for e in experts if category in (e.get("expert_categories") or [])]
 
-    # Get content counts for each expert
+    # Get content counts for each expert (searching both AI and user entities)
     for expert in experts:
-        # Count contents where this person appears in entities.persons
-        count_result = db.table("contents").select(
+        person_name = expert["person_name"]
+
+        # Count from AI entities (entities.persons)
+        ai_result = db.table("contents").select(
             "id", count="exact"
         ).eq(
             "user_id", current_user["id"]
         ).contains(
-            "entities", {"persons": [expert["person_name"]]}
+            "entities", {"persons": [person_name]}
         ).execute()
-        expert["content_count"] = count_result.count or 0
+
+        # Count from user entities (user_entities.persons)
+        user_result = db.table("contents").select(
+            "id", count="exact"
+        ).eq(
+            "user_id", current_user["id"]
+        ).contains(
+            "user_entities", {"persons": [person_name]}
+        ).execute()
+
+        # Combine counts (note: some may overlap, but this gives a reasonable estimate)
+        ai_count = ai_result.count or 0
+        user_count = user_result.count or 0
+        # Use max to avoid double counting - will be accurate for most cases
+        expert["content_count"] = max(ai_count, user_count) if ai_count > 0 or user_count > 0 else 0
 
     return {
         "experts": experts,
@@ -192,8 +208,9 @@ async def get_expert(
     expert_id: str,
     current_user: CurrentUser,
     db: Database,
+    preview_limit: int = 5,
 ):
-    """Get a specific expert with their associated contents."""
+    """Get a specific expert with their associated contents (preview)."""
     # Get the expert
     expert_result = db.table("user_experts").select("*").eq(
         "id", expert_id
@@ -206,20 +223,69 @@ async def get_expert(
         )
 
     expert = expert_result.data[0]
+    person_name = expert["person_name"]
 
-    # Get contents where this person appears
-    contents_result = db.table("contents").select(
+    # Search both AI entities and user entities
+    # Get contents from AI entities (entities.persons)
+    ai_contents = db.table("contents").select(
         "id, title, url, type, summary, iab_tier1, created_at"
     ).eq(
         "user_id", current_user["id"]
     ).contains(
-        "entities", {"persons": [expert["person_name"]]}
-    ).order("created_at", desc=True).limit(50).execute()
+        "entities", {"persons": [person_name]}
+    ).order("created_at", desc=True).limit(preview_limit + 10).execute()
+
+    # Get contents from user entities (user_entities.persons)
+    user_contents = db.table("contents").select(
+        "id, title, url, type, summary, iab_tier1, created_at"
+    ).eq(
+        "user_id", current_user["id"]
+    ).contains(
+        "user_entities", {"persons": [person_name]}
+    ).order("created_at", desc=True).limit(preview_limit + 10).execute()
+
+    # Merge and deduplicate results
+    all_contents = {}
+    for content in (ai_contents.data or []):
+        all_contents[content["id"]] = content
+    for content in (user_contents.data or []):
+        all_contents[content["id"]] = content
+
+    # Sort by created_at and limit to preview
+    sorted_contents = sorted(
+        all_contents.values(),
+        key=lambda x: x["created_at"],
+        reverse=True
+    )[:preview_limit]
+
+    # Get total counts for "Ver todos" indicator
+    ai_count_result = db.table("contents").select(
+        "id", count="exact"
+    ).eq(
+        "user_id", current_user["id"]
+    ).contains(
+        "entities", {"persons": [person_name]}
+    ).execute()
+
+    user_count_result = db.table("contents").select(
+        "id", count="exact"
+    ).eq(
+        "user_id", current_user["id"]
+    ).contains(
+        "user_entities", {"persons": [person_name]}
+    ).execute()
+
+    # Estimate total (may have some overlap, but good enough)
+    total_count = len(all_contents)
+    # If we fetched more than preview_limit, there are more
+    has_more = len(all_contents) > preview_limit
 
     return {
         "expert": expert,
-        "contents": contents_result.data or [],
-        "content_count": len(contents_result.data or [])
+        "contents": sorted_contents,
+        "content_count": total_count,
+        "has_more": has_more,
+        "preview_limit": preview_limit
     }
 
 

@@ -32,6 +32,14 @@ interface Content {
     created_at: string;
 }
 
+interface ExpertDetailResponse {
+    expert: Expert;
+    contents: Content[];
+    content_count: number;
+    has_more: boolean;
+    preview_limit: number;
+}
+
 export default function ExpertsPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
@@ -41,6 +49,7 @@ export default function ExpertsPage() {
     const [selectedExpert, setSelectedExpert] = useState<Expert | null>(null);
     const [expertContents, setExpertContents] = useState<Content[]>([]);
     const [loadingContents, setLoadingContents] = useState(false);
+    const [hasMoreContents, setHasMoreContents] = useState(false);
 
     // Available persons for autocomplete
     const [availablePersons, setAvailablePersons] = useState<string[]>([]);
@@ -128,9 +137,10 @@ export default function ExpertsPage() {
             const headers = await getAuthHeaders();
             const response = await fetch(`${API_URL}/api/v1/experts/${expertId}`, { headers });
             if (response.ok) {
-                const data = await response.json();
+                const data: ExpertDetailResponse = await response.json();
                 setSelectedExpert(data.expert);
                 setExpertContents(data.contents || []);
+                setHasMoreContents(data.has_more || false);
             }
         } catch (error) {
             console.error('Error fetching expert detail:', error);
@@ -502,9 +512,19 @@ export default function ExpertsPage() {
 
                                     {/* Contents */}
                                     <div className="p-6">
-                                        <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
-                                            Contenidos relacionados
-                                        </h3>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                                                Contenidos relacionados {expertContents.length > 0 && `(${expertContents.length}${hasMoreContents ? '+' : ''})`}
+                                            </h3>
+                                            {expertContents.length > 0 && (
+                                                <Link
+                                                    href={`/explore?person=${encodeURIComponent(selectedExpert.person_name)}`}
+                                                    className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                                                >
+                                                    Ver todos en Explorer →
+                                                </Link>
+                                            )}
+                                        </div>
                                         {loadingContents ? (
                                             <div className="text-center py-8">
                                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
@@ -553,6 +573,16 @@ export default function ExpertsPage() {
                                                         </div>
                                                     </div>
                                                 ))}
+                                                {hasMoreContents && (
+                                                    <div className="text-center pt-2">
+                                                        <Link
+                                                            href={`/explore?person=${encodeURIComponent(selectedExpert.person_name)}`}
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                                                        >
+                                                            Ver todos los contenidos en Explorer →
+                                                        </Link>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
