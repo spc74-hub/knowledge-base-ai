@@ -931,6 +931,7 @@ class FacetedSearchRequest(BaseModel):
 FACETED_SEARCH_FIELDS = (
     "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
     "processing_status, maturity_level, is_favorite, user_note, user_tags, "
+    "user_entities, user_concepts, user_category, "
     "metadata, created_at"
 )
 
