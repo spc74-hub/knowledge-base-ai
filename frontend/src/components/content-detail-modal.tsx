@@ -968,7 +968,7 @@ export function ContentDetailModal({
                     {/* User Note */}
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">Mi Nota</h3>
+                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">Mis Comentarios</h3>
                             {!editingNote && (
                                 <button
                                     onClick={() => setEditingNote(true)}
