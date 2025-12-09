@@ -153,12 +153,39 @@ export default function TaxonomyExplorerPage() {
         };
     };
 
-    // Fetch available content types
+    // Fetch available content types (with filters applied)
     const fetchTypes = useCallback(async () => {
         if (!user) return;
         try {
             const headers = await getAuthHeaders();
-            const response = await fetch(`${API_URL}/api/v1/taxonomy/types`, { headers });
+
+            // Check if we have any filters that should affect type counts
+            const hasFilters =
+                facetFilters.persons.length > 0 ||
+                facetFilters.is_favorite !== null ||
+                facetFilters.has_comment !== null ||
+                facetFilters.processing_status.length > 0 ||
+                facetFilters.maturity_level.length > 0;
+
+            let response;
+            if (hasFilters) {
+                // Use POST with filters
+                response = await fetch(`${API_URL}/api/v1/taxonomy/types`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
+                        is_favorite: facetFilters.is_favorite,
+                        has_comment: facetFilters.has_comment,
+                        processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
+                        maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
+                    }),
+                });
+            } else {
+                // Use GET without filters (faster)
+                response = await fetch(`${API_URL}/api/v1/taxonomy/types`, { headers });
+            }
+
             if (response.ok) {
                 const data = await response.json();
                 setAvailableTypes(data.types || []);
@@ -166,7 +193,7 @@ export default function TaxonomyExplorerPage() {
         } catch (err) {
             console.error('Error fetching types:', err);
         }
-    }, [user]);
+    }, [user, facetFilters.persons, facetFilters.is_favorite, facetFilters.has_comment, facetFilters.processing_status, facetFilters.maturity_level]);
 
     // Fetch facets for filters
     const fetchFacets = useCallback(async () => {
@@ -414,14 +441,27 @@ export default function TaxonomyExplorerPage() {
         }
     }, [authLoading, user, router]);
 
+    // Initial load - only fetch facets and experts once
+    useEffect(() => {
+        if (user) {
+            fetchFacets();
+            fetchUserExperts();
+        }
+    }, [user, fetchFacets, fetchUserExperts]);
+
+    // Fetch types when filters change (or on initial load)
     useEffect(() => {
         if (user) {
             fetchTypes();
-            fetchFacets();
-            fetchUserExperts();
+        }
+    }, [user, fetchTypes]);
+
+    // Fetch nodes when rootType or filters change
+    useEffect(() => {
+        if (user) {
             fetchNodes(rootType);
         }
-    }, [user, fetchTypes, fetchFacets, fetchUserExperts, fetchNodes, rootType]);
+    }, [user, rootType, fetchNodes]);
 
     // Handle root type change
     const handleRootTypeChange = (newType: RootType) => {

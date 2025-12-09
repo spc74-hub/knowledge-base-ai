@@ -100,7 +100,18 @@ async def get_taxonomy_nodes(
         active_type_filters = data.type_filters or ([data.type_filter] if data.type_filter else None)
 
         # For category aggregation without complex filters, use optimized SQL
-        if data.root_type == "category" and not data.parent_type:
+        # BUT if we have type_filters or other complex filters, use batched approach
+        # because the RPC doesn't handle type filtering properly
+        has_complex_filters = bool(
+            active_type_filters or
+            data.has_comment is not None or
+            data.is_favorite is not None or
+            data.persons or
+            (data.processing_status and len(data.processing_status) > 1) or
+            (data.maturity_level and len(data.maturity_level) > 1)
+        )
+
+        if data.root_type == "category" and not data.parent_type and not has_complex_filters:
             nodes, total = await _get_category_nodes_optimized(
                 db, user_id, active_type_filters,
                 data.processing_status, data.maturity_level, data.has_comment,
@@ -114,7 +125,7 @@ async def get_taxonomy_nodes(
             db, user_id, data.root_type, active_type_filters,
             data.parent_type, data.parent_value,
             data.processing_status, data.maturity_level, data.has_comment,
-            data.is_favorite
+            data.is_favorite, data.persons
         )
 
         # Build breadcrumb path
@@ -240,7 +251,8 @@ async def _get_nodes_batched(
     db, user_id: str, root_type: str, type_filters: Optional[List[str]],
     parent_type: Optional[str], parent_value: Optional[str],
     processing_status: Optional[List[str]], maturity_level: Optional[List[str]],
-    has_comment: Optional[bool], is_favorite: Optional[bool] = None
+    has_comment: Optional[bool], is_favorite: Optional[bool] = None,
+    persons: Optional[List[str]] = None
 ) -> tuple:
     """
     Get taxonomy nodes with batched fetching for better memory management.
@@ -254,7 +266,7 @@ async def _get_nodes_batched(
     while True:
         # Build query for this batch
         query = db.table("contents").select(
-            "id, type, iab_tier1, concepts, entities, metadata, processing_status, maturity_level, user_note, is_favorite"
+            "id, type, iab_tier1, concepts, entities, user_entities, metadata, processing_status, maturity_level, user_note, is_favorite"
         ).eq("user_id", user_id).eq("is_archived", False)
 
         # Apply parent filter if drilling down
@@ -321,6 +333,19 @@ async def _get_nodes_batched(
                 if is_favorite and not item_favorite:
                     continue
                 if not is_favorite and item_favorite:
+                    continue
+
+            # Persons filter (experts) - check both entities and user_entities
+            if persons:
+                # AI-extracted entities (array of objects with "name")
+                entities = item.get("entities") or {}
+                ai_persons = [p.get("name") if isinstance(p, dict) else p for p in (entities.get("persons") or [])]
+                # User-edited entities (array of strings)
+                user_entities = item.get("user_entities") or {}
+                user_persons = user_entities.get("persons") or []
+                # Combine both sources
+                all_persons = set(ai_persons) | set(user_persons)
+                if not any(p in all_persons for p in persons):
                     continue
 
             total_items += 1
@@ -532,79 +557,149 @@ async def get_taxonomy_contents(
         )
 
 
+class TypeCountsRequest(BaseModel):
+    """Request for type counts with filters."""
+    # Filters to apply when counting types
+    persons: Optional[List[str]] = None
+    is_favorite: Optional[bool] = None
+    has_comment: Optional[bool] = None
+    processing_status: Optional[List[str]] = None
+    maturity_level: Optional[List[str]] = None
+
+
 @router.get("/types")
 async def get_content_types(
     current_user: CurrentUser,
     db: Database
 ):
     """
-    Get available content types for filtering.
+    Get available content types for filtering (no filters applied).
     Uses optimized SQL aggregation for large datasets.
     """
+    return await _get_type_counts(current_user["id"], db, None)
+
+
+@router.post("/types")
+async def get_content_types_filtered(
+    data: TypeCountsRequest,
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Get available content types with filters applied.
+    Counts reflect only items matching the filters.
+    """
+    return await _get_type_counts(current_user["id"], db, data)
+
+
+async def _get_type_counts(user_id: str, db, filters: Optional[TypeCountsRequest]):
+    """
+    Get type counts, optionally filtered.
+    """
     try:
-        user_id = current_user["id"]
+        # Check if we need filtering
+        has_filters = filters and (
+            filters.persons or
+            filters.is_favorite is not None or
+            filters.has_comment is not None or
+            (filters.processing_status and len(filters.processing_status) > 0) or
+            (filters.maturity_level and len(filters.maturity_level) > 0)
+        )
 
-        # Use RPC to get type counts with SQL aggregation
-        # This is much more efficient than loading all records
-        try:
-            result = db.rpc("get_content_type_counts", {"p_user_id": user_id}).execute()
-            if result.data:
-                types = [
-                    {"value": row["type_value"], "label": _get_type_label(row["type_value"]), "count": row["count"]}
-                    for row in result.data
-                ]
-                types.sort(key=lambda x: x["count"], reverse=True)
-                return {"types": types}
-        except Exception as rpc_error:
-            logger.warning(f"RPC get_content_type_counts not available, falling back: {rpc_error}")
+        if not has_filters:
+            # Use optimized RPC for unfiltered counts
+            try:
+                result = db.rpc("get_content_type_counts", {"p_user_id": user_id}).execute()
+                if result.data:
+                    types = [
+                        {"value": row["type_value"], "label": _get_type_label(row["type_value"]), "count": row["count"]}
+                        for row in result.data
+                    ]
+                    types.sort(key=lambda x: x["count"], reverse=True)
+                    return {"types": types}
+            except Exception as rpc_error:
+                logger.warning(f"RPC get_content_type_counts not available, falling back: {rpc_error}")
 
-        # Fallback: Use simple GROUP BY through Supabase
-        # Get regular types count
-        response = db.table("contents").select(
-            "type", count="exact"
-        ).eq("user_id", user_id).eq("is_archived", False).execute()
-
-        # We need to count types, but Supabase select doesn't do GROUP BY easily
-        # So we use a more efficient approach: get distinct types first
-        # then count each (still better than loading all records)
-
-        # Get all unique types
-        types_response = db.table("contents").select("type").eq(
-            "user_id", user_id
-        ).eq("is_archived", False).execute()
-
-        unique_types = set()
-        for item in types_response.data or []:
-            if item.get("type"):
-                unique_types.add(item["type"])
-
+        # With filters or RPC fallback: use batched approach
+        BATCH_SIZE = 1000
+        offset = 0
         type_counts = {}
-        for t in unique_types:
-            if t == "note":
-                # Count regular notes (not apple_notes)
-                regular_notes = db.table("contents").select(
-                    "id", count="exact"
-                ).eq("user_id", user_id).eq("is_archived", False).eq(
-                    "type", "note"
-                ).neq("metadata->>source", "apple_notes").execute()
 
-                # Count apple_notes
-                apple_notes = db.table("contents").select(
-                    "id", count="exact"
-                ).eq("user_id", user_id).eq("is_archived", False).eq(
-                    "type", "note"
-                ).eq("metadata->>source", "apple_notes").execute()
+        while True:
+            query = db.table("contents").select(
+                "type, metadata, user_note, is_favorite, processing_status, maturity_level, entities, user_entities"
+            ).eq("user_id", user_id).eq("is_archived", False)
 
-                if regular_notes.count and regular_notes.count > 0:
-                    type_counts["note"] = regular_notes.count
-                if apple_notes.count and apple_notes.count > 0:
-                    type_counts["apple_notes"] = apple_notes.count
-            else:
-                count_response = db.table("contents").select(
-                    "id", count="exact"
-                ).eq("user_id", user_id).eq("is_archived", False).eq("type", t).execute()
-                if count_response.count and count_response.count > 0:
-                    type_counts[t] = count_response.count
+            # Apply simple filters via Supabase
+            if filters:
+                if filters.processing_status and len(filters.processing_status) == 1:
+                    query = query.eq("processing_status", filters.processing_status[0])
+                if filters.maturity_level and len(filters.maturity_level) == 1:
+                    query = query.eq("maturity_level", filters.maturity_level[0])
+                if filters.is_favorite is True:
+                    query = query.eq("is_favorite", True)
+
+            response = query.range(offset, offset + BATCH_SIZE - 1).execute()
+            items = response.data or []
+
+            if not items:
+                break
+
+            for item in items:
+                # Apply Python-side filters
+                if filters:
+                    # Processing status (multiple)
+                    if filters.processing_status and len(filters.processing_status) > 1:
+                        if item.get("processing_status") not in filters.processing_status:
+                            continue
+
+                    # Maturity level (multiple)
+                    if filters.maturity_level and len(filters.maturity_level) > 1:
+                        item_maturity = item.get("maturity_level") or "captured"
+                        if item_maturity not in filters.maturity_level:
+                            continue
+
+                    # Has comment
+                    if filters.has_comment is not None:
+                        user_note = item.get("user_note")
+                        has_note = user_note and user_note.strip()
+                        if filters.has_comment and not has_note:
+                            continue
+                        if not filters.has_comment and has_note:
+                            continue
+
+                    # Favorite (already filtered in query if True, but handle False)
+                    if filters.is_favorite is False:
+                        if item.get("is_favorite") is True:
+                            continue
+
+                    # Persons filter (experts) - check both entities and user_entities
+                    if filters.persons:
+                        # AI-extracted entities (array of objects with "name")
+                        entities = item.get("entities") or {}
+                        ai_persons = [p.get("name") if isinstance(p, dict) else p for p in (entities.get("persons") or [])]
+                        # User-edited entities (array of strings)
+                        user_entities = item.get("user_entities") or {}
+                        user_persons = user_entities.get("persons") or []
+                        # Combine both sources
+                        all_persons = set(ai_persons) | set(user_persons)
+                        if not any(p in all_persons for p in filters.persons):
+                            continue
+
+                # Determine effective type
+                item_type = item.get("type")
+                metadata = item.get("metadata") or {}
+                if item_type == "note" and metadata.get("source") == "apple_notes":
+                    effective_type = "apple_notes"
+                else:
+                    effective_type = item_type
+
+                if effective_type:
+                    type_counts[effective_type] = type_counts.get(effective_type, 0) + 1
+
+            offset += BATCH_SIZE
+            if len(items) < BATCH_SIZE:
+                break
 
         types = [
             {"value": k, "label": _get_type_label(k), "count": v}
