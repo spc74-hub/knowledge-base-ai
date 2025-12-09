@@ -86,6 +86,13 @@ interface NotesFilters {
 
 type ExplorerTab = 'contents' | 'notes';
 
+interface Expert {
+    id: string;
+    person_name: string;
+    expertise_area: string | null;
+    is_active: boolean;
+}
+
 interface Content {
     id: string;
     title: string;
@@ -130,6 +137,7 @@ interface Filters {
     organizations: string[];
     products: string[];
     persons: string[];
+    experts: string[];  // User's saved experts (gurus)
     user_tags: string[];
     inherited_tags: string[];
     processing_status: string[];
@@ -162,6 +170,7 @@ function ExplorePageContent() {
         organizations: [],
         products: [],
         persons: [],
+        experts: [],
         user_tags: [],
         inherited_tags: [],
         processing_status: [],
@@ -174,6 +183,7 @@ function ExplorePageContent() {
         min_views: null,
         max_views: null
     });
+    const [userExperts, setUserExperts] = useState<Expert[]>([]);
     const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
         types: false,
@@ -182,6 +192,8 @@ function ExplorePageContent() {
         organizations: false,
         products: false,
         persons: false,
+        experts: false,
+        date_views: false,  // Collapsed by default
         processing_status: false,
         maturity_level: false,
         has_comment: false
@@ -268,6 +280,20 @@ function ExplorePageContent() {
         }
     };
 
+    // Fetch user's saved experts (gurus) for filtering
+    const fetchUserExperts = async () => {
+        try {
+            const headers = await getAuthHeader();
+            const response = await fetch(`${API_BASE}/experts/`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setUserExperts(data.experts || []);
+            }
+        } catch (error) {
+            console.error('Error fetching user experts:', error);
+        }
+    };
+
     const searchWithFilters = useCallback(async (reset: boolean = true) => {
         if (reset) {
             setSearching(true);
@@ -303,6 +329,8 @@ function ExplorePageContent() {
             } else {
                 // Use faceted search when filters are applied
                 setIsGlobalSearch(false);
+                // Combine persons (from entities) and experts (user's saved gurus)
+                const allPersons = [...filters.persons, ...filters.experts];
                 const requestBody = {
                     query: searchQuery || null,
                     types: filters.types.length > 0 ? filters.types : null,
@@ -311,7 +339,7 @@ function ExplorePageContent() {
                     concepts: filters.concepts.length > 0 ? filters.concepts : null,
                     organizations: filters.organizations.length > 0 ? filters.organizations : null,
                     products: filters.products.length > 0 ? filters.products : null,
-                    persons: filters.persons.length > 0 ? filters.persons : null,
+                    persons: allPersons.length > 0 ? allPersons : null,
                     user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
                     inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
                     processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
@@ -587,6 +615,7 @@ function ExplorePageContent() {
             fetchFacets();
             searchWithFilters();
             fetchAvailableTags();
+            fetchUserExperts();
         }
     }, [user]);
 
@@ -703,6 +732,7 @@ function ExplorePageContent() {
             organizations: [],
             products: [],
             persons: [],
+            experts: [],
             user_tags: [],
             inherited_tags: [],
             processing_status: [],
@@ -869,7 +899,7 @@ function ExplorePageContent() {
     };
 
     if (authLoading || loading) {
-        fetchFacets().then(() => setLoading(false));
+        Promise.all([fetchFacets(), fetchUserExperts()]).then(() => setLoading(false));
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
@@ -1034,121 +1064,6 @@ function ExplorePageContent() {
                                         </div>
                                     </div>
 
-                                    {/* Date Range Filter */}
-                                    <div>
-                                        <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Fecha</span>
-                                        <div className="space-y-2 ml-1">
-                                            {/* Quick date presets */}
-                                            <div className="flex flex-wrap gap-1">
-                                                {[
-                                                    { label: 'Hoy', days: 0 },
-                                                    { label: '7d', days: 7 },
-                                                    { label: '30d', days: 30 },
-                                                    { label: '90d', days: 90 },
-                                                ].map(preset => {
-                                                    const today = new Date();
-                                                    const fromDate = new Date(today);
-                                                    fromDate.setDate(today.getDate() - preset.days);
-                                                    const fromStr = fromDate.toISOString().split('T')[0];
-                                                    const isActive = filters.date_from === fromStr && filters.date_to === null;
-                                                    return (
-                                                        <button
-                                                            key={preset.label}
-                                                            onClick={() => {
-                                                                if (isActive) {
-                                                                    setFilters(prev => ({ ...prev, date_from: null, date_to: null }));
-                                                                } else {
-                                                                    setFilters(prev => ({ ...prev, date_from: fromStr, date_to: null }));
-                                                                }
-                                                            }}
-                                                            className={`px-2 py-1 text-xs rounded border transition-colors ${
-                                                                isActive
-                                                                    ? 'bg-blue-500 text-white border-blue-500'
-                                                                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
-                                                            }`}
-                                                        >
-                                                            {preset.label}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                            {/* Custom date inputs */}
-                                            <div className="flex gap-1 items-center text-xs">
-                                                <input
-                                                    type="date"
-                                                    value={filters.date_from || ''}
-                                                    onChange={(e) => setFilters(prev => ({ ...prev, date_from: e.target.value || null }))}
-                                                    className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                    title="Desde"
-                                                />
-                                                <span className="text-gray-400">-</span>
-                                                <input
-                                                    type="date"
-                                                    value={filters.date_to || ''}
-                                                    onChange={(e) => setFilters(prev => ({ ...prev, date_to: e.target.value || null }))}
-                                                    className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                    title="Hasta"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* View Count Filter (for YouTube/TikTok) */}
-                                    <div>
-                                        <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Visitas</span>
-                                        <div className="space-y-2 ml-1">
-                                            {/* Quick view count presets */}
-                                            <div className="flex flex-wrap gap-1">
-                                                {[
-                                                    { label: '1K+', min: 1000 },
-                                                    { label: '10K+', min: 10000 },
-                                                    { label: '100K+', min: 100000 },
-                                                    { label: '1M+', min: 1000000 },
-                                                ].map(preset => {
-                                                    const isActive = filters.min_views === preset.min && filters.max_views === null;
-                                                    return (
-                                                        <button
-                                                            key={preset.label}
-                                                            onClick={() => {
-                                                                if (isActive) {
-                                                                    setFilters(prev => ({ ...prev, min_views: null, max_views: null }));
-                                                                } else {
-                                                                    setFilters(prev => ({ ...prev, min_views: preset.min, max_views: null }));
-                                                                }
-                                                            }}
-                                                            className={`px-2 py-1 text-xs rounded border transition-colors ${
-                                                                isActive
-                                                                    ? 'bg-blue-500 text-white border-blue-500'
-                                                                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
-                                                            }`}
-                                                        >
-                                                            {preset.label}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                            {/* Custom range inputs */}
-                                            <div className="flex gap-1 items-center text-xs">
-                                                <input
-                                                    type="number"
-                                                    value={filters.min_views ?? ''}
-                                                    onChange={(e) => setFilters(prev => ({ ...prev, min_views: e.target.value ? parseInt(e.target.value) : null }))}
-                                                    placeholder="Min"
-                                                    className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
-                                                    min="0"
-                                                />
-                                                <span className="text-gray-400">-</span>
-                                                <input
-                                                    type="number"
-                                                    value={filters.max_views ?? ''}
-                                                    onChange={(e) => setFilters(prev => ({ ...prev, max_views: e.target.value ? parseInt(e.target.value) : null }))}
-                                                    placeholder="Max"
-                                                    className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
-                                                    min="0"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
 
                                     {/* Types with Include/Exclude toggle */}
                                     <div>
@@ -1404,6 +1319,174 @@ function ExplorePageContent() {
                                             )}
                                         </div>
                                     )}
+
+                                    {/* Experts (Gurus) Filter */}
+                                    {userExperts.length > 0 && (
+                                        <div>
+                                            <button
+                                                onClick={() => toggleSection('experts')}
+                                                className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                            >
+                                                <span>Mis Expertos ({userExperts.length})</span>
+                                                <span>{expandedSections.experts ? '−' : '+'}</span>
+                                            </button>
+                                            {expandedSections.experts && (
+                                                <div className="space-y-1 ml-1 max-h-48 overflow-y-auto">
+                                                    {userExperts.map(expert => (
+                                                        <label key={expert.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded text-gray-900 dark:text-gray-200">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={filters.experts.includes(expert.person_name)}
+                                                                onChange={() => {
+                                                                    setFilters(prev => {
+                                                                        const current = prev.experts;
+                                                                        if (current.includes(expert.person_name)) {
+                                                                            return { ...prev, experts: current.filter(e => e !== expert.person_name) };
+                                                                        } else {
+                                                                            return { ...prev, experts: [...current, expert.person_name] };
+                                                                        }
+                                                                    });
+                                                                }}
+                                                                className="rounded"
+                                                            />
+                                                            <span className="flex-1 truncate" title={expert.expertise_area || undefined}>
+                                                                {expert.person_name}
+                                                            </span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Date & Views Filter (Collapsible) */}
+                                    <div>
+                                        <button
+                                            onClick={() => toggleSection('date_views')}
+                                            className="flex items-center justify-between w-full text-left font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        >
+                                            <span>Fecha y Visitas</span>
+                                            <span>{expandedSections.date_views ? '−' : '+'}</span>
+                                        </button>
+                                        {expandedSections.date_views && (
+                                            <div className="space-y-4 ml-1">
+                                                {/* Date Range */}
+                                                <div>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Fecha</span>
+                                                    <div className="space-y-2">
+                                                        {/* Quick date presets */}
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {[
+                                                                { label: 'Hoy', days: 0 },
+                                                                { label: '7d', days: 7 },
+                                                                { label: '30d', days: 30 },
+                                                                { label: '90d', days: 90 },
+                                                            ].map(preset => {
+                                                                const today = new Date();
+                                                                const fromDate = new Date(today);
+                                                                fromDate.setDate(today.getDate() - preset.days);
+                                                                const fromStr = fromDate.toISOString().split('T')[0];
+                                                                const isActive = filters.date_from === fromStr && filters.date_to === null;
+                                                                return (
+                                                                    <button
+                                                                        key={preset.label}
+                                                                        onClick={() => {
+                                                                            if (isActive) {
+                                                                                setFilters(prev => ({ ...prev, date_from: null, date_to: null }));
+                                                                            } else {
+                                                                                setFilters(prev => ({ ...prev, date_from: fromStr, date_to: null }));
+                                                                            }
+                                                                        }}
+                                                                        className={`px-2 py-1 text-xs rounded border transition-colors ${
+                                                                            isActive
+                                                                                ? 'bg-blue-500 text-white border-blue-500'
+                                                                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                                                        }`}
+                                                                    >
+                                                                        {preset.label}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        {/* Custom date inputs */}
+                                                        <div className="flex gap-1 items-center text-xs">
+                                                            <input
+                                                                type="date"
+                                                                value={filters.date_from || ''}
+                                                                onChange={(e) => setFilters(prev => ({ ...prev, date_from: e.target.value || null }))}
+                                                                className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                title="Desde"
+                                                            />
+                                                            <span className="text-gray-400">-</span>
+                                                            <input
+                                                                type="date"
+                                                                value={filters.date_to || ''}
+                                                                onChange={(e) => setFilters(prev => ({ ...prev, date_to: e.target.value || null }))}
+                                                                className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                title="Hasta"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {/* View Count */}
+                                                <div>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Visitas</span>
+                                                    <div className="space-y-2">
+                                                        {/* Quick view count presets */}
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {[
+                                                                { label: '1K+', min: 1000 },
+                                                                { label: '10K+', min: 10000 },
+                                                                { label: '100K+', min: 100000 },
+                                                                { label: '1M+', min: 1000000 },
+                                                            ].map(preset => {
+                                                                const isActive = filters.min_views === preset.min && filters.max_views === null;
+                                                                return (
+                                                                    <button
+                                                                        key={preset.label}
+                                                                        onClick={() => {
+                                                                            if (isActive) {
+                                                                                setFilters(prev => ({ ...prev, min_views: null, max_views: null }));
+                                                                            } else {
+                                                                                setFilters(prev => ({ ...prev, min_views: preset.min, max_views: null }));
+                                                                            }
+                                                                        }}
+                                                                        className={`px-2 py-1 text-xs rounded border transition-colors ${
+                                                                            isActive
+                                                                                ? 'bg-blue-500 text-white border-blue-500'
+                                                                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                                                        }`}
+                                                                    >
+                                                                        {preset.label}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        {/* Custom range inputs */}
+                                                        <div className="flex gap-1 items-center text-xs">
+                                                            <input
+                                                                type="number"
+                                                                value={filters.min_views ?? ''}
+                                                                onChange={(e) => setFilters(prev => ({ ...prev, min_views: e.target.value ? parseInt(e.target.value) : null }))}
+                                                                placeholder="Min"
+                                                                className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                                min="0"
+                                                            />
+                                                            <span className="text-gray-400">-</span>
+                                                            <input
+                                                                type="number"
+                                                                value={filters.max_views ?? ''}
+                                                                onChange={(e) => setFilters(prev => ({ ...prev, max_views: e.target.value ? parseInt(e.target.value) : null }))}
+                                                                placeholder="Max"
+                                                                className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                                min="0"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
 
                                     {/* Maturity Level with Include/Exclude toggle */}
                                     <div>
