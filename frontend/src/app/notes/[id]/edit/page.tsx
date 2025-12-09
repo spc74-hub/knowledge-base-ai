@@ -29,6 +29,7 @@ export default function EditNotePage() {
     const [htmlContent, setHtmlContent] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -121,6 +122,41 @@ export default function EditNotePage() {
         }
     };
 
+    const handleDelete = async () => {
+        if (!confirm('¿Eliminar esta nota? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        setDeleting(true);
+        setError(null);
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) {
+                throw new Error('No session');
+            }
+
+            const response = await fetch(`${API_URL}/api/v1/content/${noteId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Error al eliminar la nota');
+            }
+
+            router.push('/notes');
+
+        } catch (err: any) {
+            setError(err.message || 'Error al eliminar la nota');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     if (authLoading || loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -155,18 +191,27 @@ export default function EditNotePage() {
             <header className="bg-white dark:bg-gray-800 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                        <Link href="/notes" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                             ← Volver
                         </Link>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Editar Nota</h1>
                     </div>
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="px-6 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {saving ? 'Guardando...' : 'Guardar Cambios'}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleDelete}
+                            disabled={deleting || saving}
+                            className="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {deleting ? 'Eliminando...' : 'Eliminar'}
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving || deleting}
+                            className="px-6 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {saving ? 'Guardando...' : 'Guardar Cambios'}
+                        </button>
+                    </div>
                 </div>
             </header>
 

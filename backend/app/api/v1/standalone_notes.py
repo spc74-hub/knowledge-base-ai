@@ -691,6 +691,11 @@ async def search_notes_with_facets(
         include_full = data.include_full_notes is not False
         want_full_notes = not data.note_types or 'full_note' in data.note_types
 
+        # Don't include full notes if a linkage filter is active (except 'project')
+        # Full notes can only have project links via project_id
+        if data.linkage_type and data.linkage_type not in ['project', 'independent']:
+            want_full_notes = False
+
         full_notes_data = []
         full_notes_count = 0
 
@@ -705,6 +710,12 @@ async def search_notes_with_facets(
 
             if data.is_pinned is not None:
                 full_notes_query = full_notes_query.eq("is_favorite", data.is_pinned)
+
+            # Apply linkage filter to full notes
+            if data.linkage_type == 'project':
+                full_notes_query = full_notes_query.not_.is_("project_id", "null")
+            elif data.linkage_type == 'independent':
+                full_notes_query = full_notes_query.is_("project_id", "null")
 
             full_notes_query = full_notes_query.order("created_at", desc=True)
             full_notes_response = full_notes_query.execute()

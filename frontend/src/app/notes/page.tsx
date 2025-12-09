@@ -74,6 +74,22 @@ interface Facets {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Helper function to strip HTML tags for preview text
+const stripHtmlTags = (html: string): string => {
+    if (!html) return '';
+    // Remove HTML tags and decode common entities
+    return html
+        .replace(/<[^>]*>/g, ' ')  // Replace tags with space
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, ' ')  // Collapse multiple spaces
+        .trim();
+};
+
 const NOTE_TYPES = {
     reflection: { label: 'Reflexion', icon: '💭', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
     idea: { label: 'Idea', icon: '💡', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
@@ -744,7 +760,7 @@ export default function NotesPage() {
                                             {/* Content preview */}
                                             <div className="flex-1 min-w-0">
                                                 <p className={`text-sm dark:text-gray-200 truncate ${note.is_completed ? 'line-through' : ''}`}>
-                                                    {note.title || note.content.split('\n')[0].slice(0, 100)}
+                                                    {stripHtmlTags(note.title || note.content).slice(0, 100) || 'Sin contenido'}
                                                 </p>
                                             </div>
 
