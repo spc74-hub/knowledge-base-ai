@@ -761,6 +761,85 @@ export default function DashboardPage() {
     }
   };
 
+  // Render objectives panel with cards similar to areas
+  const renderObjectivesPanel = () => {
+    if (loadingObject) {
+      return <div className="text-gray-400 text-center py-8">Cargando...</div>;
+    }
+
+    if (!objectSummary) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl text-white font-semibold">Objetivos</h2>
+          <Link href="/objectives" target="_blank" className="text-indigo-400 hover:text-indigo-300 text-sm">
+            Ver todo →
+          </Link>
+        </div>
+
+        {/* Active objectives with progress */}
+        {(objectSummary.active?.length ?? 0) > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(objectSummary.active ?? []).map((obj: any) => (
+              <Link
+                key={obj.id}
+                href={`/objectives?id=${obj.id}`}
+                target="_blank"
+                className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
+                style={{ borderLeft: `4px solid ${obj.color || '#6366f1'}` }}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">{obj.icon || '🎯'}</span>
+                  <div className="flex-1">
+                    <h3 className="text-white font-medium">{obj.title}</h3>
+                    {obj.description && (
+                      <p className="text-gray-400 text-xs line-clamp-1">{obj.description}</p>
+                    )}
+                  </div>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-3 pt-3 border-t border-gray-700">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-gray-400">Progreso</span>
+                    <span className="text-xs font-bold" style={{ color: obj.color || '#6366f1' }}>
+                      {obj.progress || 0}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div
+                      className="h-2 rounded-full transition-all"
+                      style={{
+                        width: `${obj.progress || 0}%`,
+                        backgroundColor: obj.color || '#6366f1'
+                      }}
+                    />
+                  </div>
+                  {obj.target_date && (
+                    <div className="text-xs text-gray-500 mt-2">
+                      Meta: {new Date(obj.target_date).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-500 mb-4">No hay objetivos activos</p>
+            <Link
+              href="/objectives?create=true"
+              target="_blank"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              + Crear Objetivo
+            </Link>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Render projects panel with linked contents
   const renderProjectsPanel = () => {
     if (loadingObject) {
@@ -779,22 +858,22 @@ export default function DashboardPage() {
         </div>
 
         {/* Active projects with linked contents */}
-        {(objectSummary.active?.length ?? 0) > 0 && (
-          <div className="space-y-4">
+        {(objectSummary.active?.length ?? 0) > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(objectSummary.active ?? []).map((project: any) => (
-              <div key={project.id} className="bg-gray-800/50 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-3">
+              <Link
+                key={project.id}
+                href={`/projects?id=${project.id}`}
+                target="_blank"
+                className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
+                style={{ borderLeft: `4px solid ${project.color || '#3b82f6'}` }}
+              >
+                <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl">{project.icon || '📁'}</span>
                   <div className="flex-1">
-                    <Link
-                      href={`/projects?id=${project.id}`}
-                      target="_blank"
-                      className="text-white font-medium hover:text-indigo-400"
-                    >
-                      {project.name}
-                    </Link>
+                    <h3 className="text-white font-medium">{project.name}</h3>
                     {project.description && (
-                      <p className="text-gray-400 text-sm line-clamp-1">{project.description}</p>
+                      <p className="text-gray-400 text-xs line-clamp-1">{project.description}</p>
                     )}
                   </div>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-green-600/20 text-green-400">
@@ -802,44 +881,38 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                {/* Linked contents */}
-                {project.linked_contents && project.linked_contents.length > 0 ? (
-                  <div className="border-t border-gray-700 pt-3 mt-2">
-                    <p className="text-xs text-gray-500 mb-2">Contenidos vinculados:</p>
-                    <div className="space-y-1">
-                      {project.linked_contents.slice(0, 3).map((content: any) => (
-                        <button
-                          key={content.id}
-                          onClick={() => handleContentClick(content.id)}
-                          className="flex items-center gap-2 p-1.5 bg-gray-900/50 rounded-lg hover:bg-gray-800 transition-colors w-full text-left"
-                        >
-                          <span className="text-sm">{getContentTypeIcon(content.type)}</span>
-                          <span className="text-gray-300 text-sm flex-1 truncate">{content.title || 'Sin título'}</span>
-                        </button>
-                      ))}
-                      {project.linked_contents.length > 3 && (
-                        <Link
-                          href={`/projects?id=${project.id}`}
-                          target="_blank"
-                          className="text-xs text-indigo-400 hover:text-indigo-300 pl-2"
-                        >
-                          +{project.linked_contents.length - 3} más →
-                        </Link>
+                {/* Footer with stats */}
+                <div className="mt-3 pt-3 border-t border-gray-700">
+                  {project.linked_contents && project.linked_contents.length > 0 ? (
+                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                      <span>📄 {project.linked_contents.length} contenido{project.linked_contents.length !== 1 ? 's' : ''}</span>
+                      {project.area_name && (
+                        <span>📋 {project.area_name}</span>
                       )}
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-xs mt-2 border-t border-gray-700 pt-2">
-                    Sin contenidos vinculados
-                  </p>
-                )}
-              </div>
+                  ) : (
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span>📄 Sin contenidos</span>
+                      {project.area_name && (
+                        <span>📋 {project.area_name}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Link>
             ))}
           </div>
-        )}
-
-        {(objectSummary.active?.length ?? 0) === 0 && (
-          <p className="text-gray-500 text-center py-8">No hay proyectos activos</p>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-500 mb-4">No hay proyectos activos</p>
+            <Link
+              href="/projects?create=true"
+              target="_blank"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              + Crear Proyecto
+            </Link>
+          </div>
         )}
       </div>
     );
@@ -1100,6 +1173,9 @@ export default function DashboardPage() {
     // Special handling for specific panels
     if (selectedCategory === 'notes') {
       return renderNotesPanel();
+    }
+    if (selectedCategory === 'objectives') {
+      return renderObjectivesPanel();
     }
     if (selectedCategory === 'projects') {
       return renderProjectsPanel();
