@@ -139,6 +139,16 @@ async def get_dashboard_summary(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
 
+    # Areas of Responsibility
+    areas_result = safe_query(lambda: db.table("areas_of_responsibility").select(
+        "id", count="exact"
+    ).eq("user_id", user_id).eq("status", "active").execute())
+
+    # Habits (active)
+    habits_result = safe_query(lambda: db.table("habits").select(
+        "id", count="exact"
+    ).eq("user_id", user_id).eq("is_active", True).execute())
+
     # Usage stats (last 30 days)
     from datetime import datetime, timedelta
     thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
@@ -169,6 +179,22 @@ async def get_dashboard_summary(
     recent_notes = safe_query(lambda: db.table("standalone_notes").select(
         "id, title, is_pinned, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
+
+    # Areas of Responsibility (recent active)
+    recent_areas = safe_query(lambda: db.table("areas_of_responsibility").select(
+        "id, name, icon, color, status"
+    ).eq("user_id", user_id).eq("status", "active").order("display_order").limit(5).execute())
+
+    # Habits (active)
+    recent_habits = safe_query(lambda: db.table("habits").select(
+        "id, name, icon, color, frequency_type, is_active"
+    ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(5).execute())
+
+    # Today's habit completions
+    today = datetime.utcnow().date().isoformat()
+    today_logs = safe_query(lambda: db.table("habit_logs").select(
+        "habit_id, status"
+    ).eq("user_id", user_id).eq("date", today).execute())
 
     result = {
         "kpis": {
@@ -203,6 +229,12 @@ async def get_dashboard_summary(
             "usage": {
                 "cost_30d": round(total_cost, 2),
             },
+            "areas": {
+                "active": safe_count(areas_result),
+            },
+            "habits": {
+                "active": safe_count(habits_result),
+            },
         },
         "recent": {
             "contents": safe_data(recent_contents),
@@ -210,6 +242,13 @@ async def get_dashboard_summary(
             "projects": safe_data(recent_projects),
             "mental_models": safe_data(recent_mental_models),
             "notes": safe_data(recent_notes),
+            "areas": safe_data(recent_areas),
+            "habits": safe_data(recent_habits),
+        },
+        "habits_today": {
+            "logs": safe_data(today_logs),
+            "total": safe_count(habits_result),
+            "completed": len([l for l in safe_data(today_logs) if l.get("status") == "completed"]),
         },
     }
 
@@ -428,6 +467,85 @@ async def get_object_summary(
         return {
             "type": "tags",
             "items": safe_data(tags),
+        }
+
+    elif object_type == "areas":
+        # Areas of Responsibility
+        active = safe_query(lambda: db.table("areas_of_responsibility").select(
+            "id, name, description, icon, color, status, display_order"
+        ).eq("user_id", user_id).eq("status", "active").order("display_order").limit(limit).execute())
+
+        all_areas = safe_query(lambda: db.table("areas_of_responsibility").select(
+            "id, name, description, icon, color, status, display_order"
+        ).eq("user_id", user_id).order("display_order").limit(limit).execute())
+
+        # Get linked counts for each area
+        areas_with_counts = []
+        for area in safe_data(active):
+            # Count habits linked to this area
+            habits_count = safe_query(lambda aid=area["id"]: db.table("habits").select(
+                "id", count="exact"
+            ).eq("area_id", aid).eq("is_active", True).execute())
+
+            # Count objectives linked to this area
+            objectives_count = safe_query(lambda aid=area["id"]: db.table("objectives").select(
+                "id", count="exact"
+            ).eq("area_id", aid).execute())
+
+            # Count projects linked to this area
+            projects_count = safe_query(lambda aid=area["id"]: db.table("projects").select(
+                "id", count="exact"
+            ).eq("area_id", aid).execute())
+
+            area["habits_count"] = safe_count(habits_count)
+            area["objectives_count"] = safe_count(objectives_count)
+            area["projects_count"] = safe_count(projects_count)
+            areas_with_counts.append(area)
+
+        return {
+            "type": "areas",
+            "active": areas_with_counts,
+            "all": safe_data(all_areas),
+        }
+
+    elif object_type == "habits":
+        from datetime import datetime
+
+        # Active habits
+        active = safe_query(lambda: db.table("habits").select(
+            "id, name, description, icon, color, frequency_type, frequency_days, target_count, is_active, area_id"
+        ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(limit).execute())
+
+        # Today's logs
+        today = datetime.utcnow().date().isoformat()
+        today_logs = safe_query(lambda: db.table("habit_logs").select(
+            "habit_id, status, value, notes"
+        ).eq("user_id", user_id).eq("date", today).execute())
+
+        # Map logs by habit_id
+        logs_by_habit = {}
+        for log in safe_data(today_logs):
+            logs_by_habit[log["habit_id"]] = log
+
+        # Add today's status to each habit
+        habits_with_status = []
+        for habit in safe_data(active):
+            habit["today_log"] = logs_by_habit.get(habit["id"])
+            habit["completed_today"] = logs_by_habit.get(habit["id"], {}).get("status") == "completed"
+            habits_with_status.append(habit)
+
+        # Stats
+        total_active = len(safe_data(active))
+        completed_today = len([h for h in habits_with_status if h["completed_today"]])
+
+        return {
+            "type": "habits",
+            "active": habits_with_status,
+            "stats": {
+                "total_active": total_active,
+                "completed_today": completed_today,
+                "completion_rate": round((completed_today / total_active * 100) if total_active > 0 else 0, 1),
+            },
         }
 
     else:

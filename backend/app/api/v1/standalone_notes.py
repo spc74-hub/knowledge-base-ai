@@ -868,7 +868,8 @@ async def search_notes_with_facets(
         all_notes = all_notes_response.data or []
 
         # Get objective-linked notes count for facets
-        all_note_ids = [n["id"] for n in all_notes]
+        # Filter out any malformed entries that don't have 'id'
+        all_note_ids = [n["id"] for n in all_notes if isinstance(n, dict) and "id" in n]
         objective_linked_count = 0
         if all_note_ids:
             obj_notes_facet_response = db.table("objective_notes").select(

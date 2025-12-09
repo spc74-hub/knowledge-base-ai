@@ -20,6 +20,8 @@ interface DashboardSummary {
     tags: { total: number };
     folders: { total: number };
     usage: { cost_30d: number };
+    areas: { active: number };
+    habits: { active: number };
   };
   recent: {
     contents: any[];
@@ -27,6 +29,13 @@ interface DashboardSummary {
     projects: any[];
     mental_models: any[];
     notes: any[];
+    areas: any[];
+    habits: any[];
+  };
+  habits_today: {
+    logs: any[];
+    total: number;
+    completed: number;
   };
 }
 
@@ -39,7 +48,7 @@ interface ObjectSummary {
   items?: any[];
 }
 
-type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'tags';
+type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'tags' | 'areas' | 'habits';
 
 interface SidebarItem {
   key: string;
@@ -159,10 +168,25 @@ export default function DashboardPage() {
     }
   }, [user, getAuthHeaders]);
 
+  // Safety timeout - if auth takes too long, stop showing loading
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (authLoading) {
+        console.warn('Auth loading timeout - forcing state');
+        setLoading(false);
+      }
+    }, 5000); // 5 second timeout
+    return () => clearTimeout(timeout);
+  }, [authLoading]);
+
   useEffect(() => {
     if (user && !authLoading && !hasFetched) {
       fetchSummary();
       setHasFetched(true);
+    }
+    // If no user and auth is done, stop loading
+    if (!user && !authLoading) {
+      setLoading(false);
     }
   }, [user, authLoading, hasFetched, fetchSummary]);
 
@@ -258,6 +282,13 @@ export default function DashboardPage() {
         { key: 'experts', label: 'Mis Gurus', icon: '👤', href: '/experts' },
         { key: 'knowledge-graph', label: 'Knowledge Graph', icon: '🕸️', href: '/knowledge-graph' },
         { key: 'chat', label: 'Chat IA', icon: '💬', href: '/chat' },
+      ],
+    },
+    {
+      title: 'VIDA',
+      items: [
+        { key: 'areas', label: 'Areas de Responsabilidad', icon: '📋', selectable: true },
+        { key: 'habits', label: 'Habitos', icon: '✅', selectable: true },
       ],
     },
     {
@@ -475,6 +506,100 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-sm">No hay notas</p>
           )}
         </div>
+
+        {/* Habits Today */}
+        <div className="bg-gradient-to-br from-emerald-900/50 to-green-900/30 rounded-xl p-4 border border-emerald-800/30">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              ✅ Habitos de Hoy
+            </h3>
+            <Link href="/habits" target="_blank" className="text-sm text-emerald-400 hover:text-emerald-300">
+              Ver todo →
+            </Link>
+          </div>
+          {/* Progress bar */}
+          {summary.habits_today && summary.habits_today.total > 0 ? (
+            <>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex-1 bg-gray-700 rounded-full h-3">
+                  <div
+                    className="h-3 rounded-full bg-gradient-to-r from-emerald-500 to-green-400 transition-all"
+                    style={{ width: `${Math.round((summary.habits_today.completed / summary.habits_today.total) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-emerald-400 font-bold text-sm">
+                  {summary.habits_today.completed}/{summary.habits_today.total}
+                </span>
+              </div>
+              {summary.recent.habits.length > 0 && (
+                <div className="space-y-2">
+                  {summary.recent.habits.slice(0, 3).map((habit) => {
+                    const isCompleted = summary.habits_today.logs.some(
+                      (l: any) => l.habit_id === habit.id && l.status === 'completed'
+                    );
+                    return (
+                      <Link
+                        key={habit.id}
+                        href={`/habits/${habit.id}`}
+                        className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors"
+                      >
+                        <span className={`text-lg ${isCompleted ? 'opacity-50' : ''}`}>
+                          {isCompleted ? '✅' : habit.icon || '⭕'}
+                        </span>
+                        <p className={`text-sm flex-1 truncate ${isCompleted ? 'text-gray-500 line-through' : 'text-white'}`}>
+                          {habit.name}
+                        </p>
+                        {isCompleted && (
+                          <span className="text-xs text-emerald-400">Completado</span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay habitos activos</p>
+          )}
+        </div>
+
+        {/* Areas of Responsibility */}
+        <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/30 rounded-xl p-4 border border-indigo-800/30">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              📋 Areas de Responsabilidad
+            </h3>
+            <Link href="/areas" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+              Ver todo →
+            </Link>
+          </div>
+          {summary.recent.areas && summary.recent.areas.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {summary.recent.areas.slice(0, 6).map((area) => (
+                <Link
+                  key={area.id}
+                  href={`/areas/${area.id}`}
+                  className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors"
+                  style={{ borderLeft: `3px solid ${area.color || '#6366f1'}` }}
+                >
+                  <span className="text-lg">{area.icon || '📋'}</span>
+                  <p className="text-white text-sm truncate">{area.name}</p>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-gray-500 text-sm mb-2">No hay areas definidas</p>
+              <Link
+                href="/areas"
+                target="_blank"
+                className="text-indigo-400 hover:text-indigo-300 text-sm"
+              >
+                + Crear primera area
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -488,6 +613,8 @@ export default function DashboardPage() {
       case 'mental_models': return `/mental-models?id=${item.id}`;
       case 'notes': return `/notes/${item.id}`;
       case 'tags': return `/tags?tag=${item.tag}`;
+      case 'areas': return `/areas/${item.id}`;
+      case 'habits': return `/habits/${item.id}`;
       default: return '#';
     }
   };
@@ -790,6 +917,173 @@ export default function DashboardPage() {
     );
   };
 
+  // Render areas panel
+  const renderAreasPanel = () => {
+    if (loadingObject) {
+      return <div className="text-gray-400 text-center py-8">Cargando...</div>;
+    }
+
+    if (!objectSummary) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl text-white font-semibold">Areas de Responsabilidad</h2>
+          <Link href="/areas" target="_blank" className="text-indigo-400 hover:text-indigo-300 text-sm">
+            Ver todo →
+          </Link>
+        </div>
+
+        {/* Active areas with counts */}
+        {(objectSummary.active?.length ?? 0) > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(objectSummary.active ?? []).map((area: any) => (
+              <Link
+                key={area.id}
+                href={`/areas/${area.id}`}
+                className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
+                style={{ borderLeft: `4px solid ${area.color || '#6366f1'}` }}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">{area.icon || '📋'}</span>
+                  <div className="flex-1">
+                    <h3 className="text-white font-medium">{area.name}</h3>
+                    {area.description && (
+                      <p className="text-gray-400 text-xs line-clamp-1">{area.description}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-4 text-xs text-gray-400 mt-3 pt-3 border-t border-gray-700">
+                  <span>🎯 {area.objectives_count || 0} objetivos</span>
+                  <span>📁 {area.projects_count || 0} proyectos</span>
+                  <span>✅ {area.habits_count || 0} habitos</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-500 mb-4">No hay areas de responsabilidad activas</p>
+            <Link
+              href="/areas"
+              target="_blank"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              + Crear Area
+            </Link>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render habits panel
+  const renderHabitsPanel = () => {
+    if (loadingObject) {
+      return <div className="text-gray-400 text-center py-8">Cargando...</div>;
+    }
+
+    if (!objectSummary) return null;
+
+    const stats = (objectSummary as any).stats || { total_active: 0, completed_today: 0, completion_rate: 0 };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl text-white font-semibold">Habitos</h2>
+          <Link href="/habits" target="_blank" className="text-emerald-400 hover:text-emerald-300 text-sm">
+            Ver todo →
+          </Link>
+        </div>
+
+        {/* Stats summary */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-emerald-900/30 rounded-xl p-4 text-center border border-emerald-800/30">
+            <div className="text-3xl font-bold text-emerald-400">{stats.total_active}</div>
+            <div className="text-xs text-gray-400">Habitos Activos</div>
+          </div>
+          <div className="bg-emerald-900/30 rounded-xl p-4 text-center border border-emerald-800/30">
+            <div className="text-3xl font-bold text-emerald-400">{stats.completed_today}</div>
+            <div className="text-xs text-gray-400">Completados Hoy</div>
+          </div>
+          <div className="bg-emerald-900/30 rounded-xl p-4 text-center border border-emerald-800/30">
+            <div className="text-3xl font-bold text-emerald-400">{stats.completion_rate}%</div>
+            <div className="text-xs text-gray-400">Tasa de Hoy</div>
+          </div>
+        </div>
+
+        {/* Today's progress bar */}
+        {stats.total_active > 0 && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">Progreso de Hoy</h3>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 bg-gray-700 rounded-full h-4">
+                <div
+                  className="h-4 rounded-full bg-gradient-to-r from-emerald-500 to-green-400 transition-all"
+                  style={{ width: `${stats.completion_rate}%` }}
+                />
+              </div>
+              <span className="text-emerald-400 font-bold">
+                {stats.completed_today}/{stats.total_active}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Active habits with today status */}
+        {(objectSummary.active?.length ?? 0) > 0 && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">Habitos de Hoy</h3>
+            <div className="space-y-2">
+              {(objectSummary.active ?? []).map((habit: any) => (
+                <Link
+                  key={habit.id}
+                  href={`/habits/${habit.id}`}
+                  className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  <span className={`text-xl ${habit.completed_today ? 'opacity-50' : ''}`}>
+                    {habit.completed_today ? '✅' : habit.icon || '⭕'}
+                  </span>
+                  <div className="flex-1">
+                    <p className={`text-sm ${habit.completed_today ? 'text-gray-500 line-through' : 'text-white'}`}>
+                      {habit.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {habit.frequency_type === 'daily' ? 'Diario' :
+                       habit.frequency_type === 'weekly' ? 'Semanal' : 'Personalizado'}
+                    </p>
+                  </div>
+                  {habit.completed_today ? (
+                    <span className="text-xs text-emerald-400 px-2 py-1 bg-emerald-900/30 rounded">
+                      Completado
+                    </span>
+                  ) : (
+                    <span className="text-xs text-yellow-400 px-2 py-1 bg-yellow-900/30 rounded">
+                      Pendiente
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(objectSummary.active?.length ?? 0) === 0 && (
+          <div className="text-center py-8">
+            <p className="text-gray-500 mb-4">No hay habitos activos</p>
+            <Link
+              href="/habits"
+              target="_blank"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              + Crear Habito
+            </Link>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Render object-specific panel
   const renderObjectPanel = () => {
     if (loadingObject) {
@@ -808,6 +1102,12 @@ export default function DashboardPage() {
     if (selectedCategory === 'mental_models') {
       return renderMentalModelsPanel();
     }
+    if (selectedCategory === 'areas') {
+      return renderAreasPanel();
+    }
+    if (selectedCategory === 'habits') {
+      return renderHabitsPanel();
+    }
 
     const typeLabels: Record<string, { title: string; href: string }> = {
       contents: { title: 'Contenidos', href: '/explore' },
@@ -816,6 +1116,8 @@ export default function DashboardPage() {
       mental_models: { title: 'Modelos Mentales', href: '/mental-models' },
       notes: { title: 'Notas', href: '/notes' },
       tags: { title: 'Tags', href: '/tags' },
+      areas: { title: 'Areas de Responsabilidad', href: '/areas' },
+      habits: { title: 'Habitos', href: '/habits' },
     };
 
     // Use selectedCategory instead of objectSummary.type to ensure correct title
@@ -1036,6 +1338,23 @@ export default function DashboardPage() {
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
                       🏷️ Nuevo Tag
+                    </Link>
+                    <div className="border-t border-gray-700 my-1" />
+                    <Link
+                      href="/areas"
+                      target="_blank"
+                      onClick={() => setShowQuickActions(false)}
+                      className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      📋 Nueva Area
+                    </Link>
+                    <Link
+                      href="/habits"
+                      target="_blank"
+                      onClick={() => setShowQuickActions(false)}
+                      className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      ✅ Nuevo Habito
                     </Link>
                   </div>
                 </>
