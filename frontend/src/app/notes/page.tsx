@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 
 interface Note {
     id: string;
@@ -113,6 +114,10 @@ export default function NotesPage() {
     const [editMode, setEditMode] = useState(false);
     const [editContent, setEditContent] = useState('');
     const [editType, setEditType] = useState('');
+
+    // Content detail modal
+    const [showContentModal, setShowContentModal] = useState(false);
+    const [selectedContent, setSelectedContent] = useState<ContentDetail | null>(null);
 
     // Handle URL params for filtering and creating notes
     useEffect(() => {
@@ -427,6 +432,28 @@ export default function NotesPage() {
         setShowLinkSelector(false);
     };
 
+    // Open content modal for linked content
+    const openContentModal = useCallback(async (contentId: string) => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/content/${contentId}`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const content = await response.json();
+                setSelectedContent(content);
+                setShowContentModal(true);
+            }
+        } catch (error) {
+            console.error('Error fetching content:', error);
+        }
+    }, []);
+
     const openNoteDetail = (note: Note) => {
         // For full notes, open the edit page in a new tab
         if (note.is_full_note) {
@@ -472,34 +499,35 @@ export default function NotesPage() {
     }, [quickLinkType, linkSearchQuery, availableContents, availableProjects, availableObjectives]);
 
     // Get linked object display for list view
+    // contentId is used for opening content modal directly
+    // href is used for navigating to other pages
     const getLinkedObjectDisplay = (note: Note) => {
-        const links: { icon: string; label: string; href: string; color: string; newTab?: boolean }[] = [];
+        const links: { icon: string; label: string; href?: string; contentId?: string; color: string; newTab?: boolean }[] = [];
 
         if (note.source_content) {
             links.push({
                 icon: '📄',
                 label: note.source_content.title,
-                href: `/dashboard?content=${note.source_content.id}`,
+                contentId: note.source_content.id, // Open modal instead of navigating
                 color: 'text-blue-600 dark:text-blue-400',
-                newTab: false, // Content opens in same tab (will show modal in dashboard)
             });
         }
         if (note.linked_project) {
             links.push({
                 icon: note.linked_project.icon || '📁',
                 label: note.linked_project.name,
-                href: `/projects?id=${note.linked_project.id}`,
+                href: `/projects/${note.linked_project.id}`,
                 color: 'text-green-600 dark:text-green-400',
-                newTab: true, // Projects open in new tab
+                newTab: true,
             });
         }
         if (note.linked_model) {
             links.push({
                 icon: '🧠',
                 label: note.linked_model.taxonomy_value,
-                href: `/mental-models?id=${note.linked_model.id}`,
+                href: `/mental-models/${note.linked_model.id}`,
                 color: 'text-amber-600 dark:text-amber-400',
-                newTab: true, // Mental models open in new tab
+                newTab: true,
             });
         }
         if (note.linked_objectives && note.linked_objectives.length > 0) {
@@ -507,9 +535,9 @@ export default function NotesPage() {
                 links.push({
                     icon: obj.icon || '🎯',
                     label: obj.title,
-                    href: `/objectives?id=${obj.id}`,
+                    href: `/objectives/${obj.id}`,
                     color: 'text-purple-600 dark:text-purple-400',
-                    newTab: true, // Objectives open in new tab
+                    newTab: true,
                 });
             });
         }
@@ -520,9 +548,8 @@ export default function NotesPage() {
                 links.push({
                     icon: '📄',
                     label: content.title,
-                    href: `/dashboard?content=${content.id}`,
+                    contentId: content.id, // Open modal instead of navigating
                     color: 'text-blue-600 dark:text-blue-400',
-                    newTab: false, // Content opens in same tab
                 });
             }
         }
@@ -711,15 +738,28 @@ export default function NotesPage() {
 
                                             {/* Linked object */}
                                             {linkedObject && (
-                                                <Link
-                                                    href={linkedObject.href}
-                                                    target={linkedObject.newTab ? '_blank' : undefined}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className={`flex items-center gap-1 text-xs ${linkedObject.color} hover:underline flex-shrink-0 max-w-[200px]`}
-                                                >
-                                                    <span>{linkedObject.icon}</span>
-                                                    <span className="truncate">{linkedObject.label}</span>
-                                                </Link>
+                                                linkedObject.contentId ? (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openContentModal(linkedObject.contentId!);
+                                                        }}
+                                                        className={`flex items-center gap-1 text-xs ${linkedObject.color} hover:underline flex-shrink-0 max-w-[200px]`}
+                                                    >
+                                                        <span>{linkedObject.icon}</span>
+                                                        <span className="truncate">{linkedObject.label}</span>
+                                                    </button>
+                                                ) : linkedObject.href ? (
+                                                    <Link
+                                                        href={linkedObject.href}
+                                                        target={linkedObject.newTab ? '_blank' : undefined}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className={`flex items-center gap-1 text-xs ${linkedObject.color} hover:underline flex-shrink-0 max-w-[200px]`}
+                                                    >
+                                                        <span>{linkedObject.icon}</span>
+                                                        <span className="truncate">{linkedObject.label}</span>
+                                                    </Link>
+                                                ) : null
                                             )}
 
                                             {/* Full note indicator */}
@@ -998,14 +1038,27 @@ export default function NotesPage() {
                                                 <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
                                                     Vinculado a
                                                 </h4>
-                                                <Link
-                                                    href={linked.href}
-                                                    target={linked.newTab ? '_blank' : undefined}
-                                                    className={`inline-flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 ${linked.color}`}
-                                                >
-                                                    <span>{linked.icon}</span>
-                                                    <span className="text-sm">{linked.label}</span>
-                                                </Link>
+                                                {linked.contentId ? (
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowDetailModal(false);
+                                                            openContentModal(linked.contentId!);
+                                                        }}
+                                                        className={`inline-flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 ${linked.color}`}
+                                                    >
+                                                        <span>{linked.icon}</span>
+                                                        <span className="text-sm">{linked.label}</span>
+                                                    </button>
+                                                ) : linked.href ? (
+                                                    <Link
+                                                        href={linked.href}
+                                                        target={linked.newTab ? '_blank' : undefined}
+                                                        className={`inline-flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 ${linked.color}`}
+                                                    >
+                                                        <span>{linked.icon}</span>
+                                                        <span className="text-sm">{linked.label}</span>
+                                                    </Link>
+                                                ) : null}
                                             </div>
                                         );
                                     })()}
@@ -1038,6 +1091,16 @@ export default function NotesPage() {
                     </div>
                 </div>
             )}
+
+            {/* Content Detail Modal */}
+            <ContentDetailModal
+                content={selectedContent}
+                isOpen={showContentModal}
+                onClose={() => {
+                    setShowContentModal(false);
+                    setSelectedContent(null);
+                }}
+            />
         </div>
     );
 }
