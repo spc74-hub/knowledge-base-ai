@@ -87,6 +87,9 @@ export default function DashboardPage() {
   // Quick actions dropdown
   const [showQuickActions, setShowQuickActions] = useState(false);
 
+  // Sidebar collapsed state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+
   // Quick View Popup state
   const [quickViewItem, setQuickViewItem] = useState<any>(null);
   const [quickViewType, setQuickViewType] = useState<'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag'>('content');
@@ -270,8 +273,8 @@ export default function DashboardPage() {
     { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-blue-700' },
     { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-blue-600' },
     { key: 'notes', label: 'Notas', value: (kpis?.notes.total || 0) + (kpis?.full_notes?.total || 0), icon: '📝', href: '/notes', color: 'bg-blue-500' },
-    { key: 'areas', label: 'Areas', value: kpis?.areas?.active || 0, icon: '📋', href: '/areas', color: 'bg-green-700' },
-    { key: 'habits', label: 'Habitos', value: kpis?.habits?.active || 0, icon: '✅', href: '/habits', color: 'bg-green-600' },
+    { key: 'areas', label: 'Areas', value: kpis?.areas?.active || 0, icon: '📋', href: '/areas', color: 'bg-blue-400' },
+    { key: 'habits', label: 'Habitos', value: kpis?.habits?.active || 0, icon: '✅', href: '/habits', color: 'bg-blue-300' },
   ];
 
   // Sidebar navigation
@@ -1381,7 +1384,7 @@ export default function DashboardPage() {
 
       {/* KPI Bar */}
       <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-7 gap-2">
           {kpiCards.map((kpi) => (
             <button
               key={kpi.key}
@@ -1402,13 +1405,24 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex gap-6">
           {/* Sidebar */}
-          <aside className="w-64 flex-shrink-0">
-            <div className="bg-gray-900/50 rounded-xl p-4 sticky top-20">
+          <aside className={`flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-14' : 'w-64'}`}>
+            <div className="bg-gray-900/50 rounded-xl p-2 sticky top-20">
+              {/* Toggle button */}
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="w-full flex items-center justify-center p-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition-colors mb-2"
+                title={sidebarCollapsed ? 'Expandir menu' : 'Colapsar menu'}
+              >
+                <span className="text-lg">{sidebarCollapsed ? '→' : '←'}</span>
+              </button>
+
               {sidebarSections.map((section) => (
-                <div key={section.title} className="mb-6">
-                  <h3 className="text-xs font-semibold text-gray-500 mb-2 tracking-wider">
-                    {section.title}
-                  </h3>
+                <div key={section.title} className="mb-4">
+                  {!sidebarCollapsed && (
+                    <h3 className="text-xs font-semibold text-gray-500 mb-2 tracking-wider px-2">
+                      {section.title}
+                    </h3>
+                  )}
                   <div className="space-y-1">
                     {section.items.map((item) => {
                       const isSelected = item.selectable && selectedCategory === item.key;
@@ -1419,10 +1433,11 @@ export default function DashboardPage() {
                             key={item.key}
                             href={item.href}
                             target="_blank"
-                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors ${sidebarCollapsed ? 'justify-center' : ''}`}
+                            title={sidebarCollapsed ? item.label : undefined}
                           >
                             <span>{item.icon}</span>
-                            <span className="text-sm">{item.label}</span>
+                            {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
                           </Link>
                         );
                       }
@@ -1431,14 +1446,15 @@ export default function DashboardPage() {
                         <button
                           key={item.key}
                           onClick={() => setSelectedCategory(item.key as SidebarCategory)}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${sidebarCollapsed ? 'justify-center' : ''} ${
                             isSelected
                               ? 'bg-indigo-600 text-white'
                               : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                           }`}
+                          title={sidebarCollapsed ? item.label : undefined}
                         >
                           <span>{item.icon}</span>
-                          <span className="text-sm">{item.label}</span>
+                          {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
                         </button>
                       );
                     })}
@@ -1449,14 +1465,15 @@ export default function DashboardPage() {
               {/* Overview button */}
               <button
                 onClick={() => setSelectedCategory('overview')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mt-4 ${
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mt-2 ${sidebarCollapsed ? 'justify-center' : ''} ${
                   selectedCategory === 'overview'
                     ? 'bg-gray-700 text-white'
                     : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                 }`}
+                title={sidebarCollapsed ? 'Vista General' : undefined}
               >
                 <span>🏠</span>
-                <span className="text-sm">Vista General</span>
+                {!sidebarCollapsed && <span className="text-sm">Vista General</span>}
               </button>
             </div>
           </aside>
