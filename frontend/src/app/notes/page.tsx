@@ -29,6 +29,7 @@ interface Note {
     is_pinned: boolean;
     is_completed: boolean;
     is_full_note?: boolean;
+    priority: string | null;
     created_at: string;
     updated_at: string;
     // Enriched data from search
@@ -68,9 +69,18 @@ interface Facet {
 interface Facets {
     note_types: Facet[];
     linkage: Facet[];
+    priorities: Facet[];
     total_notes: number;
     pinned_count: number;
 }
+
+const PRIORITIES = {
+    important: { label: 'Importante', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+    urgent: { label: 'Urgente', icon: '🟠', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+    A: { label: 'A', icon: '🅰️', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
+    B: { label: 'B', icon: '🅱️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+    C: { label: 'C', icon: '©️', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' },
+} as const;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -119,6 +129,11 @@ export default function NotesPage() {
     const [linkageFilter, setLinkageFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showCompleted, setShowCompleted] = useState(true);
+    const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
+    const [excludePriorities, setExcludePriorities] = useState<string[]>([]);
+    const [sortBy, setSortBy] = useState<string>('created_at');
+    const [sortOrder, setSortOrder] = useState<string>('desc');
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     // Quick create form state
     const [quickContent, setQuickContent] = useState('');
@@ -201,6 +216,8 @@ export default function NotesPage() {
                 limit: 100,
                 offset: 0,
                 include_full_notes: true,
+                sort_by: sortBy,
+                sort_order: sortOrder,
             };
 
             if (filterType !== 'all') {
@@ -211,6 +228,12 @@ export default function NotesPage() {
             }
             if (searchQuery) {
                 requestBody.query = searchQuery;
+            }
+            if (priorityFilter.length > 0) {
+                requestBody.priorities = priorityFilter;
+            }
+            if (excludePriorities.length > 0) {
+                requestBody.exclude_priorities = excludePriorities;
             }
 
             const response = await fetch(`${API_URL}/api/v1/notes/search`, {
@@ -241,7 +264,7 @@ export default function NotesPage() {
         } finally {
             setLoading(false);
         }
-    }, [filterType, linkageFilter, searchQuery, showCompleted]);
+    }, [filterType, linkageFilter, searchQuery, showCompleted, priorityFilter, excludePriorities, sortBy, sortOrder]);
 
     const fetchAvailableItems = useCallback(async () => {
         try {
@@ -625,87 +648,180 @@ export default function NotesPage() {
             </header>
 
             <div className="max-w-6xl mx-auto px-4 py-4">
-                <div className="flex gap-6">
-                    {/* Sidebar with filters */}
-                    <aside className="w-64 flex-shrink-0">
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 sticky top-4">
-                            {/* Search */}
-                            <div className="mb-4">
-                                <input
-                                    type="text"
-                                    placeholder="Buscar notas..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
-                                />
-                            </div>
+                <div className="flex gap-4">
+                    {/* Collapsible Sidebar with filters */}
+                    <aside className={`flex-shrink-0 transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-10'}`}>
+                        {/* Toggle button */}
+                        <button
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            className="w-10 h-10 bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 mb-2"
+                            title={sidebarOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
+                        >
+                            {sidebarOpen ? '◀' : '▶'}
+                        </button>
 
-                            {/* Type filters */}
-                            <div className="mb-6">
-                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tipo de nota</h3>
-                                <div className="space-y-1">
-                                    <button
-                                        onClick={() => setFilterType('all')}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between ${filterType === 'all' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
-                                    >
-                                        <span>Todas</span>
-                                        {facets && <span className="text-xs opacity-60">{facets.total_notes}</span>}
-                                    </button>
-                                    {facets?.note_types.map(type => (
-                                        <button
-                                            key={type.value}
-                                            onClick={() => setFilterType(type.value)}
-                                            className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between ${filterType === type.value ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
-                                        >
-                                            <span>{type.icon} {type.label}</span>
-                                            <span className="text-xs opacity-60">{type.count}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Linkage filters */}
-                            <div className="mb-6">
-                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vinculacion</h3>
-                                <div className="space-y-1">
-                                    <button
-                                        onClick={() => setLinkageFilter('all')}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between ${linkageFilter === 'all' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
-                                    >
-                                        <span>Todas</span>
-                                    </button>
-                                    {facets?.linkage.map(link => (
-                                        <button
-                                            key={link.value}
-                                            onClick={() => setLinkageFilter(link.value)}
-                                            className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between ${linkageFilter === link.value ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
-                                        >
-                                            <span>{link.icon} {link.label}</span>
-                                            <span className="text-xs opacity-60">{link.count}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Actions filter */}
-                            {filterType === 'action' && (
+                        {sidebarOpen && (
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+                                {/* Search */}
                                 <div className="mb-4">
-                                    <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                        <input
-                                            type="checkbox"
-                                            checked={showCompleted}
-                                            onChange={(e) => setShowCompleted(e.target.checked)}
-                                            className="rounded"
-                                        />
-                                        Mostrar completadas
-                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar notas..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                                    />
                                 </div>
-                            )}
-                        </div>
+
+                                {/* Sort options */}
+                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Ordenar por</h3>
+                                    <div className="flex gap-2 flex-wrap">
+                                        <select
+                                            value={sortBy}
+                                            onChange={(e) => setSortBy(e.target.value)}
+                                            className="flex-1 px-2 py-1.5 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded text-sm"
+                                        >
+                                            <option value="created_at">Fecha</option>
+                                            <option value="priority">Prioridad</option>
+                                            <option value="title">Titulo</option>
+                                        </select>
+                                        <button
+                                            onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+                                            className="px-3 py-1.5 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-600"
+                                            title={sortOrder === 'desc' ? 'Descendente' : 'Ascendente'}
+                                        >
+                                            {sortOrder === 'desc' ? '↓' : '↑'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Priority filters */}
+                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Prioridad</h3>
+                                    <div className="space-y-1">
+                                        {facets?.priorities?.map(p => {
+                                            const isIncluded = priorityFilter.includes(p.value);
+                                            const isExcluded = excludePriorities.includes(p.value);
+                                            return (
+                                                <div key={p.value} className="flex items-center justify-between">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (isIncluded) {
+                                                                setPriorityFilter(priorityFilter.filter(x => x !== p.value));
+                                                            } else if (isExcluded) {
+                                                                setExcludePriorities(excludePriorities.filter(x => x !== p.value));
+                                                            } else {
+                                                                setPriorityFilter([...priorityFilter, p.value]);
+                                                            }
+                                                        }}
+                                                        className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${
+                                                            isIncluded ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                                                            isExcluded ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 line-through' :
+                                                            'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                                        }`}
+                                                    >
+                                                        <span>{p.icon}</span>
+                                                        <span>{p.label}</span>
+                                                        <span className="text-xs opacity-60 ml-auto">{p.count}</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (isExcluded) {
+                                                                setExcludePriorities(excludePriorities.filter(x => x !== p.value));
+                                                            } else {
+                                                                setPriorityFilter(priorityFilter.filter(x => x !== p.value));
+                                                                setExcludePriorities([...excludePriorities, p.value]);
+                                                            }
+                                                        }}
+                                                        className={`ml-1 px-2 py-1.5 rounded text-xs ${
+                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-gray-400'
+                                                        }`}
+                                                        title="Excluir"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {(priorityFilter.length > 0 || excludePriorities.length > 0) && (
+                                            <button
+                                                onClick={() => { setPriorityFilter([]); setExcludePriorities([]); }}
+                                                className="w-full text-center text-xs text-indigo-600 dark:text-indigo-400 mt-2 hover:underline"
+                                            >
+                                                Limpiar filtros de prioridad
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Type filters */}
+                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tipo de nota</h3>
+                                    <div className="space-y-1">
+                                        <button
+                                            onClick={() => setFilterType('all')}
+                                            className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between ${filterType === 'all' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+                                        >
+                                            <span>Todas</span>
+                                            {facets && <span className="text-xs opacity-60">{facets.total_notes}</span>}
+                                        </button>
+                                        {facets?.note_types.map(type => (
+                                            <button
+                                                key={type.value}
+                                                onClick={() => setFilterType(type.value)}
+                                                className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between ${filterType === type.value ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <span>{type.icon} {type.label}</span>
+                                                <span className="text-xs opacity-60">{type.count}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Linkage filters */}
+                                <div className="mb-4">
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vinculacion</h3>
+                                    <div className="space-y-1">
+                                        <button
+                                            onClick={() => setLinkageFilter('all')}
+                                            className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between ${linkageFilter === 'all' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+                                        >
+                                            <span>Todas</span>
+                                        </button>
+                                        {facets?.linkage.map(link => (
+                                            <button
+                                                key={link.value}
+                                                onClick={() => setLinkageFilter(link.value)}
+                                                className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between ${linkageFilter === link.value ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <span>{link.icon} {link.label}</span>
+                                                <span className="text-xs opacity-60">{link.count}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Actions filter */}
+                                {filterType === 'action' && (
+                                    <div className="mb-4">
+                                        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                            <input
+                                                type="checkbox"
+                                                checked={showCompleted}
+                                                onChange={(e) => setShowCompleted(e.target.checked)}
+                                                className="rounded"
+                                            />
+                                            Mostrar completadas
+                                        </label>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </aside>
 
                     {/* Main content */}
-                    <main className="flex-1">
+                    <main className="flex-1 min-w-0">
                         {notes.length === 0 ? (
                             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-12 text-center">
                                 <div className="text-6xl mb-4">📝</div>
@@ -755,6 +871,13 @@ export default function NotesPage() {
                                             {/* Pin indicator */}
                                             {note.is_pinned && (
                                                 <span className="text-indigo-500 flex-shrink-0">📌</span>
+                                            )}
+
+                                            {/* Priority badge */}
+                                            {note.priority && (
+                                                <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${PRIORITIES[note.priority as keyof typeof PRIORITIES]?.color || ''}`}>
+                                                    {PRIORITIES[note.priority as keyof typeof PRIORITIES]?.icon}
+                                                </span>
                                             )}
 
                                             {/* Content preview */}
@@ -982,8 +1105,45 @@ export default function NotesPage() {
                                         Completada
                                     </span>
                                 )}
+                                {selectedNote.priority && (
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORITIES[selectedNote.priority as keyof typeof PRIORITIES]?.color || ''}`}>
+                                        {PRIORITIES[selectedNote.priority as keyof typeof PRIORITIES]?.icon} {PRIORITIES[selectedNote.priority as keyof typeof PRIORITIES]?.label}
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
+                                {/* Priority selector dropdown */}
+                                <select
+                                    value={selectedNote.priority || ''}
+                                    onChange={async (e) => {
+                                        const newPriority = e.target.value || null;
+                                        try {
+                                            const session = await supabase.auth.getSession();
+                                            if (!session.data.session) return;
+                                            const response = await fetch(`${API_URL}/api/v1/notes/${selectedNote.id}/priority`, {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                                                },
+                                                body: JSON.stringify({ priority: newPriority }),
+                                            });
+                                            if (response.ok) {
+                                                setSelectedNote({ ...selectedNote, priority: newPriority });
+                                                setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, priority: newPriority } : n));
+                                            }
+                                        } catch (error) {
+                                            console.error('Error setting priority:', error);
+                                        }
+                                    }}
+                                    className="text-xs px-2 py-1.5 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                    title="Establecer prioridad"
+                                >
+                                    <option value="">Sin prioridad</option>
+                                    {Object.entries(PRIORITIES).map(([key, val]) => (
+                                        <option key={key} value={key}>{val.icon} {val.label}</option>
+                                    ))}
+                                </select>
                                 <button
                                     onClick={() => handleTogglePin(selectedNote)}
                                     className={`p-2 rounded-lg ${selectedNote.is_pinned ? 'bg-indigo-100 dark:bg-indigo-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}

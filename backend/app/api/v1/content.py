@@ -37,10 +37,14 @@ class NoteCreate(BaseModel):
     tags: List[str] = []
 
 
+VALID_NOTE_PRIORITIES = ["important", "urgent", "A", "B", "C"]
+
+
 class NoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     tags: Optional[List[str]] = None
+    priority: Optional[str] = None  # important, urgent, A, B, C
 
 
 class BulkImportResult(BaseModel):
@@ -1280,10 +1284,19 @@ async def update_note(
 
         note = existing.data
 
+        # Validate priority if provided
+        if data.priority is not None and data.priority != "" and data.priority not in VALID_NOTE_PRIORITIES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid priority. Must be one of: {', '.join(VALID_NOTE_PRIORITIES)}"
+            )
+
         # Determine what changed
         new_title = data.title if data.title is not None else note["title"]
         new_content = data.content if data.content is not None else note["raw_content"]
         new_tags = data.tags if data.tags is not None else note["user_tags"]
+        # Handle priority: empty string means clear, None means no change
+        new_priority = None if data.priority == "" else (data.priority if data.priority is not None else note.get("priority"))
 
         # If content or title changed, mark as pending for re-processing
         if data.title is not None or data.content is not None:
@@ -1308,12 +1321,13 @@ async def update_note(
                 "content_format": None,
                 "reading_time_minutes": reading_time,
                 "user_tags": new_tags,
+                "priority": new_priority,
                 "embedding": None,
                 "processing_status": "pending"  # Mark for re-processing
             }
         else:
-            # Only tags changed, no AI reprocessing needed
-            update_data = {"user_tags": new_tags}
+            # Only tags/priority changed, no AI reprocessing needed
+            update_data = {"user_tags": new_tags, "priority": new_priority}
 
         response = db.table("contents").update(update_data).eq("id", content_id).execute()
 

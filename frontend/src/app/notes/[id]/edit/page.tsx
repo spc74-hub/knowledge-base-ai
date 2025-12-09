@@ -9,12 +9,21 @@ import { NoteEditor } from '@/components/editor';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+const PRIORITIES = {
+    important: { label: 'Importante', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+    urgent: { label: 'Urgente', icon: '🟠', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+    A: { label: 'A', icon: '🅰️', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
+    B: { label: 'B', icon: '🅱️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+    C: { label: 'C', icon: '©️', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' },
+} as const;
+
 interface NoteContent {
     id: string;
     title: string;
     raw_content: string;
     user_tags: string[];
     type: string;
+    priority: string | null;
 }
 
 export default function EditNotePage() {
@@ -25,6 +34,7 @@ export default function EditNotePage() {
     const [note, setNote] = useState<NoteContent | null>(null);
     const [title, setTitle] = useState('');
     const [tags, setTags] = useState('');
+    const [priority, setPriority] = useState<string | null>(null);
     const [content, setContent] = useState('');
     const [htmlContent, setHtmlContent] = useState('');
     const [loading, setLoading] = useState(true);
@@ -48,7 +58,7 @@ export default function EditNotePage() {
         try {
             const { data, error: fetchError } = await supabase
                 .from('contents')
-                .select('id, title, raw_content, user_tags, type')
+                .select('id, title, raw_content, user_tags, type, priority')
                 .eq('id', noteId)
                 .eq('type', 'note')
                 .single();
@@ -63,6 +73,7 @@ export default function EditNotePage() {
             setNote(data);
             setTitle(data.title || '');
             setTags((data.user_tags || []).join(', '));
+            setPriority(data.priority || null);
         } catch (err: any) {
             setError(err.message || 'Error al cargar la nota');
         } finally {
@@ -104,7 +115,8 @@ export default function EditNotePage() {
                 body: JSON.stringify({
                     title: title.trim(),
                     content: htmlContent || content.trim(),
-                    tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0)
+                    tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0),
+                    priority: priority || ''
                 }),
             });
 
@@ -197,6 +209,26 @@ export default function EditNotePage() {
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Editar Nota</h1>
                     </div>
                     <div className="flex items-center gap-3">
+                        {/* Priority selector */}
+                        <div className="flex items-center gap-2">
+                            {priority && (
+                                <span className={`text-xs px-2 py-1 rounded ${PRIORITIES[priority as keyof typeof PRIORITIES]?.color || ''}`}>
+                                    {PRIORITIES[priority as keyof typeof PRIORITIES]?.icon} {PRIORITIES[priority as keyof typeof PRIORITIES]?.label}
+                                </span>
+                            )}
+                            <select
+                                value={priority || ''}
+                                onChange={(e) => setPriority(e.target.value || null)}
+                                disabled={saving}
+                                className="px-2 py-1.5 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                                title="Prioridad"
+                            >
+                                <option value="">Sin prioridad</option>
+                                {Object.entries(PRIORITIES).map(([key, val]) => (
+                                    <option key={key} value={key}>{val.icon} {val.label}</option>
+                                ))}
+                            </select>
+                        </div>
                         <button
                             onClick={handleDelete}
                             disabled={deleting || saving}

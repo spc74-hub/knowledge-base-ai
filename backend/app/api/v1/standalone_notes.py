@@ -11,6 +11,9 @@ router = APIRouter()
 
 
 # Request/Response Models
+VALID_PRIORITIES = ["important", "urgent", "A", "B", "C"]
+
+
 class NoteCreate(BaseModel):
     title: str
     content: str  # Markdown
@@ -21,6 +24,7 @@ class NoteCreate(BaseModel):
     source_content_id: Optional[str] = None  # Content from which the note was created
     linked_project_id: Optional[str] = None  # Project linked to this note
     linked_model_id: Optional[str] = None  # Mental model linked to this note
+    priority: Optional[str] = None  # important, urgent, A, B, C
 
 
 class NoteUpdate(BaseModel):
@@ -34,6 +38,7 @@ class NoteUpdate(BaseModel):
     is_completed: Optional[bool] = None
     linked_project_id: Optional[str] = None
     linked_model_id: Optional[str] = None
+    priority: Optional[str] = None  # important, urgent, A, B, C
 
 
 class NoteResponse(BaseModel):
@@ -49,6 +54,7 @@ class NoteResponse(BaseModel):
     linked_model_id: Optional[str] = None
     is_pinned: bool = False
     is_completed: bool = False
+    priority: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -264,6 +270,13 @@ async def create_note(
                 detail=f"Invalid note type. Must be one of: {', '.join(VALID_NOTE_TYPES)}"
             )
 
+        # Validate priority if provided
+        if data.priority and data.priority not in VALID_PRIORITIES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid priority. Must be one of: {', '.join(VALID_PRIORITIES)}"
+            )
+
         note_data = {
             "user_id": current_user["id"],
             "title": data.title,
@@ -275,7 +288,8 @@ async def create_note(
             "source_content_id": data.source_content_id,
             "linked_project_id": data.linked_project_id,
             "linked_model_id": data.linked_model_id,
-            "is_pinned": False
+            "is_pinned": False,
+            "priority": data.priority
         }
 
         response = db.table("standalone_notes").insert(note_data).execute()
@@ -334,6 +348,13 @@ async def update_note(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid note type. Must be one of: {', '.join(VALID_NOTE_TYPES)}"
+            )
+
+        # Validate priority if provided
+        if "priority" in update_data and update_data["priority"] is not None and update_data["priority"] not in VALID_PRIORITIES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid priority. Must be one of: {', '.join(VALID_PRIORITIES)}"
             )
 
         response = db.table("standalone_notes").update(update_data).eq("id", note_id).execute()
@@ -473,6 +494,57 @@ async def toggle_complete_note(
         )
 
 
+@router.post("/{note_id}/priority")
+async def set_note_priority(
+    note_id: str,
+    priority: Optional[str],
+    current_user: CurrentUser,
+    db: Database
+):
+    """
+    Set or clear the priority of a note.
+    Priority values: important, urgent, A, B, C, or null to clear.
+    """
+    try:
+        # Check ownership
+        existing = db.table("standalone_notes").select("id").eq(
+            "id", note_id
+        ).eq(
+            "user_id", current_user["id"]
+        ).execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Note not found"
+            )
+
+        # Validate priority if provided
+        if priority and priority not in VALID_PRIORITIES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid priority. Must be one of: {', '.join(VALID_PRIORITIES)}"
+            )
+
+        db.table("standalone_notes").update({
+            "priority": priority
+        }).eq("id", note_id).execute()
+
+        return {
+            "id": note_id,
+            "priority": priority,
+            "message": f"Prioridad actualizada a {priority}" if priority else "Prioridad eliminada"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.post("/bulk/delete")
 async def bulk_delete_notes(
     note_ids: List[str],
@@ -524,6 +596,10 @@ class NotesSearchRequest(BaseModel):
     linkage_type: Optional[str] = None  # 'content', 'project', 'model', 'independent'
     is_pinned: Optional[bool] = None
     include_full_notes: Optional[bool] = True  # Whether to include contents with type='note'
+    priorities: Optional[List[str]] = None  # Filter by priorities (include)
+    exclude_priorities: Optional[List[str]] = None  # Exclude these priorities
+    sort_by: Optional[str] = "created_at"  # created_at, priority, title
+    sort_order: Optional[str] = "desc"  # asc, desc
     limit: int = 50
     offset: int = 0
 
@@ -544,7 +620,7 @@ async def search_notes_with_facets(
 
         # Build base query for notes
         query = db.table("standalone_notes").select(
-            "id, title, content, note_type, tags, source_content_id, linked_project_id, linked_model_id, is_pinned, created_at, updated_at"
+            "id, title, content, note_type, tags, source_content_id, linked_project_id, linked_model_id, is_pinned, is_completed, priority, created_at, updated_at"
         ).eq("user_id", user_id)
 
         # Apply filters
@@ -583,8 +659,29 @@ async def search_notes_with_facets(
         if data.query:
             query = query.or_(f"title.ilike.%{data.query}%,content.ilike.%{data.query}%")
 
-        # Execute paginated query
-        query = query.order("is_pinned", desc=True).order("created_at", desc=True)
+        # Priority filters
+        if data.priorities:
+            query = query.in_("priority", data.priorities)
+        if data.exclude_priorities:
+            for excl_priority in data.exclude_priorities:
+                query = query.neq("priority", excl_priority)
+
+        # Determine sort order
+        is_desc = data.sort_order != "asc"
+
+        # Execute paginated query with sorting
+        # Always pin first, then by selected sort
+        query = query.order("is_pinned", desc=True)
+
+        if data.sort_by == "priority":
+            # Priority order: important, urgent, A, B, C, null (nulls last)
+            query = query.order("priority", desc=is_desc, nullsfirst=False)
+            query = query.order("created_at", desc=True)
+        elif data.sort_by == "title":
+            query = query.order("title", desc=is_desc)
+        else:  # default: created_at
+            query = query.order("created_at", desc=is_desc)
+
         query = query.range(data.offset, data.offset + data.limit - 1)
 
         response = query.execute()
@@ -702,7 +799,7 @@ async def search_notes_with_facets(
         if include_full and want_full_notes:
             # Get full notes from contents table (excluding Apple Notes)
             full_notes_query = db.table("contents").select(
-                "id, title, summary, is_favorite, project_id, created_at, updated_at"
+                "id, title, summary, is_favorite, project_id, priority, created_at, updated_at"
             ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes")
 
             if data.query:
@@ -716,6 +813,13 @@ async def search_notes_with_facets(
                 full_notes_query = full_notes_query.not_.is_("project_id", "null")
             elif data.linkage_type == 'independent':
                 full_notes_query = full_notes_query.is_("project_id", "null")
+
+            # Apply priority filters to full notes
+            if data.priorities:
+                full_notes_query = full_notes_query.in_("priority", data.priorities)
+            if data.exclude_priorities:
+                for excl_priority in data.exclude_priorities:
+                    full_notes_query = full_notes_query.neq("priority", excl_priority)
 
             full_notes_query = full_notes_query.order("created_at", desc=True)
             full_notes_response = full_notes_query.execute()
@@ -733,6 +837,7 @@ async def search_notes_with_facets(
                     "linked_model_id": None,
                     "is_pinned": fn.get("is_favorite", False),
                     "is_full_note": True,
+                    "priority": fn.get("priority"),
                     "created_at": fn["created_at"],
                     "updated_at": fn["updated_at"],
                 })
@@ -756,7 +861,7 @@ async def search_notes_with_facets(
         # Get facet counts (all notes, not filtered)
         # This query is separate and gets total counts for facets
         all_notes_query = db.table("standalone_notes").select(
-            "id, note_type, source_content_id, linked_project_id, linked_model_id, is_pinned"
+            "id, note_type, source_content_id, linked_project_id, linked_model_id, is_pinned, priority"
         ).eq("user_id", user_id)
 
         all_notes_response = all_notes_query.execute()
@@ -775,7 +880,7 @@ async def search_notes_with_facets(
 
         # Get full notes for facets (excluding Apple Notes)
         full_notes_facet_response = db.table("contents").select(
-            "id, project_id"
+            "id, project_id, priority"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").execute()
         full_notes_facet_data = full_notes_facet_response.data or []
         full_notes_total = len(full_notes_facet_data)
@@ -791,6 +896,7 @@ async def search_notes_with_facets(
         model_linked_count = 0
         independent_count = 0
         pinned_count = 0
+        priority_counts = {"important": 0, "urgent": 0, "A": 0, "B": 0, "C": 0}
 
         for n in all_notes:
             nt = n.get("note_type", "reflection")
@@ -812,6 +918,17 @@ async def search_notes_with_facets(
             if n.get("is_pinned"):
                 pinned_count += 1
 
+            # Count priorities
+            priority = n.get("priority")
+            if priority and priority in priority_counts:
+                priority_counts[priority] += 1
+
+        # Count priorities from full notes too
+        for fn in full_notes_facet_data:
+            priority = fn.get("priority")
+            if priority and priority in priority_counts:
+                priority_counts[priority] += 1
+
         total_all = len(all_notes) + full_notes_total
 
         facets = {
@@ -831,6 +948,13 @@ async def search_notes_with_facets(
                 {"value": "objective", "label": "Con objetivo", "icon": "🎯", "count": objective_linked_count},
                 {"value": "model", "label": "Con modelo mental", "icon": "🧠", "count": model_linked_count},
                 {"value": "independent", "label": "Independientes", "icon": "📝", "count": independent_count + full_notes_independent},
+            ],
+            "priorities": [
+                {"value": "important", "label": "Importante", "icon": "🔴", "count": priority_counts["important"]},
+                {"value": "urgent", "label": "Urgente", "icon": "🟠", "count": priority_counts["urgent"]},
+                {"value": "A", "label": "A", "icon": "🅰️", "count": priority_counts["A"]},
+                {"value": "B", "label": "B", "icon": "🅱️", "count": priority_counts["B"]},
+                {"value": "C", "label": "C", "icon": "©️", "count": priority_counts["C"]},
             ],
             "total_notes": total_all,
             "pinned_count": pinned_count,
