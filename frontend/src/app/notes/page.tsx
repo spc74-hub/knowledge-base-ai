@@ -428,9 +428,9 @@ export default function NotesPage() {
     };
 
     const openNoteDetail = (note: Note) => {
-        // For full notes, redirect to the notes detail page
+        // For full notes, open the edit page in a new tab
         if (note.is_full_note) {
-            router.push(`/notes/${note.id}`);
+            window.open(`/notes/${note.id}/edit`, '_blank');
             return;
         }
         setSelectedNote(note);
@@ -473,7 +473,7 @@ export default function NotesPage() {
 
     // Get linked object display for list view
     const getLinkedObjectDisplay = (note: Note) => {
-        const links = [];
+        const links: { icon: string; label: string; href: string; color: string; newTab?: boolean }[] = [];
 
         if (note.source_content) {
             links.push({
@@ -481,6 +481,7 @@ export default function NotesPage() {
                 label: note.source_content.title,
                 href: `/dashboard?content=${note.source_content.id}`,
                 color: 'text-blue-600 dark:text-blue-400',
+                newTab: false, // Content opens in same tab (will show modal in dashboard)
             });
         }
         if (note.linked_project) {
@@ -489,6 +490,7 @@ export default function NotesPage() {
                 label: note.linked_project.name,
                 href: `/projects?id=${note.linked_project.id}`,
                 color: 'text-green-600 dark:text-green-400',
+                newTab: true, // Projects open in new tab
             });
         }
         if (note.linked_model) {
@@ -497,6 +499,7 @@ export default function NotesPage() {
                 label: note.linked_model.taxonomy_value,
                 href: `/mental-models?id=${note.linked_model.id}`,
                 color: 'text-amber-600 dark:text-amber-400',
+                newTab: true, // Mental models open in new tab
             });
         }
         if (note.linked_objectives && note.linked_objectives.length > 0) {
@@ -506,6 +509,7 @@ export default function NotesPage() {
                     label: obj.title,
                     href: `/objectives?id=${obj.id}`,
                     color: 'text-purple-600 dark:text-purple-400',
+                    newTab: true, // Objectives open in new tab
                 });
             });
         }
@@ -518,6 +522,7 @@ export default function NotesPage() {
                     label: content.title,
                     href: `/dashboard?content=${content.id}`,
                     color: 'text-blue-600 dark:text-blue-400',
+                    newTab: false, // Content opens in same tab
                 });
             }
         }
@@ -708,6 +713,7 @@ export default function NotesPage() {
                                             {linkedObject && (
                                                 <Link
                                                     href={linkedObject.href}
+                                                    target={linkedObject.newTab ? '_blank' : undefined}
                                                     onClick={(e) => e.stopPropagation()}
                                                     className={`flex items-center gap-1 text-xs ${linkedObject.color} hover:underline flex-shrink-0 max-w-[200px]`}
                                                 >
@@ -994,6 +1000,7 @@ export default function NotesPage() {
                                                 </h4>
                                                 <Link
                                                     href={linked.href}
+                                                    target={linked.newTab ? '_blank' : undefined}
                                                     className={`inline-flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 ${linked.color}`}
                                                 >
                                                     <span>{linked.icon}</span>
