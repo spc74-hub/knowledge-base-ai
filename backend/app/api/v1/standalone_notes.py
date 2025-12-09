@@ -773,11 +773,16 @@ async def search_notes_with_facets(
             objective_note_ids_set = set(on["note_id"] for on in (obj_notes_facet_response.data or []))
             objective_linked_count = len(objective_note_ids_set)
 
-        # Get full notes count for facets (excluding Apple Notes)
-        full_notes_total_response = db.table("contents").select(
-            "id", count="exact"
+        # Get full notes for facets (excluding Apple Notes)
+        full_notes_facet_response = db.table("contents").select(
+            "id, project_id"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").execute()
-        full_notes_total = full_notes_total_response.count or 0
+        full_notes_facet_data = full_notes_facet_response.data or []
+        full_notes_total = len(full_notes_facet_data)
+
+        # Count full notes with/without project
+        full_notes_with_project = sum(1 for fn in full_notes_facet_data if fn.get("project_id"))
+        full_notes_independent = full_notes_total - full_notes_with_project
 
         # Calculate facets
         note_type_counts = {}
@@ -822,10 +827,10 @@ async def search_notes_with_facets(
             ],
             "linkage": [
                 {"value": "content", "label": "Con contenido", "icon": "📄", "count": content_linked_count},
-                {"value": "project", "label": "Con proyecto", "icon": "📁", "count": project_linked_count},
+                {"value": "project", "label": "Con proyecto", "icon": "📁", "count": project_linked_count + full_notes_with_project},
                 {"value": "objective", "label": "Con objetivo", "icon": "🎯", "count": objective_linked_count},
                 {"value": "model", "label": "Con modelo mental", "icon": "🧠", "count": model_linked_count},
-                {"value": "independent", "label": "Independientes", "icon": "📝", "count": independent_count},
+                {"value": "independent", "label": "Independientes", "icon": "📝", "count": independent_count + full_notes_independent},
             ],
             "total_notes": total_all,
             "pinned_count": pinned_count,
