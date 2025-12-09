@@ -372,12 +372,15 @@ async def get_object_summary(
         by_type["full_note"] = safe_count(full_notes_count)
         by_type["apple_notes"] = safe_count(apple_notes_count)
 
-        # Total count (standalone + full notes + apple notes)
+        # Total count (standalone + full notes, excluding apple notes for main total)
         standalone_total = safe_query(lambda: db.table("standalone_notes").select(
             "id", count="exact"
         ).eq("user_id", user_id).execute())
 
-        total = safe_count(standalone_total) + safe_count(full_notes_count) + safe_count(apple_notes_count)
+        # Main total excludes Apple Notes (they're shown separately)
+        total = safe_count(standalone_total) + safe_count(full_notes_count)
+        # Total including Apple Notes for reference
+        total_with_apple = total + safe_count(apple_notes_count)
 
         return {
             "type": "notes",
@@ -385,7 +388,8 @@ async def get_object_summary(
             "pinned": safe_data(pinned),
             "full_notes": full_notes_data,
             "stats": {
-                "total": total,
+                "total": total,  # Without Apple Notes
+                "total_with_apple": total_with_apple,  # With Apple Notes
                 "by_type": by_type,
             },
             "note_types": [
@@ -394,8 +398,8 @@ async def get_object_summary(
                 {"value": "question", "label": "Preguntas", "icon": "❓"},
                 {"value": "connection", "label": "Conexiones", "icon": "🔗"},
                 {"value": "journal", "label": "Diario", "icon": "📓"},
+                {"value": "action", "label": "Acciones", "icon": "✅"},
                 {"value": "full_note", "label": "Notas completas", "icon": "📄"},
-                {"value": "apple_notes", "label": "Apple Notes", "icon": "🍎"},
             ],
         }
 

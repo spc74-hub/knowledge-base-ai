@@ -1419,12 +1419,20 @@ export default function ObjectivesPage() {
                                             <h3 className="font-semibold dark:text-white">
                                                 Notas ({selectedObjective.notes?.length || 0})
                                             </h3>
-                                            <button
-                                                onClick={openNoteSelector}
-                                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                                            >
-                                                + Anadir
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={openNoteSelector}
+                                                    className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                                                >
+                                                    + Vincular
+                                                </button>
+                                                <Link
+                                                    href={`/notes?new=true&objective_id=${selectedObjective.id}`}
+                                                    className="text-sm bg-gradient-to-r from-amber-500 to-orange-600 text-white px-2 py-1 rounded hover:from-amber-600 hover:to-orange-700"
+                                                >
+                                                    + Nueva Nota
+                                                </Link>
+                                            </div>
                                         </div>
                                         {!selectedObjective.notes || selectedObjective.notes.length === 0 ? (
                                             <p className="text-gray-500 dark:text-gray-400 text-sm py-2">

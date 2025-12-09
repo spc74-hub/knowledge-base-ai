@@ -39,7 +39,7 @@ interface ObjectSummary {
   items?: any[];
 }
 
-type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'full_notes' | 'tags';
+type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'tags';
 
 interface SidebarItem {
   key: string;
@@ -245,8 +245,7 @@ export default function DashboardPage() {
     { key: 'objectives', label: 'Objetivos', value: kpis?.objectives.active || 0, icon: '🎯', href: '/objectives', color: 'bg-blue-800' },
     { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-blue-700' },
     { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-blue-600' },
-    { key: 'notes', label: 'Quick Notes', value: kpis?.notes.total || 0, icon: '📝', href: '/journal', color: 'bg-blue-500' },
-    { key: 'full_notes', label: 'Notes+', value: kpis?.full_notes?.total || 0, icon: '📄', href: '/explore?types=note', color: 'bg-indigo-500' },
+    { key: 'notes', label: 'Notas', value: (kpis?.notes.total || 0) + (kpis?.full_notes?.total || 0), icon: '📝', href: '/notes', color: 'bg-blue-500' },
   ];
 
   // Sidebar navigation
@@ -268,8 +267,7 @@ export default function DashboardPage() {
         { key: 'objectives', label: 'Objetivos', icon: '🎯', selectable: true },
         { key: 'projects', label: 'Proyectos', icon: '📁', selectable: true },
         { key: 'mental_models', label: 'Modelos Mentales', icon: '🧠', selectable: true },
-        { key: 'notes', label: 'Quick Notes', icon: '📝', selectable: true },
-        { key: 'full_notes', label: 'Notes+', icon: '📄', selectable: true },
+        { key: 'notes', label: 'Notas', icon: '📝', selectable: true },
       ],
     },
     {
@@ -510,9 +508,10 @@ export default function DashboardPage() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
-          <h2 className="text-xl text-white font-semibold">Diario y Notas</h2>
+          <h2 className="text-xl text-white font-semibold">Notas</h2>
           <Link
-            href="/journal"
+            href="/notes"
+            target="_blank"
             className="text-indigo-400 hover:text-indigo-300 text-sm"
           >
             Ver todo →
@@ -525,17 +524,16 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium">📊 Resumen</h3>
             <span className="text-2xl font-bold text-white">{stats.total} notas</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {noteTypes.map((noteType: any) => {
               const count = stats.by_type?.[noteType.value] || 0;
-              // Apple Notes go to Explorer, other types go to Journal
-              const href = noteType.value === 'apple_notes'
-                ? '/explore?types=apple_notes'
-                : `/journal?type=${noteType.value}`;
+              // Each type opens /notes with filter param
+              const href = `/notes?type=${noteType.value}`;
               return (
                 <Link
                   key={noteType.value}
                   href={href}
+                  target="_blank"
                   className="bg-gray-900/50 hover:bg-gray-800 rounded-lg p-3 transition-colors cursor-pointer text-center"
                 >
                   <div className="text-2xl mb-1">{noteType.icon}</div>
@@ -602,28 +600,18 @@ export default function DashboardPage() {
         {/* Quick create */}
         <div className="flex gap-3 flex-wrap">
           <Link
+            href="/notes?new=true"
+            target="_blank"
+            className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 font-medium shadow-md"
+          >
+            📝 Quick Note
+          </Link>
+          <Link
             href="/notes/new"
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+            target="_blank"
+            className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 font-medium shadow-md"
           >
-            📄 Nota completa
-          </Link>
-          <Link
-            href="/journal?new=true&type=reflection"
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
-          >
-            💭 Nueva reflexión
-          </Link>
-          <Link
-            href="/journal?new=true&type=idea"
-            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
-          >
-            💡 Nueva idea
-          </Link>
-          <Link
-            href="/journal?new=true&type=question"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
-          >
-            ❓ Nueva pregunta
+            📄 Full Note
           </Link>
         </div>
       </div>
@@ -826,8 +814,7 @@ export default function DashboardPage() {
       objectives: { title: 'Objetivos', href: '/objectives' },
       projects: { title: 'Proyectos', href: '/projects' },
       mental_models: { title: 'Modelos Mentales', href: '/mental-models' },
-      notes: { title: 'Quick Notes', href: '/journal' },
-      full_notes: { title: 'Notes+', href: '/explore?types=note' },
+      notes: { title: 'Notas', href: '/notes' },
       tags: { title: 'Tags', href: '/tags' },
     };
 
@@ -963,22 +950,23 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold text-white">Dashboard</h1>
           <div className="flex items-center gap-2">
-            {/* Direct Note Buttons */}
+            {/* Quick Note Button */}
             <Link
-              href="/journal?new=true"
+              href="/notes?new=true"
               target="_blank"
-              className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
-              title="Nota rápida"
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 font-medium shadow-md"
+              title="Quick Note"
             >
-              📝 Quick
+              📝 Quick Note
             </Link>
+            {/* Full Note Button */}
             <Link
               href="/notes/new"
               target="_blank"
-              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
-              title="Nota completa"
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 font-medium shadow-md"
+              title="Full Note"
             >
-              📄 Note+
+              📄 Full Note
             </Link>
             {/* Quick Actions Dropdown */}
             <div className="relative">
@@ -1002,18 +990,20 @@ export default function DashboardPage() {
                       🔗 Guardar URL
                     </button>
                     <Link
-                      href="/journal?new=true"
+                      href="/notes?new=true"
+                      target="_blank"
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
-                      📝 Nueva Nota Rápida
+                      📝 Quick Note
                     </Link>
                     <Link
                       href="/notes/new"
+                      target="_blank"
                       onClick={() => setShowQuickActions(false)}
                       className="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
                     >
-                      📄 Nueva Nota Completa
+                      📄 Full Note
                     </Link>
                     <Link
                       href="/objectives?create=true"
@@ -1070,7 +1060,7 @@ export default function DashboardPage() {
 
       {/* KPI Bar */}
       <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           {kpiCards.map((kpi) => (
             <button
               key={kpi.key}

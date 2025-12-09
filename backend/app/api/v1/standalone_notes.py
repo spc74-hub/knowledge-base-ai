@@ -558,12 +558,22 @@ async def search_notes_with_facets(
             query = query.is_("source_content_id", "null")
 
         # New linkage type filter
+        # For 'objective' we need to check the junction table separately
+        objective_linked_note_ids = set()
+        if data.linkage_type == 'objective':
+            # Get note IDs that are linked to any objective
+            obj_notes_response = db.table("objective_notes").select("note_id").eq("user_id", user_id).execute()
+            objective_linked_note_ids = set(on["note_id"] for on in (obj_notes_response.data or []))
+
         if data.linkage_type == 'content':
             query = query.not_.is_("source_content_id", "null")
         elif data.linkage_type == 'project':
             query = query.not_.is_("linked_project_id", "null")
         elif data.linkage_type == 'model':
             query = query.not_.is_("linked_model_id", "null")
+        elif data.linkage_type == 'objective':
+            # Filter will be applied after query execution
+            pass
         elif data.linkage_type == 'independent':
             query = query.is_("source_content_id", "null").is_("linked_project_id", "null").is_("linked_model_id", "null")
 
@@ -579,6 +589,12 @@ async def search_notes_with_facets(
 
         response = query.execute()
         notes = response.data or []
+
+        # If filtering by objective, apply the filter now
+        if data.linkage_type == 'objective' and objective_linked_note_ids:
+            notes = [n for n in notes if n["id"] in objective_linked_note_ids]
+        elif data.linkage_type == 'objective' and not objective_linked_note_ids:
+            notes = []
 
         # Get source content info for notes that have it
         source_content_ids = list(set(
@@ -622,6 +638,35 @@ async def search_notes_with_facets(
             for m in (models_response.data or []):
                 models_map[m["id"]] = m
 
+        # Get objective info for notes (via junction table)
+        note_ids = [n["id"] for n in notes]
+        objectives_map = {}  # note_id -> list of objectives
+        if note_ids:
+            obj_notes_response = db.table("objective_notes").select(
+                "note_id, objective_id"
+            ).eq("user_id", user_id).in_("note_id", note_ids).execute()
+
+            # Get unique objective IDs
+            objective_ids = list(set(
+                on["objective_id"] for on in (obj_notes_response.data or [])
+            ))
+
+            if objective_ids:
+                objectives_response = db.table("objectives").select(
+                    "id, title, icon, color, status"
+                ).in_("id", objective_ids).execute()
+
+                objectives_info = {o["id"]: o for o in (objectives_response.data or [])}
+
+                # Map note_id to list of objectives
+                for on in (obj_notes_response.data or []):
+                    note_id = on["note_id"]
+                    obj_id = on["objective_id"]
+                    if note_id not in objectives_map:
+                        objectives_map[note_id] = []
+                    if obj_id in objectives_info:
+                        objectives_map[note_id].append(objectives_info[obj_id])
+
         # Enrich notes with linked info
         for note in notes:
             if note.get("source_content_id") and note["source_content_id"] in source_contents_map:
@@ -639,6 +684,9 @@ async def search_notes_with_facets(
             else:
                 note["linked_model"] = None
 
+            # Add linked objectives
+            note["linked_objectives"] = objectives_map.get(note["id"], [])
+
         # Get Full Notes (contents with type='note') if requested
         include_full = data.include_full_notes is not False
         want_full_notes = not data.note_types or 'full_note' in data.note_types
@@ -647,10 +695,10 @@ async def search_notes_with_facets(
         full_notes_count = 0
 
         if include_full and want_full_notes:
-            # Get full notes from contents table
+            # Get full notes from contents table (excluding Apple Notes)
             full_notes_query = db.table("contents").select(
                 "id, title, summary, is_favorite, project_id, created_at, updated_at"
-            ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False)
+            ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes")
 
             if data.query:
                 full_notes_query = full_notes_query.or_(f"title.ilike.%{data.query}%,summary.ilike.%{data.query}%")
@@ -666,7 +714,7 @@ async def search_notes_with_facets(
                 full_notes_data.append({
                     "id": fn["id"],
                     "title": fn["title"],
-                    "content": fn.get("summary", "")[:200] or "",  # Use summary as preview
+                    "content": (fn.get("summary") or "")[:200],  # Use summary as preview
                     "note_type": "full_note",
                     "tags": [],
                     "source_content_id": None,
@@ -697,16 +745,27 @@ async def search_notes_with_facets(
         # Get facet counts (all notes, not filtered)
         # This query is separate and gets total counts for facets
         all_notes_query = db.table("standalone_notes").select(
-            "note_type, source_content_id, linked_project_id, linked_model_id, is_pinned"
+            "id, note_type, source_content_id, linked_project_id, linked_model_id, is_pinned"
         ).eq("user_id", user_id)
 
         all_notes_response = all_notes_query.execute()
         all_notes = all_notes_response.data or []
 
-        # Get full notes count for facets
+        # Get objective-linked notes count for facets
+        all_note_ids = [n["id"] for n in all_notes]
+        objective_linked_count = 0
+        if all_note_ids:
+            obj_notes_facet_response = db.table("objective_notes").select(
+                "note_id", count="exact"
+            ).eq("user_id", user_id).execute()
+            # Count unique note_ids that have objective links
+            objective_note_ids_set = set(on["note_id"] for on in (obj_notes_facet_response.data or []))
+            objective_linked_count = len(objective_note_ids_set)
+
+        # Get full notes count for facets (excluding Apple Notes)
         full_notes_total_response = db.table("contents").select(
             "id", count="exact"
-        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).execute()
+        ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").execute()
         full_notes_total = full_notes_total_response.count or 0
 
         # Calculate facets
@@ -752,6 +811,7 @@ async def search_notes_with_facets(
             "linkage": [
                 {"value": "content", "label": "Con contenido", "icon": "📄", "count": content_linked_count},
                 {"value": "project", "label": "Con proyecto", "icon": "📁", "count": project_linked_count},
+                {"value": "objective", "label": "Con objetivo", "icon": "🎯", "count": objective_linked_count},
                 {"value": "model", "label": "Con modelo mental", "icon": "🧠", "count": model_linked_count},
                 {"value": "independent", "label": "Independientes", "icon": "📝", "count": independent_count},
             ],

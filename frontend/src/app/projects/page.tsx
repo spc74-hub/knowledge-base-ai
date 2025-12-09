@@ -871,6 +871,13 @@ export default function ProjectsPage() {
                                     >
                                         + Nota
                                     </button>
+                                    <Link
+                                        href={`/notes?new=true&project_id=${selectedProject.id}`}
+                                        className="px-3 py-2 text-sm bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg hover:from-amber-600 hover:to-orange-700 font-medium"
+                                        title="Crear nota nueva vinculada"
+                                    >
+                                        + Nueva Nota
+                                    </Link>
                                     <button
                                         onClick={() => openCreateSubproject(selectedProject.id)}
                                         className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
