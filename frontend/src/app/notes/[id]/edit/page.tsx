@@ -74,6 +74,9 @@ export default function EditNotePage() {
             setTitle(data.title || '');
             setTags((data.user_tags || []).join(', '));
             setPriority(data.priority || null);
+            // Initialize content state from note data so save works even without editor changes
+            setContent(data.raw_content || '');
+            setHtmlContent(data.raw_content || '');
         } catch (err: any) {
             setError(err.message || 'Error al cargar la nota');
         } finally {

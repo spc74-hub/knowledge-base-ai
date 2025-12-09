@@ -56,6 +56,16 @@ ON standalone_notes(source_content_id);
 CREATE INDEX IF NOT EXISTS idx_standalone_notes_listing
 ON standalone_notes(user_id, note_type, is_pinned DESC, created_at DESC);
 
+-- Index for notes by priority
+CREATE INDEX IF NOT EXISTS idx_standalone_notes_priority
+ON standalone_notes(user_id, priority, created_at DESC)
+WHERE priority IS NOT NULL;
+
+-- Index for pinned notes lookup
+CREATE INDEX IF NOT EXISTS idx_standalone_notes_pinned
+ON standalone_notes(user_id, is_pinned, created_at DESC)
+WHERE is_pinned = true;
+
 -- =====================================================
 -- CONTENT_MENTAL_MODELS TABLE INDEXES
 -- =====================================================

@@ -128,6 +128,7 @@ export default function NotesPage() {
     const [filterType, setFilterType] = useState<string>('all');
     const [linkageFilter, setLinkageFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
     const [showCompleted, setShowCompleted] = useState(true);
     const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
     const [excludePriorities, setExcludePriorities] = useState<string[]>([]);
@@ -226,8 +227,8 @@ export default function NotesPage() {
             if (linkageFilter !== 'all') {
                 requestBody.linkage_type = linkageFilter;
             }
-            if (searchQuery) {
-                requestBody.query = searchQuery;
+            if (appliedSearchQuery) {
+                requestBody.query = appliedSearchQuery;
             }
             if (priorityFilter.length > 0) {
                 requestBody.priorities = priorityFilter;
@@ -264,7 +265,7 @@ export default function NotesPage() {
         } finally {
             setLoading(false);
         }
-    }, [filterType, linkageFilter, searchQuery, showCompleted, priorityFilter, excludePriorities, sortBy, sortOrder]);
+    }, [filterType, linkageFilter, appliedSearchQuery, showCompleted, priorityFilter, excludePriorities, sortBy, sortOrder]);
 
     const fetchAvailableItems = useCallback(async () => {
         try {
@@ -664,13 +665,43 @@ export default function NotesPage() {
                             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
                                 {/* Search */}
                                 <div className="mb-4">
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar notas..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar... (Enter)"
+                                            value={searchQuery}
+                                            onChange={(e) => {
+                                                setSearchQuery(e.target.value);
+                                                // Si se borra el campo, limpiar también la búsqueda aplicada
+                                                if (e.target.value === '' && appliedSearchQuery !== '') {
+                                                    setAppliedSearchQuery('');
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    setAppliedSearchQuery(searchQuery);
+                                                }
+                                            }}
+                                            className="w-full px-3 py-2 pr-8 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                                        />
+                                        {appliedSearchQuery && (
+                                            <button
+                                                onClick={() => {
+                                                    setSearchQuery('');
+                                                    setAppliedSearchQuery('');
+                                                }}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                                title="Limpiar búsqueda"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+                                    {appliedSearchQuery && (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            Buscando: &quot;{appliedSearchQuery}&quot;
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Sort options */}
