@@ -270,6 +270,8 @@ export default function DashboardPage() {
     { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-blue-700' },
     { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-blue-600' },
     { key: 'notes', label: 'Notas', value: (kpis?.notes.total || 0) + (kpis?.full_notes?.total || 0), icon: '📝', href: '/notes', color: 'bg-blue-500' },
+    { key: 'areas', label: 'Areas', value: kpis?.areas?.active || 0, icon: '📋', href: '/areas', color: 'bg-green-700' },
+    { key: 'habits', label: 'Habitos', value: kpis?.habits?.active || 0, icon: '✅', href: '/habits', color: 'bg-green-600' },
   ];
 
   // Sidebar navigation

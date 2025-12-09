@@ -78,6 +78,18 @@ export default function HabitDetailPage() {
     const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
     const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth() + 1);
 
+    // Status selector modal
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [showStatusModal, setShowStatusModal] = useState(false);
+
+    const STATUS_OPTIONS = [
+        { value: 'completed', label: 'Completado', icon: '✓', color: 'bg-green-500', textColor: 'text-white' },
+        { value: 'partial', label: 'Parcial', icon: '½', color: 'bg-blue-400', textColor: 'text-white' },
+        { value: 'skipped', label: 'Omitido', icon: '−', color: 'bg-yellow-400', textColor: 'text-yellow-900' },
+        { value: 'failed', label: 'Fallido', icon: '✗', color: 'bg-red-500', textColor: 'text-white' },
+        { value: 'clear', label: 'Borrar', icon: '🗑️', color: 'bg-gray-400', textColor: 'text-white' },
+    ];
+
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
@@ -148,14 +160,24 @@ export default function HabitDetailPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            await fetch(`${API_URL}/api/v1/habits/${habitId}/log`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({ date, status }),
-            });
+            if (status === 'clear') {
+                // Delete the log for this date
+                await fetch(`${API_URL}/api/v1/habits/${habitId}/log/${date}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${session.data.session.access_token}`,
+                    },
+                });
+            } else {
+                await fetch(`${API_URL}/api/v1/habits/${habitId}/log`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.data.session.access_token}`,
+                    },
+                    body: JSON.stringify({ date, status }),
+                });
+            }
 
             fetchHabit();
             if (activeTab === 'calendar') {
@@ -164,6 +186,19 @@ export default function HabitDetailPage() {
         } catch (error) {
             console.error('Error logging habit:', error);
         }
+    };
+
+    const openStatusModal = (date: string) => {
+        setSelectedDate(date);
+        setShowStatusModal(true);
+    };
+
+    const handleStatusSelect = async (status: string) => {
+        if (selectedDate) {
+            await handleLogDay(selectedDate, status);
+        }
+        setShowStatusModal(false);
+        setSelectedDate(null);
     };
 
     const prevMonth = () => {
@@ -411,29 +446,42 @@ export default function HabitDetailPage() {
                             {calendar.map((day) => {
                                 const habitForDay = day.habits.find(h => h.habit_id === habitId);
                                 const isToday = day.date === new Date().toISOString().split('T')[0];
+                                const status = habitForDay?.status;
 
                                 return (
                                     <button
                                         key={day.date}
-                                        onClick={() => {
-                                            const newStatus = habitForDay?.status === 'completed' ? 'skipped' : 'completed';
-                                            handleLogDay(day.date, newStatus);
-                                        }}
+                                        onClick={() => openStatusModal(day.date)}
                                         className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all ${
                                             isToday ? 'ring-2 ring-indigo-500' : ''
                                         } ${
-                                            habitForDay?.status === 'completed'
+                                            status === 'completed'
                                                 ? 'bg-green-500 text-white'
-                                                : habitForDay?.status === 'skipped'
-                                                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
+                                                : status === 'partial'
+                                                ? 'bg-blue-400 text-white'
+                                                : status === 'skipped'
+                                                ? 'bg-yellow-400 text-yellow-900'
+                                                : status === 'failed'
+                                                ? 'bg-red-500 text-white'
                                                 : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
                                         }`}
                                     >
                                         <span className="font-medium">{day.day}</span>
-                                        {habitForDay?.status === 'completed' && <span className="text-xs">✓</span>}
+                                        {status === 'completed' && <span className="text-xs">✓</span>}
+                                        {status === 'partial' && <span className="text-xs">½</span>}
+                                        {status === 'skipped' && <span className="text-xs">−</span>}
+                                        {status === 'failed' && <span className="text-xs">✗</span>}
                                     </button>
                                 );
                             })}
+                        </div>
+
+                        {/* Status legend */}
+                        <div className="flex flex-wrap gap-3 mt-4 text-xs text-gray-500 dark:text-gray-400 justify-center">
+                            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-500 rounded"></span> Completado</span>
+                            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-400 rounded"></span> Parcial</span>
+                            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-yellow-400 rounded"></span> Omitido</span>
+                            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-500 rounded"></span> Fallido</span>
                         </div>
                     </div>
                 )}
@@ -492,6 +540,49 @@ export default function HabitDetailPage() {
                     </div>
                 )}
             </main>
+
+            {/* Status Selection Modal */}
+            {showStatusModal && selectedDate && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full">
+                        <div className="p-4 border-b dark:border-gray-700">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                Registrar estado
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-ES', {
+                                    weekday: 'long',
+                                    day: 'numeric',
+                                    month: 'long',
+                                })}
+                            </p>
+                        </div>
+                        <div className="p-4 space-y-2">
+                            {STATUS_OPTIONS.map((option) => (
+                                <button
+                                    key={option.value}
+                                    onClick={() => handleStatusSelect(option.value)}
+                                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all hover:opacity-80 ${option.color} ${option.textColor}`}
+                                >
+                                    <span className="text-xl">{option.icon}</span>
+                                    <span className="font-medium">{option.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-4 border-t dark:border-gray-700">
+                            <button
+                                onClick={() => {
+                                    setShowStatusModal(false);
+                                    setSelectedDate(null);
+                                }}
+                                className="w-full py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

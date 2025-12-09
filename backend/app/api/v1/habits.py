@@ -766,3 +766,153 @@ async def get_trends(db: Database, current_user: CurrentUser, days: int = 30):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats/summary")
+async def get_stats_summary(db: Database, current_user: CurrentUser):
+    """Get comprehensive habit statistics by time period and area."""
+    try:
+        user_id = current_user["id"]
+        today = date.today()
+
+        # Define time periods
+        week_start = today - timedelta(days=today.weekday())
+        month_start = today.replace(day=1)
+        year_start = today.replace(month=1, day=1)
+
+        # Get all habits with area info
+        habits = db.table("habits").select("id, name, icon, color, area_id, frequency_type, frequency_days").eq("user_id", user_id).eq("is_active", True).execute()
+        habits_data = habits.data or []
+        habit_ids = [h["id"] for h in habits_data]
+        habit_map = {h["id"]: h for h in habits_data}
+
+        if not habit_ids:
+            return {
+                "by_period": {
+                    "week": {"completed": 0, "total": 0, "rate": 0},
+                    "month": {"completed": 0, "total": 0, "rate": 0},
+                    "year": {"completed": 0, "total": 0, "rate": 0},
+                },
+                "by_area": [],
+                "by_habit": [],
+                "totals": {"habits": 0, "total_completions": 0}
+            }
+
+        # Get all logs from year start
+        logs = db.table("habit_logs").select("habit_id, date, status").eq("user_id", user_id).gte("date", year_start.isoformat()).execute()
+        all_logs = logs.data or []
+
+        # Get areas
+        areas = db.table("areas").select("id, name, icon").eq("user_id", user_id).execute()
+        area_map = {a["id"]: a for a in (areas.data or [])}
+
+        # Calculate stats by period
+        def calc_period_stats(start_date: date, end_date: date) -> dict:
+            period_logs = [l for l in all_logs if start_date.isoformat() <= l["date"] <= end_date.isoformat()]
+            completed = len([l for l in period_logs if l["status"] == "completed"])
+            total = len(period_logs)
+            return {
+                "completed": completed,
+                "total": total,
+                "rate": round((completed / total) * 100, 1) if total > 0 else 0
+            }
+
+        by_period = {
+            "week": calc_period_stats(week_start, today),
+            "month": calc_period_stats(month_start, today),
+            "year": calc_period_stats(year_start, today),
+        }
+
+        # Calculate stats by area
+        area_stats = defaultdict(lambda: {"completed": 0, "total": 0, "habits": []})
+        no_area_stats = {"completed": 0, "total": 0, "habits": []}
+
+        for habit in habits_data:
+            habit_logs = [l for l in all_logs if l["habit_id"] == habit["id"]]
+            completed = len([l for l in habit_logs if l["status"] == "completed"])
+            total = len(habit_logs)
+
+            habit_stat = {
+                "id": habit["id"],
+                "name": habit["name"],
+                "icon": habit["icon"],
+                "color": habit["color"],
+                "completed": completed,
+                "total": total,
+                "rate": round((completed / total) * 100, 1) if total > 0 else 0
+            }
+
+            if habit["area_id"] and habit["area_id"] in area_map:
+                area_stats[habit["area_id"]]["completed"] += completed
+                area_stats[habit["area_id"]]["total"] += total
+                area_stats[habit["area_id"]]["habits"].append(habit_stat)
+            else:
+                no_area_stats["completed"] += completed
+                no_area_stats["total"] += total
+                no_area_stats["habits"].append(habit_stat)
+
+        by_area = []
+        for area_id, stats in area_stats.items():
+            area = area_map.get(area_id, {})
+            by_area.append({
+                "area_id": area_id,
+                "area_name": area.get("name", "Sin nombre"),
+                "area_icon": area.get("icon", "📋"),
+                "completed": stats["completed"],
+                "total": stats["total"],
+                "rate": round((stats["completed"] / stats["total"]) * 100, 1) if stats["total"] > 0 else 0,
+                "habits": stats["habits"]
+            })
+
+        # Add "no area" if there are habits without area
+        if no_area_stats["habits"]:
+            by_area.append({
+                "area_id": None,
+                "area_name": "Sin área",
+                "area_icon": "📌",
+                "completed": no_area_stats["completed"],
+                "total": no_area_stats["total"],
+                "rate": round((no_area_stats["completed"] / no_area_stats["total"]) * 100, 1) if no_area_stats["total"] > 0 else 0,
+                "habits": no_area_stats["habits"]
+            })
+
+        # Sort areas by completion rate
+        by_area.sort(key=lambda x: x["rate"], reverse=True)
+
+        # Calculate by habit (all habits sorted by rate)
+        by_habit = []
+        for habit in habits_data:
+            habit_logs = [l for l in all_logs if l["habit_id"] == habit["id"]]
+            completed = len([l for l in habit_logs if l["status"] == "completed"])
+            total = len(habit_logs)
+
+            # Get area name
+            area_name = None
+            if habit["area_id"] and habit["area_id"] in area_map:
+                area_name = area_map[habit["area_id"]].get("name")
+
+            by_habit.append({
+                "id": habit["id"],
+                "name": habit["name"],
+                "icon": habit["icon"],
+                "color": habit["color"],
+                "area_name": area_name,
+                "completed": completed,
+                "total": total,
+                "rate": round((completed / total) * 100, 1) if total > 0 else 0
+            })
+
+        by_habit.sort(key=lambda x: x["rate"], reverse=True)
+
+        return {
+            "by_period": by_period,
+            "by_area": by_area,
+            "by_habit": by_habit,
+            "totals": {
+                "habits": len(habits_data),
+                "total_completions": len([l for l in all_logs if l["status"] == "completed"])
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
