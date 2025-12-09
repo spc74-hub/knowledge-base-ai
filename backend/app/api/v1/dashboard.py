@@ -360,7 +360,7 @@ async def get_object_summary(
         combined_recent = combined_recent[:limit]
 
         # Get counts by note_type for standalone notes
-        note_types = ["reflection", "idea", "question", "connection", "journal"]
+        note_types = ["reflection", "idea", "question", "connection", "journal", "action", "shopping"]
         by_type = {}
         for note_type in note_types:
             count_result = safe_query(lambda nt=note_type: db.table("standalone_notes").select(
@@ -399,6 +399,7 @@ async def get_object_summary(
                 {"value": "connection", "label": "Conexiones", "icon": "🔗"},
                 {"value": "journal", "label": "Diario", "icon": "📓"},
                 {"value": "action", "label": "Acciones", "icon": "✅"},
+                {"value": "shopping", "label": "Shopping", "icon": "🛒"},
                 {"value": "full_note", "label": "Notas completas", "icon": "📄"},
             ],
         }

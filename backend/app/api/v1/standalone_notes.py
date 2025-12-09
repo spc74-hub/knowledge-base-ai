@@ -806,6 +806,7 @@ async def search_notes_with_facets(
                 {"value": "connection", "label": "Conexiones", "icon": "🔗", "count": note_type_counts.get("connection", 0)},
                 {"value": "journal", "label": "Diario", "icon": "📓", "count": note_type_counts.get("journal", 0)},
                 {"value": "action", "label": "Acciones", "icon": "✅", "count": note_type_counts.get("action", 0)},
+                {"value": "shopping", "label": "Shopping", "icon": "🛒", "count": note_type_counts.get("shopping", 0)},
                 {"value": "full_note", "label": "Notas completas", "icon": "📄", "count": full_notes_total},
             ],
             "linkage": [
