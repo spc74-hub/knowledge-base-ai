@@ -516,7 +516,7 @@ export default function NotesPage() {
             links.push({
                 icon: note.linked_project.icon || '📁',
                 label: note.linked_project.name,
-                href: `/projects/${note.linked_project.id}`,
+                href: `/projects?id=${note.linked_project.id}`,
                 color: 'text-green-600 dark:text-green-400',
                 newTab: true,
             });
@@ -525,7 +525,7 @@ export default function NotesPage() {
             links.push({
                 icon: '🧠',
                 label: note.linked_model.taxonomy_value,
-                href: `/mental-models/${note.linked_model.id}`,
+                href: `/mental-models?id=${note.linked_model.id}`,
                 color: 'text-amber-600 dark:text-amber-400',
                 newTab: true,
             });
@@ -535,7 +535,7 @@ export default function NotesPage() {
                 links.push({
                     icon: obj.icon || '🎯',
                     label: obj.title,
-                    href: `/objectives/${obj.id}`,
+                    href: `/objectives?id=${obj.id}`,
                     color: 'text-purple-600 dark:text-purple-400',
                     newTab: true,
                 });

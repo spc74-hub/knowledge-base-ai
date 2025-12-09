@@ -270,6 +270,15 @@ export default function ObjectivesPage() {
         }
     }, [searchParams]);
 
+    // Select objective from URL ?id= param
+    useEffect(() => {
+        const idParam = searchParams.get('id');
+        if (idParam && objectiveTree.length > 0) {
+            setSelectedObjectiveId(idParam);
+            fetchObjectiveDetail(idParam);
+        }
+    }, [searchParams, objectiveTree]);
+
     const fetchObjectiveTree = async () => {
         try {
             const session = await supabase.auth.getSession();

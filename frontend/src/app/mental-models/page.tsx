@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -45,6 +45,7 @@ interface ContentItem {
 
 export default function MentalModelsPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
 
     // State
@@ -318,6 +319,17 @@ export default function MentalModelsPage() {
             Promise.all([fetchMyModels(), fetchCatalog()]).finally(() => setLoading(false));
         }
     }, [user]);
+
+    // Select model from URL ?id= param
+    useEffect(() => {
+        const idParam = searchParams.get('id');
+        if (idParam && myModels.length > 0) {
+            const model = myModels.find(m => m.id === idParam);
+            if (model) {
+                openModelDetail(model);
+            }
+        }
+    }, [searchParams, myModels]);
 
     if (authLoading || loading) {
         return (

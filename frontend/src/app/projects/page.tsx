@@ -236,6 +236,15 @@ export default function ProjectsPage() {
         }
     }, [searchParams]);
 
+    // Select project from URL ?id= param
+    useEffect(() => {
+        const idParam = searchParams.get('id');
+        if (idParam && projectTree.length > 0) {
+            setSelectedProjectId(idParam);
+            fetchProjectDetail(idParam);
+        }
+    }, [searchParams, projectTree]);
+
     const fetchProjectTree = async () => {
         try {
             const session = await supabase.auth.getSession();
