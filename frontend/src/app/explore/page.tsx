@@ -137,6 +137,12 @@ interface Filters {
     maturity_level_exclude: string[];  // Maturity levels to exclude
     has_comment: boolean | null;
     is_favorite: boolean | null;
+    // Date range filters (YYYY-MM-DD format)
+    date_from: string | null;
+    date_to: string | null;
+    // View count range filters
+    min_views: number | null;
+    max_views: number | null;
 }
 
 function ExplorePageContent() {
@@ -162,7 +168,11 @@ function ExplorePageContent() {
         maturity_level: [],
         maturity_level_exclude: [],
         has_comment: null,
-        is_favorite: null
+        is_favorite: null,
+        date_from: null,
+        date_to: null,
+        min_views: null,
+        max_views: null
     });
     const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
@@ -186,6 +196,9 @@ function ExplorePageContent() {
     });
     // Track if using global search
     const [isGlobalSearch, setIsGlobalSearch] = useState(false);
+    // Sorting state
+    const [sortBy, setSortBy] = useState<'created_at' | 'view_count' | 'title'>('created_at');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedContent, setSelectedContent] = useState<ContentDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
@@ -306,6 +319,12 @@ function ExplorePageContent() {
                     maturity_level_exclude: filters.maturity_level_exclude.length > 0 ? filters.maturity_level_exclude : null,
                     has_comment: filters.has_comment,
                     is_favorite: filters.is_favorite,
+                    date_from: filters.date_from,
+                    date_to: filters.date_to,
+                    min_views: filters.min_views,
+                    max_views: filters.max_views,
+                    sort_by: sortBy,
+                    sort_order: sortOrder,
                     limit: PAGE_SIZE,
                     offset: 0
                 };
@@ -332,7 +351,7 @@ function ExplorePageContent() {
         } finally {
             setSearching(false);
         }
-    }, [searchQuery, filters]);
+    }, [searchQuery, filters, sortBy, sortOrder]);
 
     const loadMoreResults = async () => {
         if (loadingMore || !hasMore) return;
@@ -378,6 +397,12 @@ function ExplorePageContent() {
                         maturity_level_exclude: filters.maturity_level_exclude.length > 0 ? filters.maturity_level_exclude : null,
                         has_comment: filters.has_comment,
                         is_favorite: filters.is_favorite,
+                        date_from: filters.date_from,
+                        date_to: filters.date_to,
+                        min_views: filters.min_views,
+                        max_views: filters.max_views,
+                        sort_by: sortBy,
+                        sort_order: sortOrder,
                         limit: PAGE_SIZE,
                         offset: results.length
                     }),
@@ -646,6 +671,18 @@ function ExplorePageContent() {
         }
     }, [filters, searchQuery, searchWithFilters, user]);
 
+    // Handle sort changes - trigger search immediately when sort changes
+    const handleSortChange = (newSortBy: 'created_at' | 'view_count' | 'title') => {
+        if (newSortBy === sortBy) {
+            // Toggle sort order if clicking same column
+            setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+        } else {
+            setSortBy(newSortBy);
+            // Set default order based on column type
+            setSortOrder(newSortBy === 'title' ? 'asc' : 'desc');
+        }
+    };
+
     const toggleFilter = (category: keyof Omit<Filters, 'has_comment'>, value: string) => {
         setFilters(prev => {
             const current = prev[category] as string[];
@@ -672,13 +709,18 @@ function ExplorePageContent() {
             maturity_level: [],
             maturity_level_exclude: [],
             has_comment: null,
-            is_favorite: null
+            is_favorite: null,
+            date_from: null,
+            date_to: null,
+            min_views: null,
+            max_views: null
         });
         setSearchQuery('');
     };
 
     const hasActiveFilters = Object.entries(filters).some(([key, val]) => {
         if (key === 'has_comment' || key === 'is_favorite') return val !== null;
+        if (key === 'date_from' || key === 'date_to' || key === 'min_views' || key === 'max_views') return val !== null;
         return Array.isArray(val) && val.length > 0;
     }) || searchQuery;
 
@@ -913,6 +955,45 @@ function ExplorePageContent() {
                             />
                             <span className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500">🔍</span>
                         </div>
+                        {/* Sort Dropdown */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">Ordenar:</span>
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={() => handleSortChange('created_at')}
+                                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                                        sortBy === 'created_at'
+                                            ? 'bg-blue-500 text-white border-blue-500'
+                                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                                    title={sortBy === 'created_at' ? `Fecha (${sortOrder === 'desc' ? 'reciente primero' : 'antiguo primero'})` : 'Ordenar por fecha'}
+                                >
+                                    Fecha {sortBy === 'created_at' && (sortOrder === 'desc' ? '↓' : '↑')}
+                                </button>
+                                <button
+                                    onClick={() => handleSortChange('view_count')}
+                                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                                        sortBy === 'view_count'
+                                            ? 'bg-blue-500 text-white border-blue-500'
+                                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                                    title={sortBy === 'view_count' ? `Visitas (${sortOrder === 'desc' ? 'mas vistas primero' : 'menos vistas primero'})` : 'Ordenar por visitas'}
+                                >
+                                    Visitas {sortBy === 'view_count' && (sortOrder === 'desc' ? '↓' : '↑')}
+                                </button>
+                                <button
+                                    onClick={() => handleSortChange('title')}
+                                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                                        sortBy === 'title'
+                                            ? 'bg-blue-500 text-white border-blue-500'
+                                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                                    title={sortBy === 'title' ? `Titulo (${sortOrder === 'asc' ? 'A-Z' : 'Z-A'})` : 'Ordenar por titulo'}
+                                >
+                                    Titulo {sortBy === 'title' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                </button>
+                            </div>
+                        </div>
                         {hasActiveFilters && (
                             <button
                                 onClick={clearFilters}
@@ -948,8 +1029,124 @@ function ExplorePageContent() {
                                                     onChange={() => setFilters(prev => ({ ...prev, is_favorite: prev.is_favorite === true ? null : true }))}
                                                     className="rounded"
                                                 />
-                                                <span className="flex-1">⭐ Solo favoritos</span>
+                                                <span className="flex-1">Solo favoritos</span>
                                             </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Date Range Filter */}
+                                    <div>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Fecha</span>
+                                        <div className="space-y-2 ml-1">
+                                            {/* Quick date presets */}
+                                            <div className="flex flex-wrap gap-1">
+                                                {[
+                                                    { label: 'Hoy', days: 0 },
+                                                    { label: '7d', days: 7 },
+                                                    { label: '30d', days: 30 },
+                                                    { label: '90d', days: 90 },
+                                                ].map(preset => {
+                                                    const today = new Date();
+                                                    const fromDate = new Date(today);
+                                                    fromDate.setDate(today.getDate() - preset.days);
+                                                    const fromStr = fromDate.toISOString().split('T')[0];
+                                                    const isActive = filters.date_from === fromStr && filters.date_to === null;
+                                                    return (
+                                                        <button
+                                                            key={preset.label}
+                                                            onClick={() => {
+                                                                if (isActive) {
+                                                                    setFilters(prev => ({ ...prev, date_from: null, date_to: null }));
+                                                                } else {
+                                                                    setFilters(prev => ({ ...prev, date_from: fromStr, date_to: null }));
+                                                                }
+                                                            }}
+                                                            className={`px-2 py-1 text-xs rounded border transition-colors ${
+                                                                isActive
+                                                                    ? 'bg-blue-500 text-white border-blue-500'
+                                                                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                                            }`}
+                                                        >
+                                                            {preset.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {/* Custom date inputs */}
+                                            <div className="flex gap-1 items-center text-xs">
+                                                <input
+                                                    type="date"
+                                                    value={filters.date_from || ''}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, date_from: e.target.value || null }))}
+                                                    className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    title="Desde"
+                                                />
+                                                <span className="text-gray-400">-</span>
+                                                <input
+                                                    type="date"
+                                                    value={filters.date_to || ''}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, date_to: e.target.value || null }))}
+                                                    className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    title="Hasta"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* View Count Filter (for YouTube/TikTok) */}
+                                    <div>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300 mb-2 block">Visitas</span>
+                                        <div className="space-y-2 ml-1">
+                                            {/* Quick view count presets */}
+                                            <div className="flex flex-wrap gap-1">
+                                                {[
+                                                    { label: '1K+', min: 1000 },
+                                                    { label: '10K+', min: 10000 },
+                                                    { label: '100K+', min: 100000 },
+                                                    { label: '1M+', min: 1000000 },
+                                                ].map(preset => {
+                                                    const isActive = filters.min_views === preset.min && filters.max_views === null;
+                                                    return (
+                                                        <button
+                                                            key={preset.label}
+                                                            onClick={() => {
+                                                                if (isActive) {
+                                                                    setFilters(prev => ({ ...prev, min_views: null, max_views: null }));
+                                                                } else {
+                                                                    setFilters(prev => ({ ...prev, min_views: preset.min, max_views: null }));
+                                                                }
+                                                            }}
+                                                            className={`px-2 py-1 text-xs rounded border transition-colors ${
+                                                                isActive
+                                                                    ? 'bg-blue-500 text-white border-blue-500'
+                                                                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                                            }`}
+                                                        >
+                                                            {preset.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {/* Custom range inputs */}
+                                            <div className="flex gap-1 items-center text-xs">
+                                                <input
+                                                    type="number"
+                                                    value={filters.min_views ?? ''}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, min_views: e.target.value ? parseInt(e.target.value) : null }))}
+                                                    placeholder="Min"
+                                                    className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                    min="0"
+                                                />
+                                                <span className="text-gray-400">-</span>
+                                                <input
+                                                    type="number"
+                                                    value={filters.max_views ?? ''}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, max_views: e.target.value ? parseInt(e.target.value) : null }))}
+                                                    placeholder="Max"
+                                                    className="flex-1 px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                    min="0"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 

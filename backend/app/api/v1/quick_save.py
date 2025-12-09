@@ -124,7 +124,9 @@ async def quick_save_url(
                 "saved_via": "quick_save"
             },
             "user_tags": data.tags if data else [],
-            "processing_status": "pending"  # Mark as pending for later processing
+            "processing_status": "pending",  # Mark as pending for later processing
+            "view_count": fetch_result.view_count,
+            "description": fetch_result.description
         }
 
         # If process_now is True, do full AI processing
@@ -281,7 +283,9 @@ async def quick_save_shortcut(
                 "saved_via": "ios_shortcut_v2"
             },
             "user_tags": [],
-            "processing_status": "pending"
+            "processing_status": "pending",
+            "view_count": fetch_result.view_count,
+            "description": fetch_result.description
         }
 
         response = db.table("contents").insert(content_data).execute()
@@ -472,7 +476,9 @@ async def quick_save_callback(
             },
             "user_tags": [],
             "processing_status": "completed",
-            "embedding": embedding
+            "embedding": embedding,
+            "view_count": fetch_result.view_count,
+            "description": fetch_result.description
         }
 
         response = admin_db.table("contents").insert(content_data).execute()

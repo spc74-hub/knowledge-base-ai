@@ -96,6 +96,7 @@ class ContentResponse(BaseModel):
     maturity_level: str = "captured"
     project_id: Optional[str] = None  # Linked project
     created_at: str
+    view_count: Optional[int] = None  # YouTube/TikTok views for sorting
 
 
 class ContentDetailResponse(ContentResponse):
@@ -108,6 +109,7 @@ class ContentDetailResponse(ContentResponse):
     reading_time_minutes: Optional[int] = None
     metadata: Optional[dict] = None
     last_reviewed_at: Optional[str] = None
+    description: Optional[str] = None  # Original description from source (YouTube/TikTok)
     # User classification overrides
     user_entities: Optional[dict] = None
     user_concepts: Optional[List[str]] = None
@@ -132,12 +134,12 @@ class StatsResponse(BaseModel):
 # =====================================================
 # OPTIMIZED LISTING FIELDS (for faster queries)
 # =====================================================
-# Fields needed for list/card display (NOT raw_content, embedding, etc.)
+# Fields needed for list/card display (NOT raw_content, embedding, description etc.)
 LIST_FIELDS = (
     "id, url, type, title, summary, schema_type, schema_subtype, "
     "iab_tier1, iab_tier2, concepts, user_tags, is_favorite, is_archived, "
     "is_asset, processing_status, maturity_level, project_id, created_at, "
-    "reading_time_minutes"
+    "reading_time_minutes, view_count"
 )
 
 
@@ -411,7 +413,9 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
                 "metadata": fetch_result.metadata,
                 "user_tags": data.tags,
                 "processing_status": "completed",
-                "embedding": embedding
+                "embedding": embedding,
+                "view_count": fetch_result.view_count,
+                "description": fetch_result.description
             }
         else:
             # Save as pending - only fetch was done
@@ -437,7 +441,9 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
                 "metadata": fetch_result.metadata,
                 "user_tags": data.tags,
                 "processing_status": "pending",
-                "embedding": None
+                "embedding": None,
+                "view_count": fetch_result.view_count,
+                "description": fetch_result.description
             }
 
         response = db.table("contents").insert(content_data).execute()
@@ -864,7 +870,9 @@ async def bulk_import_urls(
                     "metadata": fetch_result.metadata,
                     "user_tags": data.tags,
                     "processing_status": "pending",
-                    "embedding": None
+                    "embedding": None,
+                    "view_count": fetch_result.view_count,
+                    "description": fetch_result.description
                 }
 
                 response = db.table("contents").insert(content_data).execute()

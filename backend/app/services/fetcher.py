@@ -18,6 +18,9 @@ class FetchResult(BaseModel):
     metadata: dict = {}
     success: bool = True
     error: Optional[str] = None
+    # Top-level fields for database columns (extracted from metadata)
+    view_count: Optional[int] = None  # YouTube/TikTok views
+    description: Optional[str] = None  # Original description from source
 
 
 class FetchStrategy(ABC):
@@ -237,7 +240,9 @@ class YouTubeFetchStrategy(FetchStrategy):
                 type="youtube",
                 title=title,
                 content=content,
-                metadata=metadata
+                metadata=metadata,
+                view_count=view_count,
+                description=description
             )
 
         except Exception as e:
@@ -441,7 +446,9 @@ class TikTokFetchStrategy(FetchStrategy):
                 type="tiktok",
                 title=title,
                 content=content,
-                metadata=metadata
+                metadata=metadata,
+                view_count=view_count,
+                description=description
             )
 
         except Exception as e:

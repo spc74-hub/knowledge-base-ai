@@ -65,6 +65,9 @@ export interface ContentDetail {
     metadata: Record<string, any> | null;
     created_at: string;
     raw_content: string | null;
+    // YouTube/TikTok specific fields
+    view_count?: number | null;  // Number of views
+    description?: string | null;  // Original description from source
     // User classification overrides
     user_entities?: {
         organizations?: string[];
@@ -894,6 +897,23 @@ export function ContentDetailModal({
                             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Resumen</h3>
                             <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
                                 <p className="text-gray-800 dark:text-gray-200">{content.summary}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Original Description (YouTube/TikTok) */}
+                    {content.description && (content.type === 'youtube' || content.type === 'tiktok') && (
+                        <div className="mb-6">
+                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                                Descripcion Original
+                                {content.view_count && (
+                                    <span className="ml-2 text-xs font-normal text-gray-400">
+                                        ({content.view_count.toLocaleString()} visualizaciones)
+                                    </span>
+                                )}
+                            </h3>
+                            <div className="bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-600 rounded-lg p-4 max-h-64 overflow-y-auto">
+                                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm">{content.description}</p>
                             </div>
                         </div>
                     )}

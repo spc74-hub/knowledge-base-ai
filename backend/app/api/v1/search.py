@@ -931,6 +931,14 @@ class FacetedSearchRequest(BaseModel):
     maturity_level_exclude: Optional[List[str]] = None  # Maturity levels to exclude
     has_comment: Optional[bool] = None  # Filter by presence of user_note
     is_favorite: Optional[bool] = None  # Filter by favorite status
+    # Date range filters (ISO format: YYYY-MM-DD)
+    date_from: Optional[str] = None  # Filter contents created on or after this date
+    date_to: Optional[str] = None  # Filter contents created on or before this date
+    # View count range filters (for YouTube/TikTok popularity)
+    min_views: Optional[int] = None  # Minimum view count
+    max_views: Optional[int] = None  # Maximum view count
+    sort_by: Optional[str] = "created_at"  # created_at, view_count, title
+    sort_order: Optional[str] = "desc"  # asc or desc
     limit: int = 50  # Reduced from 100 for faster initial load
     offset: int = 0
 
@@ -1004,6 +1012,18 @@ def apply_sql_filters(query, data, db=None, user_id=None):
     if data.user_tags:
         query = query.overlaps("user_tags", data.user_tags)
 
+    # Filter by date range
+    if data.date_from:
+        query = query.gte("created_at", f"{data.date_from}T00:00:00")
+    if data.date_to:
+        query = query.lte("created_at", f"{data.date_to}T23:59:59")
+
+    # Filter by view count range
+    if data.min_views is not None:
+        query = query.gte("view_count", data.min_views)
+    if data.max_views is not None:
+        query = query.lte("view_count", data.max_views)
+
     return query, needs_special_maturity_handling
 
 
@@ -1012,11 +1032,35 @@ FACETED_SEARCH_FIELDS = (
     "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
     "processing_status, maturity_level, is_favorite, user_note, user_tags, "
     "user_entities, user_concepts, user_category, "
-    "metadata, created_at"
+    "metadata, created_at, view_count"
 )
 
 
 import json as json_module
+
+
+def apply_sort_to_query(query, sort_by: str = "created_at", sort_order: str = "desc"):
+    """Apply sorting to a Supabase query."""
+    valid_sort_fields = {"created_at", "view_count", "title"}
+    if sort_by not in valid_sort_fields:
+        sort_by = "created_at"
+    desc = sort_order == "desc"
+    # For view_count, use nulls last so content with views appears first
+    if sort_by == "view_count":
+        return query.order(sort_by, desc=desc, nullsfirst=not desc)
+    return query.order(sort_by, desc=desc)
+
+
+def sort_results_list(results: list, sort_by: str = "created_at", sort_order: str = "desc") -> list:
+    """Sort a list of results in memory (for combined queries)."""
+    reverse = sort_order == "desc"
+    if sort_by == "view_count":
+        # For view_count, nulls should go last
+        return sorted(results, key=lambda x: (x.get(sort_by) is None, x.get(sort_by, 0)), reverse=reverse)
+    elif sort_by == "title":
+        return sorted(results, key=lambda x: x.get(sort_by, "").lower(), reverse=reverse)
+    else:  # created_at
+        return sorted(results, key=lambda x: x.get(sort_by, ""), reverse=reverse)
 
 
 def _build_jsonb_contains_filter(entity_type: str, values: List[str]) -> str:
@@ -1161,9 +1205,9 @@ async def search_faceted(
 
             # If we have matching IDs, fetch full content
             if all_ids:
-                response = db.table("contents").select(FACETED_SEARCH_FIELDS).in_("id", list(all_ids)).neq("is_archived", True).order("created_at", desc=True).range(
-                    data.offset, data.offset + data.limit - 1
-                ).execute()
+                query = db.table("contents").select(FACETED_SEARCH_FIELDS).in_("id", list(all_ids)).neq("is_archived", True)
+                query = apply_sort_to_query(query, data.sort_by, data.sort_order)
+                response = query.range(data.offset, data.offset + data.limit - 1).execute()
                 results = response.data or []
             else:
                 results = []
@@ -1202,8 +1246,10 @@ async def search_faceted(
                     # Apply SQL filters for maturity_level, processing_status, etc.
                     query2, _ = apply_sql_filters(query2, data)
 
-                    resp1 = query1.order("created_at", desc=True).execute()
-                    resp2 = query2.order("created_at", desc=True).execute()
+                    query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
+                    query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
+                    resp1 = query1.execute()
+                    resp2 = query2.execute()
 
                     # Combine and dedupe
                     seen_ids = set()
@@ -1213,8 +1259,8 @@ async def search_faceted(
                             seen_ids.add(item["id"])
                             combined.append(item)
 
-                    # Sort by created_at and paginate
-                    combined.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                    # Sort combined results and paginate
+                    combined = sort_results_list(combined, data.sort_by, data.sort_order)
                     results = combined[data.offset:data.offset + data.limit]
 
                 elif has_apple_notes:
@@ -1226,9 +1272,8 @@ async def search_faceted(
                         query = query.overlaps("concepts", data.concepts)
                     # Apply SQL filters for maturity_level, processing_status, etc.
                     query, _ = apply_sql_filters(query, data)
-                    response = query.order("created_at", desc=True).range(
-                        data.offset, data.offset + data.limit - 1
-                    ).execute()
+                    query = apply_sort_to_query(query, data.sort_by, data.sort_order)
+                    response = query.range(data.offset, data.offset + data.limit - 1).execute()
                     results = response.data or []
                 else:
                     # No apple_notes in filter - need to handle "note" type specially
@@ -1256,8 +1301,10 @@ async def search_faceted(
                         # Apply SQL filters for maturity_level, processing_status, etc.
                         query2, _ = apply_sql_filters(query2, data)
 
-                        resp1 = query1.order("created_at", desc=True).execute()
-                        resp2 = query2.order("created_at", desc=True).execute()
+                        query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
+                        query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
+                        resp1 = query1.execute()
+                        resp2 = query2.execute()
 
                         # Combine and dedupe
                         seen_ids = set()
@@ -1267,8 +1314,8 @@ async def search_faceted(
                                 seen_ids.add(item["id"])
                                 combined.append(item)
 
-                        # Sort by created_at and paginate
-                        combined.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                        # Sort combined results and paginate
+                        combined = sort_results_list(combined, data.sort_by, data.sort_order)
                         results = combined[data.offset:data.offset + data.limit]
 
                     elif has_manual_notes:
@@ -1280,9 +1327,8 @@ async def search_faceted(
                             query = query.overlaps("concepts", data.concepts)
                         # Apply SQL filters for maturity_level, processing_status, etc.
                         query, _ = apply_sql_filters(query, data)
-                        response = query.order("created_at", desc=True).range(
-                            data.offset, data.offset + data.limit - 1
-                        ).execute()
+                        query = apply_sort_to_query(query, data.sort_by, data.sort_order)
+                        response = query.range(data.offset, data.offset + data.limit - 1).execute()
                         results = response.data or []
                     else:
                         # No note type, use standard in_ filter
@@ -1293,9 +1339,8 @@ async def search_faceted(
                             query = query.overlaps("concepts", data.concepts)
                         # Apply SQL filters for maturity_level, processing_status, etc.
                         query, _ = apply_sql_filters(query, data)
-                        response = query.order("created_at", desc=True).range(
-                            data.offset, data.offset + data.limit - 1
-                        ).execute()
+                        query = apply_sort_to_query(query, data.sort_by, data.sort_order)
+                        response = query.range(data.offset, data.offset + data.limit - 1).execute()
                         results = response.data or []
             else:
                 # CORRECTED OPTION A: user_category REPLACES iab_tier1 for filtering
@@ -1323,8 +1368,10 @@ async def search_faceted(
                     query1, _ = apply_sql_filters(query1, data)
                     query2, _ = apply_sql_filters(query2, data)
 
-                    resp1 = query1.order("created_at", desc=True).execute()
-                    resp2 = query2.order("created_at", desc=True).execute()
+                    query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
+                    query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
+                    resp1 = query1.execute()
+                    resp2 = query2.execute()
 
                     # Merge and deduplicate
                     seen_ids = set()
@@ -1340,8 +1387,8 @@ async def search_faceted(
                             seen_ids.add(item["id"])
                             combined.append(item)
 
-                    # Sort by created_at and paginate
-                    combined.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                    # Sort combined results
+                    combined = sort_results_list(combined, data.sort_by, data.sort_order)
 
                     # Apply types_exclude filter before pagination
                     if data.types_exclude:
@@ -1435,12 +1482,11 @@ async def search_faceted(
                 # Apply SQL filters for maturity_level, processing_status, etc.
                 query, _ = apply_sql_filters(query, data)
 
-                # Execute query with proper pagination
-                logger.info(f"Executing standard query: offset={data.offset}, limit={data.limit}")
+                # Execute query with proper pagination and sorting
+                logger.info(f"Executing standard query: offset={data.offset}, limit={data.limit}, sort_by={data.sort_by}, sort_order={data.sort_order}")
                 try:
-                    response = query.order("created_at", desc=True).range(
-                        data.offset, data.offset + data.limit - 1
-                    ).execute()
+                    query = apply_sort_to_query(query, data.sort_by, data.sort_order)
+                    response = query.range(data.offset, data.offset + data.limit - 1).execute()
                     results = response.data or []
                     logger.info(f"Standard query returned {len(results)} results")
                     if hasattr(response, 'error') and response.error:
