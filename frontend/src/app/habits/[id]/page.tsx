@@ -52,6 +52,7 @@ interface HabitDetail {
 interface CalendarDay {
     date: string;
     day: number;
+    day_of_week: number;
     habits: {
         habit_id: string;
         status: string | null;
