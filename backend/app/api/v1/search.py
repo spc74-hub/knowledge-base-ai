@@ -1342,6 +1342,65 @@ async def search_faceted(
 
                     # Sort by created_at and paginate
                     combined.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+                    # Apply types_exclude filter before pagination
+                    if data.types_exclude:
+                        def get_effective_type(r):
+                            """Get effective type, handling apple_notes specially."""
+                            content_type = r.get("type")
+                            metadata = r.get("metadata") or {}
+                            if content_type == "note" and metadata.get("source") == "apple_notes":
+                                return "apple_notes"
+                            return content_type
+                        combined = [r for r in combined if get_effective_type(r) not in data.types_exclude]
+
+                    # Apply inherited_tags filter
+                    if data.inherited_tags:
+                        taxonomy_result = db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
+                        taxonomy_rules = taxonomy_result.data or []
+
+                        def content_matches_inherited_tag(content: dict) -> bool:
+                            for rule in taxonomy_rules:
+                                rule_type = rule.get("taxonomy_type")
+                                rule_value = rule.get("taxonomy_value")
+                                if rule_type == "category":
+                                    if content.get("iab_tier1") == rule_value or \
+                                       content.get("iab_tier2") == rule_value or \
+                                       content.get("iab_tier3") == rule_value:
+                                        return True
+                                elif rule_type == "concept":
+                                    concepts = content.get("concepts") or []
+                                    if rule_value in concepts:
+                                        return True
+                                elif rule_type in ["person", "organization", "product"]:
+                                    entities = content.get("entities") or {}
+                                    entity_key = rule_type + "s"
+                                    entity_list = entities.get(entity_key) or []
+                                    for entity in entity_list:
+                                        if entity.get("name") == rule_value:
+                                            return True
+                            return False
+                        combined = [r for r in combined if content_matches_inherited_tag(r)]
+
+                    # Apply text query filter
+                    if data.query:
+                        query_lower = data.query.lower()
+                        scored_results = []
+                        for item in combined:
+                            score = 0.0
+                            title = (item.get("title") or "").lower()
+                            summary = (item.get("summary") or "").lower()
+                            concepts_list = [c.lower() for c in (item.get("concepts") or [])]
+                            if query_lower in title:
+                                score += 0.5
+                            if query_lower in summary:
+                                score += 0.3
+                            if any(query_lower in c for c in concepts_list):
+                                score += 0.2
+                            if score > 0:
+                                scored_results.append({**item, "relevance_score": score})
+                        combined = sorted(scored_results, key=lambda x: x["relevance_score"], reverse=True)
+
                     results = combined[data.offset:data.offset + data.limit]
 
                     # Skip standard query execution since we already have results
