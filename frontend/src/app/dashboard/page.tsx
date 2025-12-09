@@ -239,14 +239,14 @@ export default function DashboardPage() {
 
   const kpis = summary?.kpis;
 
-  // KPI Cards data
+  // KPI Cards data - professional blue gradient
   const kpiCards = [
-    { key: 'contents', label: 'Contenidos', value: kpis?.contents.total || 0, icon: '📄', href: '/explore', color: 'bg-blue-600' },
-    { key: 'objectives', label: 'Objetivos', value: kpis?.objectives.active || 0, icon: '🎯', href: '/objectives', color: 'bg-purple-600' },
-    { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-green-600' },
-    { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-pink-600' },
-    { key: 'notes', label: 'Quick Notes', value: kpis?.notes.total || 0, icon: '📝', href: '/journal', color: 'bg-yellow-600' },
-    { key: 'full_notes', label: 'Notes+', value: kpis?.full_notes?.total || 0, icon: '📄', href: '/explore?types=note', color: 'bg-orange-600' },
+    { key: 'contents', label: 'Contenidos', value: kpis?.contents.total || 0, icon: '📄', href: '/explore', color: 'bg-blue-900' },
+    { key: 'objectives', label: 'Objetivos', value: kpis?.objectives.active || 0, icon: '🎯', href: '/objectives', color: 'bg-blue-800' },
+    { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-blue-700' },
+    { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-blue-600' },
+    { key: 'notes', label: 'Quick Notes', value: kpis?.notes.total || 0, icon: '📝', href: '/journal', color: 'bg-blue-500' },
+    { key: 'full_notes', label: 'Notes+', value: kpis?.full_notes?.total || 0, icon: '📄', href: '/explore?types=note', color: 'bg-indigo-500' },
   ];
 
   // Sidebar navigation
@@ -967,7 +967,7 @@ export default function DashboardPage() {
             <Link
               href="/journal?new=true"
               target="_blank"
-              className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
+              className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
               title="Nota rápida"
             >
               📝 Quick
@@ -975,7 +975,7 @@ export default function DashboardPage() {
             <Link
               href="/notes/new"
               target="_blank"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
+              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"
               title="Nota completa"
             >
               📄 Note+
@@ -984,7 +984,7 @@ export default function DashboardPage() {
             <div className="relative">
               <button
                 onClick={() => setShowQuickActions(!showQuickActions)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
+                className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
               >
                 + Crear ▾
               </button>
@@ -1053,7 +1053,7 @@ export default function DashboardPage() {
             </div>
             <Link
               href="/chat"
-              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
+              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
             >
               💬 Chat
             </Link>

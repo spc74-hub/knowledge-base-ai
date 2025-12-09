@@ -64,43 +64,59 @@ async def create_api_key(
     Create a new API key for the current user.
     The full key is only shown once - save it immediately!
     """
-    user_id = current_user["id"]
+    import logging
+    logger = logging.getLogger(__name__)
 
-    # Check existing active keys (limit to 5 per user)
-    existing = db.table("user_api_keys").select("id").eq(
-        "user_id", user_id
-    ).eq("is_active", True).execute()
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Creating API key for user: {user_id}")
 
-    if len(existing.data or []) >= 5:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 5 active API keys allowed. Revoke an existing key first."
+        # Check existing active keys (limit to 5 per user)
+        existing = db.table("user_api_keys").select("id").eq(
+            "user_id", user_id
+        ).eq("is_active", True).execute()
+
+        if len(existing.data or []) >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum 5 active API keys allowed. Revoke an existing key first."
+            )
+
+        # Generate new key
+        full_key, key_hash, key_prefix = generate_api_key()
+        logger.info(f"Generated key with prefix: {key_prefix}")
+
+        # Save to database
+        result = db.table("user_api_keys").insert({
+            "user_id": user_id,
+            "name": data.name,
+            "key_hash": key_hash,
+            "key_prefix": key_prefix
+        }).execute()
+
+        logger.info(f"Insert result: {result}")
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create API key"
+            )
+
+        return APIKeyCreated(
+            id=result.data[0]["id"],
+            name=data.name,
+            key=full_key,
+            key_prefix=key_prefix,
+            message="Save this key now! It won't be shown again."
         )
-
-    # Generate new key
-    full_key, key_hash, key_prefix = generate_api_key()
-
-    # Save to database
-    result = db.table("user_api_keys").insert({
-        "user_id": user_id,
-        "name": data.name,
-        "key_hash": key_hash,
-        "key_prefix": key_prefix
-    }).execute()
-
-    if not result.data:
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating API key: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create API key"
+            detail=f"Error creating API key: {str(e)}"
         )
-
-    return APIKeyCreated(
-        id=result.data[0]["id"],
-        name=data.name,
-        key=full_key,
-        key_prefix=key_prefix,
-        message="Save this key now! It won't be shown again."
-    )
 
 
 @router.get("/", response_model=List[APIKeyResponse])
