@@ -77,9 +77,9 @@ interface Facets {
 const PRIORITIES = {
     important: { label: 'Importante', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
     urgent: { label: 'Urgente', icon: '🟠', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
-    A: { label: 'A', icon: '🅰️', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
-    B: { label: 'B', icon: '🅱️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-    C: { label: 'C', icon: '©️', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' },
+    A: { label: 'A', icon: '🔵', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+    B: { label: 'B', icon: '🔷', color: 'bg-blue-50 text-blue-600 dark:bg-blue-800 dark:text-blue-300' },
+    C: { label: 'C', icon: '🩵', color: 'bg-sky-50 text-sky-500 dark:bg-sky-900 dark:text-sky-300' },
 } as const;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';

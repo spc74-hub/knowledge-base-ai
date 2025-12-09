@@ -952,9 +952,9 @@ async def search_notes_with_facets(
             "priorities": [
                 {"value": "important", "label": "Importante", "icon": "🔴", "count": priority_counts["important"]},
                 {"value": "urgent", "label": "Urgente", "icon": "🟠", "count": priority_counts["urgent"]},
-                {"value": "A", "label": "A", "icon": "🅰️", "count": priority_counts["A"]},
-                {"value": "B", "label": "B", "icon": "🅱️", "count": priority_counts["B"]},
-                {"value": "C", "label": "C", "icon": "©️", "count": priority_counts["C"]},
+                {"value": "A", "label": "A", "icon": "🔵", "count": priority_counts["A"]},
+                {"value": "B", "label": "B", "icon": "🔷", "count": priority_counts["B"]},
+                {"value": "C", "label": "C", "icon": "🩵", "count": priority_counts["C"]},
             ],
             "total_notes": total_all,
             "pinned_count": pinned_count,
