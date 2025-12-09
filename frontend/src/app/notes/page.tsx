@@ -5,8 +5,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
+
+// Dynamic import to avoid SSR issues with TipTap
+const QuickNoteEditor = dynamic(() => import('@/components/editor/QuickNoteEditor'), {
+    ssr: false,
+    loading: () => <div className="h-[150px] bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+});
 
 interface Note {
     id: string;
@@ -99,6 +106,7 @@ export default function NotesPage() {
 
     // Quick create form state
     const [quickContent, setQuickContent] = useState('');
+    const [quickContentHtml, setQuickContentHtml] = useState('');
     const [quickType, setQuickType] = useState<string>('reflection');
     const [quickLinkType, setQuickLinkType] = useState<LinkType | null>(null);
     const [quickLinkedId, setQuickLinkedId] = useState<string | null>(null);
@@ -114,6 +122,7 @@ export default function NotesPage() {
     // Edit mode
     const [editMode, setEditMode] = useState(false);
     const [editContent, setEditContent] = useState('');
+    const [editContentHtml, setEditContentHtml] = useState('');
     const [editType, setEditType] = useState('');
 
     // Content detail modal
@@ -267,7 +276,7 @@ export default function NotesPage() {
 
             const noteData: Record<string, unknown> = {
                 title,
-                content: quickContent,
+                content: quickContentHtml || quickContent,
                 note_type: quickType,
                 tags: [],
                 linked_content_ids: quickLinkType === 'content' && quickLinkedId ? [quickLinkedId] : [],
@@ -382,7 +391,7 @@ export default function NotesPage() {
                 },
                 body: JSON.stringify({
                     title,
-                    content: editContent,
+                    content: editContentHtml || editContent,
                     note_type: editType,
                 }),
             });
@@ -426,6 +435,7 @@ export default function NotesPage() {
 
     const resetQuickForm = () => {
         setQuickContent('');
+        setQuickContentHtml('');
         setQuickType('reflection');
         setQuickLinkType(null);
         setQuickLinkedId(null);
@@ -463,6 +473,7 @@ export default function NotesPage() {
         }
         setSelectedNote(note);
         setEditContent(note.content);
+        setEditContentHtml(note.content);
         setEditType(note.note_type);
         setShowDetailModal(true);
         setEditMode(false);
@@ -811,14 +822,15 @@ export default function NotesPage() {
                                 ))}
                             </div>
 
-                            {/* Single text box */}
-                            <textarea
-                                value={quickContent}
-                                onChange={(e) => setQuickContent(e.target.value)}
-                                className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm resize-none"
-                                rows={6}
+                            {/* Rich text editor */}
+                            <QuickNoteEditor
                                 placeholder="Escribe tu nota aqui..."
-                                autoFocus
+                                onChange={(text, html) => {
+                                    setQuickContent(text);
+                                    setQuickContentHtml(html);
+                                }}
+                                minHeight="150px"
+                                autoFocus={true}
                             />
 
                             {/* Link selector */}
@@ -1001,11 +1013,15 @@ export default function NotesPage() {
                                             </button>
                                         ))}
                                     </div>
-                                    <textarea
-                                        value={editContent}
-                                        onChange={(e) => setEditContent(e.target.value)}
-                                        className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm resize-none"
-                                        rows={12}
+                                    <QuickNoteEditor
+                                        initialContent={editContentHtml}
+                                        placeholder="Escribe tu nota aqui..."
+                                        onChange={(text, html) => {
+                                            setEditContent(text);
+                                            setEditContentHtml(html);
+                                        }}
+                                        minHeight="200px"
+                                        autoFocus={false}
                                     />
                                     <div className="flex gap-2 justify-end mt-4">
                                         <button
@@ -1026,9 +1042,17 @@ export default function NotesPage() {
                                 </form>
                             ) : (
                                 <>
-                                    <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 text-sm">
-                                        {selectedNote.content}
-                                    </pre>
+                                    {/* Render HTML content if it contains HTML tags, otherwise plain text */}
+                                    {selectedNote.content.includes('<') ? (
+                                        <div
+                                            className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300"
+                                            dangerouslySetInnerHTML={{ __html: selectedNote.content }}
+                                        />
+                                    ) : (
+                                        <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 text-sm">
+                                            {selectedNote.content}
+                                        </pre>
+                                    )}
 
                                     {/* Linked objects */}
                                     {(() => {

@@ -60,7 +60,7 @@ class NoteDetailResponse(NoteResponse):
     linked_model: Optional[dict] = None  # Mental model info
 
 
-VALID_NOTE_TYPES = ["reflection", "idea", "question", "connection", "journal", "action"]
+VALID_NOTE_TYPES = ["reflection", "idea", "question", "connection", "journal", "action", "shopping"]
 
 
 @router.get("/", response_model=List[NoteResponse])
