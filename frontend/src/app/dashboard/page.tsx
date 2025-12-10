@@ -8,6 +8,16 @@ import { QuickViewPopup } from '@/components/quick-view-popup';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Local storage keys
+const KPI_ORDER_KEY = 'dashboard_kpi_order';
+const OVERVIEW_ORDER_KEY = 'dashboard_overview_order';
+
+// Default KPI keys order
+const DEFAULT_KPI_ORDER = ['contents', 'objectives', 'projects', 'mental_models', 'notes', 'areas', 'habits'];
+
+// Default overview sections order
+const DEFAULT_OVERVIEW_ORDER = ['objectives', 'projects', 'mental_models', 'contents', 'notes', 'habits', 'areas'];
+
 // Types
 interface DashboardSummary {
   kpis: {
@@ -90,6 +100,32 @@ export default function DashboardPage() {
   // Sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
+  // Drag & Drop state for KPIs
+  const [kpiOrder, setKpiOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(KPI_ORDER_KEY);
+      if (saved) {
+        try { return JSON.parse(saved); } catch { return DEFAULT_KPI_ORDER; }
+      }
+    }
+    return DEFAULT_KPI_ORDER;
+  });
+  const [draggedKpi, setDraggedKpi] = useState<string | null>(null);
+  const [dragOverKpi, setDragOverKpi] = useState<string | null>(null);
+
+  // Drag & Drop state for Overview boxes
+  const [overviewOrder, setOverviewOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(OVERVIEW_ORDER_KEY);
+      if (saved) {
+        try { return JSON.parse(saved); } catch { return DEFAULT_OVERVIEW_ORDER; }
+      }
+    }
+    return DEFAULT_OVERVIEW_ORDER;
+  });
+  const [draggedBox, setDraggedBox] = useState<string | null>(null);
+  const [dragOverBox, setDragOverBox] = useState<string | null>(null);
+
   // Quick View Popup state
   const [quickViewItem, setQuickViewItem] = useState<any>(null);
   const [quickViewType, setQuickViewType] = useState<'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag'>('content');
@@ -110,6 +146,68 @@ export default function DashboardPage() {
 
   const closeQuickView = () => {
     setQuickViewItem(null);
+  };
+
+  // KPI Drag & Drop handlers
+  const handleKpiDragStart = (key: string) => {
+    setDraggedKpi(key);
+  };
+
+  const handleKpiDragOver = (e: React.DragEvent, key: string) => {
+    e.preventDefault();
+    if (draggedKpi && draggedKpi !== key) {
+      setDragOverKpi(key);
+    }
+  };
+
+  const handleKpiDrop = (key: string) => {
+    if (draggedKpi && draggedKpi !== key) {
+      const newOrder = [...kpiOrder];
+      const draggedIndex = newOrder.indexOf(draggedKpi);
+      const targetIndex = newOrder.indexOf(key);
+      newOrder.splice(draggedIndex, 1);
+      newOrder.splice(targetIndex, 0, draggedKpi);
+      setKpiOrder(newOrder);
+      localStorage.setItem(KPI_ORDER_KEY, JSON.stringify(newOrder));
+    }
+    setDraggedKpi(null);
+    setDragOverKpi(null);
+  };
+
+  const handleKpiDragEnd = () => {
+    setDraggedKpi(null);
+    setDragOverKpi(null);
+  };
+
+  // Overview Box Drag & Drop handlers
+  const handleBoxDragStart = (key: string) => {
+    setDraggedBox(key);
+  };
+
+  const handleBoxDragOver = (e: React.DragEvent, key: string) => {
+    e.preventDefault();
+    if (draggedBox && draggedBox !== key) {
+      setDragOverBox(key);
+    }
+  };
+
+  const handleBoxDrop = (key: string) => {
+    if (draggedBox && draggedBox !== key) {
+      const newOrder = [...overviewOrder];
+      const draggedIndex = newOrder.indexOf(draggedBox);
+      const targetIndex = newOrder.indexOf(key);
+      newOrder.splice(draggedIndex, 1);
+      newOrder.splice(targetIndex, 0, draggedBox);
+      setOverviewOrder(newOrder);
+      localStorage.setItem(OVERVIEW_ORDER_KEY, JSON.stringify(newOrder));
+    }
+    setDraggedBox(null);
+    setDragOverBox(null);
+  };
+
+  const handleBoxDragEnd = () => {
+    setDraggedBox(null);
+    setDragOverBox(null);
   };
 
   const getAuthHeaders = useCallback(() => {
@@ -325,7 +423,7 @@ export default function DashboardPage() {
     },
   ];
 
-  // Render overview panel (default)
+  // Render overview panel (default) with draggable boxes
   const renderOverviewPanel = () => {
     if (error) {
       return (
@@ -355,13 +453,13 @@ export default function DashboardPage() {
       );
     }
 
-    return (
-      <div className="space-y-6">
-        {/* Objectives */}
+    // Define box renderers
+    const boxRenderers: Record<string, () => React.ReactNode> = {
+      objectives: () => (
         <div className="bg-gray-800/50 rounded-xl p-4">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-white font-medium flex items-center gap-2">
-              🎯 Objetivos Activos
+              <span className="cursor-grab">⋮⋮</span> 🎯 Objetivos Activos
             </h3>
             <Link href="/objectives" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
               Ver todo →
@@ -393,12 +491,12 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-sm">No hay objetivos activos</p>
           )}
         </div>
-
-        {/* Projects */}
+      ),
+      projects: () => (
         <div className="bg-gray-800/50 rounded-xl p-4">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-white font-medium flex items-center gap-2">
-              📁 Proyectos Activos
+              <span className="cursor-grab">⋮⋮</span> 📁 Proyectos Activos
             </h3>
             <Link href="/projects" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
               Ver todo →
@@ -424,12 +522,12 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-sm">No hay proyectos activos</p>
           )}
         </div>
-
-        {/* Mental Models */}
+      ),
+      mental_models: () => (
         <div className="bg-gray-800/50 rounded-xl p-4">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-white font-medium flex items-center gap-2">
-              🧠 Modelos Mentales
+              <span className="cursor-grab">⋮⋮</span> 🧠 Modelos Mentales
             </h3>
             <Link href="/mental-models" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
               Ver todo →
@@ -452,12 +550,12 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-sm">No hay modelos mentales activos</p>
           )}
         </div>
-
-        {/* Recent Contents */}
+      ),
+      contents: () => (
         <div className="bg-gray-800/50 rounded-xl p-4">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-white font-medium flex items-center gap-2">
-              📄 Contenidos Recientes
+              <span className="cursor-grab">⋮⋮</span> 📄 Contenidos Recientes
             </h3>
             <Link href="/explore" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
               Ver todo →
@@ -483,12 +581,12 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-sm">No hay contenidos</p>
           )}
         </div>
-
-        {/* Notes */}
+      ),
+      notes: () => (
         <div className="bg-gray-800/50 rounded-xl p-4">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-white font-medium flex items-center gap-2">
-              📝 Notas Recientes
+              <span className="cursor-grab">⋮⋮</span> 📝 Notas Recientes
             </h3>
             <Link href="/notes" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
               Ver todo →
@@ -511,18 +609,17 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-sm">No hay notas</p>
           )}
         </div>
-
-        {/* Habits Today */}
+      ),
+      habits: () => (
         <div className="bg-gradient-to-br from-emerald-900/50 to-green-900/30 rounded-xl p-4 border border-emerald-800/30">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-white font-medium flex items-center gap-2">
-              ✅ Habitos de Hoy
+              <span className="cursor-grab">⋮⋮</span> ✅ Habitos de Hoy
             </h3>
             <Link href="/habits" target="_blank" className="text-sm text-emerald-400 hover:text-emerald-300">
               Ver todo →
             </Link>
           </div>
-          {/* Progress bar */}
           {summary.habits_today && summary.habits_today.total > 0 ? (
             <>
               <div className="flex items-center gap-3 mb-3">
@@ -567,12 +664,12 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-sm">No hay habitos activos</p>
           )}
         </div>
-
-        {/* Areas of Responsibility */}
+      ),
+      areas: () => (
         <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/30 rounded-xl p-4 border border-indigo-800/30">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-white font-medium flex items-center gap-2">
-              📋 Areas de Responsabilidad
+              <span className="cursor-grab">⋮⋮</span> 📋 Areas de Responsabilidad
             </h3>
             <Link href="/areas" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
               Ver todo →
@@ -605,6 +702,28 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+      ),
+    };
+
+    return (
+      <div className="space-y-4">
+        {overviewOrder.map((boxKey) => {
+          const renderer = boxRenderers[boxKey];
+          if (!renderer) return null;
+          return (
+            <div
+              key={boxKey}
+              draggable
+              onDragStart={() => handleBoxDragStart(boxKey)}
+              onDragOver={(e) => handleBoxDragOver(e, boxKey)}
+              onDrop={() => handleBoxDrop(boxKey)}
+              onDragEnd={handleBoxDragEnd}
+              className={`transition-all ${draggedBox === boxKey ? 'opacity-50 scale-[0.98]' : ''} ${dragOverBox === boxKey ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-gray-950' : ''}`}
+            >
+              {renderer()}
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -1333,29 +1452,29 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold text-white">Dashboard</h1>
           <div className="flex items-center gap-2">
-            {/* Quick Note Button */}
+            {/* Quick Note Button - Amber gradient most intense */}
             <Link
               href="/notes?new=true"
               target="_blank"
-              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 font-medium shadow-md"
+              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 font-medium shadow-md"
               title="Quick Note"
             >
               📝 Quick Note
             </Link>
-            {/* Full Note Button */}
+            {/* Full Note Button - Amber gradient second */}
             <Link
               href="/notes/new"
               target="_blank"
-              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 font-medium shadow-md"
+              className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 font-medium shadow-md"
               title="Full Note"
             >
               📄 Full Note
             </Link>
-            {/* Quick Actions Dropdown */}
+            {/* Quick Actions Dropdown - Amber gradient third */}
             <div className="relative">
               <button
                 onClick={() => setShowQuickActions(!showQuickActions)}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
+                className="bg-amber-400 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 font-medium shadow-md"
               >
                 + Crear ▾
               </button>
@@ -1441,9 +1560,10 @@ export default function DashboardPage() {
                 </>
               )}
             </div>
+            {/* Chat Button - Amber gradient lightest */}
             <Link
               href="/chat"
-              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2"
+              className="bg-amber-300 hover:bg-amber-400 text-amber-900 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 font-medium shadow-md"
             >
               💬 Chat
             </Link>
@@ -1458,22 +1578,31 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* KPI Bar */}
+      {/* KPI Bar - Drag & Drop enabled */}
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="grid grid-cols-7 gap-2">
-          {kpiCards.map((kpi) => (
-            <button
-              key={kpi.key}
-              onClick={() => setSelectedCategory(kpi.key as SidebarCategory)}
-              className={`${kpi.color} hover:opacity-90 rounded-xl p-4 transition-all cursor-pointer text-left ${
-                selectedCategory === kpi.key ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-950' : ''
-              }`}
-            >
-              <div className="text-2xl mb-1">{kpi.icon}</div>
-              <div className="text-2xl font-bold text-white">{kpi.value}</div>
-              <div className="text-xs text-white/80">{kpi.label}</div>
-            </button>
-          ))}
+          {kpiOrder.map((key) => {
+            const kpi = kpiCards.find(k => k.key === key);
+            if (!kpi) return null;
+            return (
+              <button
+                key={kpi.key}
+                draggable
+                onDragStart={() => handleKpiDragStart(kpi.key)}
+                onDragOver={(e) => handleKpiDragOver(e, kpi.key)}
+                onDrop={() => handleKpiDrop(kpi.key)}
+                onDragEnd={handleKpiDragEnd}
+                onClick={() => setSelectedCategory(kpi.key as SidebarCategory)}
+                className={`${kpi.color} hover:opacity-90 rounded-xl p-4 transition-all cursor-grab active:cursor-grabbing text-left ${
+                  selectedCategory === kpi.key ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-950' : ''
+                } ${draggedKpi === kpi.key ? 'opacity-50 scale-95' : ''} ${dragOverKpi === kpi.key ? 'ring-2 ring-amber-400' : ''}`}
+              >
+                <div className="text-2xl mb-1">{kpi.icon}</div>
+                <div className="text-2xl font-bold text-white">{kpi.value}</div>
+                <div className="text-xs text-white/80">{kpi.label}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
