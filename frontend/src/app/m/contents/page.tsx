@@ -69,6 +69,12 @@ export default function MobileContentsPage() {
     const [showActionModal, setShowActionModal] = useState(false);
     const [updatingMaturity, setUpdatingMaturity] = useState(false);
 
+    // Create linked note modal state
+    const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
+    const [noteContent, setNoteContent] = useState('');
+    const [noteType, setNoteType] = useState<'standalone_note' | 'fleeting_note'>('standalone_note');
+    const [savingNote, setSavingNote] = useState(false);
+
     // Check dark mode
     useEffect(() => {
         const checkDark = () => {
@@ -346,6 +352,57 @@ export default function MobileContentsPage() {
     const openActionModal = (content: Content) => {
         setActionContent(content);
         setShowActionModal(true);
+    };
+
+    const openCreateNoteModal = () => {
+        setShowActionModal(false);
+        setNoteContent('');
+        setNoteType('standalone_note');
+        setShowCreateNoteModal(true);
+    };
+
+    const createLinkedNote = async () => {
+        if (!actionContent || !noteContent.trim()) return;
+
+        setSavingNote(true);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const body = {
+                title: noteContent.trim().substring(0, 50) + (noteContent.length > 50 ? '...' : ''),
+                content: noteContent.trim(),
+                note_type: noteType,
+                tags: [],
+                linked_content_ids: [actionContent.id],
+                linked_note_ids: [],
+            };
+
+            const response = await fetch(`${API_URL}/api/v1/notes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify(body),
+            });
+
+            if (response.ok) {
+                setShowCreateNoteModal(false);
+                setActionContent(null);
+                setNoteContent('');
+                alert('Nota creada y vinculada al contenido');
+            } else {
+                const error = await response.json();
+                console.error('Error creating note:', error);
+                alert('Error al crear la nota');
+            }
+        } catch (error) {
+            console.error('Error creating linked note:', error);
+            alert('Error al crear la nota');
+        } finally {
+            setSavingNote(false);
+        }
     };
 
     const getTypeConfig = (type: string) => {
@@ -745,6 +802,16 @@ export default function MobileContentsPage() {
                         {/* Quick actions */}
                         <div className="space-y-2">
                             <button
+                                onClick={openCreateNoteModal}
+                                className={`w-full p-3 rounded-lg flex items-center gap-3 ${
+                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                }`}
+                            >
+                                <span className="text-lg">📝</span>
+                                <span>Crear nota vinculada</span>
+                            </button>
+
+                            <button
                                 onClick={(e) => toggleFavorite(actionContent, e as unknown as React.MouseEvent)}
                                 className={`w-full p-3 rounded-lg flex items-center gap-3 ${
                                     isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
@@ -762,6 +829,102 @@ export default function MobileContentsPage() {
                             >
                                 <span className="text-lg">📦</span>
                                 <span>Archivar contenido</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Linked Note Modal */}
+            {showCreateNoteModal && actionContent && (
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
+                    <div
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        style={{ maxHeight: '80vh' }}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className={`font-semibold ${textClass}`}>
+                                Crear nota para: {actionContent.title?.substring(0, 30)}...
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowCreateNoteModal(false);
+                                    setActionContent(null);
+                                    setNoteContent('');
+                                }}
+                                className={mutedTextClass}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Note type selector */}
+                        <div className="mb-4">
+                            <h4 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Tipo de nota</h4>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setNoteType('standalone_note')}
+                                    className={`flex-1 p-2 rounded-lg text-sm ${
+                                        noteType === 'standalone_note'
+                                            ? 'bg-amber-500 text-white'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                    }`}
+                                >
+                                    📝 Nota simple
+                                </button>
+                                <button
+                                    onClick={() => setNoteType('fleeting_note')}
+                                    className={`flex-1 p-2 rounded-lg text-sm ${
+                                        noteType === 'fleeting_note'
+                                            ? 'bg-amber-500 text-white'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                    }`}
+                                >
+                                    💭 Nota fugaz
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Note content */}
+                        <div className="mb-4">
+                            <textarea
+                                value={noteContent}
+                                onChange={(e) => setNoteContent(e.target.value)}
+                                placeholder="Escribe tu nota aquí..."
+                                rows={6}
+                                className={`w-full p-3 rounded-lg border resize-none ${
+                                    isDark
+                                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                                }`}
+                            />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => {
+                                    setShowCreateNoteModal(false);
+                                    setActionContent(null);
+                                    setNoteContent('');
+                                }}
+                                className={`flex-1 p-3 rounded-lg font-medium ${
+                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                }`}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={createLinkedNote}
+                                disabled={savingNote || !noteContent.trim()}
+                                className={`flex-1 p-3 rounded-lg font-medium text-white ${
+                                    savingNote || !noteContent.trim()
+                                        ? 'bg-amber-400 cursor-not-allowed'
+                                        : 'bg-amber-500 hover:bg-amber-600'
+                                }`}
+                            >
+                                {savingNote ? 'Guardando...' : 'Crear nota'}
                             </button>
                         </div>
                     </div>
