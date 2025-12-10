@@ -1578,12 +1578,15 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* KPI Bar - Drag & Drop enabled */}
+      {/* KPI Bar - Drag & Drop enabled with dynamic gradient based on position */}
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="grid grid-cols-7 gap-2">
-          {kpiOrder.map((key) => {
+          {kpiOrder.map((key, index) => {
             const kpi = kpiCards.find(k => k.key === key);
             if (!kpi) return null;
+            // Dynamic color based on position (0=darkest, 6=lightest)
+            const positionColors = ['bg-blue-900', 'bg-blue-800', 'bg-blue-700', 'bg-blue-600', 'bg-blue-500', 'bg-blue-400', 'bg-blue-300'];
+            const bgColor = positionColors[index] || 'bg-blue-500';
             return (
               <button
                 key={kpi.key}
@@ -1593,7 +1596,7 @@ export default function DashboardPage() {
                 onDrop={() => handleKpiDrop(kpi.key)}
                 onDragEnd={handleKpiDragEnd}
                 onClick={() => setSelectedCategory(kpi.key as SidebarCategory)}
-                className={`${kpi.color} hover:opacity-90 rounded-xl p-4 transition-all cursor-grab active:cursor-grabbing text-left ${
+                className={`${bgColor} hover:opacity-90 rounded-xl p-4 transition-all cursor-grab active:cursor-grabbing text-left ${
                   selectedCategory === kpi.key ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-950' : ''
                 } ${draggedKpi === kpi.key ? 'opacity-50 scale-95' : ''} ${dragOverKpi === kpi.key ? 'ring-2 ring-amber-400' : ''}`}
               >
