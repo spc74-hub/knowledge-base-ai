@@ -72,7 +72,7 @@ export default function MobileContentsPage() {
     // Create linked note modal state
     const [showCreateNoteModal, setShowCreateNoteModal] = useState(false);
     const [noteContent, setNoteContent] = useState('');
-    const [noteType, setNoteType] = useState<'standalone_note' | 'fleeting_note'>('standalone_note');
+    const [noteType, setNoteType] = useState<'reflection' | 'idea' | 'question' | 'connection' | 'action'>('reflection');
     const [savingNote, setSavingNote] = useState(false);
 
     // Check dark mode
@@ -357,7 +357,7 @@ export default function MobileContentsPage() {
     const openCreateNoteModal = () => {
         setShowActionModal(false);
         setNoteContent('');
-        setNoteType('standalone_note');
+        setNoteType('reflection');
         setShowCreateNoteModal(true);
     };
 
@@ -862,27 +862,26 @@ export default function MobileContentsPage() {
                         {/* Note type selector */}
                         <div className="mb-4">
                             <h4 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Tipo de nota</h4>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setNoteType('standalone_note')}
-                                    className={`flex-1 p-2 rounded-lg text-sm ${
-                                        noteType === 'standalone_note'
-                                            ? 'bg-amber-500 text-white'
-                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                                    }`}
-                                >
-                                    📝 Nota simple
-                                </button>
-                                <button
-                                    onClick={() => setNoteType('fleeting_note')}
-                                    className={`flex-1 p-2 rounded-lg text-sm ${
-                                        noteType === 'fleeting_note'
-                                            ? 'bg-amber-500 text-white'
-                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                                    }`}
-                                >
-                                    💭 Nota fugaz
-                                </button>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { type: 'reflection' as const, icon: '🪞', label: 'Reflexión' },
+                                    { type: 'idea' as const, icon: '💡', label: 'Idea' },
+                                    { type: 'question' as const, icon: '❓', label: 'Pregunta' },
+                                    { type: 'connection' as const, icon: '🔗', label: 'Conexión' },
+                                    { type: 'action' as const, icon: '⚡', label: 'Acción' },
+                                ].map(({ type, icon, label }) => (
+                                    <button
+                                        key={type}
+                                        onClick={() => setNoteType(type)}
+                                        className={`px-3 py-2 rounded-lg text-sm flex items-center gap-1 ${
+                                            noteType === type
+                                                ? 'bg-amber-500 text-white'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                        }`}
+                                    >
+                                        {icon} {label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
