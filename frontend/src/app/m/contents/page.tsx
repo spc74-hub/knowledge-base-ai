@@ -52,7 +52,11 @@ export default function MobileContentsPage() {
         setLoading(true);
         try {
             const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
+            if (!session.data.session) {
+                console.log('No session found');
+                setLoading(false);
+                return;
+            }
 
             const headers = {
                 'Content-Type': 'application/json',
@@ -84,6 +88,8 @@ export default function MobileContentsPage() {
                     }
 
                     setContents(results);
+                } else {
+                    console.error('Global search failed:', response.status);
                 }
             } else {
                 // Faceted search for browsing
@@ -109,7 +115,11 @@ export default function MobileContentsPage() {
 
                 if (response.ok) {
                     const data = await response.json();
-                    setContents(data.contents || []);
+                    // Handle different response formats
+                    const contentsData = data.contents || data.data || data.results || [];
+                    setContents(Array.isArray(contentsData) ? contentsData : []);
+                } else {
+                    console.error('Faceted search failed:', response.status, await response.text());
                 }
             }
         } catch (error) {
