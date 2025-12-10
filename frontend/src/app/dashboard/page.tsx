@@ -130,11 +130,11 @@ export default function DashboardPage() {
 
   // Quick View Popup state
   const [quickViewItem, setQuickViewItem] = useState<any>(null);
-  const [quickViewType, setQuickViewType] = useState<'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag'>('content');
+  const [quickViewType, setQuickViewType] = useState<'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag' | 'habit' | 'area' | 'quick_note' | 'full_note'>('content');
   const [quickViewPosition, setQuickViewPosition] = useState<{ x: number; y: number } | undefined>(undefined);
 
   // Handle quick view on item click
-  const handleQuickView = (item: any, type: 'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag', event?: React.MouseEvent) => {
+  const handleQuickView = (item: any, type: 'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag' | 'habit' | 'area' | 'quick_note' | 'full_note', event?: React.MouseEvent) => {
     if (event) {
       const rect = (event.target as HTMLElement).getBoundingClientRect();
       setQuickViewPosition({
@@ -604,15 +604,14 @@ export default function DashboardPage() {
               {(summary.recent.simple_notes || []).length > 0 ? (
                 <div className="space-y-1.5">
                   {(summary.recent.simple_notes || []).slice(0, 4).map((note: any) => (
-                    <Link
+                    <button
                       key={note.id}
-                      href={note.source === 'system' ? `/system-notes/${note.id}` : `/notes/${note.id}`}
-                      target="_blank"
+                      onClick={(e) => handleQuickView({...note, is_standalone: true}, 'quick_note', e)}
                       className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left group"
                     >
                       <span className="text-sm">{note.is_pinned ? '📌' : '📝'}</span>
                       <p className="text-white text-xs flex-1 truncate group-hover:text-amber-300">{note.title}</p>
-                    </Link>
+                    </button>
                   ))}
                 </div>
               ) : (
@@ -628,15 +627,14 @@ export default function DashboardPage() {
               {(summary.recent.full_notes || []).length > 0 ? (
                 <div className="space-y-1.5">
                   {(summary.recent.full_notes || []).slice(0, 4).map((note: any) => (
-                    <Link
+                    <button
                       key={note.id}
-                      href={`/content/${note.id}`}
-                      target="_blank"
+                      onClick={(e) => handleQuickView(note, 'full_note', e)}
                       className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left group"
                     >
                       <span className="text-sm">{note.is_pinned ? '📌' : '📄'}</span>
                       <p className="text-white text-xs flex-1 truncate group-hover:text-indigo-300">{note.title}</p>
-                    </Link>
+                    </button>
                   ))}
                 </div>
               ) : (
@@ -676,10 +674,10 @@ export default function DashboardPage() {
                       (l: any) => l.habit_id === habit.id && l.status === 'completed'
                     );
                     return (
-                      <Link
+                      <button
                         key={habit.id}
-                        href={`/habits/${habit.id}`}
-                        className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors"
+                        onClick={(e) => handleQuickView({...habit, completed_today: isCompleted}, 'habit', e)}
+                        className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left"
                       >
                         <span className={`text-lg ${isCompleted ? 'opacity-50' : ''}`}>
                           {isCompleted ? '✅' : habit.icon || '⭕'}
@@ -690,7 +688,7 @@ export default function DashboardPage() {
                         {isCompleted && (
                           <span className="text-xs text-emerald-400">Completado</span>
                         )}
-                      </Link>
+                      </button>
                     );
                   })}
                 </div>
@@ -714,15 +712,15 @@ export default function DashboardPage() {
           {summary.recent.areas && summary.recent.areas.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {summary.recent.areas.slice(0, 6).map((area) => (
-                <Link
+                <button
                   key={area.id}
-                  href={`/areas/${area.id}`}
-                  className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors"
+                  onClick={(e) => handleQuickView(area, 'area', e)}
+                  className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors text-left"
                   style={{ borderLeft: `3px solid ${area.color || '#6366f1'}` }}
                 >
                   <span className="text-lg">{area.icon || '📋'}</span>
                   <p className="text-white text-sm truncate">{area.name}</p>
-                </Link>
+                </button>
               ))}
             </div>
           ) : (
@@ -1660,6 +1658,20 @@ export default function DashboardPage() {
                 <span className="text-lg">{sidebarCollapsed ? '→' : '←'}</span>
               </button>
 
+              {/* Vista General button - First */}
+              <button
+                onClick={() => setSelectedCategory('overview')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mb-4 ${sidebarCollapsed ? 'justify-center' : ''} ${
+                  selectedCategory === 'overview'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                }`}
+                title={sidebarCollapsed ? 'Vista General' : undefined}
+              >
+                <span>🏠</span>
+                {!sidebarCollapsed && <span className="text-sm font-medium">Vista General</span>}
+              </button>
+
               {sidebarSections.map((section) => (
                 <div key={section.title} className="mb-4">
                   {!sidebarCollapsed && (
@@ -1706,19 +1718,6 @@ export default function DashboardPage() {
                 </div>
               ))}
 
-              {/* Overview button */}
-              <button
-                onClick={() => setSelectedCategory('overview')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mt-2 ${sidebarCollapsed ? 'justify-center' : ''} ${
-                  selectedCategory === 'overview'
-                    ? 'bg-gray-700 text-white'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                }`}
-                title={sidebarCollapsed ? 'Vista General' : undefined}
-              >
-                <span>🏠</span>
-                {!sidebarCollapsed && <span className="text-sm">Vista General</span>}
-              </button>
             </div>
           </aside>
 
@@ -1784,7 +1783,7 @@ export default function DashboardPage() {
         isOpen={!!quickViewItem}
         onClose={closeQuickView}
         position={quickViewPosition}
-        onOpenFull={quickViewType === 'content' ? () => {
+        onOpenFull={(quickViewType === 'content' || quickViewType === 'full_note') ? () => {
           closeQuickView();
           handleContentClick(quickViewItem?.id);
         } : undefined}
