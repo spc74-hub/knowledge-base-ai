@@ -14,6 +14,11 @@ router = APIRouter()
 VALID_PRIORITIES = ["important", "urgent", "A", "B", "C"]
 
 
+class PriorityUpdate(BaseModel):
+    """Request body for updating note priority."""
+    priority: Optional[str] = None
+
+
 class NoteCreate(BaseModel):
     title: str
     content: str  # Markdown
@@ -497,7 +502,7 @@ async def toggle_complete_note(
 @router.post("/{note_id}/priority")
 async def set_note_priority(
     note_id: str,
-    priority: Optional[str],
+    data: PriorityUpdate,
     current_user: CurrentUser,
     db: Database
 ):
@@ -506,6 +511,8 @@ async def set_note_priority(
     Priority values: important, urgent, A, B, C, or null to clear.
     """
     try:
+        priority = data.priority
+
         # Check ownership
         existing = db.table("standalone_notes").select("id").eq(
             "id", note_id

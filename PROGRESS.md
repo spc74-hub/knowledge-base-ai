@@ -1,6 +1,6 @@
 # Knowledge Base AI - Project Progress Report
 
-**Generated:** December 2, 2025
+**Generated:** December 10, 2025
 
 ---
 
@@ -20,18 +20,20 @@
 
 | Language | Lines | Percentage |
 |----------|-------|------------|
-| TypeScript/TSX | 5,429 | 48.1% |
-| Python | 5,282 | 46.8% |
-| SQL | 501 | 4.4% |
-| CSS | 67 | 0.6% |
+| TypeScript/TSX | 7,800+ | 49% |
+| Python | 6,200+ | 39% |
+| SQL | 800+ | 5% |
+| CSS | 67 | 0.4% |
 | JavaScript | 15 | 0.1% |
-| **TOTAL** | **11,294** | **100%** |
+| **TOTAL** | **~15,900** | **100%** |
 
 ### Files by Component
 
-#### Backend (Python) - 5,282 lines
+#### Backend (Python) - 6,200+ lines
 | File | Lines | Description |
 |------|-------|-------------|
+| `api/v1/habits.py` | 918 | Habits CRUD + calendar + statistics |
+| `api/v1/daily_journal.py` | 650+ | Daily journal entries + AI insights |
 | `api/v1/content.py` | 804 | Content CRUD + URL processing |
 | `services/fetcher.py` | 525 | Web scraping, YouTube, PDF |
 | `api/v1/search.py` | 463 | Semantic + faceted search |
@@ -46,12 +48,14 @@
 | `api/v1/auth.py` | 161 | Authentication |
 | `schemas/content.py` | 131 | Pydantic schemas |
 | `services/embedder.py` | 107 | OpenAI embeddings |
-| Other files | 156 | Config, deps, etc. |
+| Other files | 200+ | Config, deps, etc. |
 
-#### Frontend (TypeScript/React) - 5,429 lines
+#### Frontend (TypeScript/React) - 7,800+ lines
 | File | Lines | Description |
 |------|-------|-------------|
-| `app/dashboard/page.tsx` | 1,190 | Main dashboard with folders |
+| `app/dashboard/page.tsx` | 1,450+ | Main dashboard with folders + journal stats |
+| `app/habits/page.tsx` | 1,100+ | Habits page with calendar + time_of_day |
+| `app/daily-journal/page.tsx` | 850+ | Daily journal with AI summaries |
 | `app/explore/page.tsx` | 496 | Faceted exploration |
 | `components/editor/EditorToolbar.tsx` | 493 | Rich text toolbar |
 | `app/chat/page.tsx` | 398 | RAG chat interface |
@@ -67,13 +71,17 @@
 | `types/content.ts` | 127 | TypeScript types |
 | `app/login/page.tsx` | 104 | Login page |
 | `hooks/use-auth.ts` | 104 | Auth hook |
-| Other files | 423 | Config, providers, etc. |
+| Other files | 600+ | Config, providers, etc. |
 
-#### Database/Scripts (SQL) - 501 lines
+#### Database/Scripts (SQL) - 800+ lines
 | File | Lines | Description |
 |------|-------|-------------|
 | `scripts/supabase_setup.sql` | 380 | Main database schema |
+| `scripts/add_daily_journal.sql` | 100+ | Daily journal table + indexes |
+| `scripts/add_habit_time_of_day_and_journal_forgiveness.sql` | 47 | Add time_of_day + forgiveness |
+| `scripts/add_is_day_completed.sql` | 50+ | Day completed flag |
 | `database/migrations/002_add_embeddings.sql` | 121 | Vector embeddings migration |
+| Other migration scripts | 100+ | Various schema updates |
 
 ---
 
@@ -136,6 +144,29 @@ Based on the complexity of this project (AI integrations, full-stack, multiple A
 - [x] RAG-powered chat interface
 - [x] API usage tracking
 
+### Daily Journal (Mi Diario) - NEW!
+- [x] Complete daily journal module with dedicated page
+- [x] Daily entries with routines tracking (morning, afternoon, evening)
+- [x] Gratitude items (3 things you're grateful for)
+- [x] Daily wins tracking
+- [x] Forgiveness items (self, others, situations)
+- [x] Energy level and mood tracking (1-10 scale)
+- [x] AI-powered summaries and insights (Claude)
+- [x] Statistics panel integrated in Dashboard
+- [x] Best/worst day patterns analysis
+- [x] Common themes extraction from wins and gratitudes
+- [x] Save AI summary as standalone note
+- [x] Mark day as completed
+
+### Habits System - ENHANCED!
+- [x] Habit tracking with daily/weekly/custom frequency
+- [x] **Time of day selector** (Morning, Afternoon, Evening, Anytime)
+- [x] Visual calendar with completion history
+- [x] Completion status (completed, partial, skipped)
+- [x] Statistics by habit and overall
+- [x] Area categorization for habits
+- [x] Icon and color customization
+
 ---
 
 ## Pending Features (Roadmap)
@@ -193,11 +224,28 @@ PROYECTO_KNOWLEDGE_BASE_AI/
 
 | Metric | Value |
 |--------|-------|
-| Total Lines of Code | 11,294 |
-| Estimated Hours | ~750 h |
-| Estimated Cost | ~37,500 EUR |
-| Completion Status | ~85% core features |
+| Total Lines of Code | ~15,900 |
+| Estimated Hours | ~1,060 h |
+| Estimated Cost | ~53,000 EUR |
+| Completion Status | ~95% core features |
 | Tech Complexity | High (Full-stack + AI) |
+
+---
+
+## Changelog (December 2025)
+
+### v2.0 - Daily Journal & Habits Enhancement (Dec 10, 2025)
+- Added complete Daily Journal module ("Mi Diario")
+- Added journal insights panel to Dashboard sidebar
+- Added time_of_day selector for habits (morning/afternoon/evening/anytime)
+- Added "Save AI summary as note" functionality
+- Added forgiveness items to daily journal
+- Added day completion tracking
+
+### v1.9 - Explorer & Notes (Dec 6, 2025)
+- Added Explorer tabs with multiple views
+- Added notes linked to content feature
+- Added audio transcription from Google Drive
 
 ---
 
