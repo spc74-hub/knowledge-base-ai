@@ -25,6 +25,7 @@ interface Habit {
     frequency_days: number[];
     target_count: number;
     target_time: string | null;
+    time_of_day: 'morning' | 'afternoon' | 'evening' | 'anytime';
     is_active: boolean;
     area_id: string | null;
     today_log: HabitLog | null;
@@ -93,6 +94,12 @@ interface StatsSummary {
 
 const HABIT_ICONS = ['✅', '💪', '📚', '🧘', '💧', '🏃', '🥗', '😴', '📝', '🎯', '💰', '🎵', '🌱', '🧠', '⏰', '🙏'];
 const HABIT_COLORS = ['#10b981', '#6366f1', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+const TIME_OF_DAY_OPTIONS = [
+    { value: 'anytime', label: 'Cualquier momento', icon: '🕐' },
+    { value: 'morning', label: 'Mañana', icon: '🌅' },
+    { value: 'afternoon', label: 'Tarde', icon: '☀️' },
+    { value: 'evening', label: 'Noche', icon: '🌙' },
+];
 const DAYS_OF_WEEK = [
     { value: 0, label: 'Dom' },
     { value: 1, label: 'Lun' },
@@ -134,6 +141,7 @@ export default function HabitsPage() {
     const [formColor, setFormColor] = useState('#10b981');
     const [formFrequency, setFormFrequency] = useState('daily');
     const [formDays, setFormDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+    const [formTimeOfDay, setFormTimeOfDay] = useState<'morning' | 'afternoon' | 'evening' | 'anytime'>('anytime');
     const [formAreaId, setFormAreaId] = useState('');
     const [saving, setSaving] = useState(false);
 
@@ -262,6 +270,7 @@ export default function HabitsPage() {
         setFormColor('#10b981');
         setFormFrequency('daily');
         setFormDays([0, 1, 2, 3, 4, 5, 6]);
+        setFormTimeOfDay('anytime');
         setFormAreaId('');
         setEditingHabit(null);
     };
@@ -279,6 +288,7 @@ export default function HabitsPage() {
         setFormColor(habit.color);
         setFormFrequency(habit.frequency_type);
         setFormDays(habit.frequency_days || [0, 1, 2, 3, 4, 5, 6]);
+        setFormTimeOfDay(habit.time_of_day || 'anytime');
         setFormAreaId(habit.area_id || '');
         setShowModal(true);
     };
@@ -298,6 +308,7 @@ export default function HabitsPage() {
                 color: formColor,
                 frequency_type: formFrequency,
                 frequency_days: formFrequency === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : formDays,
+                time_of_day: formTimeOfDay,
                 area_id: formAreaId || null,
             };
 
@@ -979,6 +990,28 @@ export default function HabitsPage() {
                                         ))}
                                     </div>
                                 )}
+
+                                {/* Time of day */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Momento del dia</label>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {TIME_OF_DAY_OPTIONS.map((option) => (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                onClick={() => setFormTimeOfDay(option.value as typeof formTimeOfDay)}
+                                                className={`flex flex-col items-center gap-1 p-2 rounded-lg text-xs ${
+                                                    formTimeOfDay === option.value
+                                                        ? 'bg-green-600 text-white'
+                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                }`}
+                                            >
+                                                <span className="text-lg">{option.icon}</span>
+                                                <span>{option.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
 
                                 {/* Area (optional, collapsed) */}
                                 {areas.length > 0 && (

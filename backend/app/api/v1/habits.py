@@ -27,6 +27,7 @@ class HabitCreate(BaseModel):
     frequency_days: Optional[List[int]] = [0, 1, 2, 3, 4, 5, 6]  # 0=Sunday
     target_count: Optional[int] = 1
     target_time: Optional[str] = None  # HH:MM format
+    time_of_day: Optional[str] = "anytime"  # morning, afternoon, evening, anytime
     reminder_enabled: Optional[bool] = False
     reminder_time: Optional[str] = None
     area_id: Optional[str] = None
@@ -42,6 +43,7 @@ class HabitUpdate(BaseModel):
     frequency_days: Optional[List[int]] = None
     target_count: Optional[int] = None
     target_time: Optional[str] = None
+    time_of_day: Optional[str] = None  # morning, afternoon, evening, anytime
     reminder_enabled: Optional[bool] = None
     reminder_time: Optional[str] = None
     area_id: Optional[str] = None
@@ -328,6 +330,7 @@ async def create_habit(habit: HabitCreate, db: Database, current_user: CurrentUs
             "frequency_days": habit.frequency_days,
             "target_count": habit.target_count,
             "target_time": habit.target_time,
+            "time_of_day": habit.time_of_day,
             "reminder_enabled": habit.reminder_enabled,
             "reminder_time": habit.reminder_time,
             "area_id": habit.area_id,

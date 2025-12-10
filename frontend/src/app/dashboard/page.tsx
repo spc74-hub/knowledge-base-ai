@@ -60,7 +60,7 @@ interface ObjectSummary {
   items?: any[];
 }
 
-type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'tags' | 'areas' | 'habits';
+type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'tags' | 'areas' | 'habits' | 'daily-journal';
 
 interface SidebarItem {
   key: string;
@@ -132,6 +132,11 @@ export default function DashboardPage() {
   const [quickViewItem, setQuickViewItem] = useState<any>(null);
   const [quickViewType, setQuickViewType] = useState<'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag' | 'habit' | 'area' | 'quick_note' | 'full_note'>('content');
   const [quickViewPosition, setQuickViewPosition] = useState<{ x: number; y: number } | undefined>(undefined);
+
+  // Daily Journal insights state
+  const [journalInsights, setJournalInsights] = useState<any>(null);
+  const [loadingJournalInsights, setLoadingJournalInsights] = useState(false);
+  const [journalHistory, setJournalHistory] = useState<any[]>([]);
 
   // Handle quick view on item click
   const handleQuickView = (item: any, type: 'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag' | 'habit' | 'area' | 'quick_note' | 'full_note', event?: React.MouseEvent) => {
@@ -271,6 +276,35 @@ export default function DashboardPage() {
     }
   }, [user, getAuthHeaders]);
 
+  // Fetch journal insights when daily-journal is selected
+  const fetchJournalInsights = useCallback(async () => {
+    if (!user) return;
+    setLoadingJournalInsights(true);
+    try {
+      const [insightsRes, historyRes] = await Promise.all([
+        fetch(`${API_URL}/api/v1/daily-journal/stats/insights?days=30`, {
+          headers: getAuthHeaders(),
+        }),
+        fetch(`${API_URL}/api/v1/daily-journal/?limit=7`, {
+          headers: getAuthHeaders(),
+        }),
+      ]);
+
+      if (insightsRes.ok) {
+        const data = await insightsRes.json();
+        setJournalInsights(data);
+      }
+      if (historyRes.ok) {
+        const data = await historyRes.json();
+        setJournalHistory(data);
+      }
+    } catch (error) {
+      console.error('Error fetching journal insights:', error);
+    } finally {
+      setLoadingJournalInsights(false);
+    }
+  }, [user, getAuthHeaders]);
+
   // Safety timeout - if auth takes too long, stop showing loading
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -296,6 +330,13 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchObjectSummary(selectedCategory);
   }, [selectedCategory, fetchObjectSummary]);
+
+  // Fetch journal insights when selecting daily-journal
+  useEffect(() => {
+    if (selectedCategory === 'daily-journal') {
+      fetchJournalInsights();
+    }
+  }, [selectedCategory, fetchJournalInsights]);
 
   // Save URL
   const handleSaveUrl = async () => {
@@ -392,6 +433,7 @@ export default function DashboardPage() {
     {
       title: 'VIDA',
       items: [
+        { key: 'daily-journal', label: 'Mi Diario', icon: '📓', selectable: true },
         { key: 'areas', label: 'Areas de Responsabilidad', icon: '📋', selectable: true },
         { key: 'habits', label: 'Habitos', icon: '✅', selectable: true },
       ],
@@ -1465,6 +1507,188 @@ export default function DashboardPage() {
     );
   };
 
+  // Render daily journal insights panel
+  const renderDailyJournalPanel = () => {
+    if (loadingJournalInsights) {
+      return <div className="text-gray-400 text-center py-8">Cargando estadisticas...</div>;
+    }
+
+    if (!journalInsights) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-gray-500 mb-4">No hay datos de diario disponibles</p>
+          <Link
+            href="/daily-journal"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm"
+          >
+            Ir a Mi Diario
+          </Link>
+        </div>
+      );
+    }
+
+    const ins = journalInsights;
+
+    return (
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <span>📓</span> Mi Diario - Estadisticas
+          </h2>
+          <Link
+            href="/daily-journal"
+            className="text-indigo-400 hover:text-indigo-300 text-sm flex items-center gap-1"
+          >
+            Ver diario completo →
+          </Link>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-gray-800/50 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-white">{ins.total_journals}</div>
+            <div className="text-xs text-gray-400">Entradas ({ins.period_days}d)</div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-yellow-400">{ins.average_rating || '-'}/5</div>
+            <div className="text-xs text-gray-400">Promedio</div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-green-400">{ins.completion_rate}%</div>
+            <div className="text-xs text-gray-400">Completacion</div>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-blue-400">{ins.big_rock_completion_rate}%</div>
+            <div className="text-xs text-gray-400">Big Rocks</div>
+          </div>
+        </div>
+
+        {/* Routines */}
+        <div className="bg-gray-800/50 rounded-xl p-4">
+          <h3 className="text-white font-medium mb-3">Rutinas</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-gray-400 text-sm">Matutina</span>
+                <span className="text-white text-sm">{ins.morning_routine_rate}%</span>
+              </div>
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-orange-500 rounded-full transition-all"
+                  style={{ width: `${ins.morning_routine_rate}%` }}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-gray-400 text-sm">Nocturna</span>
+                <span className="text-white text-sm">{ins.evening_routine_rate}%</span>
+              </div>
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-500 rounded-full transition-all"
+                  style={{ width: `${ins.evening_routine_rate}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Best/Worst Days */}
+        {(ins.best_day_of_week || ins.worst_day_of_week) && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">Patrones de la Semana</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {ins.best_day_of_week && (
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🌟</span>
+                  <div>
+                    <div className="text-green-400 font-medium">{ins.best_day_of_week}</div>
+                    <div className="text-xs text-gray-400">Mejor dia</div>
+                  </div>
+                </div>
+              )}
+              {ins.worst_day_of_week && (
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">😔</span>
+                  <div>
+                    <div className="text-red-400 font-medium">{ins.worst_day_of_week}</div>
+                    <div className="text-xs text-gray-400">Dia dificil</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Wins & Gratitudes */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-2 flex items-center gap-2">
+              <span>🏆</span> {ins.total_wins} Logros
+            </h3>
+            {ins.top_wins_themes?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {ins.top_wins_themes.slice(0, 5).map((theme: any, idx: number) => (
+                  <span key={idx} className="text-xs bg-green-900/50 text-green-300 px-2 py-1 rounded">
+                    {theme.word}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-2 flex items-center gap-2">
+              <span>🙏</span> {ins.total_gratitudes} Gratitudes
+            </h3>
+            {ins.top_gratitude_themes?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {ins.top_gratitude_themes.slice(0, 5).map((theme: any, idx: number) => (
+                  <span key={idx} className="text-xs bg-purple-900/50 text-purple-300 px-2 py-1 rounded">
+                    {theme.word}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Recent entries */}
+        {journalHistory.length > 0 && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">Ultimas Entradas</h3>
+            <div className="space-y-2">
+              {journalHistory.slice(0, 5).map((entry: any) => (
+                <Link
+                  key={entry.id}
+                  href={`/daily-journal?date=${entry.date}`}
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-700/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-400 text-sm">{new Date(entry.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                    {entry.day_word && <span className="text-white text-sm">{entry.day_word}</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {entry.day_rating && (
+                      <span className={`text-sm font-medium ${
+                        entry.day_rating >= 4 ? 'text-green-400' :
+                        entry.day_rating >= 3 ? 'text-yellow-400' : 'text-red-400'
+                      }`}>
+                        {entry.day_rating}/5
+                      </span>
+                    )}
+                    {entry.is_evening_completed && <span className="text-green-400 text-xs">✓</span>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Render object-specific panel
   const renderObjectPanel = () => {
     if (loadingObject) {
@@ -1874,7 +2098,11 @@ export default function DashboardPage() {
           {/* Main Panel */}
           <main className="flex-1 min-w-0">
             <div className="bg-gray-900/30 rounded-xl p-6">
-              {selectedCategory === 'overview' ? renderOverviewPanel() : renderObjectPanel()}
+              {selectedCategory === 'overview'
+                ? renderOverviewPanel()
+                : selectedCategory === 'daily-journal'
+                  ? renderDailyJournalPanel()
+                  : renderObjectPanel()}
             </div>
           </main>
         </div>
