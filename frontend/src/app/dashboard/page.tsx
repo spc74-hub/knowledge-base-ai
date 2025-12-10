@@ -39,6 +39,8 @@ interface DashboardSummary {
     projects: any[];
     mental_models: any[];
     notes: any[];
+    simple_notes: any[];
+    full_notes: any[];
     areas: any[];
     habits: any[];
   };
@@ -592,22 +594,56 @@ export default function DashboardPage() {
               Ver todo →
             </Link>
           </div>
-          {summary.recent.notes.length > 0 ? (
-            <div className="space-y-2">
-              {summary.recent.notes.slice(0, 3).map((note) => (
-                <button
-                  key={note.id}
-                  onClick={(e) => handleQuickView(note, 'note', e)}
-                  className="flex items-center gap-3 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left"
-                >
-                  <span className="text-lg">{note.is_pinned ? '📌' : '📝'}</span>
-                  <p className="text-white text-sm flex-1 truncate">{note.title}</p>
-                </button>
-              ))}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Simple Notes - Left Column */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-amber-400 text-sm font-medium">📝 Quick Notes</span>
+                <Link href="/notes?new=true" target="_blank" className="text-xs text-gray-400 hover:text-amber-400">+</Link>
+              </div>
+              {(summary.recent.simple_notes || []).length > 0 ? (
+                <div className="space-y-1.5">
+                  {(summary.recent.simple_notes || []).slice(0, 4).map((note: any) => (
+                    <Link
+                      key={note.id}
+                      href={note.source === 'system' ? `/system-notes/${note.id}` : `/notes/${note.id}`}
+                      target="_blank"
+                      className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left group"
+                    >
+                      <span className="text-sm">{note.is_pinned ? '📌' : '📝'}</span>
+                      <p className="text-white text-xs flex-1 truncate group-hover:text-amber-300">{note.title}</p>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-xs">No hay quick notes</p>
+              )}
             </div>
-          ) : (
-            <p className="text-gray-500 text-sm">No hay notas</p>
-          )}
+            {/* Full Notes - Right Column */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-indigo-400 text-sm font-medium">📄 Full Notes</span>
+                <Link href="/notes/new" target="_blank" className="text-xs text-gray-400 hover:text-indigo-400">+</Link>
+              </div>
+              {(summary.recent.full_notes || []).length > 0 ? (
+                <div className="space-y-1.5">
+                  {(summary.recent.full_notes || []).slice(0, 4).map((note: any) => (
+                    <Link
+                      key={note.id}
+                      href={`/content/${note.id}`}
+                      target="_blank"
+                      className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left group"
+                    >
+                      <span className="text-sm">{note.is_pinned ? '📌' : '📄'}</span>
+                      <p className="text-white text-xs flex-1 truncate group-hover:text-indigo-300">{note.title}</p>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-xs">No hay full notes</p>
+              )}
+            </div>
+          </div>
         </div>
       ),
       habits: () => (

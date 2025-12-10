@@ -1,14 +1,60 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 
+// Changelog entries - Add new entries at the top
+const CHANGELOG_ENTRIES = [
+    {
+        version: "1.6",
+        date: "Dic 2024",
+        title: "Dashboard mejorado y estadísticas de hábitos",
+        changes: [
+            "Dashboard con KPIs y cajas arrastrables (drag & drop)",
+            "Notas separadas en Quick Notes y Full Notes",
+            "Estadísticas completas de hábitos por período y área",
+            "Quick View popup para contenidos",
+        ]
+    },
+    {
+        version: "1.5",
+        date: "Dic 2024",
+        title: "Transcripción de audio desde Google Drive",
+        changes: [
+            "Transcripción automática de archivos de audio usando Whisper API",
+            "Soporte para archivos de Google Drive",
+            "Procesamiento asíncrono en cola",
+        ]
+    },
+    {
+        version: "1.4",
+        date: "Dic 2024",
+        title: "Explorer con tabs y filtros mejorados",
+        changes: [
+            "Tabs separados: Contenidos y Mis Reflexiones",
+            "Filtros de notas por tipo, vinculación y fijadas",
+            "Notas vinculadas muestran enlace al contenido original",
+        ]
+    },
+    {
+        version: "1.3",
+        date: "Nov 2024",
+        title: "Notas vinculadas a contenidos",
+        changes: [
+            "Crear notas rápidas desde el detalle de contenido",
+            "Tipos de nota: Reflexión, Idea, Pregunta, Conexión",
+            "Auto-avance de madurez al añadir nota",
+        ]
+    },
+];
+
 export default function GuidePage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
+    const [showChangelog, setShowChangelog] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -76,6 +122,76 @@ export default function GuidePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                 </Link>
+
+                {/* Changelog / Novedades Section */}
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800 mb-6 overflow-hidden">
+                    <button
+                        onClick={() => setShowChangelog(!showChangelog)}
+                        className="w-full flex items-center justify-between p-4 hover:bg-emerald-100/50 dark:hover:bg-emerald-800/20 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900 rounded-lg flex items-center justify-center">
+                                <span className="text-xl">🆕</span>
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-semibold text-emerald-900 dark:text-emerald-200">Novedades</h3>
+                                <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                                    Ultimas actualizaciones y nuevas funcionalidades
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 rounded-full">
+                                v{CHANGELOG_ENTRIES[0]?.version}
+                            </span>
+                            <svg
+                                className={`w-5 h-5 text-emerald-500 transition-transform ${showChangelog ? 'rotate-180' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </button>
+
+                    {showChangelog && (
+                        <div className="border-t border-emerald-200 dark:border-emerald-800 p-4 space-y-4">
+                            {CHANGELOG_ENTRIES.map((entry, index) => (
+                                <div
+                                    key={entry.version}
+                                    className={`${index === 0 ? 'bg-white dark:bg-gray-800 rounded-lg p-4 border border-emerald-200 dark:border-emerald-700' : 'pl-4 border-l-2 border-emerald-200 dark:border-emerald-700'}`}
+                                >
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${index === 0 ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                                            v{entry.version}
+                                        </span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">{entry.date}</span>
+                                        {index === 0 && (
+                                            <span className="text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">
+                                                Nuevo
+                                            </span>
+                                        )}
+                                    </div>
+                                    <h4 className={`font-medium mb-2 ${index === 0 ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 text-sm'}`}>
+                                        {entry.title}
+                                    </h4>
+                                    <ul className={`space-y-1 ${index === 0 ? 'text-sm text-gray-600 dark:text-gray-400' : 'text-xs text-gray-500 dark:text-gray-500'}`}>
+                                        {entry.changes.map((change, i) => (
+                                            <li key={i} className="flex items-start gap-2">
+                                                <span className="text-emerald-500 mt-0.5">•</span>
+                                                {change}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
+                            <p className="text-xs text-center text-gray-500 dark:text-gray-400 pt-2">
+                                Para documentacion completa de cada funcionalidad, consulta las secciones de la guia.
+                            </p>
+                        </div>
+                    )}
+                </div>
 
                 {/* Table of Contents */}
                 <nav className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">

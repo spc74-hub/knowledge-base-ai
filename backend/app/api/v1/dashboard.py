@@ -176,9 +176,56 @@ async def get_dashboard_summary(
         "id, name, slug, icon, color, is_active"
     ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(5).execute())
 
-    recent_notes = safe_query(lambda: db.table("standalone_notes").select(
-        "id, title, is_pinned, created_at"
+    # Simple notes (standalone_notes)
+    recent_standalone_notes = safe_query(lambda: db.table("standalone_notes").select(
+        "id, title, note_type, is_pinned, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
+
+    # System notes (quick notes from system_notes table)
+    recent_system_notes = safe_query(lambda: db.table("system_notes").select(
+        "id, title, category, position, created_at"
+    ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
+
+    # Full notes (contents with type='note')
+    # Get all notes, then filter apple_notes in Python to avoid Supabase or_() issues
+    recent_full_notes_summary = safe_query(lambda: db.table("contents").select(
+        "id, title, is_favorite, created_at, metadata"
+    ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).order("created_at", desc=True).limit(10).execute())
+
+    # Mark full notes with is_full_note flag, filter out apple_notes
+    raw_full_notes = safe_data(recent_full_notes_summary)
+    full_notes_data = []
+    for fn in raw_full_notes:
+        # Filter out apple_notes
+        metadata = fn.get("metadata") or {}
+        if metadata.get("source") == "apple_notes":
+            continue
+        fn["note_type"] = "full_note"
+        fn["is_pinned"] = fn.get("is_favorite", False)
+        fn["is_full_note"] = True
+        # Remove metadata from response to keep it clean
+        fn.pop("metadata", None)
+        full_notes_data.append(fn)
+        if len(full_notes_data) >= 5:
+            break
+
+    # Combine standalone_notes and system_notes as simple notes
+    standalone_data = safe_data(recent_standalone_notes)
+    for sn in standalone_data:
+        sn["is_full_note"] = False
+        sn["source"] = "standalone"
+
+    system_data = safe_data(recent_system_notes)
+    for sn in system_data:
+        sn["is_full_note"] = False
+        sn["is_pinned"] = False  # system_notes don't have is_pinned
+        sn["note_type"] = sn.get("category", "system")
+        sn["source"] = "system"
+
+    # Merge and sort by created_at, take top 5
+    all_simple_notes = standalone_data + system_data
+    all_simple_notes.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    simple_notes_data = all_simple_notes[:5]
 
     # Areas of Responsibility (recent active)
     recent_areas = safe_query(lambda: db.table("areas_of_responsibility").select(
@@ -241,7 +288,9 @@ async def get_dashboard_summary(
             "objectives": safe_data(recent_objectives),
             "projects": safe_data(recent_projects),
             "mental_models": safe_data(recent_mental_models),
-            "notes": safe_data(recent_notes),
+            "notes": simple_notes_data,
+            "simple_notes": simple_notes_data,
+            "full_notes": full_notes_data,
             "areas": safe_data(recent_areas),
             "habits": safe_data(recent_habits),
         },
