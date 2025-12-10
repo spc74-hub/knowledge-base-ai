@@ -12,6 +12,10 @@ export const metadata: Metadata = {
     title: 'Knowledge Base AI',
     description: 'Personal knowledge base with AI-powered classification and search',
     manifest: '/manifest.json',
+    icons: {
+        icon: '/icons/icon-192.png',
+        apple: '/icons/apple-touch-icon.png',
+    },
     appleWebApp: {
         capable: true,
         statusBarStyle: 'default',
