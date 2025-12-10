@@ -33,10 +33,10 @@ interface ForgivenessItem {
 type EnergyLevel = 'high' | 'medium' | 'low';
 type JournalSection = 'morning' | 'day' | 'evening';
 
-const ENERGY_OPTIONS: { value: EnergyLevel; icon: string; label: string; color: string }[] = [
-    { value: 'high', icon: '🔥', label: 'Alta', color: 'bg-green-100 text-green-700 border-green-300' },
-    { value: 'medium', icon: '⚡', label: 'Media', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
-    { value: 'low', icon: '🔋', label: 'Baja', color: 'bg-red-100 text-red-700 border-red-300' },
+const ENERGY_OPTIONS: { value: EnergyLevel; icon: string; label: string; color: string; darkColor: string }[] = [
+    { value: 'high', icon: '🔥', label: 'Alta', color: 'bg-green-100 text-green-700 border-green-300', darkColor: 'bg-green-900 text-green-200 border-green-700' },
+    { value: 'medium', icon: '⚡', label: 'Media', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', darkColor: 'bg-yellow-900 text-yellow-200 border-yellow-700' },
+    { value: 'low', icon: '🔋', label: 'Baja', color: 'bg-red-100 text-red-700 border-red-300', darkColor: 'bg-red-900 text-red-200 border-red-700' },
 ];
 
 const RATINGS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -46,6 +46,7 @@ export default function MobileJournalPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeSection, setActiveSection] = useState<JournalSection>('morning');
+    const [isDark, setIsDark] = useState(false);
 
     // Form states
     const [morningIntention, setMorningIntention] = useState('');
@@ -61,6 +62,17 @@ export default function MobileJournalPage() {
     const [dayWord, setDayWord] = useState('');
 
     const today = new Date().toISOString().split('T')[0];
+
+    // Check dark mode
+    useEffect(() => {
+        const checkDark = () => {
+            setIsDark(document.documentElement.classList.contains('dark'));
+        };
+        checkDark();
+        const observer = new MutationObserver(checkDark);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
 
     const fetchJournal = useCallback(async () => {
         setLoading(true);
@@ -191,11 +203,18 @@ export default function MobileJournalPage() {
         { key: 'evening', label: 'Noche', icon: '🌙', completed: journal?.is_evening_completed || false },
     ];
 
+    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+    const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
+    const mutedTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+    const inputClass = isDark
+        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-500';
+
     return (
         <div className="space-y-4">
             {/* Date header */}
             <div className="text-center">
-                <h2 className="text-lg font-semibold text-gray-800">
+                <h2 className={`text-lg font-semibold ${textClass}`}>
                     {new Date(today).toLocaleDateString('es-ES', {
                         weekday: 'long',
                         day: 'numeric',
@@ -205,7 +224,7 @@ export default function MobileJournalPage() {
             </div>
 
             {/* Section tabs */}
-            <div className="flex gap-2 bg-white rounded-xl p-1 shadow-sm">
+            <div className={`flex gap-2 rounded-xl p-1 shadow-sm ${cardClass}`}>
                 {sections.map((section) => (
                     <button
                         key={section.key}
@@ -213,7 +232,7 @@ export default function MobileJournalPage() {
                         className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors relative ${
                             activeSection === section.key
                                 ? 'bg-amber-500 text-white'
-                                : 'text-gray-600'
+                                : isDark ? 'text-gray-400' : 'text-gray-600'
                         }`}
                     >
                         <span>{section.icon}</span>
@@ -230,18 +249,18 @@ export default function MobileJournalPage() {
             {/* Morning section */}
             {activeSection === 'morning' && (
                 <div className="space-y-4">
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">🎯 Intencion del dia</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>🎯 Intencion del dia</h3>
                         <textarea
                             value={morningIntention}
                             onChange={(e) => setMorningIntention(e.target.value)}
                             placeholder="¿Cual es tu intencion para hoy?"
-                            className="w-full h-24 p-3 border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            className={`w-full h-24 p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
                         />
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">⚡ Energia de manana</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>⚡ Energia de manana</h3>
                         <div className="flex gap-2">
                             {ENERGY_OPTIONS.map((option) => (
                                 <button
@@ -249,8 +268,10 @@ export default function MobileJournalPage() {
                                     onClick={() => setEnergyMorning(option.value)}
                                     className={`flex-1 py-3 rounded-lg border-2 text-center transition-colors ${
                                         energyMorning === option.value
-                                            ? option.color + ' border-current'
-                                            : 'bg-gray-50 border-gray-200 text-gray-600'
+                                            ? (isDark ? option.darkColor : option.color) + ' border-current'
+                                            : isDark
+                                                ? 'bg-gray-700 border-gray-600 text-gray-400'
+                                                : 'bg-gray-50 border-gray-200 text-gray-600'
                                     }`}
                                 >
                                     <div className="text-2xl">{option.icon}</div>
@@ -273,8 +294,8 @@ export default function MobileJournalPage() {
             {/* Day section */}
             {activeSection === 'day' && (
                 <div className="space-y-4">
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">🏆 Victorias del dia</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>🏆 Victorias del dia</h3>
                         {wins.map((win, index) => (
                             <input
                                 key={index}
@@ -286,13 +307,13 @@ export default function MobileJournalPage() {
                                     setWins(newWins);
                                 }}
                                 placeholder={`Victoria ${index + 1}`}
-                                className="w-full p-3 border border-gray-200 rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className={`w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
                             />
                         ))}
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">⚡ Energia del mediodia</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>⚡ Energia del mediodia</h3>
                         <div className="flex gap-2">
                             {ENERGY_OPTIONS.map((option) => (
                                 <button
@@ -300,8 +321,10 @@ export default function MobileJournalPage() {
                                     onClick={() => setEnergyNoon(option.value)}
                                     className={`flex-1 py-3 rounded-lg border-2 text-center transition-colors ${
                                         energyNoon === option.value
-                                            ? option.color + ' border-current'
-                                            : 'bg-gray-50 border-gray-200 text-gray-600'
+                                            ? (isDark ? option.darkColor : option.color) + ' border-current'
+                                            : isDark
+                                                ? 'bg-gray-700 border-gray-600 text-gray-400'
+                                                : 'bg-gray-50 border-gray-200 text-gray-600'
                                     }`}
                                 >
                                     <div className="text-2xl">{option.icon}</div>
@@ -311,8 +334,8 @@ export default function MobileJournalPage() {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">⚡ Energia de tarde</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>⚡ Energia de tarde</h3>
                         <div className="flex gap-2">
                             {ENERGY_OPTIONS.map((option) => (
                                 <button
@@ -320,8 +343,10 @@ export default function MobileJournalPage() {
                                     onClick={() => setEnergyAfternoon(option.value)}
                                     className={`flex-1 py-3 rounded-lg border-2 text-center transition-colors ${
                                         energyAfternoon === option.value
-                                            ? option.color + ' border-current'
-                                            : 'bg-gray-50 border-gray-200 text-gray-600'
+                                            ? (isDark ? option.darkColor : option.color) + ' border-current'
+                                            : isDark
+                                                ? 'bg-gray-700 border-gray-600 text-gray-400'
+                                                : 'bg-gray-50 border-gray-200 text-gray-600'
                                     }`}
                                 >
                                     <div className="text-2xl">{option.icon}</div>
@@ -344,8 +369,8 @@ export default function MobileJournalPage() {
             {/* Evening section */}
             {activeSection === 'evening' && (
                 <div className="space-y-4">
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">🙏 Gratitudes</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>🙏 Gratitudes</h3>
                         {gratitudes.map((gratitude, index) => (
                             <input
                                 key={index}
@@ -357,39 +382,39 @@ export default function MobileJournalPage() {
                                     setGratitudes(newGratitudes);
                                 }}
                                 placeholder={`Gratitud ${index + 1}`}
-                                className="w-full p-3 border border-gray-200 rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className={`w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
                             />
                         ))}
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">📚 Aprendizajes</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>📚 Aprendizajes</h3>
                         <textarea
                             value={learnings}
                             onChange={(e) => setLearnings(e.target.value)}
                             placeholder="¿Que aprendiste hoy?"
-                            className="w-full h-24 p-3 border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            className={`w-full h-24 p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
                         />
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">💚 Perdon</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>💚 Perdon</h3>
                         <div className="flex gap-2 mb-3">
                             <button
                                 onClick={() => addForgivenessItem('self')}
-                                className="flex-1 py-2 text-xs bg-blue-50 text-blue-700 rounded-lg"
+                                className={`flex-1 py-2 text-xs rounded-lg ${isDark ? 'bg-blue-900 text-blue-200' : 'bg-blue-50 text-blue-700'}`}
                             >
                                 + A mi
                             </button>
                             <button
                                 onClick={() => addForgivenessItem('other')}
-                                className="flex-1 py-2 text-xs bg-green-50 text-green-700 rounded-lg"
+                                className={`flex-1 py-2 text-xs rounded-lg ${isDark ? 'bg-green-900 text-green-200' : 'bg-green-50 text-green-700'}`}
                             >
                                 + A otros
                             </button>
                             <button
                                 onClick={() => addForgivenessItem('situation')}
-                                className="flex-1 py-2 text-xs bg-purple-50 text-purple-700 rounded-lg"
+                                className={`flex-1 py-2 text-xs rounded-lg ${isDark ? 'bg-purple-900 text-purple-200' : 'bg-purple-50 text-purple-700'}`}
                             >
                                 + Situacion
                             </button>
@@ -397,9 +422,11 @@ export default function MobileJournalPage() {
                         {forgivenessItems.map((item) => (
                             <div key={item.id} className="flex gap-2 mb-2">
                                 <span className={`text-xs px-2 py-1 rounded ${
-                                    item.type === 'self' ? 'bg-blue-100 text-blue-700' :
-                                    item.type === 'other' ? 'bg-green-100 text-green-700' :
-                                    'bg-purple-100 text-purple-700'
+                                    item.type === 'self'
+                                        ? (isDark ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-700')
+                                        : item.type === 'other'
+                                            ? (isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-700')
+                                            : (isDark ? 'bg-purple-900 text-purple-200' : 'bg-purple-100 text-purple-700')
                                 }`}>
                                     {item.type === 'self' ? '🙋' : item.type === 'other' ? '👥' : '📍'}
                                 </span>
@@ -408,7 +435,7 @@ export default function MobileJournalPage() {
                                     value={item.text}
                                     onChange={(e) => updateForgivenessItem(item.id, e.target.value)}
                                     placeholder="¿Que perdonas?"
-                                    className="flex-1 p-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    className={`flex-1 p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
                                 />
                                 <button
                                     onClick={() => removeForgivenessItem(item.id)}
@@ -420,8 +447,8 @@ export default function MobileJournalPage() {
                         ))}
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">⚡ Energia de noche</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>⚡ Energia de noche</h3>
                         <div className="flex gap-2">
                             {ENERGY_OPTIONS.map((option) => (
                                 <button
@@ -429,8 +456,10 @@ export default function MobileJournalPage() {
                                     onClick={() => setEnergyNight(option.value)}
                                     className={`flex-1 py-3 rounded-lg border-2 text-center transition-colors ${
                                         energyNight === option.value
-                                            ? option.color + ' border-current'
-                                            : 'bg-gray-50 border-gray-200 text-gray-600'
+                                            ? (isDark ? option.darkColor : option.color) + ' border-current'
+                                            : isDark
+                                                ? 'bg-gray-700 border-gray-600 text-gray-400'
+                                                : 'bg-gray-50 border-gray-200 text-gray-600'
                                     }`}
                                 >
                                     <div className="text-2xl">{option.icon}</div>
@@ -440,8 +469,8 @@ export default function MobileJournalPage() {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">⭐ Puntuacion del dia</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>⭐ Puntuacion del dia</h3>
                         <div className="flex flex-wrap gap-2 justify-center">
                             {RATINGS.map((rating) => (
                                 <button
@@ -450,7 +479,9 @@ export default function MobileJournalPage() {
                                     className={`w-10 h-10 rounded-full font-medium transition-colors ${
                                         dayRating === rating
                                             ? 'bg-amber-500 text-white'
-                                            : 'bg-gray-100 text-gray-700'
+                                            : isDark
+                                                ? 'bg-gray-700 text-gray-300'
+                                                : 'bg-gray-100 text-gray-700'
                                     }`}
                                 >
                                     {rating}
@@ -459,14 +490,14 @@ export default function MobileJournalPage() {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h3 className="font-medium text-gray-800 mb-3">📝 Palabra del dia</h3>
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>📝 Palabra del dia</h3>
                         <input
                             type="text"
                             value={dayWord}
                             onChange={(e) => setDayWord(e.target.value)}
                             placeholder="Una palabra que resuma tu dia"
-                            className="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
                         />
                     </div>
 

@@ -16,14 +16,14 @@ interface Note {
 }
 
 const NOTE_TYPES = {
-    reflection: { label: 'Reflexion', icon: '💭', color: 'bg-purple-100 text-purple-800' },
-    idea: { label: 'Idea', icon: '💡', color: 'bg-yellow-100 text-yellow-800' },
-    question: { label: 'Pregunta', icon: '❓', color: 'bg-blue-100 text-blue-800' },
-    connection: { label: 'Conexion', icon: '🔗', color: 'bg-green-100 text-green-800' },
-    journal: { label: 'Diario', icon: '📓', color: 'bg-orange-100 text-orange-800' },
-    action: { label: 'Accion', icon: '✅', color: 'bg-red-100 text-red-800' },
-    shopping: { label: 'Shopping', icon: '🛒', color: 'bg-pink-100 text-pink-800' },
-    full_note: { label: 'Completa', icon: '📄', color: 'bg-indigo-100 text-indigo-800' },
+    reflection: { label: 'Reflexion', icon: '💭', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+    idea: { label: 'Idea', icon: '💡', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
+    question: { label: 'Pregunta', icon: '❓', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+    connection: { label: 'Conexion', icon: '🔗', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+    journal: { label: 'Diario', icon: '📓', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+    action: { label: 'Accion', icon: '✅', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+    shopping: { label: 'Shopping', icon: '🛒', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' },
+    full_note: { label: 'Completa', icon: '📄', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' },
 } as const;
 
 const PRIORITIES = {
@@ -53,6 +53,7 @@ export default function MobileNotesPage() {
     const [showDetail, setShowDetail] = useState(false);
     const [selectedNote, setSelectedNote] = useState<Note | null>(null);
     const [filterType, setFilterType] = useState<string>('all');
+    const [isDark, setIsDark] = useState(false);
 
     // Quick note form
     const [quickContent, setQuickContent] = useState('');
@@ -63,6 +64,17 @@ export default function MobileNotesPage() {
     const [editMode, setEditMode] = useState(false);
     const [editContent, setEditContent] = useState('');
     const [editType, setEditType] = useState('');
+
+    // Check dark mode
+    useEffect(() => {
+        const checkDark = () => {
+            setIsDark(document.documentElement.classList.contains('dark'));
+        };
+        checkDark();
+        const observer = new MutationObserver(checkDark);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
 
     const fetchNotes = useCallback(async () => {
         setLoading(true);
@@ -281,7 +293,9 @@ export default function MobileNotesPage() {
                     className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                         filterType === 'all'
                             ? 'bg-amber-500 text-white'
-                            : 'bg-gray-200 text-gray-700'
+                            : isDark
+                                ? 'bg-gray-700 text-gray-300'
+                                : 'bg-gray-200 text-gray-700'
                     }`}
                 >
                     Todas
@@ -293,7 +307,9 @@ export default function MobileNotesPage() {
                         className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                             filterType === type
                                 ? 'bg-amber-500 text-white'
-                                : 'bg-gray-200 text-gray-700'
+                                : isDark
+                                    ? 'bg-gray-700 text-gray-300'
+                                    : 'bg-gray-200 text-gray-700'
                         }`}
                     >
                         {config.icon} {config.label}
@@ -305,7 +321,7 @@ export default function MobileNotesPage() {
             {notes.length === 0 ? (
                 <div className="text-center py-12">
                     <div className="text-5xl mb-4">📝</div>
-                    <p className="text-gray-500">No hay notas</p>
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>No hay notas</p>
                 </div>
             ) : (
                 <div className="space-y-2">
@@ -317,8 +333,12 @@ export default function MobileNotesPage() {
                             <div
                                 key={note.id}
                                 onClick={() => openNoteDetail(note)}
-                                className={`bg-white rounded-xl p-4 shadow-sm border border-gray-100 active:bg-gray-50 transition-colors ${
+                                className={`rounded-xl p-4 shadow-sm border active:opacity-80 transition-all ${
                                     note.is_completed ? 'opacity-60' : ''
+                                } ${
+                                    isDark
+                                        ? 'bg-gray-800 border-gray-700'
+                                        : 'bg-white border-gray-100'
                                 }`}
                             >
                                 <div className="flex items-start gap-3">
@@ -332,7 +352,9 @@ export default function MobileNotesPage() {
                                             className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                                                 note.is_completed
                                                     ? 'bg-green-500 border-green-500 text-white'
-                                                    : 'border-gray-300'
+                                                    : isDark
+                                                        ? 'border-gray-500'
+                                                        : 'border-gray-300'
                                             }`}
                                         >
                                             {note.is_completed && '✓'}
@@ -352,21 +374,25 @@ export default function MobileNotesPage() {
                                                 </span>
                                             )}
                                             {note.is_full_note && (
-                                                <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                                    isDark
+                                                        ? 'bg-indigo-900 text-indigo-200'
+                                                        : 'bg-indigo-100 text-indigo-700'
+                                                }`}>
                                                     Completa
                                                 </span>
                                             )}
                                         </div>
 
                                         {/* Content preview */}
-                                        <p className={`text-sm text-gray-800 line-clamp-2 ${
+                                        <p className={`text-sm line-clamp-2 ${
                                             note.is_completed ? 'line-through' : ''
-                                        }`}>
+                                        } ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                                             {stripHtmlTags(note.title || note.content)}
                                         </p>
 
                                         {/* Date */}
-                                        <p className="text-xs text-gray-400 mt-2">
+                                        <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                             {new Date(note.created_at).toLocaleDateString('es-ES', {
                                                 day: 'numeric',
                                                 month: 'short',
@@ -391,18 +417,27 @@ export default function MobileNotesPage() {
             {/* Create Modal */}
             {showCreate && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-                    <div className="bg-white w-full rounded-t-2xl max-h-[90vh] overflow-hidden animate-slide-up">
-                        <div className="p-4 border-b flex items-center justify-between">
-                            <h2 className="text-lg font-semibold">Nueva Nota</h2>
+                    <div
+                        className={`w-full rounded-t-2xl overflow-hidden animate-slide-up flex flex-col ${
+                            isDark ? 'bg-gray-800' : 'bg-white'
+                        }`}
+                        style={{ maxHeight: 'calc(100vh - 60px)' }}
+                    >
+                        <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${
+                            isDark ? 'border-gray-700' : 'border-gray-200'
+                        }`}>
+                            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                Nueva Nota
+                            </h2>
                             <button
                                 onClick={() => setShowCreate(false)}
-                                className="text-gray-500 p-2"
+                                className={`p-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                             >
                                 ✕
                             </button>
                         </div>
 
-                        <form onSubmit={handleQuickCreate} className="p-4 space-y-4">
+                        <form onSubmit={handleQuickCreate} className="p-4 space-y-4 flex-1 overflow-y-auto">
                             {/* Type selector */}
                             <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
                                 {Object.entries(NOTE_TYPES).filter(([key]) => key !== 'full_note').map(([type, config]) => (
@@ -411,7 +446,11 @@ export default function MobileNotesPage() {
                                         type="button"
                                         onClick={() => setQuickType(type)}
                                         className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm ${
-                                            quickType === type ? config.color : 'bg-gray-100 text-gray-600'
+                                            quickType === type
+                                                ? config.color
+                                                : isDark
+                                                    ? 'bg-gray-700 text-gray-300'
+                                                    : 'bg-gray-100 text-gray-600'
                                         }`}
                                     >
                                         {config.icon} {config.label}
@@ -424,7 +463,11 @@ export default function MobileNotesPage() {
                                 value={quickContent}
                                 onChange={(e) => setQuickContent(e.target.value)}
                                 placeholder="Escribe tu nota..."
-                                className="w-full h-40 p-3 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                className={`w-full h-40 p-3 border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
+                                    isDark
+                                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-500'
+                                }`}
                                 autoFocus
                             />
 
@@ -444,9 +487,16 @@ export default function MobileNotesPage() {
             {/* Detail Modal */}
             {showDetail && selectedNote && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-                    <div className="bg-white w-full rounded-t-2xl max-h-[90vh] overflow-hidden animate-slide-up flex flex-col">
+                    <div
+                        className={`w-full rounded-t-2xl overflow-hidden animate-slide-up flex flex-col ${
+                            isDark ? 'bg-gray-800' : 'bg-white'
+                        }`}
+                        style={{ maxHeight: 'calc(100vh - 60px)' }}
+                    >
                         {/* Header */}
-                        <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
+                        <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${
+                            isDark ? 'border-gray-700' : 'border-gray-200'
+                        }`}>
                             <div className="flex items-center gap-2">
                                 {(() => {
                                     const typeConfig = NOTE_TYPES[selectedNote.note_type as keyof typeof NOTE_TYPES] || NOTE_TYPES.reflection;
@@ -460,14 +510,14 @@ export default function MobileNotesPage() {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleTogglePin(selectedNote)}
-                                    className={`p-2 rounded-lg ${selectedNote.is_pinned ? 'bg-amber-100' : ''}`}
+                                    className={`p-2 rounded-lg ${selectedNote.is_pinned ? 'bg-amber-100 dark:bg-amber-900' : ''}`}
                                 >
                                     📌
                                 </button>
                                 {selectedNote.note_type === 'action' && (
                                     <button
                                         onClick={() => handleToggleComplete(selectedNote)}
-                                        className={`p-2 rounded-lg ${selectedNote.is_completed ? 'bg-green-100' : ''}`}
+                                        className={`p-2 rounded-lg ${selectedNote.is_completed ? 'bg-green-100 dark:bg-green-900' : ''}`}
                                     >
                                         ✅
                                     </button>
@@ -478,7 +528,7 @@ export default function MobileNotesPage() {
                                         setSelectedNote(null);
                                         setEditMode(false);
                                     }}
-                                    className="text-gray-500 p-2"
+                                    className={`p-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                                 >
                                     ✕
                                 </button>
@@ -497,7 +547,11 @@ export default function MobileNotesPage() {
                                                 type="button"
                                                 onClick={() => setEditType(type)}
                                                 className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm ${
-                                                    editType === type ? config.color : 'bg-gray-100 text-gray-600'
+                                                    editType === type
+                                                        ? config.color
+                                                        : isDark
+                                                            ? 'bg-gray-700 text-gray-300'
+                                                            : 'bg-gray-100 text-gray-600'
                                                 }`}
                                             >
                                                 {config.icon} {config.label}
@@ -508,35 +562,45 @@ export default function MobileNotesPage() {
                                     <textarea
                                         value={editContent}
                                         onChange={(e) => setEditContent(e.target.value)}
-                                        className="w-full h-60 p-3 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        className={`w-full h-60 p-3 border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                                            isDark
+                                                ? 'bg-gray-700 border-gray-600 text-white'
+                                                : 'bg-white border-gray-200 text-gray-900'
+                                        }`}
                                     />
                                 </div>
                             ) : (
                                 <>
                                     {selectedNote.content.includes('<') ? (
                                         <div
-                                            className="prose prose-sm max-w-none text-gray-700"
+                                            className={`prose prose-sm max-w-none ${isDark ? 'prose-invert text-gray-200' : 'text-gray-700'}`}
                                             dangerouslySetInnerHTML={{ __html: selectedNote.content }}
                                         />
                                     ) : (
-                                        <pre className="whitespace-pre-wrap font-sans text-gray-700 text-sm">
+                                        <pre className={`whitespace-pre-wrap font-sans text-sm ${
+                                            isDark ? 'text-gray-200' : 'text-gray-700'
+                                        }`}>
                                             {selectedNote.content}
                                         </pre>
                                     )}
-                                    <p className="text-xs text-gray-400 mt-4">
+                                    <p className={`text-xs mt-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                         {new Date(selectedNote.created_at).toLocaleString('es-ES')}
                                     </p>
                                 </>
                             )}
                         </div>
 
-                        {/* Footer */}
-                        <div className="p-4 border-t flex-shrink-0">
+                        {/* Footer with buttons */}
+                        <div className={`p-4 border-t flex-shrink-0 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                             {editMode ? (
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => setEditMode(false)}
-                                        className="flex-1 py-3 border border-gray-300 rounded-xl font-medium"
+                                        className={`flex-1 py-3 border rounded-xl font-medium ${
+                                            isDark
+                                                ? 'border-gray-600 text-gray-300'
+                                                : 'border-gray-300 text-gray-700'
+                                        }`}
                                     >
                                         Cancelar
                                     </button>
@@ -552,7 +616,9 @@ export default function MobileNotesPage() {
                                 <div className="flex gap-3">
                                     <button
                                         onClick={handleDeleteNote}
-                                        className="flex-1 py-3 text-red-600 border border-red-200 rounded-xl font-medium"
+                                        className={`flex-1 py-3 text-red-600 border rounded-xl font-medium ${
+                                            isDark ? 'border-red-900' : 'border-red-200'
+                                        }`}
                                     >
                                         Eliminar
                                     </button>

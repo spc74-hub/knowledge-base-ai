@@ -44,8 +44,20 @@ export default function MobileHabitsPage() {
     const [selectedTimeFilter, setSelectedTimeFilter] = useState<string>('all');
     const [statusModalHabit, setStatusModalHabit] = useState<Habit | null>(null);
     const [showStatusModal, setShowStatusModal] = useState(false);
+    const [isDark, setIsDark] = useState(false);
 
     const today = new Date().toISOString().split('T')[0];
+
+    // Check dark mode
+    useEffect(() => {
+        const checkDark = () => {
+            setIsDark(document.documentElement.classList.contains('dark'));
+        };
+        checkDark();
+        const observer = new MutationObserver(checkDark);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
 
     const fetchHabits = useCallback(async () => {
         setLoading(true);
@@ -108,9 +120,9 @@ export default function MobileHabitsPage() {
     };
 
     const getStatusColor = (status: string | null) => {
-        if (!status) return 'bg-gray-200';
+        if (!status) return isDark ? 'bg-gray-600' : 'bg-gray-200';
         const option = STATUS_OPTIONS.find(o => o.value === status);
-        return option?.color || 'bg-gray-200';
+        return option?.color || (isDark ? 'bg-gray-600' : 'bg-gray-200');
     };
 
     const filteredHabits = habits.filter(habit => {
@@ -137,17 +149,21 @@ export default function MobileHabitsPage() {
         );
     }
 
+    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+    const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
+    const mutedTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+
     return (
         <div className="space-y-4">
             {/* Progress header */}
-            <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
                 <div className="flex items-center justify-between mb-3">
-                    <h2 className="font-semibold text-gray-800">Progreso de hoy</h2>
+                    <h2 className={`font-semibold ${textClass}`}>Progreso de hoy</h2>
                     <span className="text-2xl font-bold text-amber-600">
                         {completedCount}/{totalCount}
                     </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className={`w-full rounded-full h-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                     <div
                         className="bg-gradient-to-r from-amber-500 to-orange-600 h-3 rounded-full transition-all duration-300"
                         style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
@@ -162,7 +178,9 @@ export default function MobileHabitsPage() {
                     className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                         selectedTimeFilter === 'all'
                             ? 'bg-amber-500 text-white'
-                            : 'bg-gray-200 text-gray-700'
+                            : isDark
+                                ? 'bg-gray-700 text-gray-300'
+                                : 'bg-gray-200 text-gray-700'
                     }`}
                 >
                     Todos
@@ -174,7 +192,9 @@ export default function MobileHabitsPage() {
                         className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                             selectedTimeFilter === option.value
                                 ? 'bg-amber-500 text-white'
-                                : 'bg-gray-200 text-gray-700'
+                                : isDark
+                                    ? 'bg-gray-700 text-gray-300'
+                                    : 'bg-gray-200 text-gray-700'
                         }`}
                     >
                         {option.icon} {option.label}
@@ -186,7 +206,7 @@ export default function MobileHabitsPage() {
             {filteredHabits.length === 0 ? (
                 <div className="text-center py-12">
                     <div className="text-5xl mb-4">✅</div>
-                    <p className="text-gray-500">No hay habitos para mostrar</p>
+                    <p className={mutedTextClass}>No hay habitos para mostrar</p>
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -196,7 +216,7 @@ export default function MobileHabitsPage() {
                             const timeOption = TIME_OF_DAY_OPTIONS.find(t => t.value === time);
                             return (
                                 <div key={time} className="space-y-2">
-                                    <h3 className="text-sm font-medium text-gray-500 flex items-center gap-2">
+                                    <h3 className={`text-sm font-medium flex items-center gap-2 ${mutedTextClass}`}>
                                         <span>{timeOption?.icon || '🕐'}</span>
                                         <span>{timeOption?.label || 'Cualquier momento'}</span>
                                     </h3>
@@ -206,6 +226,7 @@ export default function MobileHabitsPage() {
                                             habit={habit}
                                             status={getHabitStatus(habit)}
                                             statusColor={getStatusColor(getHabitStatus(habit))}
+                                            isDark={isDark}
                                             onTap={() => {
                                                 setStatusModalHabit(habit);
                                                 setShowStatusModal(true);
@@ -223,6 +244,7 @@ export default function MobileHabitsPage() {
                                 habit={habit}
                                 status={getHabitStatus(habit)}
                                 statusColor={getStatusColor(getHabitStatus(habit))}
+                                isDark={isDark}
                                 onTap={() => {
                                     setStatusModalHabit(habit);
                                     setShowStatusModal(true);
@@ -236,7 +258,10 @@ export default function MobileHabitsPage() {
             {/* Status selection modal */}
             {showStatusModal && statusModalHabit && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-                    <div className="bg-white w-full rounded-t-2xl p-4 animate-slide-up">
+                    <div
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        style={{ maxHeight: 'calc(100vh - 60px)' }}
+                    >
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
                                 <span
@@ -245,14 +270,16 @@ export default function MobileHabitsPage() {
                                 >
                                     {statusModalHabit.icon}
                                 </span>
-                                <h3 className="font-semibold text-gray-800">{statusModalHabit.name}</h3>
+                                <h3 className={`font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                    {statusModalHabit.name}
+                                </h3>
                             </div>
                             <button
                                 onClick={() => {
                                     setShowStatusModal(false);
                                     setStatusModalHabit(null);
                                 }}
-                                className="text-gray-500 p-2"
+                                className={`p-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                             >
                                 ✕
                             </button>
@@ -272,7 +299,7 @@ export default function MobileHabitsPage() {
                         </div>
 
                         {statusModalHabit.today_log && (
-                            <p className="text-center text-sm text-gray-500 mt-4">
+                            <p className={`text-center text-sm mt-4 ${mutedTextClass}`}>
                                 Estado actual: {STATUS_OPTIONS.find(o => o.value === statusModalHabit.today_log?.status)?.label || 'No registrado'}
                             </p>
                         )}
@@ -308,17 +335,23 @@ function HabitCard({
     habit,
     status,
     statusColor,
+    isDark,
     onTap,
 }: {
     habit: Habit;
     status: string | null;
     statusColor: string;
+    isDark: boolean;
     onTap: () => void;
 }) {
     return (
         <button
             onClick={onTap}
-            className="w-full bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-4 active:bg-gray-50 transition-colors text-left"
+            className={`w-full rounded-xl p-4 shadow-sm border flex items-center gap-4 active:opacity-80 transition-all text-left ${
+                isDark
+                    ? 'bg-gray-800 border-gray-700'
+                    : 'bg-white border-gray-100'
+            }`}
         >
             <span
                 className="w-12 h-12 rounded-full flex items-center justify-center text-2xl flex-shrink-0"
@@ -327,9 +360,13 @@ function HabitCard({
                 {habit.icon}
             </span>
             <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-gray-800 truncate">{habit.name}</h4>
+                <h4 className={`font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                    {habit.name}
+                </h4>
                 {habit.description && (
-                    <p className="text-sm text-gray-500 truncate">{habit.description}</p>
+                    <p className={`text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {habit.description}
+                    </p>
                 )}
             </div>
             <div

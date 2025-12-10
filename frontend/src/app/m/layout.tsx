@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
@@ -13,6 +13,29 @@ export default function MobileLayout({
     const router = useRouter();
     const pathname = usePathname();
     const { user, loading } = useAuth();
+    const [darkMode, setDarkMode] = useState(false);
+
+    useEffect(() => {
+        // Load dark mode preference
+        const saved = localStorage.getItem('kbai-dark-mode');
+        if (saved !== null) {
+            setDarkMode(saved === 'true');
+        } else {
+            // Check system preference
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            setDarkMode(prefersDark);
+        }
+    }, []);
+
+    useEffect(() => {
+        // Apply dark mode to document
+        if (darkMode) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        localStorage.setItem('kbai-dark-mode', String(darkMode));
+    }, [darkMode]);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -22,7 +45,7 @@ export default function MobileLayout({
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-amber-500"></div>
             </div>
         );
@@ -37,27 +60,39 @@ export default function MobileLayout({
     ];
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
+        <div className={`min-h-screen pb-20 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             {/* Header */}
             <header className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-4 py-3 sticky top-0 z-40 safe-area-top">
                 <div className="flex items-center justify-between">
                     <h1 className="text-lg font-semibold">KBAI</h1>
-                    <Link
-                        href="/dashboard"
-                        className="text-sm opacity-80 hover:opacity-100"
-                    >
-                        Desktop
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        {/* Dark mode toggle */}
+                        <button
+                            onClick={() => setDarkMode(!darkMode)}
+                            className="text-xl opacity-80 hover:opacity-100 transition-opacity"
+                            aria-label="Toggle dark mode"
+                        >
+                            {darkMode ? '☀️' : '🌙'}
+                        </button>
+                        <Link
+                            href="/dashboard"
+                            className="text-sm opacity-80 hover:opacity-100"
+                        >
+                            Desktop
+                        </Link>
+                    </div>
                 </div>
             </header>
 
-            {/* Main content */}
-            <main className="px-4 py-4">
+            {/* Main content - pass darkMode as data attribute */}
+            <main className="px-4 py-4" data-dark={darkMode}>
                 {children}
             </main>
 
             {/* Bottom navigation */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-bottom z-50">
+            <nav className={`fixed bottom-0 left-0 right-0 border-t safe-area-bottom z-50 ${
+                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            }`}>
                 <div className="flex justify-around items-center h-16">
                     {navItems.map((item) => {
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -67,8 +102,10 @@ export default function MobileLayout({
                                 href={item.href}
                                 className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
                                     isActive
-                                        ? 'text-amber-600'
-                                        : 'text-gray-500 hover:text-gray-700'
+                                        ? 'text-amber-500'
+                                        : darkMode
+                                            ? 'text-gray-400 hover:text-gray-200'
+                                            : 'text-gray-500 hover:text-gray-700'
                                 }`}
                             >
                                 <span className="text-2xl mb-1">{item.icon}</span>
@@ -78,6 +115,13 @@ export default function MobileLayout({
                     })}
                 </div>
             </nav>
+
+            {/* Provide dark mode context via CSS variable */}
+            <style jsx global>{`
+                :root {
+                    --dark-mode: ${darkMode ? '1' : '0'};
+                }
+            `}</style>
         </div>
     );
 }
