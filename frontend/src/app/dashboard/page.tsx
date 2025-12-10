@@ -251,7 +251,7 @@ export default function DashboardPage() {
 
   // Fetch object-specific summary
   const fetchObjectSummary = useCallback(async (objectType: string) => {
-    if (!user || objectType === 'overview') {
+    if (!user || objectType === 'overview' || objectType === 'daily-journal') {
       setObjectSummary(null);
       return;
     }

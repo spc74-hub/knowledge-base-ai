@@ -9,6 +9,30 @@ import { ThemeToggle } from '@/components/theme-toggle';
 // Changelog entries - Add new entries at the top
 const CHANGELOG_ENTRIES = [
     {
+        version: "2.0",
+        date: "Dic 2025",
+        title: "Mi Diario y Hábitos mejorados",
+        changes: [
+            "Nuevo módulo Mi Diario (Daily Journal) con rutinas, gratitudes y victorias",
+            "Sistema de perdón: a ti mismo, a otros, a situaciones",
+            "Seguimiento de energía y estado de ánimo (escala 1-10)",
+            "Resúmenes con IA y guardar como nota standalone",
+            "Hábitos con momento del día (Mañana, Tarde, Noche, Cualquier momento)",
+            "Panel de insights de Mi Diario en el Dashboard",
+            "Marcar día como completado",
+        ]
+    },
+    {
+        version: "1.9",
+        date: "Dic 2025",
+        title: "Explorer tabs y notas vinculadas",
+        changes: [
+            "Tabs del Explorer con múltiples vistas",
+            "Notas vinculadas a contenido",
+            "Transcripción de audio desde Google Drive via Whisper",
+        ]
+    },
+    {
         version: "1.6",
         date: "Dic 2024",
         title: "Dashboard mejorado y estadísticas de hábitos",
@@ -210,19 +234,25 @@ export default function GuidePage() {
                             <a href="#exploracion" className="text-blue-600 dark:text-blue-400 hover:underline">4. Exploración</a>
                         </li>
                         <li>
-                            <a href="#procesamiento" className="text-blue-600 dark:text-blue-400 hover:underline">5. Cola de Procesamiento</a>
+                            <a href="#diario" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold text-emerald-600 dark:text-emerald-400">5. Mi Diario (Daily Journal) ✨</a>
                         </li>
                         <li>
-                            <a href="#madurez" className="text-blue-600 dark:text-blue-400 hover:underline">6. Niveles de Madurez</a>
+                            <a href="#habitos" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold text-purple-600 dark:text-purple-400">6. Sistema de Hábitos ✨</a>
                         </li>
                         <li>
-                            <a href="#vinculacion" className="text-blue-600 dark:text-blue-400 hover:underline">7. Vinculación a Objetos</a>
+                            <a href="#procesamiento" className="text-blue-600 dark:text-blue-400 hover:underline">7. Cola de Procesamiento</a>
                         </li>
                         <li>
-                            <a href="#notas" className="text-blue-600 dark:text-blue-400 hover:underline">8. Sistema de Notas</a>
+                            <a href="#madurez" className="text-blue-600 dark:text-blue-400 hover:underline">8. Niveles de Madurez</a>
                         </li>
                         <li>
-                            <a href="#chat" className="text-blue-600 dark:text-blue-400 hover:underline">9. Chat con IA</a>
+                            <a href="#vinculacion" className="text-blue-600 dark:text-blue-400 hover:underline">9. Vinculación a Objetos</a>
+                        </li>
+                        <li>
+                            <a href="#notas" className="text-blue-600 dark:text-blue-400 hover:underline">10. Sistema de Notas</a>
+                        </li>
+                        <li>
+                            <a href="#chat" className="text-blue-600 dark:text-blue-400 hover:underline">11. Chat con IA</a>
                         </li>
                     </ol>
                 </nav>
@@ -472,10 +502,262 @@ export default function GuidePage() {
                     </div>
                 </section>
 
-                {/* Section 5: Cola de Procesamiento */}
+                {/* Section 5: Mi Diario (Daily Journal) - NEW */}
+                <section id="diario" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border-2 border-emerald-300 dark:border-emerald-700 p-6 mb-8">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <span className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-sm font-bold">5</span>
+                        Mi Diario (Daily Journal)
+                        <span className="ml-2 px-2 py-0.5 text-xs bg-emerald-500 text-white rounded-full">Nuevo</span>
+                    </h2>
+                    <div className="space-y-6">
+                        <p className="text-gray-600 dark:text-gray-300">
+                            Mi Diario es tu espacio para la reflexión diaria. Registra tus rutinas, gratitudes, victorias y
+                            recibe insights generados por IA sobre tus patrones emocionales y de productividad.
+                        </p>
+
+                        {/* Componentes del diario */}
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 bg-emerald-50/50 dark:bg-emerald-900/20">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">🌅</span>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">Rutinas del Día</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Describe tus actividades por momento: <strong>Mañana</strong>, <strong>Tarde</strong> y <strong>Noche</strong>.
+                                    Esto te ayuda a identificar qué actividades te energizan y cuáles te agotan.
+                                </p>
+                            </div>
+                            <div className="border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-900/20">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">🙏</span>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">Gratitudes (3 items)</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Escribe 3 cosas por las que estás agradecido hoy. La IA identifica temas
+                                    recurrentes en tus gratitudes para mostrarte patrones de felicidad.
+                                </p>
+                            </div>
+                            <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-blue-50/50 dark:bg-blue-900/20">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">🏆</span>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">Victorias del Día</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Logros pequeños o grandes que conseguiste hoy. Celebra tus éxitos
+                                    y observa cómo se acumulan a lo largo del tiempo.
+                                </p>
+                            </div>
+                            <div className="border border-purple-200 dark:border-purple-800 rounded-lg p-4 bg-purple-50/50 dark:bg-purple-900/20">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">💜</span>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">Perdón (Forgiveness)</h4>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Practica el perdón en tres niveles: <strong>a ti mismo</strong>, <strong>a otros</strong>
+                                    y <strong>a situaciones</strong>. Una práctica poderosa para el bienestar emocional.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Energía y Estado de ánimo */}
+                        <div className="bg-gradient-to-r from-orange-50 to-pink-50 dark:from-orange-900/20 dark:to-pink-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+                            <h4 className="font-medium text-orange-900 dark:text-orange-200 mb-3">⚡ Energía y Estado de Ánimo</h4>
+                            <p className="text-sm text-orange-800 dark:text-orange-300 mb-2">
+                                Registra tu nivel de <strong>energía</strong> y <strong>estado de ánimo</strong> en una escala del 1 al 10:
+                            </p>
+                            <div className="flex gap-4 mt-3">
+                                <div className="flex items-center gap-2 text-sm">
+                                    <span className="w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center text-xs font-bold">⚡</span>
+                                    <span className="text-orange-800 dark:text-orange-300">Energía: vitalidad física</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                    <span className="w-6 h-6 bg-pink-400 rounded-full flex items-center justify-center text-xs font-bold">💭</span>
+                                    <span className="text-orange-800 dark:text-orange-300">Ánimo: bienestar emocional</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Resumen con IA */}
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <h4 className="font-medium text-blue-900 dark:text-blue-200 mb-2">🤖 Resumen con IA</h4>
+                            <p className="text-sm text-blue-800 dark:text-blue-300 mb-3">
+                                Genera un resumen inteligente de tu día. La IA analiza:
+                            </p>
+                            <ul className="text-sm text-blue-800 dark:text-blue-300 list-disc list-inside space-y-1">
+                                <li>Patrones emocionales y correlaciones con actividades</li>
+                                <li>Temas recurrentes en tus gratitudes y victorias</li>
+                                <li>Sugerencias personalizadas basadas en tu historial</li>
+                                <li>Conexiones entre energía, actividades y estado de ánimo</li>
+                            </ul>
+                            <p className="text-sm text-blue-700 dark:text-blue-400 mt-3">
+                                <strong>Tip:</strong> Puedes guardar el resumen como una <strong>nota standalone</strong> para
+                                consultarla después o vincularla a otros contenidos.
+                            </p>
+                        </div>
+
+                        {/* Dashboard insights */}
+                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                            <h4 className="font-medium text-gray-900 dark:text-white mb-2">📊 Insights en el Dashboard</h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                El panel lateral del Dashboard muestra estadísticas de Mi Diario:
+                            </p>
+                            <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                <li className="flex items-center gap-2">
+                                    <span className="text-emerald-500">•</span>
+                                    Energía y ánimo promedio (últimos 7 días)
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <span className="text-emerald-500">•</span>
+                                    Mejor y peor día identificados
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <span className="text-emerald-500">•</span>
+                                    Temas comunes en gratitudes y victorias
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <span className="text-emerald-500">•</span>
+                                    Racha actual de días consecutivos
+                                </li>
+                            </ul>
+                        </div>
+
+                        <Link
+                            href="/daily-journal"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+                        >
+                            <span className="text-lg">📔</span>
+                            Ir a Mi Diario
+                        </Link>
+                    </div>
+                </section>
+
+                {/* Section 6: Sistema de Hábitos - ENHANCED */}
+                <section id="habitos" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border-2 border-purple-300 dark:border-purple-700 p-6 mb-8">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <span className="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center text-purple-600 dark:text-purple-400 text-sm font-bold">6</span>
+                        Sistema de Hábitos
+                        <span className="ml-2 px-2 py-0.5 text-xs bg-purple-500 text-white rounded-full">Mejorado</span>
+                    </h2>
+                    <div className="space-y-6">
+                        <p className="text-gray-600 dark:text-gray-300">
+                            El sistema de hábitos te ayuda a construir rutinas consistentes. Ahora con
+                            <strong> momento del día</strong> para organizar mejor tu jornada.
+                        </p>
+
+                        {/* Momento del día */}
+                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                            <h4 className="font-medium text-purple-900 dark:text-purple-200 mb-3">🕐 Momento del Día (Nuevo)</h4>
+                            <p className="text-sm text-purple-800 dark:text-purple-300 mb-3">
+                                Cada hábito puede asignarse a un momento específico del día:
+                            </p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                    <span className="text-xl">🌅</span>
+                                    <div>
+                                        <span className="font-medium text-gray-900 dark:text-white text-sm">Mañana</span>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Antes de las 12:00</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                    <span className="text-xl">☀️</span>
+                                    <div>
+                                        <span className="font-medium text-gray-900 dark:text-white text-sm">Tarde</span>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">12:00 - 18:00</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                    <span className="text-xl">🌙</span>
+                                    <div>
+                                        <span className="font-medium text-gray-900 dark:text-white text-sm">Noche</span>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Después de 18:00</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                    <span className="text-xl">⏰</span>
+                                    <div>
+                                        <span className="font-medium text-gray-900 dark:text-white text-sm">Cualquier</span>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Sin hora fija</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Crear hábito */}
+                        <div>
+                            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Crear un Hábito</h3>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xl">📝</span>
+                                        <h4 className="font-medium text-gray-900 dark:text-white">Configuración básica</h4>
+                                    </div>
+                                    <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                        <li>• Nombre descriptivo del hábito</li>
+                                        <li>• Frecuencia: diaria, semanal o personalizada</li>
+                                        <li>• Área: salud, trabajo, personal, etc.</li>
+                                        <li>• Icono y color personalizables</li>
+                                    </ul>
+                                </div>
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xl">✅</span>
+                                        <h4 className="font-medium text-gray-900 dark:text-white">Estados de completado</h4>
+                                    </div>
+                                    <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                        <li className="flex items-center gap-2">
+                                            <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                                            Completado: hecho al 100%
+                                        </li>
+                                        <li className="flex items-center gap-2">
+                                            <span className="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                                            Parcial: hecho parcialmente
+                                        </li>
+                                        <li className="flex items-center gap-2">
+                                            <span className="w-3 h-3 bg-gray-400 rounded-full"></span>
+                                            Saltado: no realizado (con razón)
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Calendario y estadísticas */}
+                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                            <h4 className="font-medium text-gray-900 dark:text-white mb-2">📅 Calendario y Estadísticas</h4>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    <strong>Calendario visual:</strong>
+                                    <ul className="mt-1 space-y-1">
+                                        <li>• Historial de completados por día</li>
+                                        <li>• Colores indican estado de cada día</li>
+                                        <li>• Click para ver/editar cualquier día</li>
+                                    </ul>
+                                </div>
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    <strong>Estadísticas:</strong>
+                                    <ul className="mt-1 space-y-1">
+                                        <li>• Porcentaje de cumplimiento por hábito</li>
+                                        <li>• Rachas actuales y mejores rachas</li>
+                                        <li>• Gráficos de tendencia por área</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <Link
+                            href="/habits"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                        >
+                            <span className="text-lg">🎯</span>
+                            Ir a Hábitos
+                        </Link>
+                    </div>
+                </section>
+
+                {/* Section 7: Cola de Procesamiento */}
                 <section id="procesamiento" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center text-teal-600 dark:text-teal-400 text-sm font-bold">5</span>
+                        <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center text-teal-600 dark:text-teal-400 text-sm font-bold">7</span>
                         Cola de Procesamiento
                     </h2>
                     <div className="space-y-6">
@@ -553,10 +835,10 @@ export default function GuidePage() {
                     </div>
                 </section>
 
-                {/* Section 6: Niveles de Madurez */}
+                {/* Section 8: Niveles de Madurez */}
                 <section id="madurez" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm font-bold">6</span>
+                        <span className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm font-bold">8</span>
                         Niveles de Madurez
                     </h2>
                     <div className="space-y-6">
@@ -621,10 +903,10 @@ export default function GuidePage() {
                     </div>
                 </section>
 
-                {/* Section 7: Vinculación a Objetos */}
+                {/* Section 9: Vinculación a Objetos */}
                 <section id="vinculacion" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-sm font-bold">7</span>
+                        <span className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-sm font-bold">9</span>
                         Vinculación a Objetos
                     </h2>
                     <div className="space-y-6">
@@ -713,10 +995,10 @@ export default function GuidePage() {
                     </div>
                 </section>
 
-                {/* Section 8: Sistema de Notas */}
+                {/* Section 10: Sistema de Notas */}
                 <section id="notas" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center text-yellow-600 dark:text-yellow-400 text-sm font-bold">8</span>
+                        <span className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center text-yellow-600 dark:text-yellow-400 text-sm font-bold">10</span>
                         Sistema de Notas
                     </h2>
                     <div className="space-y-6">
@@ -855,10 +1137,10 @@ export default function GuidePage() {
                     </div>
                 </section>
 
-                {/* Section 9: Chat con IA */}
+                {/* Section 11: Chat con IA */}
                 <section id="chat" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm font-bold">9</span>
+                        <span className="w-8 h-8 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm font-bold">11</span>
                         Chat con IA
                     </h2>
                     <div className="space-y-6">
