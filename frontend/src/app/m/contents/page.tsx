@@ -14,18 +14,28 @@ interface Content {
     iab_tier1: string | null;
     is_favorite: boolean;
     created_at: string;
+    metadata?: Record<string, unknown> | null;
 }
 
+interface Facet {
+    value: string;
+    count: number;
+}
+
+// Real content types from the database
 const CONTENT_TYPES: Record<string, { icon: string; label: string }> = {
-    article: { icon: '📰', label: 'Articulo' },
-    video: { icon: '🎬', label: 'Video' },
-    book: { icon: '📚', label: 'Libro' },
-    podcast: { icon: '🎙️', label: 'Podcast' },
-    tool: { icon: '🛠️', label: 'Herramienta' },
-    course: { icon: '🎓', label: 'Curso' },
-    paper: { icon: '📄', label: 'Paper' },
+    tiktok: { icon: '🎵', label: 'TikTok' },
+    apple_notes: { icon: '🍎', label: 'Apple Notes' },
+    youtube: { icon: '▶️', label: 'YouTube' },
+    web: { icon: '🌐', label: 'Web' },
     note: { icon: '📝', label: 'Nota' },
-    other: { icon: '📎', label: 'Otro' },
+    twitter: { icon: '🐦', label: 'Twitter' },
+    pdf: { icon: '📕', label: 'PDF' },
+    docx: { icon: '📘', label: 'Word' },
+    audio: { icon: '🎧', label: 'Audio' },
+    email: { icon: '📧', label: 'Email' },
+    podcast: { icon: '🎙️', label: 'Podcast' },
+    video: { icon: '🎬', label: 'Video' },
 };
 
 export default function MobileContentsPage() {
@@ -33,9 +43,12 @@ export default function MobileContentsPage() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedType, setSelectedType] = useState<string>('all');
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isDark, setIsDark] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const [availableTypes, setAvailableTypes] = useState<Facet[]>([]);
+    const [availableCategories, setAvailableCategories] = useState<Facet[]>([]);
 
     // Check dark mode
     useEffect(() => {
@@ -47,6 +60,32 @@ export default function MobileContentsPage() {
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
         return () => observer.disconnect();
     }, []);
+
+    // Fetch facets for filter options
+    const fetchFacets = useCallback(async () => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/search/facets`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setAvailableTypes(data.types || []);
+                setAvailableCategories(data.categories || []);
+            }
+        } catch (error) {
+            console.error('Error fetching facets:', error);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchFacets();
+    }, [fetchFacets]);
 
     const fetchContents = useCallback(async () => {
         setLoading(true);
@@ -79,9 +118,12 @@ export default function MobileContentsPage() {
                     const data = await response.json();
                     let results = data.contents || [];
 
-                    // Apply type filter client-side for global search
+                    // Apply filters client-side for global search
                     if (selectedType !== 'all') {
                         results = results.filter((c: Content) => c.type === selectedType);
+                    }
+                    if (selectedCategory !== 'all') {
+                        results = results.filter((c: Content) => c.iab_tier1 === selectedCategory);
                     }
                     if (showFavoritesOnly) {
                         results = results.filter((c: Content) => c.is_favorite);
@@ -103,6 +145,9 @@ export default function MobileContentsPage() {
                 if (selectedType !== 'all') {
                     requestBody.types = [selectedType];
                 }
+                if (selectedCategory !== 'all') {
+                    requestBody.categories = [selectedCategory];
+                }
                 if (showFavoritesOnly) {
                     requestBody.is_favorite = true;
                 }
@@ -115,7 +160,6 @@ export default function MobileContentsPage() {
 
                 if (response.ok) {
                     const data = await response.json();
-                    // Handle different response formats
                     const contentsData = data.contents || data.data || data.results || [];
                     setContents(Array.isArray(contentsData) ? contentsData : []);
                 } else {
@@ -127,7 +171,7 @@ export default function MobileContentsPage() {
         } finally {
             setLoading(false);
         }
-    }, [searchQuery, selectedType, showFavoritesOnly]);
+    }, [searchQuery, selectedType, selectedCategory, showFavoritesOnly]);
 
     useEffect(() => {
         fetchContents();
@@ -138,7 +182,31 @@ export default function MobileContentsPage() {
         fetchContents();
     };
 
-    const openUrl = (url: string) => {
+    // Get the best URL for the content (handle TikTok special case)
+    const getContentUrl = (content: Content): string => {
+        // For TikTok, try to get the original URL from metadata or construct it
+        if (content.type === 'tiktok' && content.metadata) {
+            // If we have the original TikTok URL in metadata, use it
+            const meta = content.metadata as Record<string, unknown>;
+            if (meta.original_url && typeof meta.original_url === 'string') {
+                return meta.original_url;
+            }
+            if (meta.webpage_url && typeof meta.webpage_url === 'string') {
+                return meta.webpage_url;
+            }
+        }
+        return content.url;
+    };
+
+    const openUrl = (content: Content) => {
+        const url = getContentUrl(content);
+
+        // For apple_notes, show a message instead of opening
+        if (content.type === 'apple_notes') {
+            alert('Este contenido es de Apple Notes y solo esta disponible localmente en tu Mac.');
+            return;
+        }
+
         window.open(url, '_blank', 'noopener,noreferrer');
     };
 
@@ -166,8 +234,16 @@ export default function MobileContentsPage() {
     };
 
     const getTypeConfig = (type: string) => {
-        return CONTENT_TYPES[type] || CONTENT_TYPES.other;
+        return CONTENT_TYPES[type] || { icon: '📎', label: type };
     };
+
+    const clearFilters = () => {
+        setSelectedType('all');
+        setSelectedCategory('all');
+        setShowFavoritesOnly(false);
+    };
+
+    const hasActiveFilters = selectedType !== 'all' || selectedCategory !== 'all' || showFavoritesOnly;
 
     const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
     const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
@@ -206,7 +282,7 @@ export default function MobileContentsPage() {
                     type="button"
                     onClick={() => setShowFilters(!showFilters)}
                     className={`p-2.5 rounded-xl border ${
-                        showFilters || selectedType !== 'all' || showFavoritesOnly
+                        showFilters || hasActiveFilters
                             ? 'bg-amber-500 border-amber-500 text-white'
                             : isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-white border-gray-200 text-gray-600'
                     }`}
@@ -219,7 +295,7 @@ export default function MobileContentsPage() {
 
             {/* Filter panel */}
             {showFilters && (
-                <div className={`rounded-xl p-4 border ${cardClass} space-y-4`}>
+                <div className={`rounded-xl p-4 border ${cardClass} space-y-4 max-h-[60vh] overflow-y-auto`}>
                     {/* Favorites toggle */}
                     <button
                         onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
@@ -238,7 +314,7 @@ export default function MobileContentsPage() {
 
                     {/* Type filter */}
                     <div>
-                        <h3 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Tipo de contenido</h3>
+                        <h3 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Tipo</h3>
                         <div className="flex flex-wrap gap-2">
                             <button
                                 onClick={() => setSelectedType('all')}
@@ -250,30 +326,61 @@ export default function MobileContentsPage() {
                             >
                                 Todos
                             </button>
-                            {Object.entries(CONTENT_TYPES).map(([type, config]) => (
+                            {availableTypes.slice(0, 12).map((facet) => {
+                                const config = getTypeConfig(facet.value);
+                                return (
+                                    <button
+                                        key={facet.value}
+                                        onClick={() => setSelectedType(facet.value)}
+                                        className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1 ${
+                                            selectedType === facet.value
+                                                ? 'bg-amber-500 text-white'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                        }`}
+                                    >
+                                        <span>{config.icon}</span>
+                                        <span>{config.label}</span>
+                                        <span className="opacity-60">({facet.count})</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Category filter */}
+                    <div>
+                        <h3 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Categoria</h3>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setSelectedCategory('all')}
+                                className={`px-3 py-1.5 rounded-full text-sm ${
+                                    selectedCategory === 'all'
+                                        ? 'bg-amber-500 text-white'
+                                        : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                }`}
+                            >
+                                Todas
+                            </button>
+                            {availableCategories.slice(0, 10).map((facet) => (
                                 <button
-                                    key={type}
-                                    onClick={() => setSelectedType(type)}
-                                    className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1 ${
-                                        selectedType === type
+                                    key={facet.value}
+                                    onClick={() => setSelectedCategory(facet.value)}
+                                    className={`px-3 py-1.5 rounded-full text-sm ${
+                                        selectedCategory === facet.value
                                             ? 'bg-amber-500 text-white'
                                             : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
                                     }`}
                                 >
-                                    <span>{config.icon}</span>
-                                    <span>{config.label}</span>
+                                    {facet.value} ({facet.count})
                                 </button>
                             ))}
                         </div>
                     </div>
 
                     {/* Clear filters */}
-                    {(selectedType !== 'all' || showFavoritesOnly) && (
+                    {hasActiveFilters && (
                         <button
-                            onClick={() => {
-                                setSelectedType('all');
-                                setShowFavoritesOnly(false);
-                            }}
+                            onClick={clearFilters}
                             className={`w-full py-2 rounded-lg text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                         >
                             Limpiar filtros
@@ -283,7 +390,7 @@ export default function MobileContentsPage() {
             )}
 
             {/* Active filters display */}
-            {!showFilters && (selectedType !== 'all' || showFavoritesOnly) && (
+            {!showFilters && hasActiveFilters && (
                 <div className="flex gap-2 flex-wrap">
                     {showFavoritesOnly && (
                         <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 flex items-center gap-1">
@@ -293,6 +400,11 @@ export default function MobileContentsPage() {
                     {selectedType !== 'all' && (
                         <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 flex items-center gap-1">
                             {getTypeConfig(selectedType).icon} {getTypeConfig(selectedType).label}
+                        </span>
+                    )}
+                    {selectedCategory !== 'all' && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 flex items-center gap-1">
+                            📁 {selectedCategory}
                         </span>
                     )}
                 </div>
@@ -314,6 +426,8 @@ export default function MobileContentsPage() {
                 <div className="space-y-3">
                     {contents.map((content) => {
                         const typeConfig = getTypeConfig(content.type);
+                        const isAppleNotes = content.type === 'apple_notes';
+
                         return (
                             <div
                                 key={content.id}
@@ -353,15 +467,28 @@ export default function MobileContentsPage() {
                                     </p>
                                 )}
 
-                                {/* Open URL button - IMPORTANT: Link to original content */}
+                                {/* Open URL button */}
                                 <button
-                                    onClick={() => openUrl(content.url)}
-                                    className="w-full py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                                    onClick={() => openUrl(content)}
+                                    className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform ${
+                                        isAppleNotes
+                                            ? 'bg-gray-400 text-white cursor-not-allowed'
+                                            : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
+                                    }`}
                                 >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                    </svg>
-                                    Abrir contenido
+                                    {isAppleNotes ? (
+                                        <>
+                                            <span>🍎</span>
+                                            Solo en Mac
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                            </svg>
+                                            Abrir contenido
+                                        </>
+                                    )}
                                 </button>
 
                                 {/* Date */}
