@@ -341,27 +341,36 @@ async def get_object_summary(
 
     elif object_type == "objectives":
         recent = safe_query(lambda: db.table("objectives").select(
-            "id, title, status, progress, icon, color, horizon, target_date"
+            "id, title, status, progress, icon, color, horizon, target_date, is_favorite"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
         active = safe_query(lambda: db.table("objectives").select(
-            "id, title, status, progress, icon, color, horizon, target_date"
+            "id, title, status, progress, icon, color, horizon, target_date, is_favorite"
         ).eq("user_id", user_id).eq("status", "active").order("position").limit(limit).execute())
+
+        favorites = safe_query(lambda: db.table("objectives").select(
+            "id, title, status, progress, icon, color, horizon, target_date, is_favorite"
+        ).eq("user_id", user_id).eq("is_favorite", True).eq("status", "active").order("position").limit(limit).execute())
 
         return {
             "type": "objectives",
             "recent": safe_data(recent),
             "active": safe_data(active),
+            "favorites": safe_data(favorites),
         }
 
     elif object_type == "projects":
         recent = safe_query(lambda: db.table("projects").select(
-            "id, name, status, color, icon, description"
+            "id, name, status, color, icon, description, is_favorite"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
         active = safe_query(lambda: db.table("projects").select(
-            "id, name, status, color, icon, description"
+            "id, name, status, color, icon, description, is_favorite"
         ).eq("user_id", user_id).eq("status", "active").order("created_at", desc=True).limit(limit).execute())
+
+        favorites_query = safe_query(lambda: db.table("projects").select(
+            "id, name, status, color, icon, description, is_favorite"
+        ).eq("user_id", user_id).eq("is_favorite", True).eq("status", "active").order("created_at", desc=True).limit(limit).execute())
 
         # Get linked contents for each active project
         projects_with_contents = []
@@ -372,21 +381,33 @@ async def get_object_summary(
             project["linked_contents"] = safe_data(linked_contents)
             projects_with_contents.append(project)
 
+        # Get linked contents for favorite projects
+        favorites_with_contents = []
+        for project in safe_data(favorites_query):
+            linked_contents = safe_query(lambda pid=project["id"]: db.table("contents").select(
+                "id, title, type, maturity_level"
+            ).eq("project_id", pid).eq("is_archived", False).limit(5).execute())
+            project["linked_contents"] = safe_data(linked_contents)
+            favorites_with_contents.append(project)
+
         return {
             "type": "projects",
             "recent": safe_data(recent),
             "active": projects_with_contents,
+            "favorites": favorites_with_contents,
         }
 
     elif object_type == "mental_models":
         recent = safe_query(lambda: db.table("mental_models").select(
-            "id, name, slug, icon, color, description, is_active"
+            "id, name, slug, icon, color, description, is_active, is_favorite"
         ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(limit).execute())
 
-        # Get linked contents for each mental model
-        models_with_contents = []
-        for model in safe_data(recent):
-            # Get content IDs from junction table
+        favorites_query = safe_query(lambda: db.table("mental_models").select(
+            "id, name, slug, icon, color, description, is_active, is_favorite"
+        ).eq("user_id", user_id).eq("is_favorite", True).eq("is_active", True).order("created_at", desc=True).limit(limit).execute())
+
+        # Helper function to get linked contents for a model
+        def get_model_with_contents(model):
             associations = safe_query(lambda mid=model["id"]: db.table("content_mental_models").select(
                 "content_id"
             ).eq("mental_model_id", mid).limit(5).execute())
@@ -400,12 +421,19 @@ async def get_object_summary(
                 linked_contents = safe_data(contents_result)
 
             model["linked_contents"] = linked_contents
-            models_with_contents.append(model)
+            return model
+
+        # Get linked contents for each active model
+        models_with_contents = [get_model_with_contents(model) for model in safe_data(recent)]
+
+        # Get linked contents for favorite models
+        favorites_with_contents = [get_model_with_contents(model) for model in safe_data(favorites_query)]
 
         return {
             "type": "mental_models",
             "recent": models_with_contents,
             "active": models_with_contents,
+            "favorites": favorites_with_contents,
         }
 
     elif object_type == "notes":

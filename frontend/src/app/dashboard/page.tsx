@@ -463,9 +463,12 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium flex items-center gap-2">
               <span className="cursor-grab">⋮⋮</span> 🎯 Objetivos Activos
             </h3>
-            <Link href="/objectives" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
-              Ver todo →
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/objectives?create=true" target="_blank" className="text-lg text-gray-400 hover:text-indigo-400" title="Crear objetivo">+</Link>
+              <Link href="/objectives" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+                Ver todo →
+              </Link>
+            </div>
           </div>
           {summary.recent.objectives.length > 0 ? (
             <div className="space-y-2">
@@ -500,9 +503,12 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium flex items-center gap-2">
               <span className="cursor-grab">⋮⋮</span> 📁 Proyectos Activos
             </h3>
-            <Link href="/projects" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
-              Ver todo →
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/projects?create=true" target="_blank" className="text-lg text-gray-400 hover:text-indigo-400" title="Crear proyecto">+</Link>
+              <Link href="/projects" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+                Ver todo →
+              </Link>
+            </div>
           </div>
           {summary.recent.projects.filter(p => p.status === 'active').length > 0 ? (
             <div className="space-y-2">
@@ -531,9 +537,12 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium flex items-center gap-2">
               <span className="cursor-grab">⋮⋮</span> 🧠 Modelos Mentales
             </h3>
-            <Link href="/mental-models" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
-              Ver todo →
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/mental-models?create=true" target="_blank" className="text-lg text-gray-400 hover:text-indigo-400" title="Crear modelo mental">+</Link>
+              <Link href="/mental-models" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+                Ver todo →
+              </Link>
+            </div>
           </div>
           {summary.recent.mental_models.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -559,9 +568,12 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium flex items-center gap-2">
               <span className="cursor-grab">⋮⋮</span> 📄 Contenidos Recientes
             </h3>
-            <Link href="/explore" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
-              Ver todo →
-            </Link>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowUrlModal(true)} className="text-lg text-gray-400 hover:text-indigo-400" title="Guardar URL">+</button>
+              <Link href="/explore" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+                Ver todo →
+              </Link>
+            </div>
           </div>
           {summary.recent.contents.length > 0 ? (
             <div className="space-y-2">
@@ -590,9 +602,12 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium flex items-center gap-2">
               <span className="cursor-grab">⋮⋮</span> 📝 Notas Recientes
             </h3>
-            <Link href="/notes" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
-              Ver todo →
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/notes?new=true" target="_blank" className="text-lg text-gray-400 hover:text-indigo-400" title="Nueva nota">+</Link>
+              <Link href="/notes" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+                Ver todo →
+              </Link>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             {/* Simple Notes - Left Column */}
@@ -650,9 +665,12 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium flex items-center gap-2">
               <span className="cursor-grab">⋮⋮</span> ✅ Habitos de Hoy
             </h3>
-            <Link href="/habits" target="_blank" className="text-sm text-emerald-400 hover:text-emerald-300">
-              Ver todo →
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/habits?create=true" target="_blank" className="text-lg text-gray-400 hover:text-emerald-400" title="Crear habito">+</Link>
+              <Link href="/habits" target="_blank" className="text-sm text-emerald-400 hover:text-emerald-300">
+                Ver todo →
+              </Link>
+            </div>
           </div>
           {summary.habits_today && summary.habits_today.total > 0 ? (
             <>
@@ -705,9 +723,12 @@ export default function DashboardPage() {
             <h3 className="text-white font-medium flex items-center gap-2">
               <span className="cursor-grab">⋮⋮</span> 📋 Areas de Responsabilidad
             </h3>
-            <Link href="/areas" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
-              Ver todo →
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/areas?create=true" target="_blank" className="text-lg text-gray-400 hover:text-indigo-400" title="Crear area">+</Link>
+              <Link href="/areas" target="_blank" className="text-sm text-indigo-400 hover:text-indigo-300">
+                Ver todo →
+              </Link>
+            </div>
           </div>
           {summary.recent.areas && summary.recent.areas.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -922,6 +943,57 @@ export default function DashboardPage() {
 
     if (!objectSummary) return null;
 
+    // Separate favorites from active
+    const favorites = (objectSummary.favorites ?? []).filter((o: any) => o.status === 'active');
+    const favoriteIds = new Set(favorites.map((o: any) => o.id));
+    const nonFavoriteActive = (objectSummary.active ?? []).filter((o: any) => !favoriteIds.has(o.id));
+
+    const renderObjectiveCard = (obj: any, isFavorite: boolean = false) => (
+      <Link
+        key={obj.id}
+        href={`/objectives?id=${obj.id}`}
+        target="_blank"
+        className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
+        style={{ borderLeft: `4px solid ${obj.color || '#6366f1'}` }}
+      >
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">{obj.icon || '🎯'}</span>
+          <div className="flex-1">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              {obj.title}
+              {isFavorite && <span className="text-yellow-400">⭐</span>}
+            </h3>
+            {obj.description && (
+              <p className="text-gray-400 text-xs line-clamp-1">{obj.description}</p>
+            )}
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="mt-3 pt-3 border-t border-gray-700">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-400">Progreso</span>
+            <span className="text-xs font-bold" style={{ color: obj.color || '#6366f1' }}>
+              {obj.progress || 0}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-2">
+            <div
+              className="h-2 rounded-full transition-all"
+              style={{
+                width: `${obj.progress || 0}%`,
+                backgroundColor: obj.color || '#6366f1'
+              }}
+            />
+          </div>
+          {obj.target_date && (
+            <div className="text-xs text-gray-500 mt-2">
+              Meta: {new Date(obj.target_date).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+      </Link>
+    );
+
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -931,53 +1003,30 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Active objectives with progress */}
-        {(objectSummary.active?.length ?? 0) > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(objectSummary.active ?? []).map((obj: any) => (
-              <Link
-                key={obj.id}
-                href={`/objectives?id=${obj.id}`}
-                target="_blank"
-                className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
-                style={{ borderLeft: `4px solid ${obj.color || '#6366f1'}` }}
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">{obj.icon || '🎯'}</span>
-                  <div className="flex-1">
-                    <h3 className="text-white font-medium">{obj.title}</h3>
-                    {obj.description && (
-                      <p className="text-gray-400 text-xs line-clamp-1">{obj.description}</p>
-                    )}
-                  </div>
-                </div>
-                {/* Progress bar */}
-                <div className="mt-3 pt-3 border-t border-gray-700">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-gray-400">Progreso</span>
-                    <span className="text-xs font-bold" style={{ color: obj.color || '#6366f1' }}>
-                      {obj.progress || 0}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div
-                      className="h-2 rounded-full transition-all"
-                      style={{
-                        width: `${obj.progress || 0}%`,
-                        backgroundColor: obj.color || '#6366f1'
-                      }}
-                    />
-                  </div>
-                  {obj.target_date && (
-                    <div className="text-xs text-gray-500 mt-2">
-                      Meta: {new Date(obj.target_date).toLocaleDateString()}
-                    </div>
-                  )}
-                </div>
-              </Link>
-            ))}
+        {/* Favorites section */}
+        {favorites.length > 0 && (
+          <div className="bg-yellow-900/20 rounded-xl p-4 border border-yellow-800/30">
+            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+              <span className="text-yellow-400">⭐</span> Favoritos
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {favorites.map((obj: any) => renderObjectiveCard(obj, true))}
+            </div>
           </div>
-        ) : (
+        )}
+
+        {/* Active objectives (non-favorites) */}
+        {nonFavoriteActive.length > 0 && (
+          <div>
+            <h3 className="text-white font-medium mb-3">🎯 Activos</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {nonFavoriteActive.map((obj: any) => renderObjectiveCard(obj, false))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {favorites.length === 0 && nonFavoriteActive.length === 0 && (
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">No hay objetivos activos</p>
             <Link
@@ -1001,6 +1050,56 @@ export default function DashboardPage() {
 
     if (!objectSummary) return null;
 
+    // Separate favorites from active
+    const favorites = (objectSummary.favorites ?? []).filter((p: any) => p.status === 'active');
+    const favoriteIds = new Set(favorites.map((p: any) => p.id));
+    const nonFavoriteActive = (objectSummary.active ?? []).filter((p: any) => !favoriteIds.has(p.id));
+
+    const renderProjectCard = (project: any, isFavorite: boolean = false) => (
+      <Link
+        key={project.id}
+        href={`/projects?id=${project.id}`}
+        target="_blank"
+        className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
+        style={{ borderLeft: `4px solid ${project.color || '#3b82f6'}` }}
+      >
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">{project.icon || '📁'}</span>
+          <div className="flex-1">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              {project.name}
+              {isFavorite && <span className="text-yellow-400">⭐</span>}
+            </h3>
+            {project.description && (
+              <p className="text-gray-400 text-xs line-clamp-1">{project.description}</p>
+            )}
+          </div>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-green-600/20 text-green-400">
+            activo
+          </span>
+        </div>
+
+        {/* Footer with stats */}
+        <div className="mt-3 pt-3 border-t border-gray-700">
+          {project.linked_contents && project.linked_contents.length > 0 ? (
+            <div className="flex items-center gap-4 text-xs text-gray-400">
+              <span>📄 {project.linked_contents.length} contenido{project.linked_contents.length !== 1 ? 's' : ''}</span>
+              {project.area_name && (
+                <span>📋 {project.area_name}</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span>📄 Sin contenidos</span>
+              {project.area_name && (
+                <span>📋 {project.area_name}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </Link>
+    );
+
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -1010,52 +1109,30 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Active projects with linked contents */}
-        {(objectSummary.active?.length ?? 0) > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(objectSummary.active ?? []).map((project: any) => (
-              <Link
-                key={project.id}
-                href={`/projects?id=${project.id}`}
-                target="_blank"
-                className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
-                style={{ borderLeft: `4px solid ${project.color || '#3b82f6'}` }}
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">{project.icon || '📁'}</span>
-                  <div className="flex-1">
-                    <h3 className="text-white font-medium">{project.name}</h3>
-                    {project.description && (
-                      <p className="text-gray-400 text-xs line-clamp-1">{project.description}</p>
-                    )}
-                  </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-600/20 text-green-400">
-                    activo
-                  </span>
-                </div>
-
-                {/* Footer with stats */}
-                <div className="mt-3 pt-3 border-t border-gray-700">
-                  {project.linked_contents && project.linked_contents.length > 0 ? (
-                    <div className="flex items-center gap-4 text-xs text-gray-400">
-                      <span>📄 {project.linked_contents.length} contenido{project.linked_contents.length !== 1 ? 's' : ''}</span>
-                      {project.area_name && (
-                        <span>📋 {project.area_name}</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>📄 Sin contenidos</span>
-                      {project.area_name && (
-                        <span>📋 {project.area_name}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Link>
-            ))}
+        {/* Favorites section */}
+        {favorites.length > 0 && (
+          <div className="bg-yellow-900/20 rounded-xl p-4 border border-yellow-800/30">
+            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+              <span className="text-yellow-400">⭐</span> Favoritos
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {favorites.map((project: any) => renderProjectCard(project, true))}
+            </div>
           </div>
-        ) : (
+        )}
+
+        {/* Active projects (non-favorites) */}
+        {nonFavoriteActive.length > 0 && (
+          <div>
+            <h3 className="text-white font-medium mb-3">📁 Activos</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {nonFavoriteActive.map((project: any) => renderProjectCard(project, false))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {favorites.length === 0 && nonFavoriteActive.length === 0 && (
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">No hay proyectos activos</p>
             <Link
@@ -1079,6 +1156,60 @@ export default function DashboardPage() {
 
     if (!objectSummary) return null;
 
+    // Separate favorites from active
+    const favorites = objectSummary.favorites ?? [];
+    const favoriteIds = new Set(favorites.map((m: any) => m.id));
+    const nonFavoriteActive = (objectSummary.active ?? []).filter((m: any) => !favoriteIds.has(m.id));
+
+    const renderModelCard = (model: any, isFavorite: boolean = false) => (
+      <div key={model.id} className="bg-gray-800/50 rounded-xl p-4">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">{model.icon || '🧠'}</span>
+          <div className="flex-1">
+            <Link
+              href={`/mental-models?id=${model.id}`}
+              target="_blank"
+              className="text-white font-medium hover:text-emerald-400 flex items-center gap-2"
+            >
+              {model.name}
+              {isFavorite && <span className="text-yellow-400">⭐</span>}
+            </Link>
+          </div>
+        </div>
+        {model.description && (
+          <p className="text-gray-400 text-xs mb-2 line-clamp-2">{model.description}</p>
+        )}
+
+        {/* Linked contents */}
+        {model.linked_contents && model.linked_contents.length > 0 ? (
+          <div className="border-t border-gray-700 pt-2 mt-2">
+            <p className="text-xs text-gray-500 mb-1">Aplicado a:</p>
+            <div className="space-y-1">
+              {model.linked_contents.slice(0, 2).map((content: any) => (
+                <button
+                  key={content.id}
+                  onClick={() => handleContentClick(content.id)}
+                  className="flex items-center gap-2 p-1 bg-gray-900/50 rounded hover:bg-gray-800 transition-colors w-full text-left"
+                >
+                  <span className="text-xs">{getContentTypeIcon(content.type)}</span>
+                  <span className="text-gray-300 text-xs flex-1 truncate">{content.title || 'Sin título'}</span>
+                </button>
+              ))}
+              {model.linked_contents.length > 2 && (
+                <span className="text-xs text-emerald-400">
+                  +{model.linked_contents.length - 2} más
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-xs mt-2 border-t border-gray-700 pt-2">
+            Sin contenidos aplicados
+          </p>
+        )}
+      </div>
+    );
+
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -1088,60 +1219,30 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Active mental models with linked contents */}
-        {(objectSummary.active?.length ?? 0) > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(objectSummary.active ?? []).map((model: any) => (
-              <div key={model.id} className="bg-gray-800/50 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">{model.icon || '🧠'}</span>
-                  <div className="flex-1">
-                    <Link
-                      href={`/mental-models?id=${model.id}`}
-                      target="_blank"
-                      className="text-white font-medium hover:text-emerald-400"
-                    >
-                      {model.name}
-                    </Link>
-                  </div>
-                </div>
-                {model.description && (
-                  <p className="text-gray-400 text-xs mb-2 line-clamp-2">{model.description}</p>
-                )}
-
-                {/* Linked contents */}
-                {model.linked_contents && model.linked_contents.length > 0 ? (
-                  <div className="border-t border-gray-700 pt-2 mt-2">
-                    <p className="text-xs text-gray-500 mb-1">Aplicado a:</p>
-                    <div className="space-y-1">
-                      {model.linked_contents.slice(0, 2).map((content: any) => (
-                        <button
-                          key={content.id}
-                          onClick={() => handleContentClick(content.id)}
-                          className="flex items-center gap-2 p-1 bg-gray-900/50 rounded hover:bg-gray-800 transition-colors w-full text-left"
-                        >
-                          <span className="text-xs">{getContentTypeIcon(content.type)}</span>
-                          <span className="text-gray-300 text-xs flex-1 truncate">{content.title || 'Sin título'}</span>
-                        </button>
-                      ))}
-                      {model.linked_contents.length > 2 && (
-                        <span className="text-xs text-emerald-400">
-                          +{model.linked_contents.length - 2} más
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-xs mt-2 border-t border-gray-700 pt-2">
-                    Sin contenidos aplicados
-                  </p>
-                )}
-              </div>
-            ))}
+        {/* Favorites section */}
+        {favorites.length > 0 && (
+          <div className="bg-yellow-900/20 rounded-xl p-4 border border-yellow-800/30">
+            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+              <span className="text-yellow-400">⭐</span> Favoritos
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {favorites.map((model: any) => renderModelCard(model, true))}
+            </div>
           </div>
         )}
 
-        {(objectSummary.active?.length ?? 0) === 0 && (
+        {/* Active mental models (non-favorites) */}
+        {nonFavoriteActive.length > 0 && (
+          <div>
+            <h3 className="text-white font-medium mb-3">🧠 Activos</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {nonFavoriteActive.map((model: any) => renderModelCard(model, false))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {favorites.length === 0 && nonFavoriteActive.length === 0 && (
           <p className="text-gray-500 text-center py-8">No hay modelos mentales activos</p>
         )}
       </div>
@@ -1156,6 +1257,38 @@ export default function DashboardPage() {
 
     if (!objectSummary) return null;
 
+    // Separate favorites from active
+    const favorites = objectSummary.favorites ?? [];
+    const favoriteIds = new Set(favorites.map((a: any) => a.id));
+    const nonFavoriteActive = (objectSummary.active ?? []).filter((a: any) => !favoriteIds.has(a.id));
+
+    const renderAreaCard = (area: any, isFavorite: boolean = false) => (
+      <Link
+        key={area.id}
+        href={`/areas/${area.id}`}
+        className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
+        style={{ borderLeft: `4px solid ${area.color || '#6366f1'}` }}
+      >
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">{area.icon || '📋'}</span>
+          <div className="flex-1">
+            <h3 className="text-white font-medium flex items-center gap-2">
+              {area.name}
+              {isFavorite && <span className="text-yellow-400">⭐</span>}
+            </h3>
+            {area.description && (
+              <p className="text-gray-400 text-xs line-clamp-1">{area.description}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-4 text-xs text-gray-400 mt-3 pt-3 border-t border-gray-700">
+          <span>🎯 {area.objectives_count || 0} objetivos</span>
+          <span>📁 {area.projects_count || 0} proyectos</span>
+          <span>✅ {area.habits_count || 0} habitos</span>
+        </div>
+      </Link>
+    );
+
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -1165,34 +1298,30 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Active areas with counts */}
-        {(objectSummary.active?.length ?? 0) > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(objectSummary.active ?? []).map((area: any) => (
-              <Link
-                key={area.id}
-                href={`/areas/${area.id}`}
-                className="bg-gray-800/50 rounded-xl p-4 hover:bg-gray-700/50 transition-colors"
-                style={{ borderLeft: `4px solid ${area.color || '#6366f1'}` }}
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">{area.icon || '📋'}</span>
-                  <div className="flex-1">
-                    <h3 className="text-white font-medium">{area.name}</h3>
-                    {area.description && (
-                      <p className="text-gray-400 text-xs line-clamp-1">{area.description}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-4 text-xs text-gray-400 mt-3 pt-3 border-t border-gray-700">
-                  <span>🎯 {area.objectives_count || 0} objetivos</span>
-                  <span>📁 {area.projects_count || 0} proyectos</span>
-                  <span>✅ {area.habits_count || 0} habitos</span>
-                </div>
-              </Link>
-            ))}
+        {/* Favorites section */}
+        {favorites.length > 0 && (
+          <div className="bg-yellow-900/20 rounded-xl p-4 border border-yellow-800/30">
+            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+              <span className="text-yellow-400">⭐</span> Favoritos
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {favorites.map((area: any) => renderAreaCard(area, true))}
+            </div>
           </div>
-        ) : (
+        )}
+
+        {/* Active areas (non-favorites) */}
+        {nonFavoriteActive.length > 0 && (
+          <div>
+            <h3 className="text-white font-medium mb-3">📋 Activas</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {nonFavoriteActive.map((area: any) => renderAreaCard(area, false))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {favorites.length === 0 && nonFavoriteActive.length === 0 && (
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">No hay areas de responsabilidad activas</p>
             <Link
@@ -1217,6 +1346,42 @@ export default function DashboardPage() {
     if (!objectSummary) return null;
 
     const stats = (objectSummary as any).stats || { total_active: 0, completed_today: 0, completion_rate: 0 };
+
+    // Separate favorites from active
+    const favorites = objectSummary.favorites ?? [];
+    const favoriteIds = new Set(favorites.map((h: any) => h.id));
+    const nonFavoriteActive = (objectSummary.active ?? []).filter((h: any) => !favoriteIds.has(h.id));
+
+    const renderHabitCard = (habit: any, isFavorite: boolean = false) => (
+      <Link
+        key={habit.id}
+        href={`/habits/${habit.id}`}
+        className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg hover:bg-gray-800 transition-colors"
+      >
+        <span className={`text-xl ${habit.completed_today ? 'opacity-50' : ''}`}>
+          {habit.completed_today ? '✅' : habit.icon || '⭕'}
+        </span>
+        <div className="flex-1">
+          <p className={`text-sm flex items-center gap-2 ${habit.completed_today ? 'text-gray-500 line-through' : 'text-white'}`}>
+            {habit.name}
+            {isFavorite && <span className="text-yellow-400">⭐</span>}
+          </p>
+          <p className="text-xs text-gray-500">
+            {habit.frequency_type === 'daily' ? 'Diario' :
+             habit.frequency_type === 'weekly' ? 'Semanal' : 'Personalizado'}
+          </p>
+        </div>
+        {habit.completed_today ? (
+          <span className="text-xs text-emerald-400 px-2 py-1 bg-emerald-900/30 rounded">
+            Completado
+          </span>
+        ) : (
+          <span className="text-xs text-yellow-400 px-2 py-1 bg-yellow-900/30 rounded">
+            Pendiente
+          </span>
+        )}
+      </Link>
+    );
 
     return (
       <div className="space-y-6">
@@ -1261,45 +1426,30 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Active habits with today status */}
-        {(objectSummary.active?.length ?? 0) > 0 && (
-          <div className="bg-gray-800/50 rounded-xl p-4">
-            <h3 className="text-white font-medium mb-3">Habitos de Hoy</h3>
+        {/* Favorite habits first */}
+        {favorites.length > 0 && (
+          <div className="bg-yellow-900/20 rounded-xl p-4 border border-yellow-800/30">
+            <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+              <span className="text-yellow-400">⭐</span> Favoritos
+            </h3>
             <div className="space-y-2">
-              {(objectSummary.active ?? []).map((habit: any) => (
-                <Link
-                  key={habit.id}
-                  href={`/habits/${habit.id}`}
-                  className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  <span className={`text-xl ${habit.completed_today ? 'opacity-50' : ''}`}>
-                    {habit.completed_today ? '✅' : habit.icon || '⭕'}
-                  </span>
-                  <div className="flex-1">
-                    <p className={`text-sm ${habit.completed_today ? 'text-gray-500 line-through' : 'text-white'}`}>
-                      {habit.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {habit.frequency_type === 'daily' ? 'Diario' :
-                       habit.frequency_type === 'weekly' ? 'Semanal' : 'Personalizado'}
-                    </p>
-                  </div>
-                  {habit.completed_today ? (
-                    <span className="text-xs text-emerald-400 px-2 py-1 bg-emerald-900/30 rounded">
-                      Completado
-                    </span>
-                  ) : (
-                    <span className="text-xs text-yellow-400 px-2 py-1 bg-yellow-900/30 rounded">
-                      Pendiente
-                    </span>
-                  )}
-                </Link>
-              ))}
+              {favorites.map((habit: any) => renderHabitCard(habit, true))}
             </div>
           </div>
         )}
 
-        {(objectSummary.active?.length ?? 0) === 0 && (
+        {/* Active habits (non-favorites) */}
+        {nonFavoriteActive.length > 0 && (
+          <div className="bg-gray-800/50 rounded-xl p-4">
+            <h3 className="text-white font-medium mb-3">✅ Habitos de Hoy</h3>
+            <div className="space-y-2">
+              {nonFavoriteActive.map((habit: any) => renderHabitCard(habit, false))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {favorites.length === 0 && nonFavoriteActive.length === 0 && (
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">No hay habitos activos</p>
             <Link

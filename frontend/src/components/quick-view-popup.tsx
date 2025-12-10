@@ -12,6 +12,7 @@ interface QuickViewPopupProps {
     isOpen: boolean;
     onClose: () => void;
     onOpenFull?: () => void; // Opens the full detail modal
+    onDelete?: () => void; // Callback after successful deletion
     position?: { x: number; y: number };
 }
 
@@ -42,12 +43,15 @@ export function QuickViewPopup({
     isOpen,
     onClose,
     onOpenFull,
+    onDelete,
     position
 }: QuickViewPopupProps) {
     const { token } = useAuth();
     const [showContent, setShowContent] = useState(false);
     const [richData, setRichData] = useState<any>(null);
     const [loadingRich, setLoadingRich] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const getAuthHeaders = useCallback(() => {
         return {
@@ -56,11 +60,77 @@ export function QuickViewPopup({
         };
     }, [token]);
 
+    // Handle delete
+    const handleDelete = async () => {
+        if (!item?.id) return;
+        setDeleting(true);
+        try {
+            let endpoint = '';
+            switch (type) {
+                case 'content':
+                case 'full_note':
+                    endpoint = `/api/v1/content/${item.id}`;
+                    break;
+                case 'objective':
+                    endpoint = `/api/v1/objectives/${item.id}`;
+                    break;
+                case 'project':
+                    endpoint = `/api/v1/projects/${item.id}`;
+                    break;
+                case 'mental_model':
+                    endpoint = `/api/v1/mental-models/${item.id}`;
+                    break;
+                case 'habit':
+                    endpoint = `/api/v1/habits/${item.id}`;
+                    break;
+                case 'area':
+                    endpoint = `/api/v1/areas/${item.id}`;
+                    break;
+                case 'quick_note':
+                    endpoint = `/api/v1/standalone-notes/${item.id}`;
+                    break;
+                case 'note':
+                    if (item.source === 'system' || item.is_standalone) {
+                        endpoint = `/api/v1/standalone-notes/${item.id}`;
+                    } else {
+                        endpoint = `/api/v1/content/${item.id}`;
+                    }
+                    break;
+                case 'tag':
+                    endpoint = `/api/v1/tags/${item.id}`;
+                    break;
+                default:
+                    return;
+            }
+
+            const response = await fetch(`${API_URL}${endpoint}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            });
+
+            if (response.ok || response.status === 204) {
+                setShowDeleteConfirm(false);
+                onClose();
+                if (onDelete) onDelete();
+            } else {
+                console.error('Error deleting:', response.status);
+                alert('Error al eliminar');
+            }
+        } catch (error) {
+            console.error('Error deleting:', error);
+            alert('Error al eliminar');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     // Fetch rich data when popup opens
     useEffect(() => {
         if (isOpen && item?.id) {
             // Delay to allow animation
             setTimeout(() => setShowContent(true), 50);
+            // Reset delete confirm state
+            setShowDeleteConfirm(false);
 
             // Fetch rich data based on type
             const fetchRichData = async () => {
@@ -509,29 +579,57 @@ export function QuickViewPopup({
 
                 {/* Actions */}
                 <div className="flex gap-2 border-t border-gray-700 pt-3">
-                    {(type === 'content' || type === 'full_note') && onOpenFull ? (
-                        <button
-                            onClick={onOpenFull}
-                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-2 rounded-lg transition-colors"
-                        >
-                            Ver detalle
-                        </button>
+                    {showDeleteConfirm ? (
+                        <>
+                            <button
+                                onClick={handleDelete}
+                                disabled={deleting}
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                                {deleting ? 'Eliminando...' : 'Confirmar'}
+                            </button>
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={deleting}
+                                className="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-3 py-2 rounded-lg transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                        </>
                     ) : (
-                        <Link
-                            href={getDetailUrl()}
-                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-2 rounded-lg transition-colors text-center"
-                        >
-                            Abrir
-                        </Link>
+                        <>
+                            {(type === 'content' || type === 'full_note') && onOpenFull ? (
+                                <button
+                                    onClick={onOpenFull}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-2 rounded-lg transition-colors"
+                                >
+                                    Ver detalle
+                                </button>
+                            ) : (
+                                <Link
+                                    href={getDetailUrl()}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-2 rounded-lg transition-colors text-center"
+                                >
+                                    Abrir
+                                </Link>
+                            )}
+                            <Link
+                                href={(type === 'content' || type === 'full_note') ? '/explore' : getDetailUrl()}
+                                target="_blank"
+                                className="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-3 py-2 rounded-lg transition-colors"
+                                title={(type === 'content' || type === 'full_note') ? 'Ir a Explorer' : 'Abrir en nueva pestaña'}
+                            >
+                                ↗
+                            </Link>
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="bg-gray-700 hover:bg-red-600 text-gray-300 hover:text-white text-sm px-3 py-2 rounded-lg transition-colors"
+                                title="Eliminar"
+                            >
+                                🗑️
+                            </button>
+                        </>
                     )}
-                    <Link
-                        href={(type === 'content' || type === 'full_note') ? '/explore' : getDetailUrl()}
-                        target="_blank"
-                        className="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-3 py-2 rounded-lg transition-colors"
-                        title={(type === 'content' || type === 'full_note') ? 'Ir a Explorer' : 'Abrir en nueva pestaña'}
-                    >
-                        ↗
-                    </Link>
                 </div>
 
                 {/* URL for content */}
