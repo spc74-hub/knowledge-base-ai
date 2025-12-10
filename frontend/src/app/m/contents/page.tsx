@@ -55,9 +55,9 @@ export default function MobileContentsPage() {
     const [hasMore, setHasMore] = useState(true);
     const [offset, setOffset] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedType, setSelectedType] = useState<string>('all');
-    const [selectedCategory, setSelectedCategory] = useState<string>('all');
-    const [selectedMaturity, setSelectedMaturity] = useState<string>('all');
+    const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [selectedMaturity, setSelectedMaturity] = useState<string[]>([]);
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isDark, setIsDark] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
@@ -146,19 +146,20 @@ export default function MobileContentsPage() {
                     let results = data.contents || [];
 
                     // Apply filters client-side for global search
-                    if (selectedType !== 'all') {
-                        results = results.filter((c: Content) => c.type === selectedType);
+                    if (selectedTypes.length > 0) {
+                        results = results.filter((c: Content) => selectedTypes.includes(c.type));
                     }
-                    if (selectedCategory !== 'all') {
-                        results = results.filter((c: Content) => c.iab_tier1 === selectedCategory);
+                    if (selectedCategories.length > 0) {
+                        results = results.filter((c: Content) => c.iab_tier1 && selectedCategories.includes(c.iab_tier1));
                     }
-                    if (selectedMaturity !== 'all') {
-                        // "captured" includes both null and literal "captured" string
-                        if (selectedMaturity === 'captured') {
-                            results = results.filter((c: Content) => !c.maturity_level || c.maturity_level === 'captured');
-                        } else {
-                            results = results.filter((c: Content) => c.maturity_level === selectedMaturity);
-                        }
+                    if (selectedMaturity.length > 0) {
+                        results = results.filter((c: Content) => {
+                            // "captured" includes both null and literal "captured" string
+                            if (selectedMaturity.includes('captured') && (!c.maturity_level || c.maturity_level === 'captured')) {
+                                return true;
+                            }
+                            return c.maturity_level && selectedMaturity.includes(c.maturity_level);
+                        });
                     }
                     if (showFavoritesOnly) {
                         results = results.filter((c: Content) => c.is_favorite);
@@ -181,14 +182,14 @@ export default function MobileContentsPage() {
                     sort_order: 'desc',
                 };
 
-                if (selectedType !== 'all') {
-                    requestBody.types = [selectedType];
+                if (selectedTypes.length > 0) {
+                    requestBody.types = selectedTypes;
                 }
-                if (selectedCategory !== 'all') {
-                    requestBody.categories = [selectedCategory];
+                if (selectedCategories.length > 0) {
+                    requestBody.categories = selectedCategories;
                 }
-                if (selectedMaturity !== 'all') {
-                    requestBody.maturity_level = [selectedMaturity];
+                if (selectedMaturity.length > 0) {
+                    requestBody.maturity_level = selectedMaturity;
                 }
                 if (showFavoritesOnly) {
                     requestBody.is_favorite = true;
@@ -220,13 +221,13 @@ export default function MobileContentsPage() {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [searchQuery, selectedType, selectedCategory, selectedMaturity, showFavoritesOnly, offset]);
+    }, [searchQuery, selectedTypes, selectedCategories, selectedMaturity, showFavoritesOnly, offset]);
 
     // Initial fetch and when filters change
     useEffect(() => {
         fetchContents(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchQuery, selectedType, selectedCategory, selectedMaturity, showFavoritesOnly]);
+    }, [searchQuery, selectedTypes, selectedCategories, selectedMaturity, showFavoritesOnly]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -270,7 +271,7 @@ export default function MobileContentsPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch(`${API_URL}/api/v1/contents/${content.id}/favorite`, {
+            const response = await fetch(`${API_URL}/api/v1/content/${content.id}/favorite`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -296,7 +297,7 @@ export default function MobileContentsPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch(`${API_URL}/api/v1/contents/${content.id}/maturity`, {
+            const response = await fetch(`${API_URL}/api/v1/content/${content.id}/maturity`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -325,7 +326,7 @@ export default function MobileContentsPage() {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const response = await fetch(`${API_URL}/api/v1/contents/${content.id}/archive`, {
+            const response = await fetch(`${API_URL}/api/v1/content/${content.id}/archive`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -358,13 +359,32 @@ export default function MobileContentsPage() {
     };
 
     const clearFilters = () => {
-        setSelectedType('all');
-        setSelectedCategory('all');
-        setSelectedMaturity('all');
+        setSelectedTypes([]);
+        setSelectedCategories([]);
+        setSelectedMaturity([]);
         setShowFavoritesOnly(false);
     };
 
-    const hasActiveFilters = selectedType !== 'all' || selectedCategory !== 'all' || selectedMaturity !== 'all' || showFavoritesOnly;
+    const hasActiveFilters = selectedTypes.length > 0 || selectedCategories.length > 0 || selectedMaturity.length > 0 || showFavoritesOnly;
+
+    // Toggle functions for multiselect
+    const toggleType = (type: string) => {
+        setSelectedTypes(prev =>
+            prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+        );
+    };
+
+    const toggleCategory = (category: string) => {
+        setSelectedCategories(prev =>
+            prev.includes(category) ? prev.filter(c => c !== category) : [...prev, category]
+        );
+    };
+
+    const toggleMaturity = (level: string) => {
+        setSelectedMaturity(prev =>
+            prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]
+        );
+    };
 
     const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
     const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
@@ -433,59 +453,40 @@ export default function MobileContentsPage() {
                         {showFavoritesOnly && <span>✓</span>}
                     </button>
 
-                    {/* Maturity Level filter */}
+                    {/* Maturity Level filter - Multiselect */}
                     <div>
                         <h3 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Nivel de Madurez</h3>
                         <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setSelectedMaturity('all')}
-                                className={`px-3 py-1.5 rounded-full text-sm ${
-                                    selectedMaturity === 'all'
-                                        ? 'bg-amber-500 text-white'
-                                        : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                                }`}
-                            >
-                                Todos
-                            </button>
                             {Object.entries(MATURITY_LEVELS).map(([key, config]) => (
                                 <button
                                     key={key}
-                                    onClick={() => setSelectedMaturity(key)}
+                                    onClick={() => toggleMaturity(key)}
                                     className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1 ${
-                                        selectedMaturity === key
+                                        selectedMaturity.includes(key)
                                             ? 'bg-amber-500 text-white'
                                             : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
                                     }`}
                                 >
                                     <span>{config.icon}</span>
                                     <span>{config.label}</span>
+                                    {selectedMaturity.includes(key) && <span>✓</span>}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    {/* Type filter */}
+                    {/* Type filter - Multiselect */}
                     <div>
                         <h3 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Tipo</h3>
                         <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setSelectedType('all')}
-                                className={`px-3 py-1.5 rounded-full text-sm ${
-                                    selectedType === 'all'
-                                        ? 'bg-amber-500 text-white'
-                                        : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                                }`}
-                            >
-                                Todos
-                            </button>
                             {availableTypes.slice(0, 12).map((facet) => {
                                 const config = getTypeConfig(facet.value);
                                 return (
                                     <button
                                         key={facet.value}
-                                        onClick={() => setSelectedType(facet.value)}
+                                        onClick={() => toggleType(facet.value)}
                                         className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1 ${
-                                            selectedType === facet.value
+                                            selectedTypes.includes(facet.value)
                                                 ? 'bg-amber-500 text-white'
                                                 : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
                                         }`}
@@ -493,37 +494,29 @@ export default function MobileContentsPage() {
                                         <span>{config.icon}</span>
                                         <span>{config.label}</span>
                                         <span className="opacity-60">({facet.count})</span>
+                                        {selectedTypes.includes(facet.value) && <span>✓</span>}
                                     </button>
                                 );
                             })}
                         </div>
                     </div>
 
-                    {/* Category filter */}
+                    {/* Category filter - Multiselect */}
                     <div>
                         <h3 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Categoria</h3>
                         <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setSelectedCategory('all')}
-                                className={`px-3 py-1.5 rounded-full text-sm ${
-                                    selectedCategory === 'all'
-                                        ? 'bg-amber-500 text-white'
-                                        : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                                }`}
-                            >
-                                Todas
-                            </button>
                             {availableCategories.slice(0, 10).map((facet) => (
                                 <button
                                     key={facet.value}
-                                    onClick={() => setSelectedCategory(facet.value)}
+                                    onClick={() => toggleCategory(facet.value)}
                                     className={`px-3 py-1.5 rounded-full text-sm ${
-                                        selectedCategory === facet.value
+                                        selectedCategories.includes(facet.value)
                                             ? 'bg-amber-500 text-white'
                                             : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
                                     }`}
                                 >
                                     {facet.value} ({facet.count})
+                                    {selectedCategories.includes(facet.value) && ' ✓'}
                                 </button>
                             ))}
                         </div>
@@ -549,21 +542,21 @@ export default function MobileContentsPage() {
                             ⭐ Favoritos
                         </span>
                     )}
-                    {selectedMaturity !== 'all' && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 flex items-center gap-1">
-                            {MATURITY_LEVELS[selectedMaturity]?.icon} {MATURITY_LEVELS[selectedMaturity]?.label}
+                    {selectedMaturity.map(level => (
+                        <span key={level} className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 flex items-center gap-1">
+                            {MATURITY_LEVELS[level]?.icon} {MATURITY_LEVELS[level]?.label}
                         </span>
-                    )}
-                    {selectedType !== 'all' && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 flex items-center gap-1">
-                            {getTypeConfig(selectedType).icon} {getTypeConfig(selectedType).label}
+                    ))}
+                    {selectedTypes.map(type => (
+                        <span key={type} className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 flex items-center gap-1">
+                            {getTypeConfig(type).icon} {getTypeConfig(type).label}
                         </span>
-                    )}
-                    {selectedCategory !== 'all' && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 flex items-center gap-1">
-                            📁 {selectedCategory}
+                    ))}
+                    {selectedCategories.map(category => (
+                        <span key={category} className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 flex items-center gap-1">
+                            📁 {category}
                         </span>
-                    )}
+                    ))}
                 </div>
             )}
 
@@ -705,7 +698,7 @@ export default function MobileContentsPage() {
 
             {/* Action Modal */}
             {showActionModal && actionContent && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
                         className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
                         style={{ maxHeight: '80vh' }}

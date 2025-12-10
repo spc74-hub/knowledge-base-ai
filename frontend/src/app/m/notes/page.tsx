@@ -131,13 +131,33 @@ export default function MobileNotesPage() {
     }, [fetchNotes]);
 
     // Rich text formatting
+    const insertCheckboxAtCursor = (editorElement: HTMLDivElement | null) => {
+        if (!editorElement) return;
+
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+            editorElement.focus();
+        }
+
+        const checkboxHtml = '<label class="checkbox-item"><input type="checkbox" class="mr-2 w-4 h-4 accent-amber-500" /><span></span></label><br/>';
+        document.execCommand('insertHTML', false, checkboxHtml);
+    };
+
     const execCommand = (command: string, value?: string) => {
-        document.execCommand(command, false, value);
+        if (command === 'insertCheckbox') {
+            insertCheckboxAtCursor(editorRef.current);
+        } else {
+            document.execCommand(command, false, value);
+        }
         editorRef.current?.focus();
     };
 
     const execEditCommand = (command: string, value?: string) => {
-        document.execCommand(command, false, value);
+        if (command === 'insertCheckbox') {
+            insertCheckboxAtCursor(editEditorRef.current);
+        } else {
+            document.execCommand(command, false, value);
+        }
         editEditorRef.current?.focus();
     };
 
@@ -366,8 +386,9 @@ export default function MobileNotesPage() {
             <button type="button" onClick={() => onCommand('formatBlock', 'h1')} className={`p-2 rounded text-sm font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>H1</button>
             <button type="button" onClick={() => onCommand('formatBlock', 'h2')} className={`p-2 rounded text-sm font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>H2</button>
             <span className={`w-px mx-1 ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`}></span>
-            <button type="button" onClick={() => onCommand('insertUnorderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>•</button>
-            <button type="button" onClick={() => onCommand('insertOrderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>1.</button>
+            <button type="button" onClick={() => onCommand('insertUnorderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`} title="Lista con viñetas">•</button>
+            <button type="button" onClick={() => onCommand('insertOrderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`} title="Lista numerada">1.</button>
+            <button type="button" onClick={() => onCommand('insertCheckbox')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`} title="Checkbox">☑</button>
         </div>
     );
 
@@ -511,7 +532,7 @@ export default function MobileNotesPage() {
 
             {/* Sidebar Filter */}
             {showSidebar && (
-                <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowSidebar(false)}>
+                <div className="fixed inset-0 bg-black/50 z-[100]" onClick={() => setShowSidebar(false)}>
                     <div
                         className={`absolute left-0 top-0 bottom-0 w-72 p-4 animate-slide-right ${
                             isDark ? 'bg-gray-800' : 'bg-white'
@@ -590,7 +611,7 @@ export default function MobileNotesPage() {
 
             {/* Create Modal */}
             {showCreate && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-4 overflow-y-auto">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-start justify-center pt-4 overflow-y-auto pb-20">
                     <div
                         className={`w-full mx-4 my-4 rounded-2xl overflow-hidden animate-slide-down flex flex-col ${
                             isDark ? 'bg-gray-800' : 'bg-white'
@@ -673,7 +694,7 @@ export default function MobileNotesPage() {
 
             {/* Detail Modal */}
             {showDetail && selectedNote && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-4 overflow-y-auto">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-start justify-center pt-4 overflow-y-auto pb-20">
                     <div
                         className={`w-full mx-4 my-4 rounded-2xl overflow-hidden animate-slide-down flex flex-col ${
                             isDark ? 'bg-gray-800' : 'bg-white'
@@ -773,7 +794,7 @@ export default function MobileNotesPage() {
                             ) : (
                                 <>
                                     <div
-                                        className={`prose prose-sm max-w-none ${isDark ? 'prose-invert text-gray-200' : 'text-gray-700'}`}
+                                        className={`note-content prose prose-sm max-w-none ${isDark ? 'prose-invert text-gray-200' : 'text-gray-700'}`}
                                         dangerouslySetInnerHTML={{ __html: selectedNote.content }}
                                     />
                                     <p className={`text-xs mt-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -864,6 +885,67 @@ export default function MobileNotesPage() {
                     content: attr(data-placeholder);
                     color: #9ca3af;
                     pointer-events: none;
+                }
+                /* Rich text list styles */
+                [contenteditable] ul {
+                    list-style-type: disc;
+                    padding-left: 1.5rem;
+                    margin: 0.5rem 0;
+                }
+                [contenteditable] ol {
+                    list-style-type: decimal;
+                    padding-left: 1.5rem;
+                    margin: 0.5rem 0;
+                }
+                [contenteditable] li {
+                    margin: 0.25rem 0;
+                }
+                /* Checkbox styles */
+                [contenteditable] .checkbox-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin: 0.25rem 0;
+                }
+                [contenteditable] .checkbox-item input[type="checkbox"] {
+                    width: 1.25rem;
+                    height: 1.25rem;
+                    accent-color: #f59e0b;
+                    cursor: pointer;
+                }
+                [contenteditable] .checkbox-item input[type="checkbox"]:checked + span {
+                    text-decoration: line-through;
+                    opacity: 0.6;
+                }
+                /* Note content display styles */
+                .note-content ul {
+                    list-style-type: disc;
+                    padding-left: 1.5rem;
+                    margin: 0.5rem 0;
+                }
+                .note-content ol {
+                    list-style-type: decimal;
+                    padding-left: 1.5rem;
+                    margin: 0.5rem 0;
+                }
+                .note-content li {
+                    margin: 0.25rem 0;
+                }
+                .note-content .checkbox-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin: 0.25rem 0;
+                }
+                .note-content .checkbox-item input[type="checkbox"] {
+                    width: 1.25rem;
+                    height: 1.25rem;
+                    accent-color: #f59e0b;
+                    cursor: pointer;
+                }
+                .note-content .checkbox-item input[type="checkbox"]:checked + span {
+                    text-decoration: line-through;
+                    opacity: 0.6;
                 }
             `}</style>
         </div>

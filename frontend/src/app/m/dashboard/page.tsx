@@ -154,10 +154,15 @@ export default function MobileDashboardPage() {
                     break;
             }
 
+            console.log(`[Dashboard] Fetching ${endpoint} from ${API_URL}${endpoint}`);
             const response = await fetch(`${API_URL}${endpoint}`, { headers });
+            console.log(`[Dashboard] Response status: ${response.status}`);
+
             if (response.ok) {
                 const data = await response.json();
+                console.log(`[Dashboard] Raw data for ${activeTab}:`, data);
                 const items = Array.isArray(data) ? data : (data.items || data.data || data.models || data.objectives || []);
+                console.log(`[Dashboard] Parsed items for ${activeTab}:`, items.length);
 
                 switch (activeTab) {
                     case 'mental_models':
@@ -173,9 +178,12 @@ export default function MobileDashboardPage() {
                         setProjects(items);
                         break;
                 }
+            } else {
+                const errorText = await response.text();
+                console.error(`[Dashboard] Error response for ${activeTab}:`, response.status, errorText);
             }
         } catch (error) {
-            console.error('Error fetching data:', error);
+            console.error('[Dashboard] Error fetching data:', error);
         } finally {
             setLoading(false);
         }
@@ -543,7 +551,7 @@ export default function MobileDashboardPage() {
 
             {/* Create Modal */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
                         className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
@@ -692,7 +700,7 @@ export default function MobileDashboardPage() {
 
             {/* Edit Modal */}
             {showEditModal && editingItem && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
                         className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
@@ -831,7 +839,7 @@ export default function MobileDashboardPage() {
 
             {/* Detail Modal */}
             {showDetailModal && viewingItem && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
                         className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
                         style={{ maxHeight: '80vh', overflowY: 'auto' }}

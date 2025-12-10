@@ -506,7 +506,7 @@ export default function MobileHabitsPage() {
 
             {/* Status selection modal */}
             {showStatusModal && statusModalHabit && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-4">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-start justify-center pt-4">
                     <div
                         className={`w-full mx-4 rounded-2xl p-4 animate-slide-down ${isDark ? 'bg-gray-800' : 'bg-white'}`}
                         style={{ maxHeight: 'calc(100vh - 100px)' }}
@@ -558,7 +558,7 @@ export default function MobileHabitsPage() {
 
             {/* Create Modal */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
                         className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
@@ -653,7 +653,7 @@ export default function MobileHabitsPage() {
 
             {/* Edit Modal */}
             {showEditModal && editingHabit && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
                         className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
@@ -745,7 +745,7 @@ export default function MobileHabitsPage() {
 
             {/* Detail Modal */}
             {showDetailModal && viewingHabit && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
                         className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
                         style={{ maxHeight: '80vh', overflowY: 'auto' }}
