@@ -951,6 +951,8 @@ def apply_sql_filters(query, data, db=None, user_id=None):
     needs_special_maturity_handling is True when maturity_level includes both
     'captured' (NULL) and other values, requiring two queries due to Supabase OR limitation.
     """
+    import logging
+    logger = logging.getLogger(__name__)
     needs_special_maturity_handling = False
 
     # Filter by processing_status
@@ -959,18 +961,26 @@ def apply_sql_filters(query, data, db=None, user_id=None):
 
     # Filter by maturity_level (include)
     if data.maturity_level:
+        logger.info(f"apply_sql_filters: maturity_level filter = {data.maturity_level}")
         has_captured = "captured" in data.maturity_level
         other_levels = [m for m in data.maturity_level if m != "captured"]
+        logger.info(f"apply_sql_filters: has_captured={has_captured}, other_levels={other_levels}")
 
         if has_captured and other_levels:
             # Need special handling - can't do OR in single Supabase query
             # We'll handle this by doing two queries in the caller
             needs_special_maturity_handling = True
+            logger.info("apply_sql_filters: needs_special_maturity_handling=True")
         elif has_captured:
-            # Only include captured (NULL)
-            query = query.is_("maturity_level", "null")
+            # "captured" can mean BOTH: NULL maturity_level OR literal string "captured"
+            # Since we can't do OR in supabase-py easily, we need special handling
+            # We'll set a flag to indicate this needs two queries
+            logger.info("apply_sql_filters: filtering for captured (NULL or 'captured' string)")
+            # For now, try to use the .or_ syntax
+            query = query.or_("maturity_level.is.null,maturity_level.eq.captured")
         elif other_levels:
             # Only include specific levels
+            logger.info(f"apply_sql_filters: filtering for maturity_levels: {other_levels}")
             query = query.in_("maturity_level", other_levels)
 
     # Filter by maturity_level_exclude
@@ -980,12 +990,12 @@ def apply_sql_filters(query, data, db=None, user_id=None):
 
         if has_captured and other_levels:
             # Exclude both NULL and other levels
-            query = query.not_.is_("maturity_level", "null")
+            query = query.not_.is_("maturity_level", None)
             if other_levels:
                 query = query.not_.in_("maturity_level", other_levels)
         elif has_captured:
             # Only exclude captured (NULL)
-            query = query.not_.is_("maturity_level", "null")
+            query = query.not_.is_("maturity_level", None)
         elif other_levels:
             # Only exclude specific levels (keep NULL)
             query = query.not_.in_("maturity_level", other_levels)
@@ -994,7 +1004,7 @@ def apply_sql_filters(query, data, db=None, user_id=None):
     if data.has_comment is not None:
         if data.has_comment:
             # Has comment - user_note is not null and not empty
-            query = query.not_.is_("user_note", "null").neq("user_note", "")
+            query = query.not_.is_("user_note", None).neq("user_note", "")
         else:
             # No comment - user_note is null or empty
             # Supabase can't do OR easily, so we use is_null which covers most cases
@@ -1357,7 +1367,7 @@ async def search_faceted(
                     # (user hasn't overridden the category)
                     query2 = db.table("contents").select(
                         FACETED_SEARCH_FIELDS
-                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("iab_tier1", data.categories).is_("user_category", "null")
+                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("iab_tier1", data.categories).is_("user_category", None)
 
                     # Apply concepts filter if present
                     if data.concepts:

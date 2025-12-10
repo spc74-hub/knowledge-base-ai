@@ -153,7 +153,12 @@ export default function MobileContentsPage() {
                         results = results.filter((c: Content) => c.iab_tier1 === selectedCategory);
                     }
                     if (selectedMaturity !== 'all') {
-                        results = results.filter((c: Content) => c.maturity_level === selectedMaturity);
+                        // "captured" includes both null and literal "captured" string
+                        if (selectedMaturity === 'captured') {
+                            results = results.filter((c: Content) => !c.maturity_level || c.maturity_level === 'captured');
+                        } else {
+                            results = results.filter((c: Content) => c.maturity_level === selectedMaturity);
+                        }
                     }
                     if (showFavoritesOnly) {
                         results = results.filter((c: Content) => c.is_favorite);
@@ -347,8 +352,9 @@ export default function MobileContentsPage() {
     };
 
     const getMaturityConfig = (level: string | null) => {
-        if (!level) return null;
-        return MATURITY_LEVELS[level] || null;
+        // If no level or null, treat as "captured" (default state)
+        if (!level) return MATURITY_LEVELS.captured;
+        return MATURITY_LEVELS[level] || MATURITY_LEVELS.captured;
     };
 
     const clearFilters = () => {
@@ -640,8 +646,8 @@ export default function MobileContentsPage() {
                                         onClick={() => openUrl(content)}
                                         className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform ${
                                             isAppleNotes
-                                                ? 'bg-gray-400 text-white cursor-not-allowed'
-                                                : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
+                                                ? 'bg-gray-400/50 text-gray-600 cursor-not-allowed'
+                                                : 'bg-amber-500/70 text-white hover:bg-amber-500/90'
                                         }`}
                                     >
                                         {isAppleNotes ? (

@@ -63,9 +63,12 @@ export default function MobileLayout({
     return (
         <div className={`min-h-screen pb-20 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             {/* Header */}
-            <header className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-4 py-3 sticky top-0 z-40 safe-area-top">
+            <header className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 text-white px-4 py-3 sticky top-0 z-40 safe-area-top">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-lg font-semibold">KBAI</h1>
+                    <div className="flex items-center gap-2">
+                        <img src="/icons/icon-192.png" alt="KBAI" className="w-8 h-8 rounded-lg" />
+                        <h1 className="text-lg font-semibold">KBAI</h1>
+                    </div>
                     <div className="flex items-center gap-3">
                         {/* Dark mode toggle */}
                         <button
