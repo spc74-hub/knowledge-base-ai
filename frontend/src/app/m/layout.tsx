@@ -54,6 +54,7 @@ export default function MobileLayout({
     if (!user) return null;
 
     const navItems = [
+        { href: '/m/dashboard', icon: '🏠', label: 'Panel' },
         { href: '/m/notes', icon: '📝', label: 'Notas' },
         { href: '/m/contents', icon: '📚', label: 'Contenidos' },
         { href: '/m/journal', icon: '📓', label: 'Diario' },
@@ -106,7 +107,7 @@ export default function MobileLayout({
                                 href={item.href}
                                 className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
                                     isActive
-                                        ? 'text-amber-500'
+                                        ? 'text-blue-500'
                                         : darkMode
                                             ? 'text-gray-400 hover:text-gray-200'
                                             : 'text-gray-500 hover:text-gray-700'
