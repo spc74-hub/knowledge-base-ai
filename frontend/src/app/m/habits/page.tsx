@@ -73,7 +73,9 @@ export default function MobileHabitsPage() {
 
             if (response.ok) {
                 const data = await response.json();
-                setHabits(data);
+                // Handle both array and object responses
+                const habitsArray = Array.isArray(data) ? data : (data.habits || data.data || []);
+                setHabits(habitsArray);
             }
         } catch (error) {
             console.error('Error fetching habits:', error);
@@ -257,10 +259,10 @@ export default function MobileHabitsPage() {
 
             {/* Status selection modal */}
             {showStatusModal && statusModalHabit && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-4">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-                        style={{ maxHeight: 'calc(100vh - 60px)' }}
+                        className={`w-full mx-4 rounded-2xl p-4 animate-slide-down ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        style={{ maxHeight: 'calc(100vh - 100px)' }}
                     >
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
@@ -308,16 +310,18 @@ export default function MobileHabitsPage() {
             )}
 
             <style jsx>{`
-                @keyframes slide-up {
+                @keyframes slide-down {
                     from {
-                        transform: translateY(100%);
+                        transform: translateY(-100%);
+                        opacity: 0;
                     }
                     to {
                         transform: translateY(0);
+                        opacity: 1;
                     }
                 }
-                .animate-slide-up {
-                    animation: slide-up 0.3s ease-out;
+                .animate-slide-down {
+                    animation: slide-down 0.3s ease-out;
                 }
                 .scrollbar-hide::-webkit-scrollbar {
                     display: none;

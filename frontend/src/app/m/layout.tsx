@@ -55,6 +55,7 @@ export default function MobileLayout({
 
     const navItems = [
         { href: '/m/notes', icon: '📝', label: 'Notas' },
+        { href: '/m/contents', icon: '📚', label: 'Contenidos' },
         { href: '/m/journal', icon: '📓', label: 'Diario' },
         { href: '/m/habits', icon: '✅', label: 'Habitos' },
     ];

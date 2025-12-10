@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface Note {
@@ -23,15 +23,14 @@ const NOTE_TYPES = {
     journal: { label: 'Diario', icon: '📓', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
     action: { label: 'Accion', icon: '✅', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
     shopping: { label: 'Shopping', icon: '🛒', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' },
-    full_note: { label: 'Completa', icon: '📄', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' },
 } as const;
 
 const PRIORITIES = {
-    important: { label: 'Importante', icon: '🔴' },
-    urgent: { label: 'Urgente', icon: '🟠' },
-    A: { label: 'A', icon: '🔵' },
-    B: { label: 'B', icon: '🔷' },
-    C: { label: 'C', icon: '🩵' },
+    important: { label: 'Importante', icon: '🔴', color: 'bg-red-500' },
+    urgent: { label: 'Urgente', icon: '🟠', color: 'bg-orange-500' },
+    A: { label: 'A', icon: '🔵', color: 'bg-blue-500' },
+    B: { label: 'B', icon: '🔷', color: 'bg-blue-400' },
+    C: { label: 'C', icon: '🩵', color: 'bg-cyan-400' },
 } as const;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -53,17 +52,23 @@ export default function MobileNotesPage() {
     const [showDetail, setShowDetail] = useState(false);
     const [selectedNote, setSelectedNote] = useState<Note | null>(null);
     const [filterType, setFilterType] = useState<string>('all');
+    const [filterPriority, setFilterPriority] = useState<string>('all');
     const [isDark, setIsDark] = useState(false);
+    const [showSidebar, setShowSidebar] = useState(false);
 
-    // Quick note form
+    // Form states
     const [quickContent, setQuickContent] = useState('');
     const [quickType, setQuickType] = useState<string>('reflection');
+    const [quickPriority, setQuickPriority] = useState<string>('');
     const [saving, setSaving] = useState(false);
+    const editorRef = useRef<HTMLDivElement>(null);
 
     // Edit mode
     const [editMode, setEditMode] = useState(false);
     const [editContent, setEditContent] = useState('');
     const [editType, setEditType] = useState('');
+    const [editPriority, setEditPriority] = useState<string>('');
+    const editEditorRef = useRef<HTMLDivElement>(null);
 
     // Check dark mode
     useEffect(() => {
@@ -85,7 +90,7 @@ export default function MobileNotesPage() {
             const requestBody: Record<string, unknown> = {
                 limit: 50,
                 offset: 0,
-                include_full_notes: true,
+                include_full_notes: false,
                 sort_by: 'created_at',
                 sort_order: 'desc',
             };
@@ -105,30 +110,63 @@ export default function MobileNotesPage() {
 
             if (response.ok) {
                 const result = await response.json();
-                setNotes(result.data || []);
+                let notesData = result.data || [];
+
+                // Filter by priority client-side
+                if (filterPriority !== 'all') {
+                    notesData = notesData.filter((n: Note) => n.priority === filterPriority);
+                }
+
+                setNotes(notesData);
             }
         } catch (error) {
             console.error('Error fetching notes:', error);
         } finally {
             setLoading(false);
         }
-    }, [filterType]);
+    }, [filterType, filterPriority]);
 
     useEffect(() => {
         fetchNotes();
     }, [fetchNotes]);
 
+    // Rich text formatting
+    const execCommand = (command: string, value?: string) => {
+        document.execCommand(command, false, value);
+        editorRef.current?.focus();
+    };
+
+    const execEditCommand = (command: string, value?: string) => {
+        document.execCommand(command, false, value);
+        editEditorRef.current?.focus();
+    };
+
     const handleQuickCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!quickContent.trim()) return;
+        const content = editorRef.current?.innerHTML || quickContent;
+        if (!content.trim() || content === '<br>') return;
         setSaving(true);
 
         try {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const firstLine = quickContent.split('\n')[0].trim();
+            const plainText = stripHtmlTags(content);
+            const firstLine = plainText.split('\n')[0].trim();
             const title = firstLine.length > 50 ? firstLine.slice(0, 47) + '...' : firstLine;
+
+            const body: Record<string, unknown> = {
+                title,
+                content,
+                note_type: quickType,
+                tags: [],
+                linked_content_ids: [],
+                linked_note_ids: [],
+            };
+
+            if (quickPriority) {
+                body.priority = quickPriority;
+            }
 
             const response = await fetch(`${API_URL}/api/v1/notes/`, {
                 method: 'POST',
@@ -136,20 +174,15 @@ export default function MobileNotesPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session.data.session.access_token}`,
                 },
-                body: JSON.stringify({
-                    title,
-                    content: quickContent,
-                    note_type: quickType,
-                    tags: [],
-                    linked_content_ids: [],
-                    linked_note_ids: [],
-                }),
+                body: JSON.stringify(body),
             });
 
             if (response.ok) {
                 setShowCreate(false);
                 setQuickContent('');
                 setQuickType('reflection');
+                setQuickPriority('');
+                if (editorRef.current) editorRef.current.innerHTML = '';
                 fetchNotes();
             }
         } catch (error) {
@@ -207,15 +240,43 @@ export default function MobileNotesPage() {
         }
     };
 
+    const handleUpdatePriority = async (note: Note, priority: string | null) => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/notes/${note.id}/priority`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({ priority }),
+            });
+
+            if (response.ok) {
+                fetchNotes();
+                if (selectedNote?.id === note.id) {
+                    setSelectedNote({ ...note, priority });
+                }
+            }
+        } catch (error) {
+            console.error('Error updating priority:', error);
+        }
+    };
+
     const handleUpdateNote = async () => {
-        if (!selectedNote || !editContent.trim()) return;
+        if (!selectedNote) return;
+        const content = editEditorRef.current?.innerHTML || editContent;
+        if (!content.trim()) return;
         setSaving(true);
 
         try {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            const firstLine = editContent.split('\n')[0].trim();
+            const plainText = stripHtmlTags(content);
+            const firstLine = plainText.split('\n')[0].trim();
             const title = firstLine.length > 50 ? firstLine.slice(0, 47) + '...' : firstLine;
 
             const response = await fetch(`${API_URL}/api/v1/notes/${selectedNote.id}`, {
@@ -226,16 +287,20 @@ export default function MobileNotesPage() {
                 },
                 body: JSON.stringify({
                     title,
-                    content: editContent,
+                    content,
                     note_type: editType,
                 }),
             });
 
             if (response.ok) {
+                // Update priority if changed
+                if (editPriority !== (selectedNote.priority || '')) {
+                    await handleUpdatePriority(selectedNote, editPriority || null);
+                }
                 setEditMode(false);
                 fetchNotes();
                 const updated = await response.json();
-                setSelectedNote(updated);
+                setSelectedNote({ ...updated, priority: editPriority || null });
             }
         } catch (error) {
             console.error('Error updating note:', error);
@@ -270,11 +335,19 @@ export default function MobileNotesPage() {
 
     const openNoteDetail = (note: Note) => {
         setSelectedNote(note);
-        setEditContent(stripHtmlTags(note.content));
+        setEditContent(note.content);
         setEditType(note.note_type);
+        setEditPriority(note.priority || '');
         setShowDetail(true);
         setEditMode(false);
     };
+
+    // Set edit content when entering edit mode
+    useEffect(() => {
+        if (editMode && editEditorRef.current && selectedNote) {
+            editEditorRef.current.innerHTML = selectedNote.content;
+        }
+    }, [editMode, selectedNote]);
 
     if (loading && notes.length === 0) {
         return (
@@ -284,37 +357,67 @@ export default function MobileNotesPage() {
         );
     }
 
+    const RichTextToolbar = ({ onCommand, isDark }: { onCommand: (cmd: string, val?: string) => void; isDark: boolean }) => (
+        <div className={`flex flex-wrap gap-1 p-2 border-b ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
+            <button type="button" onClick={() => onCommand('bold')} className={`p-2 rounded font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>B</button>
+            <button type="button" onClick={() => onCommand('italic')} className={`p-2 rounded italic ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>I</button>
+            <button type="button" onClick={() => onCommand('strikeThrough')} className={`p-2 rounded line-through ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>S</button>
+            <span className={`w-px mx-1 ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`}></span>
+            <button type="button" onClick={() => onCommand('formatBlock', 'h1')} className={`p-2 rounded text-sm font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>H1</button>
+            <button type="button" onClick={() => onCommand('formatBlock', 'h2')} className={`p-2 rounded text-sm font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>H2</button>
+            <span className={`w-px mx-1 ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`}></span>
+            <button type="button" onClick={() => onCommand('insertUnorderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>•</button>
+            <button type="button" onClick={() => onCommand('insertOrderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>1.</button>
+        </div>
+    );
+
+    const PrioritySelector = ({ value, onChange, isDark }: { value: string; onChange: (v: string) => void; isDark: boolean }) => (
+        <div className="flex gap-1 items-center">
+            <button
+                type="button"
+                onClick={() => onChange('')}
+                className={`px-2 py-1 rounded text-xs ${!value ? 'bg-gray-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'}`}
+            >
+                Sin
+            </button>
+            {Object.entries(PRIORITIES).map(([key, p]) => (
+                <button
+                    key={key}
+                    type="button"
+                    onClick={() => onChange(key)}
+                    className={`p-1.5 rounded text-sm ${value === key ? p.color + ' text-white' : isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
+                    title={p.label}
+                >
+                    {p.icon}
+                </button>
+            ))}
+        </div>
+    );
+
     return (
         <div className="space-y-4">
-            {/* Quick filters */}
-            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+            {/* Header with filter button */}
+            <div className="flex items-center justify-between">
                 <button
-                    onClick={() => setFilterType('all')}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                        filterType === 'all'
-                            ? 'bg-amber-500 text-white'
-                            : isDark
-                                ? 'bg-gray-700 text-gray-300'
-                                : 'bg-gray-200 text-gray-700'
-                    }`}
+                    onClick={() => setShowSidebar(true)}
+                    className={`p-2 rounded-lg ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600'} shadow-sm`}
                 >
-                    Todas
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
                 </button>
-                {Object.entries(NOTE_TYPES).slice(0, -1).map(([type, config]) => (
-                    <button
-                        key={type}
-                        onClick={() => setFilterType(type)}
-                        className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                            filterType === type
-                                ? 'bg-amber-500 text-white'
-                                : isDark
-                                    ? 'bg-gray-700 text-gray-300'
-                                    : 'bg-gray-200 text-gray-700'
-                        }`}
-                    >
-                        {config.icon} {config.label}
-                    </button>
-                ))}
+                <div className="flex gap-2">
+                    {filterType !== 'all' && (
+                        <span className={`text-xs px-2 py-1 rounded-full ${NOTE_TYPES[filterType as keyof typeof NOTE_TYPES]?.color || 'bg-gray-200'}`}>
+                            {NOTE_TYPES[filterType as keyof typeof NOTE_TYPES]?.icon} {NOTE_TYPES[filterType as keyof typeof NOTE_TYPES]?.label}
+                        </span>
+                    )}
+                    {filterPriority !== 'all' && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-gray-200">
+                            {PRIORITIES[filterPriority as keyof typeof PRIORITIES]?.icon}
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Notes list */}
@@ -328,6 +431,7 @@ export default function MobileNotesPage() {
                     {notes.map(note => {
                         const typeConfig = NOTE_TYPES[note.note_type as keyof typeof NOTE_TYPES] || NOTE_TYPES.reflection;
                         const isAction = note.note_type === 'action';
+                        const priorityConfig = note.priority ? PRIORITIES[note.priority as keyof typeof PRIORITIES] : null;
 
                         return (
                             <div
@@ -363,23 +467,14 @@ export default function MobileNotesPage() {
 
                                     <div className="flex-1 min-w-0">
                                         {/* Header */}
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                                             <span className={`text-xs px-2 py-0.5 rounded-full ${typeConfig.color}`}>
                                                 {typeConfig.icon}
                                             </span>
                                             {note.is_pinned && <span className="text-amber-500">📌</span>}
-                                            {note.priority && (
-                                                <span className="text-xs">
-                                                    {PRIORITIES[note.priority as keyof typeof PRIORITIES]?.icon}
-                                                </span>
-                                            )}
-                                            {note.is_full_note && (
-                                                <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                                    isDark
-                                                        ? 'bg-indigo-900 text-indigo-200'
-                                                        : 'bg-indigo-100 text-indigo-700'
-                                                }`}>
-                                                    Completa
+                                            {priorityConfig && (
+                                                <span className="text-sm" title={priorityConfig.label}>
+                                                    {priorityConfig.icon}
                                                 </span>
                                             )}
                                         </div>
@@ -414,14 +509,93 @@ export default function MobileNotesPage() {
                 +
             </button>
 
-            {/* Create Modal */}
-            {showCreate && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+            {/* Sidebar Filter */}
+            {showSidebar && (
+                <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowSidebar(false)}>
                     <div
-                        className={`w-full rounded-t-2xl overflow-hidden animate-slide-up flex flex-col ${
+                        className={`absolute left-0 top-0 bottom-0 w-72 p-4 animate-slide-right ${
                             isDark ? 'bg-gray-800' : 'bg-white'
                         }`}
-                        style={{ maxHeight: 'calc(100vh - 60px)' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Filtros</h2>
+                            <button onClick={() => setShowSidebar(false)} className={isDark ? 'text-gray-400' : 'text-gray-500'}>✕</button>
+                        </div>
+
+                        {/* Type filter */}
+                        <div className="mb-6">
+                            <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Tipo de nota</h3>
+                            <div className="space-y-2">
+                                <button
+                                    onClick={() => { setFilterType('all'); setShowSidebar(false); }}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+                                        filterType === 'all'
+                                            ? 'bg-amber-500 text-white'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                    }`}
+                                >
+                                    Todas
+                                </button>
+                                {Object.entries(NOTE_TYPES).map(([type, config]) => (
+                                    <button
+                                        key={type}
+                                        onClick={() => { setFilterType(type); setShowSidebar(false); }}
+                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
+                                            filterType === type
+                                                ? 'bg-amber-500 text-white'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                        }`}
+                                    >
+                                        <span>{config.icon}</span>
+                                        <span>{config.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Priority filter */}
+                        <div>
+                            <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Prioridad</h3>
+                            <div className="space-y-2">
+                                <button
+                                    onClick={() => { setFilterPriority('all'); setShowSidebar(false); }}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+                                        filterPriority === 'all'
+                                            ? 'bg-amber-500 text-white'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                    }`}
+                                >
+                                    Todas
+                                </button>
+                                {Object.entries(PRIORITIES).map(([key, p]) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => { setFilterPriority(key); setShowSidebar(false); }}
+                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
+                                            filterPriority === key
+                                                ? 'bg-amber-500 text-white'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                        }`}
+                                    >
+                                        <span>{p.icon}</span>
+                                        <span>{p.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Modal */}
+            {showCreate && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-4 overflow-y-auto">
+                    <div
+                        className={`w-full mx-4 my-4 rounded-2xl overflow-hidden animate-slide-down flex flex-col ${
+                            isDark ? 'bg-gray-800' : 'bg-white'
+                        }`}
+                        style={{ maxHeight: 'calc(100vh - 32px)' }}
                     >
                         <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${
                             isDark ? 'border-gray-700' : 'border-gray-200'
@@ -437,48 +611,61 @@ export default function MobileNotesPage() {
                             </button>
                         </div>
 
-                        <form onSubmit={handleQuickCreate} className="p-4 space-y-4 flex-1 overflow-y-auto">
-                            {/* Type selector */}
-                            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-                                {Object.entries(NOTE_TYPES).filter(([key]) => key !== 'full_note').map(([type, config]) => (
-                                    <button
-                                        key={type}
-                                        type="button"
-                                        onClick={() => setQuickType(type)}
-                                        className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm ${
-                                            quickType === type
-                                                ? config.color
-                                                : isDark
-                                                    ? 'bg-gray-700 text-gray-300'
-                                                    : 'bg-gray-100 text-gray-600'
+                        <form onSubmit={handleQuickCreate} className="flex-1 overflow-y-auto flex flex-col">
+                            <div className="p-4 space-y-4 flex-1">
+                                {/* Type selector */}
+                                <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+                                    {Object.entries(NOTE_TYPES).map(([type, config]) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            onClick={() => setQuickType(type)}
+                                            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm ${
+                                                quickType === type
+                                                    ? config.color
+                                                    : isDark
+                                                        ? 'bg-gray-700 text-gray-300'
+                                                        : 'bg-gray-100 text-gray-600'
+                                            }`}
+                                        >
+                                            {config.icon} {config.label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Priority selector */}
+                                <div>
+                                    <label className={`text-sm font-medium mb-2 block ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Prioridad
+                                    </label>
+                                    <PrioritySelector value={quickPriority} onChange={setQuickPriority} isDark={isDark} />
+                                </div>
+
+                                {/* Rich text editor */}
+                                <div className={`border rounded-xl overflow-hidden ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                                    <RichTextToolbar onCommand={execCommand} isDark={isDark} />
+                                    <div
+                                        ref={editorRef}
+                                        contentEditable
+                                        className={`min-h-[150px] p-3 focus:outline-none ${
+                                            isDark ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'
                                         }`}
-                                    >
-                                        {config.icon} {config.label}
-                                    </button>
-                                ))}
+                                        onInput={(e) => setQuickContent(e.currentTarget.innerHTML)}
+                                        data-placeholder="Escribe tu nota..."
+                                    />
+                                </div>
                             </div>
 
-                            {/* Content input */}
-                            <textarea
-                                value={quickContent}
-                                onChange={(e) => setQuickContent(e.target.value)}
-                                placeholder="Escribe tu nota..."
-                                className={`w-full h-40 p-3 border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                                    isDark
-                                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-500'
-                                }`}
-                                autoFocus
-                            />
-
                             {/* Submit */}
-                            <button
-                                type="submit"
-                                disabled={saving || !quickContent.trim()}
-                                className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl font-medium disabled:opacity-50 active:scale-[0.98] transition-transform"
-                            >
-                                {saving ? 'Guardando...' : 'Guardar Nota'}
-                            </button>
+                            <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl font-medium disabled:opacity-50 active:scale-[0.98] transition-transform"
+                                >
+                                    {saving ? 'Guardando...' : 'Guardar Nota'}
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -486,12 +673,12 @@ export default function MobileNotesPage() {
 
             {/* Detail Modal */}
             {showDetail && selectedNote && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-4 overflow-y-auto">
                     <div
-                        className={`w-full rounded-t-2xl overflow-hidden animate-slide-up flex flex-col ${
+                        className={`w-full mx-4 my-4 rounded-2xl overflow-hidden animate-slide-down flex flex-col ${
                             isDark ? 'bg-gray-800' : 'bg-white'
                         }`}
-                        style={{ maxHeight: 'calc(100vh - 60px)' }}
+                        style={{ maxHeight: 'calc(100vh - 32px)' }}
                     >
                         {/* Header */}
                         <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${
@@ -506,18 +693,21 @@ export default function MobileNotesPage() {
                                         </span>
                                     );
                                 })()}
+                                {selectedNote.priority && (
+                                    <span>{PRIORITIES[selectedNote.priority as keyof typeof PRIORITIES]?.icon}</span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleTogglePin(selectedNote)}
-                                    className={`p-2 rounded-lg ${selectedNote.is_pinned ? 'bg-amber-100 dark:bg-amber-900' : ''}`}
+                                    className={`p-2 rounded-lg ${selectedNote.is_pinned ? (isDark ? 'bg-amber-900' : 'bg-amber-100') : ''}`}
                                 >
                                     📌
                                 </button>
                                 {selectedNote.note_type === 'action' && (
                                     <button
                                         onClick={() => handleToggleComplete(selectedNote)}
-                                        className={`p-2 rounded-lg ${selectedNote.is_completed ? 'bg-green-100 dark:bg-green-900' : ''}`}
+                                        className={`p-2 rounded-lg ${selectedNote.is_completed ? (isDark ? 'bg-green-900' : 'bg-green-100') : ''}`}
                                     >
                                         ✅
                                     </button>
@@ -541,7 +731,7 @@ export default function MobileNotesPage() {
                                 <div className="space-y-4">
                                     {/* Type selector for edit */}
                                     <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-                                        {Object.entries(NOTE_TYPES).filter(([key]) => key !== 'full_note').map(([type, config]) => (
+                                        {Object.entries(NOTE_TYPES).map(([type, config]) => (
                                             <button
                                                 key={type}
                                                 type="button"
@@ -559,30 +749,33 @@ export default function MobileNotesPage() {
                                         ))}
                                     </div>
 
-                                    <textarea
-                                        value={editContent}
-                                        onChange={(e) => setEditContent(e.target.value)}
-                                        className={`w-full h-60 p-3 border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                                            isDark
-                                                ? 'bg-gray-700 border-gray-600 text-white'
-                                                : 'bg-white border-gray-200 text-gray-900'
-                                        }`}
-                                    />
+                                    {/* Priority selector */}
+                                    <div>
+                                        <label className={`text-sm font-medium mb-2 block ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Prioridad
+                                        </label>
+                                        <PrioritySelector value={editPriority} onChange={setEditPriority} isDark={isDark} />
+                                    </div>
+
+                                    {/* Rich text editor */}
+                                    <div className={`border rounded-xl overflow-hidden ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                                        <RichTextToolbar onCommand={execEditCommand} isDark={isDark} />
+                                        <div
+                                            ref={editEditorRef}
+                                            contentEditable
+                                            className={`min-h-[200px] p-3 focus:outline-none ${
+                                                isDark ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'
+                                            }`}
+                                            onInput={(e) => setEditContent(e.currentTarget.innerHTML)}
+                                        />
+                                    </div>
                                 </div>
                             ) : (
                                 <>
-                                    {selectedNote.content.includes('<') ? (
-                                        <div
-                                            className={`prose prose-sm max-w-none ${isDark ? 'prose-invert text-gray-200' : 'text-gray-700'}`}
-                                            dangerouslySetInnerHTML={{ __html: selectedNote.content }}
-                                        />
-                                    ) : (
-                                        <pre className={`whitespace-pre-wrap font-sans text-sm ${
-                                            isDark ? 'text-gray-200' : 'text-gray-700'
-                                        }`}>
-                                            {selectedNote.content}
-                                        </pre>
-                                    )}
+                                    <div
+                                        className={`prose prose-sm max-w-none ${isDark ? 'prose-invert text-gray-200' : 'text-gray-700'}`}
+                                        dangerouslySetInnerHTML={{ __html: selectedNote.content }}
+                                    />
                                     <p className={`text-xs mt-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                         {new Date(selectedNote.created_at).toLocaleString('es-ES')}
                                     </p>
@@ -636,16 +829,29 @@ export default function MobileNotesPage() {
             )}
 
             <style jsx>{`
-                @keyframes slide-up {
+                @keyframes slide-down {
                     from {
-                        transform: translateY(100%);
+                        transform: translateY(-20px);
+                        opacity: 0;
                     }
                     to {
                         transform: translateY(0);
+                        opacity: 1;
                     }
                 }
-                .animate-slide-up {
-                    animation: slide-up 0.3s ease-out;
+                .animate-slide-down {
+                    animation: slide-down 0.3s ease-out;
+                }
+                @keyframes slide-right {
+                    from {
+                        transform: translateX(-100%);
+                    }
+                    to {
+                        transform: translateX(0);
+                    }
+                }
+                .animate-slide-right {
+                    animation: slide-right 0.3s ease-out;
                 }
                 .scrollbar-hide::-webkit-scrollbar {
                     display: none;
@@ -653,6 +859,11 @@ export default function MobileNotesPage() {
                 .scrollbar-hide {
                     -ms-overflow-style: none;
                     scrollbar-width: none;
+                }
+                [contenteditable]:empty:before {
+                    content: attr(data-placeholder);
+                    color: #9ca3af;
+                    pointer-events: none;
                 }
             `}</style>
         </div>
