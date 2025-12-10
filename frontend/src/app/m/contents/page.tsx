@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const PAGE_SIZE = 20;
 
 interface Content {
     id: string;
@@ -13,6 +14,7 @@ interface Content {
     type: string;
     iab_tier1: string | null;
     is_favorite: boolean;
+    maturity_level: string | null;
     created_at: string;
     metadata?: Record<string, unknown> | null;
 }
@@ -38,17 +40,34 @@ const CONTENT_TYPES: Record<string, { icon: string; label: string }> = {
     video: { icon: '🎬', label: 'Video' },
 };
 
+// Maturity levels
+const MATURITY_LEVELS: Record<string, { icon: string; label: string; color: string }> = {
+    captured: { icon: '📥', label: 'Capturado', color: 'bg-gray-500' },
+    processed: { icon: '⚙️', label: 'Procesado', color: 'bg-blue-500' },
+    connected: { icon: '🔗', label: 'Conectado', color: 'bg-purple-500' },
+    integrated: { icon: '✅', label: 'Integrado', color: 'bg-green-500' },
+};
+
 export default function MobileContentsPage() {
     const [contents, setContents] = useState<Content[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [offset, setOffset] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedType, setSelectedType] = useState<string>('all');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const [selectedMaturity, setSelectedMaturity] = useState<string>('all');
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
     const [isDark, setIsDark] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [availableTypes, setAvailableTypes] = useState<Facet[]>([]);
     const [availableCategories, setAvailableCategories] = useState<Facet[]>([]);
+
+    // Action modal state
+    const [actionContent, setActionContent] = useState<Content | null>(null);
+    const [showActionModal, setShowActionModal] = useState(false);
+    const [updatingMaturity, setUpdatingMaturity] = useState(false);
 
     // Check dark mode
     useEffect(() => {
@@ -87,13 +106,19 @@ export default function MobileContentsPage() {
         fetchFacets();
     }, [fetchFacets]);
 
-    const fetchContents = useCallback(async () => {
-        setLoading(true);
+    const fetchContents = useCallback(async (reset: boolean = true) => {
+        if (reset) {
+            setLoading(true);
+            setOffset(0);
+        } else {
+            setLoadingMore(true);
+        }
+
         try {
             const session = await supabase.auth.getSession();
             if (!session.data.session) {
-                console.log('No session found');
                 setLoading(false);
+                setLoadingMore(false);
                 return;
             }
 
@@ -102,6 +127,8 @@ export default function MobileContentsPage() {
                 'Authorization': `Bearer ${session.data.session.access_token}`,
             };
 
+            const currentOffset = reset ? 0 : offset;
+
             // Use global search if there's a query, otherwise faceted search
             if (searchQuery.trim()) {
                 const response = await fetch(`${API_URL}/api/v1/search/global`, {
@@ -109,8 +136,8 @@ export default function MobileContentsPage() {
                     headers,
                     body: JSON.stringify({
                         query: searchQuery,
-                        limit: 30,
-                        offset: 0,
+                        limit: PAGE_SIZE,
+                        offset: currentOffset,
                     }),
                 });
 
@@ -125,19 +152,26 @@ export default function MobileContentsPage() {
                     if (selectedCategory !== 'all') {
                         results = results.filter((c: Content) => c.iab_tier1 === selectedCategory);
                     }
+                    if (selectedMaturity !== 'all') {
+                        results = results.filter((c: Content) => c.maturity_level === selectedMaturity);
+                    }
                     if (showFavoritesOnly) {
                         results = results.filter((c: Content) => c.is_favorite);
                     }
 
-                    setContents(results);
-                } else {
-                    console.error('Global search failed:', response.status);
+                    if (reset) {
+                        setContents(results);
+                    } else {
+                        setContents(prev => [...prev, ...results]);
+                    }
+                    setHasMore(results.length === PAGE_SIZE);
+                    setOffset(currentOffset + PAGE_SIZE);
                 }
             } else {
                 // Faceted search for browsing
                 const requestBody: Record<string, unknown> = {
-                    limit: 30,
-                    offset: 0,
+                    limit: PAGE_SIZE,
+                    offset: currentOffset,
                     sort_by: 'created_at',
                     sort_order: 'desc',
                 };
@@ -147,6 +181,9 @@ export default function MobileContentsPage() {
                 }
                 if (selectedCategory !== 'all') {
                     requestBody.categories = [selectedCategory];
+                }
+                if (selectedMaturity !== 'all') {
+                    requestBody.maturity_level = [selectedMaturity];
                 }
                 if (showFavoritesOnly) {
                     requestBody.is_favorite = true;
@@ -161,32 +198,45 @@ export default function MobileContentsPage() {
                 if (response.ok) {
                     const data = await response.json();
                     const contentsData = data.contents || data.data || data.results || [];
-                    setContents(Array.isArray(contentsData) ? contentsData : []);
-                } else {
-                    console.error('Faceted search failed:', response.status, await response.text());
+                    const resultsArray = Array.isArray(contentsData) ? contentsData : [];
+
+                    if (reset) {
+                        setContents(resultsArray);
+                    } else {
+                        setContents(prev => [...prev, ...resultsArray]);
+                    }
+                    setHasMore(resultsArray.length === PAGE_SIZE);
+                    setOffset(currentOffset + PAGE_SIZE);
                 }
             }
         } catch (error) {
             console.error('Error fetching contents:', error);
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
-    }, [searchQuery, selectedType, selectedCategory, showFavoritesOnly]);
+    }, [searchQuery, selectedType, selectedCategory, selectedMaturity, showFavoritesOnly, offset]);
 
+    // Initial fetch and when filters change
     useEffect(() => {
-        fetchContents();
-    }, [fetchContents]);
+        fetchContents(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchQuery, selectedType, selectedCategory, selectedMaturity, showFavoritesOnly]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchContents();
+        fetchContents(true);
+    };
+
+    const loadMore = () => {
+        if (!loadingMore && hasMore) {
+            fetchContents(false);
+        }
     };
 
     // Get the best URL for the content (handle TikTok special case)
     const getContentUrl = (content: Content): string => {
-        // For TikTok, try to get the original URL from metadata or construct it
         if (content.type === 'tiktok' && content.metadata) {
-            // If we have the original TikTok URL in metadata, use it
             const meta = content.metadata as Record<string, unknown>;
             if (meta.original_url && typeof meta.original_url === 'string') {
                 return meta.original_url;
@@ -201,7 +251,6 @@ export default function MobileContentsPage() {
     const openUrl = (content: Content) => {
         const url = getContentUrl(content);
 
-        // For apple_notes, show a message instead of opening
         if (content.type === 'apple_notes') {
             alert('Este contenido es de Apple Notes y solo esta disponible localmente en tu Mac.');
             return;
@@ -227,23 +276,89 @@ export default function MobileContentsPage() {
                 setContents(prev => prev.map(c =>
                     c.id === content.id ? { ...c, is_favorite: !c.is_favorite } : c
                 ));
+                if (actionContent?.id === content.id) {
+                    setActionContent({ ...content, is_favorite: !content.is_favorite });
+                }
             }
         } catch (error) {
             console.error('Error toggling favorite:', error);
         }
     };
 
+    const updateMaturityLevel = async (content: Content, level: string) => {
+        setUpdatingMaturity(true);
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/contents/${content.id}/maturity`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({ maturity_level: level }),
+            });
+
+            if (response.ok) {
+                setContents(prev => prev.map(c =>
+                    c.id === content.id ? { ...c, maturity_level: level } : c
+                ));
+                setActionContent({ ...content, maturity_level: level });
+            }
+        } catch (error) {
+            console.error('Error updating maturity:', error);
+        } finally {
+            setUpdatingMaturity(false);
+        }
+    };
+
+    const archiveContent = async (content: Content) => {
+        if (!confirm('¿Archivar este contenido?')) return;
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/contents/${content.id}/archive`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                setContents(prev => prev.filter(c => c.id !== content.id));
+                setShowActionModal(false);
+                setActionContent(null);
+            }
+        } catch (error) {
+            console.error('Error archiving content:', error);
+        }
+    };
+
+    const openActionModal = (content: Content) => {
+        setActionContent(content);
+        setShowActionModal(true);
+    };
+
     const getTypeConfig = (type: string) => {
         return CONTENT_TYPES[type] || { icon: '📎', label: type };
+    };
+
+    const getMaturityConfig = (level: string | null) => {
+        if (!level) return null;
+        return MATURITY_LEVELS[level] || null;
     };
 
     const clearFilters = () => {
         setSelectedType('all');
         setSelectedCategory('all');
+        setSelectedMaturity('all');
         setShowFavoritesOnly(false);
     };
 
-    const hasActiveFilters = selectedType !== 'all' || selectedCategory !== 'all' || showFavoritesOnly;
+    const hasActiveFilters = selectedType !== 'all' || selectedCategory !== 'all' || selectedMaturity !== 'all' || showFavoritesOnly;
 
     const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
     const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
@@ -295,7 +410,7 @@ export default function MobileContentsPage() {
 
             {/* Filter panel */}
             {showFilters && (
-                <div className={`rounded-xl p-4 border ${cardClass} space-y-4 max-h-[60vh] overflow-y-auto`}>
+                <div className={`rounded-xl p-4 border ${cardClass} space-y-4 max-h-[70vh] overflow-y-auto`}>
                     {/* Favorites toggle */}
                     <button
                         onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
@@ -311,6 +426,37 @@ export default function MobileContentsPage() {
                         </span>
                         {showFavoritesOnly && <span>✓</span>}
                     </button>
+
+                    {/* Maturity Level filter */}
+                    <div>
+                        <h3 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Nivel de Madurez</h3>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setSelectedMaturity('all')}
+                                className={`px-3 py-1.5 rounded-full text-sm ${
+                                    selectedMaturity === 'all'
+                                        ? 'bg-amber-500 text-white'
+                                        : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                }`}
+                            >
+                                Todos
+                            </button>
+                            {Object.entries(MATURITY_LEVELS).map(([key, config]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setSelectedMaturity(key)}
+                                    className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1 ${
+                                        selectedMaturity === key
+                                            ? 'bg-amber-500 text-white'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                    }`}
+                                >
+                                    <span>{config.icon}</span>
+                                    <span>{config.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
                     {/* Type filter */}
                     <div>
@@ -397,6 +543,11 @@ export default function MobileContentsPage() {
                             ⭐ Favoritos
                         </span>
                     )}
+                    {selectedMaturity !== 'all' && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 flex items-center gap-1">
+                            {MATURITY_LEVELS[selectedMaturity]?.icon} {MATURITY_LEVELS[selectedMaturity]?.label}
+                        </span>
+                    )}
                     {selectedType !== 'all' && (
                         <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 flex items-center gap-1">
                             {getTypeConfig(selectedType).icon} {getTypeConfig(selectedType).label}
@@ -423,87 +574,214 @@ export default function MobileContentsPage() {
                     </p>
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {contents.map((content) => {
-                        const typeConfig = getTypeConfig(content.type);
-                        const isAppleNotes = content.type === 'apple_notes';
+                <>
+                    <div className="space-y-3">
+                        {contents.map((content) => {
+                            const typeConfig = getTypeConfig(content.type);
+                            const maturityConfig = getMaturityConfig(content.maturity_level);
+                            const isAppleNotes = content.type === 'apple_notes';
 
-                        return (
-                            <div
-                                key={content.id}
-                                className={`rounded-xl p-4 shadow-sm border ${cardClass}`}
-                            >
-                                {/* Header with type and favorite */}
-                                <div className="flex items-start justify-between mb-2">
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                        isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                        {typeConfig.icon} {typeConfig.label}
-                                    </span>
-                                    <button
-                                        onClick={(e) => toggleFavorite(content, e)}
-                                        className={`text-lg ${content.is_favorite ? 'text-amber-500' : mutedTextClass}`}
-                                    >
-                                        {content.is_favorite ? '★' : '☆'}
-                                    </button>
-                                </div>
-
-                                {/* Title */}
-                                <h3 className={`font-medium mb-1 line-clamp-2 ${textClass}`}>
-                                    {content.title}
-                                </h3>
-
-                                {/* Summary preview */}
-                                {content.summary && (
-                                    <p className={`text-sm line-clamp-2 mb-3 ${mutedTextClass}`}>
-                                        {content.summary}
-                                    </p>
-                                )}
-
-                                {/* Category */}
-                                {content.iab_tier1 && (
-                                    <p className={`text-xs mb-3 ${mutedTextClass}`}>
-                                        📁 {content.iab_tier1}
-                                    </p>
-                                )}
-
-                                {/* Open URL button */}
-                                <button
-                                    onClick={() => openUrl(content)}
-                                    className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform ${
-                                        isAppleNotes
-                                            ? 'bg-gray-400 text-white cursor-not-allowed'
-                                            : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
-                                    }`}
+                            return (
+                                <div
+                                    key={content.id}
+                                    className={`rounded-xl p-4 shadow-sm border ${cardClass}`}
                                 >
-                                    {isAppleNotes ? (
-                                        <>
-                                            <span>🍎</span>
-                                            Solo en Mac
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                            </svg>
-                                            Abrir contenido
-                                        </>
-                                    )}
-                                </button>
+                                    {/* Header with type, maturity, and favorite */}
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                                            }`}>
+                                                {typeConfig.icon} {typeConfig.label}
+                                            </span>
+                                            {maturityConfig && (
+                                                <span className={`text-xs px-2 py-0.5 rounded-full text-white ${maturityConfig.color}`}>
+                                                    {maturityConfig.icon}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={(e) => toggleFavorite(content, e)}
+                                                className={`text-lg ${content.is_favorite ? 'text-amber-500' : mutedTextClass}`}
+                                            >
+                                                {content.is_favorite ? '★' : '☆'}
+                                            </button>
+                                            <button
+                                                onClick={() => openActionModal(content)}
+                                                className={`p-1 ${mutedTextClass}`}
+                                            >
+                                                ⋮
+                                            </button>
+                                        </div>
+                                    </div>
 
-                                {/* Date */}
-                                <p className={`text-xs mt-2 text-center ${mutedTextClass}`}>
-                                    {new Date(content.created_at).toLocaleDateString('es-ES', {
-                                        day: 'numeric',
-                                        month: 'short',
-                                        year: 'numeric',
-                                    })}
-                                </p>
+                                    {/* Title */}
+                                    <h3 className={`font-medium mb-1 line-clamp-2 ${textClass}`}>
+                                        {content.title}
+                                    </h3>
+
+                                    {/* Summary preview */}
+                                    {content.summary && (
+                                        <p className={`text-sm line-clamp-2 mb-3 ${mutedTextClass}`}>
+                                            {content.summary}
+                                        </p>
+                                    )}
+
+                                    {/* Category */}
+                                    {content.iab_tier1 && (
+                                        <p className={`text-xs mb-3 ${mutedTextClass}`}>
+                                            📁 {content.iab_tier1}
+                                        </p>
+                                    )}
+
+                                    {/* Open URL button */}
+                                    <button
+                                        onClick={() => openUrl(content)}
+                                        className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform ${
+                                            isAppleNotes
+                                                ? 'bg-gray-400 text-white cursor-not-allowed'
+                                                : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
+                                        }`}
+                                    >
+                                        {isAppleNotes ? (
+                                            <>
+                                                <span>🍎</span>
+                                                Solo en Mac
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                </svg>
+                                                Abrir contenido
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {/* Date */}
+                                    <p className={`text-xs mt-2 text-center ${mutedTextClass}`}>
+                                        {new Date(content.created_at).toLocaleDateString('es-ES', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric',
+                                        })}
+                                    </p>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Load More button */}
+                    {hasMore && (
+                        <button
+                            onClick={loadMore}
+                            disabled={loadingMore}
+                            className={`w-full py-3 rounded-xl border ${
+                                isDark ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-600'
+                            } font-medium flex items-center justify-center gap-2`}
+                        >
+                            {loadingMore ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-amber-500"></div>
+                                    Cargando...
+                                </>
+                            ) : (
+                                <>
+                                    <span>📥</span>
+                                    Cargar mas contenidos
+                                </>
+                            )}
+                        </button>
+                    )}
+                </>
+            )}
+
+            {/* Action Modal */}
+            {showActionModal && actionContent && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+                    <div
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        style={{ maxHeight: '80vh' }}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className={`font-semibold ${textClass}`}>
+                                {actionContent.title?.substring(0, 40)}...
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowActionModal(false);
+                                    setActionContent(null);
+                                }}
+                                className={mutedTextClass}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Maturity Level selector */}
+                        <div className="mb-4">
+                            <h4 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Nivel de Madurez</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                {Object.entries(MATURITY_LEVELS).map(([key, config]) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => updateMaturityLevel(actionContent, key)}
+                                        disabled={updatingMaturity}
+                                        className={`p-3 rounded-lg flex items-center gap-2 ${
+                                            actionContent.maturity_level === key
+                                                ? `${config.color} text-white`
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                        }`}
+                                    >
+                                        <span className="text-lg">{config.icon}</span>
+                                        <span className="text-sm">{config.label}</span>
+                                        {actionContent.maturity_level === key && <span className="ml-auto">✓</span>}
+                                    </button>
+                                ))}
                             </div>
-                        );
-                    })}
+                        </div>
+
+                        {/* Quick actions */}
+                        <div className="space-y-2">
+                            <button
+                                onClick={(e) => toggleFavorite(actionContent, e as unknown as React.MouseEvent)}
+                                className={`w-full p-3 rounded-lg flex items-center gap-3 ${
+                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                }`}
+                            >
+                                <span className="text-lg">{actionContent.is_favorite ? '★' : '☆'}</span>
+                                <span>{actionContent.is_favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}</span>
+                            </button>
+
+                            <button
+                                onClick={() => archiveContent(actionContent)}
+                                className={`w-full p-3 rounded-lg flex items-center gap-3 text-red-500 ${
+                                    isDark ? 'bg-gray-700' : 'bg-gray-100'
+                                }`}
+                            >
+                                <span className="text-lg">📦</span>
+                                <span>Archivar contenido</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
+
+            <style jsx>{`
+                @keyframes slide-up {
+                    from {
+                        transform: translateY(100%);
+                    }
+                    to {
+                        transform: translateY(0);
+                    }
+                }
+                .animate-slide-up {
+                    animation: slide-up 0.3s ease-out;
+                }
+            `}</style>
         </div>
     );
 }
