@@ -7,10 +7,13 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface FullNote {
     id: string;
     title: string;
-    raw_content: string;
+    summary: string | null;
+    raw_content?: string;
     user_tags: string[];
     priority: string | null;
     is_favorite: boolean;
@@ -47,8 +50,10 @@ export default function FullNotesPage() {
     const [notes, setNotes] = useState<FullNote[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [appliedSearch, setAppliedSearch] = useState('');
     const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'title'>('updated_at');
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+    const [totalNotes, setTotalNotes] = useState(0);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -59,27 +64,43 @@ export default function FullNotesPage() {
     const fetchNotes = useCallback(async () => {
         setLoading(true);
         try {
-            let query = supabase
-                .from('contents')
-                .select('id, title, raw_content, user_tags, priority, is_favorite, created_at, updated_at')
-                .eq('type', 'note')
-                .eq('is_archived', false)
-                .order(sortBy, { ascending: sortOrder === 'asc' });
-
-            if (searchQuery) {
-                query = query.or(`title.ilike.%${searchQuery}%,raw_content.ilike.%${searchQuery}%`);
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) {
+                console.log('No session');
+                setLoading(false);
+                return;
             }
 
-            const { data, error } = await query;
+            const params = new URLSearchParams({
+                type: 'note',
+                per_page: '100',
+                sort_by: sortBy,
+                sort_order: sortOrder,
+            });
 
-            if (error) throw error;
-            setNotes(data || []);
+            if (appliedSearch) {
+                params.set('q', appliedSearch);
+            }
+
+            const response = await fetch(`${API_URL}/api/v1/content/?${params.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                setNotes(result.data || []);
+                setTotalNotes(result.meta?.total || result.data?.length || 0);
+            } else {
+                console.error('Error fetching full notes:', response.status);
+            }
         } catch (error) {
             console.error('Error fetching full notes:', error);
         } finally {
             setLoading(false);
         }
-    }, [searchQuery, sortBy, sortOrder]);
+    }, [appliedSearch, sortBy, sortOrder]);
 
     useEffect(() => {
         if (user) {
@@ -88,14 +109,20 @@ export default function FullNotesPage() {
     }, [user, fetchNotes]);
 
     const toggleFavorite = async (note: FullNote, e: React.MouseEvent) => {
+        e.preventDefault();
         e.stopPropagation();
         try {
-            const { error } = await supabase
-                .from('contents')
-                .update({ is_favorite: !note.is_favorite })
-                .eq('id', note.id);
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
 
-            if (!error) {
+            const response = await fetch(`${API_URL}/api/v1/content/${note.id}/favorite`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
                 setNotes(prev => prev.map(n =>
                     n.id === note.id ? { ...n, is_favorite: !n.is_favorite } : n
                 ));
@@ -103,6 +130,11 @@ export default function FullNotesPage() {
         } catch (error) {
             console.error('Error toggling favorite:', error);
         }
+    };
+
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        setAppliedSearch(searchQuery);
     };
 
     if (authLoading || loading) {
@@ -126,7 +158,7 @@ export default function FullNotesPage() {
                             <span>📄</span> Full Notes
                         </h1>
                         <span className="text-sm text-gray-500 dark:text-gray-400">
-                            ({notes.length} notas)
+                            ({totalNotes} notas)
                         </span>
                     </div>
                     <div className="flex items-center gap-4">
@@ -144,16 +176,25 @@ export default function FullNotesPage() {
             <div className="max-w-6xl mx-auto px-4 py-6">
                 {/* Filters bar */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 mb-6">
-                    <div className="flex flex-col sm:flex-row gap-4">
+                    <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
                         {/* Search */}
-                        <div className="flex-1">
+                        <div className="flex-1 flex gap-2">
                             <input
                                 type="text"
-                                placeholder="Buscar en notas..."
+                                placeholder="Buscar en notas... (Enter)"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full px-4 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                className="flex-1 px-4 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
                             />
+                            {appliedSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setSearchQuery(''); setAppliedSearch(''); }}
+                                    className="px-3 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
                         {/* Sort */}
                         <div className="flex gap-2">
@@ -167,6 +208,7 @@ export default function FullNotesPage() {
                                 <option value="title">Título</option>
                             </select>
                             <button
+                                type="button"
                                 onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
                                 className="px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
                                 title={sortOrder === 'desc' ? 'Descendente' : 'Ascendente'}
@@ -174,23 +216,35 @@ export default function FullNotesPage() {
                                 {sortOrder === 'desc' ? '↓' : '↑'}
                             </button>
                         </div>
-                    </div>
+                    </form>
+                    {appliedSearch && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            Buscando: &quot;{appliedSearch}&quot;
+                        </p>
+                    )}
                 </div>
 
                 {/* Notes list */}
                 {notes.length === 0 ? (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-12 text-center">
                         <div className="text-6xl mb-4">📄</div>
-                        <h2 className="text-xl font-semibold mb-2 dark:text-white">No tienes Full Notes</h2>
+                        <h2 className="text-xl font-semibold mb-2 dark:text-white">
+                            {appliedSearch ? 'No se encontraron notas' : 'No tienes Full Notes'}
+                        </h2>
                         <p className="text-gray-600 dark:text-gray-400 mb-4">
-                            Las Full Notes son notas completas con editor enriquecido que se guardan como contenido.
+                            {appliedSearch
+                                ? 'Intenta con otros términos de búsqueda'
+                                : 'Las Full Notes son notas completas con editor enriquecido que se guardan como contenido.'
+                            }
                         </p>
-                        <Link
-                            href="/notes/new"
-                            className="inline-block px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700"
-                        >
-                            Crear primera Full Note
-                        </Link>
+                        {!appliedSearch && (
+                            <Link
+                                href="/notes/new"
+                                className="inline-block px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700"
+                            >
+                                Crear primera Full Note
+                            </Link>
+                        )}
                     </div>
                 ) : (
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -213,7 +267,7 @@ export default function FullNotesPage() {
                                 </div>
 
                                 <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3">
-                                    {stripHtmlTags(note.raw_content).slice(0, 150) || 'Sin contenido'}
+                                    {note.summary || stripHtmlTags(note.raw_content || '').slice(0, 150) || 'Sin contenido'}
                                 </p>
 
                                 <div className="flex items-center justify-between text-xs">

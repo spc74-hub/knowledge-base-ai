@@ -4,10 +4,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface FullNote {
     id: string;
     title: string;
-    raw_content: string;
+    summary: string | null;
+    raw_content?: string;
     user_tags: string[];
     priority: string | null;
     is_favorite: boolean;
@@ -37,6 +40,7 @@ export default function MobileFullNotesPage() {
     const [notes, setNotes] = useState<FullNote[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [appliedSearch, setAppliedSearch] = useState('');
     const [isDark, setIsDark] = useState(false);
     const [showSearch, setShowSearch] = useState(false);
 
@@ -54,27 +58,41 @@ export default function MobileFullNotesPage() {
     const fetchNotes = useCallback(async () => {
         setLoading(true);
         try {
-            let query = supabase
-                .from('contents')
-                .select('id, title, raw_content, user_tags, priority, is_favorite, created_at, updated_at')
-                .eq('type', 'note')
-                .eq('is_archived', false)
-                .order('updated_at', { ascending: false });
-
-            if (searchQuery) {
-                query = query.or(`title.ilike.%${searchQuery}%,raw_content.ilike.%${searchQuery}%`);
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) {
+                setLoading(false);
+                return;
             }
 
-            const { data, error } = await query;
+            const params = new URLSearchParams({
+                type: 'note',
+                per_page: '100',
+                sort_by: 'updated_at',
+                sort_order: 'desc',
+            });
 
-            if (error) throw error;
-            setNotes(data || []);
+            if (appliedSearch) {
+                params.set('q', appliedSearch);
+            }
+
+            const response = await fetch(`${API_URL}/api/v1/content/?${params.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                setNotes(result.data || []);
+            } else {
+                console.error('Error fetching full notes:', response.status);
+            }
         } catch (error) {
             console.error('Error fetching full notes:', error);
         } finally {
             setLoading(false);
         }
-    }, [searchQuery]);
+    }, [appliedSearch]);
 
     useEffect(() => {
         fetchNotes();
@@ -84,12 +102,17 @@ export default function MobileFullNotesPage() {
         e.preventDefault();
         e.stopPropagation();
         try {
-            const { error } = await supabase
-                .from('contents')
-                .update({ is_favorite: !note.is_favorite })
-                .eq('id', note.id);
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
 
-            if (!error) {
+            const response = await fetch(`${API_URL}/api/v1/content/${note.id}/favorite`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
                 setNotes(prev => prev.map(n =>
                     n.id === note.id ? { ...n, is_favorite: !n.is_favorite } : n
                 ));
@@ -97,6 +120,10 @@ export default function MobileFullNotesPage() {
         } catch (error) {
             console.error('Error toggling favorite:', error);
         }
+    };
+
+    const handleSearch = () => {
+        setAppliedSearch(searchQuery);
     };
 
     const bgClass = isDark ? 'bg-gray-900' : 'bg-gray-50';
@@ -119,7 +146,7 @@ export default function MobileFullNotesPage() {
             <div className={`sticky top-0 z-10 ${cardClass} border-b ${borderClass} px-4 py-3`}>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <Link href="/m" className={mutedTextClass}>
+                        <Link href="/m/dashboard" className={mutedTextClass}>
                             ←
                         </Link>
                         <h1 className={`text-lg font-bold ${textClass}`}>
@@ -147,19 +174,34 @@ export default function MobileFullNotesPage() {
 
                 {/* Search bar */}
                 {showSearch && (
-                    <div className="mt-3">
+                    <div className="mt-3 flex gap-2">
                         <input
                             type="text"
                             placeholder="Buscar en notas..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className={`w-full px-4 py-2 rounded-lg border ${
+                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                            className={`flex-1 px-4 py-2 rounded-lg border ${
                                 isDark
                                     ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                                     : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
                             }`}
                             autoFocus
                         />
+                        <button
+                            onClick={handleSearch}
+                            className="px-3 py-2 bg-indigo-500 text-white rounded-lg"
+                        >
+                            Buscar
+                        </button>
+                        {appliedSearch && (
+                            <button
+                                onClick={() => { setSearchQuery(''); setAppliedSearch(''); }}
+                                className={`px-3 py-2 ${mutedTextClass}`}
+                            >
+                                ✕
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -170,17 +212,22 @@ export default function MobileFullNotesPage() {
                     <div className={`${cardClass} rounded-xl p-8 text-center`}>
                         <div className="text-5xl mb-4">📄</div>
                         <h2 className={`text-lg font-semibold mb-2 ${textClass}`}>
-                            No tienes Full Notes
+                            {appliedSearch ? 'No se encontraron notas' : 'No tienes Full Notes'}
                         </h2>
                         <p className={`text-sm mb-4 ${mutedTextClass}`}>
-                            Las Full Notes son notas completas con editor enriquecido.
+                            {appliedSearch
+                                ? 'Intenta con otros términos'
+                                : 'Las Full Notes son notas completas con editor enriquecido.'
+                            }
                         </p>
-                        <Link
-                            href="/notes/new"
-                            className="inline-block px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-sm"
-                        >
-                            Crear primera nota
-                        </Link>
+                        {!appliedSearch && (
+                            <Link
+                                href="/notes/new"
+                                className="inline-block px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-sm"
+                            >
+                                Crear primera nota
+                            </Link>
+                        )}
                     </div>
                 ) : (
                     notes.map(note => (
@@ -202,7 +249,7 @@ export default function MobileFullNotesPage() {
                             </div>
 
                             <p className={`text-sm ${mutedTextClass} line-clamp-2 mb-3`}>
-                                {stripHtmlTags(note.raw_content).slice(0, 120) || 'Sin contenido'}
+                                {note.summary || stripHtmlTags(note.raw_content || '').slice(0, 120) || 'Sin contenido'}
                             </p>
 
                             <div className="flex items-center justify-between">
