@@ -56,6 +56,7 @@ class HabitLogCreate(BaseModel):
     status: str = "completed"  # completed, skipped, partial, missed
     value: Optional[int] = 1
     notes: Optional[str] = None
+    is_scheduled: Optional[bool] = None  # True if habit was scheduled for this day, None = auto-detect
 
 
 class BulkLogRequest(BaseModel):
@@ -164,6 +165,19 @@ def calculate_completion_rate(logs: List[dict], start_date: date, end_date: date
     return round((completed_days / total_days) * 100, 1)
 
 
+def is_habit_scheduled_for_date(habit: dict, check_date: date) -> bool:
+    """Check if a habit is scheduled for a specific date based on frequency settings."""
+    freq_type = habit.get("frequency_type", "daily")
+    freq_days = habit.get("frequency_days") or [0, 1, 2, 3, 4, 5, 6]
+
+    if freq_type == "daily":
+        return True
+
+    # Convert to Sunday=0 format
+    day_of_week = (check_date.weekday() + 1) % 7
+    return day_of_week in freq_days
+
+
 def get_day_stats(logs: List[dict]) -> dict:
     """Get completion stats by day of week."""
     day_counts = defaultdict(lambda: {"completed": 0, "total": 0})
@@ -234,12 +248,11 @@ async def get_habits(
 
 @router.get("/today")
 async def get_today_habits(db: Database, current_user: CurrentUser):
-    """Get habits that should be completed today with their status."""
+    """Get habits that should be completed today with their status (only scheduled habits)."""
     try:
         user_id = current_user["id"]
         today = date.today()
         today_str = today.isoformat()
-        day_of_week = (today.weekday() + 1) % 7  # Sunday=0
 
         # Get active habits
         habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
@@ -247,18 +260,71 @@ async def get_today_habits(db: Database, current_user: CurrentUser):
         habits = []
         for habit in (habits_result.data or []):
             # Check if habit should be tracked today
-            freq_days = habit.get("frequency_days") or [0, 1, 2, 3, 4, 5, 6]
-            if habit["frequency_type"] == "daily" or day_of_week in freq_days:
+            if is_habit_scheduled_for_date(habit, today):
                 # Get today's log
                 log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today_str).execute()
                 habit["today_log"] = log.data[0] if log.data else None
                 habit["is_completed"] = habit["today_log"] and habit["today_log"]["status"] == "completed"
+                habit["is_scheduled"] = True
                 habits.append(habit)
 
         # Sort: incomplete first, then by target_time
         habits.sort(key=lambda h: (h["is_completed"], h.get("target_time") or "99:99"))
 
         return {"data": habits, "date": today_str}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/all-for-today")
+async def get_all_habits_for_today(db: Database, current_user: CurrentUser):
+    """
+    Get ALL active habits with their status for today.
+    Includes both scheduled and non-scheduled habits.
+    Each habit has an 'is_scheduled' flag indicating if it was due today.
+    """
+    try:
+        user_id = current_user["id"]
+        today = date.today()
+        today_str = today.isoformat()
+
+        # Get all active habits
+        habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
+
+        habits = []
+        for habit in (habits_result.data or []):
+            # Check if scheduled for today
+            is_scheduled = is_habit_scheduled_for_date(habit, today)
+
+            # Get today's log
+            log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today_str).execute()
+            habit["today_log"] = log.data[0] if log.data else None
+            habit["is_completed"] = habit["today_log"] and habit["today_log"]["status"] == "completed"
+            habit["is_scheduled"] = is_scheduled
+            habits.append(habit)
+
+        # Sort: scheduled first, then incomplete first, then by target_time
+        habits.sort(key=lambda h: (
+            not h["is_scheduled"],  # Scheduled first
+            h["is_completed"],       # Incomplete first
+            h.get("target_time") or "99:99"
+        ))
+
+        # Count stats
+        scheduled_count = len([h for h in habits if h["is_scheduled"]])
+        completed_scheduled = len([h for h in habits if h["is_scheduled"] and h["is_completed"]])
+
+        return {
+            "data": habits,
+            "date": today_str,
+            "stats": {
+                "total_active": len(habits),
+                "scheduled_today": scheduled_count,
+                "completed_scheduled": completed_scheduled,
+                "extra_completed": len([h for h in habits if not h["is_scheduled"] and h["is_completed"]])
+            }
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -447,10 +513,16 @@ async def log_habit(habit_id: str, log: HabitLogCreate, db: Database, current_us
     try:
         user_id = current_user["id"]
 
-        # Verify habit ownership
-        habit = db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
+        # Verify habit ownership and get habit data
+        habit = db.table("habits").select("*").eq("id", habit_id).eq("user_id", user_id).execute()
         if not habit.data:
             raise HTTPException(status_code=404, detail="Habit not found")
+
+        habit_data = habit.data[0]
+
+        # Determine if this habit was scheduled for the log date
+        log_date = datetime.strptime(log.date, "%Y-%m-%d").date()
+        is_scheduled = log.is_scheduled if log.is_scheduled is not None else is_habit_scheduled_for_date(habit_data, log_date)
 
         # Check if log exists for this date
         existing = db.table("habit_logs").select("id").eq("habit_id", habit_id).eq("date", log.date).execute()
@@ -462,6 +534,7 @@ async def log_habit(habit_id: str, log: HabitLogCreate, db: Database, current_us
             "status": log.status,
             "value": log.value,
             "notes": log.notes,
+            "is_scheduled": is_scheduled,
             "completed_at": datetime.now().isoformat() if log.status == "completed" else None,
         }
 
@@ -486,16 +559,23 @@ async def bulk_log_habits(request: BulkLogRequest, db: Database, current_user: C
     try:
         user_id = current_user["id"]
         results = []
+        log_date = datetime.strptime(request.date, "%Y-%m-%d").date()
 
         for log_item in request.logs:
             habit_id = log_item.get("habit_id")
             log_status = log_item.get("status", "completed")
             value = log_item.get("value", 1)
+            explicit_is_scheduled = log_item.get("is_scheduled")
 
-            # Verify ownership
-            habit = db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
+            # Verify ownership and get habit data
+            habit = db.table("habits").select("*").eq("id", habit_id).eq("user_id", user_id).execute()
             if not habit.data:
                 continue
+
+            habit_data = habit.data[0]
+
+            # Determine is_scheduled
+            is_scheduled = explicit_is_scheduled if explicit_is_scheduled is not None else is_habit_scheduled_for_date(habit_data, log_date)
 
             # Check existing
             existing = db.table("habit_logs").select("id").eq("habit_id", habit_id).eq("date", request.date).execute()
@@ -506,6 +586,7 @@ async def bulk_log_habits(request: BulkLogRequest, db: Database, current_user: C
                 "date": request.date,
                 "status": log_status,
                 "value": value,
+                "is_scheduled": is_scheduled,
                 "completed_at": datetime.now().isoformat() if log_status == "completed" else None,
             }
 
@@ -517,6 +598,68 @@ async def bulk_log_habits(request: BulkLogRequest, db: Database, current_user: C
             results.append(result.data[0])
 
         return {"data": results, "message": f"{len(results)} habits logged"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/close-day")
+async def close_day_habits(db: Database, current_user: CurrentUser, target_date: Optional[str] = None):
+    """
+    Mark all scheduled habits without a log as 'missed' for a given date.
+    This should be called when closing the day in the Daily Journal.
+
+    Args:
+        target_date: Date to close (YYYY-MM-DD). Defaults to today.
+
+    Returns:
+        Summary of habits marked as missed.
+    """
+    try:
+        user_id = current_user["id"]
+        close_date = datetime.strptime(target_date, "%Y-%m-%d").date() if target_date else date.today()
+        close_date_str = close_date.isoformat()
+
+        # Get all active habits
+        habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
+        all_habits = habits_result.data or []
+
+        # Get existing logs for this date
+        existing_logs = db.table("habit_logs").select("habit_id").eq("user_id", user_id).eq("date", close_date_str).execute()
+        logged_habit_ids = set(log["habit_id"] for log in (existing_logs.data or []))
+
+        missed_count = 0
+        missed_habits = []
+
+        for habit in all_habits:
+            # Only process scheduled habits that don't have a log
+            if is_habit_scheduled_for_date(habit, close_date) and habit["id"] not in logged_habit_ids:
+                # Create missed log
+                log_data = {
+                    "habit_id": habit["id"],
+                    "user_id": user_id,
+                    "date": close_date_str,
+                    "status": "missed",
+                    "value": 0,
+                    "is_scheduled": True,
+                    "notes": "Auto-marcado como perdido al cerrar el día",
+                }
+
+                db.table("habit_logs").insert(log_data).execute()
+                missed_count += 1
+                missed_habits.append({
+                    "id": habit["id"],
+                    "name": habit["name"],
+                    "icon": habit["icon"]
+                })
+
+        return {
+            "success": True,
+            "date": close_date_str,
+            "missed_count": missed_count,
+            "missed_habits": missed_habits,
+            "message": f"{missed_count} hábito(s) marcado(s) como perdido(s)"
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

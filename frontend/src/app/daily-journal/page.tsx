@@ -48,6 +48,7 @@ interface HabitWithLog {
     icon: string;
     color: string;
     is_completed: boolean;
+    is_scheduled: boolean;  // True if habit is scheduled for today
     today_log: any;
     time_of_day: 'morning' | 'afternoon' | 'evening' | 'anytime';
 }
@@ -308,11 +309,11 @@ export default function DailyJournalPage() {
     // Get active journal (today or past)
     const activeJournal = viewingPastJournal ? pastJournal : journal;
 
-    // Fetch habits
+    // Fetch habits - gets ALL active habits, not just scheduled ones
     const fetchHabits = useCallback(async () => {
         if (!token) return;
         try {
-            const response = await fetch(`${API_URL}/api/v1/habits/today`, {
+            const response = await fetch(`${API_URL}/api/v1/habits/all-for-today`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (response.ok) {
@@ -574,13 +575,35 @@ export default function DailyJournalPage() {
     const handleCloseDay = async () => {
         if (!activeJournal) return;
 
-        const confirmed = confirm(
-            '¿Cerrar el día y generar una nota de diario?\n\nEsto creará una nota Full con el resumen de tu día.'
-        );
+        // Check for pending scheduled habits
+        const pendingScheduledHabits = habits.filter(h => h.is_scheduled && !h.is_completed);
+        let confirmMessage = '¿Cerrar el día y generar una nota de diario?\n\nEsto creará una nota Full con el resumen de tu día.';
+
+        if (pendingScheduledHabits.length > 0) {
+            confirmMessage += `\n\n⚠️ Tienes ${pendingScheduledHabits.length} hábito(s) programado(s) sin completar que se marcarán como "perdidos".`;
+        }
+
+        const confirmed = confirm(confirmMessage);
         if (!confirmed) return;
 
         try {
+            // First, mark pending scheduled habits as missed
+            if (pendingScheduledHabits.length > 0) {
+                await fetch(`${API_URL}/api/v1/habits/close-day`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+            }
+
+            // Then close the journal and generate the note
             await closeDayMutation.mutateAsync();
+
+            // Refresh habits to show updated statuses
+            fetchHabits();
+
             alert('¡Día cerrado! Se ha generado una nota con el resumen de tu día.');
         } catch (error: any) {
             alert(error.message || 'Error al cerrar el día');
@@ -914,7 +937,7 @@ export default function DailyJournalPage() {
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                                     🌅 Hábitos de Mañana
                                     <span className="text-sm font-normal text-gray-500">
-                                        ({habits.filter(h => h.time_of_day === 'morning' && h.is_completed).length}/{habits.filter(h => h.time_of_day === 'morning').length})
+                                        ({habits.filter(h => h.time_of_day === 'morning' && h.is_scheduled && h.is_completed).length}/{habits.filter(h => h.time_of_day === 'morning' && h.is_scheduled).length})
                                     </span>
                                 </h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -922,11 +945,17 @@ export default function DailyJournalPage() {
                                         <button
                                             key={habit.id}
                                             onClick={() => toggleHabit(habit.id, habit.is_completed)}
-                                            className={`p-4 rounded-lg border-2 transition-all ${habit.is_completed
+                                            className={`p-4 rounded-lg border-2 transition-all relative ${habit.is_completed
                                                 ? 'bg-green-50 border-green-500 dark:bg-green-900/20'
-                                                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                                                : habit.is_scheduled
+                                                    ? 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                                                    : 'border-dashed border-gray-300 dark:border-gray-600 opacity-60 hover:opacity-100'
                                                 }`}
+                                            title={habit.is_scheduled ? '' : 'No programado para hoy'}
                                         >
+                                            {!habit.is_scheduled && (
+                                                <span className="absolute top-1 right-1 text-xs text-gray-400">➕</span>
+                                            )}
                                             <span className="text-2xl">{habit.icon}</span>
                                             <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                                 {habit.name}
@@ -1275,6 +1304,9 @@ export default function DailyJournalPage() {
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                         ✅ Hábitos del Día
+                                        <span className="text-sm font-normal text-gray-500">
+                                            ({habits.filter(h => (h.time_of_day === 'anytime' || h.time_of_day === 'afternoon') && h.is_scheduled && h.is_completed).length}/{habits.filter(h => (h.time_of_day === 'anytime' || h.time_of_day === 'afternoon') && h.is_scheduled).length})
+                                        </span>
                                     </h3>
                                     <Link
                                         href="/habits"
@@ -1288,11 +1320,17 @@ export default function DailyJournalPage() {
                                         <button
                                             key={habit.id}
                                             onClick={() => toggleHabit(habit.id, habit.is_completed)}
-                                            className={`p-4 rounded-lg border-2 transition-all ${habit.is_completed
+                                            className={`p-4 rounded-lg border-2 transition-all relative ${habit.is_completed
                                                 ? 'bg-green-50 border-green-500 dark:bg-green-900/20'
-                                                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                                                : habit.is_scheduled
+                                                    ? 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                                                    : 'border-dashed border-gray-300 dark:border-gray-600 opacity-60 hover:opacity-100'
                                                 }`}
+                                            title={habit.is_scheduled ? '' : 'No programado para hoy'}
                                         >
+                                            {!habit.is_scheduled && (
+                                                <span className="absolute top-1 right-1 text-xs text-gray-400">➕</span>
+                                            )}
                                             <span className="text-2xl">{habit.icon}</span>
                                             <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                                 {habit.name}
@@ -1359,17 +1397,26 @@ export default function DailyJournalPage() {
                             <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                                     🌙 Hábitos de Noche
+                                    <span className="text-sm font-normal text-gray-500">
+                                        ({habits.filter(h => h.time_of_day === 'evening' && h.is_scheduled && h.is_completed).length}/{habits.filter(h => h.time_of_day === 'evening' && h.is_scheduled).length})
+                                    </span>
                                 </h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {habits.filter(h => h.time_of_day === 'evening').map((habit) => (
                                         <button
                                             key={habit.id}
                                             onClick={() => toggleHabit(habit.id, habit.is_completed)}
-                                            className={`p-4 rounded-lg border-2 transition-all ${habit.is_completed
+                                            className={`p-4 rounded-lg border-2 transition-all relative ${habit.is_completed
                                                 ? 'bg-green-50 border-green-500 dark:bg-green-900/20'
-                                                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                                                : habit.is_scheduled
+                                                    ? 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                                                    : 'border-dashed border-gray-300 dark:border-gray-600 opacity-60 hover:opacity-100'
                                                 }`}
+                                            title={habit.is_scheduled ? '' : 'No programado para hoy'}
                                         >
+                                            {!habit.is_scheduled && (
+                                                <span className="absolute top-1 right-1 text-xs text-gray-400">➕</span>
+                                            )}
                                             <span className="text-2xl">{habit.icon}</span>
                                             <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                                 {habit.name}
