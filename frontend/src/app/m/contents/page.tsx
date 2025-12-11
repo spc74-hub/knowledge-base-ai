@@ -378,7 +378,7 @@ export default function MobileContentsPage() {
                 linked_note_ids: [],
             };
 
-            const response = await fetch(`${API_URL}/api/v1/notes`, {
+            const response = await fetch(`${API_URL}/api/v1/notes/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
