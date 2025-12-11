@@ -1,64 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-interface TaskItem {
-    id: string;
-    text: string;
-    completed: boolean;
-    time?: string;
-}
-
-interface QuickCapture {
-    id: string;
-    text: string;
-    timestamp: string;
-}
-
-interface ForgivenessItem {
-    id: string;
-    text: string;
-    type: 'self' | 'other' | 'situation';
-}
-
-interface InspirationalContent {
-    quote?: string;
-    quote_author?: string;
-    refran?: string;
-    challenge?: string;
-    question?: string;
-    word?: string;
-}
-
-interface DailyJournal {
-    id: string;
-    date: string;
-    morning_intention: string | null;
-    energy_morning: string | null;
-    energy_noon: string | null;
-    energy_afternoon: string | null;
-    energy_night: string | null;
-    inspirational_content: InspirationalContent | null;
-    big_rock_text: string | null;
-    big_rock_completed: boolean;
-    daily_tasks: TaskItem[];
-    quick_captures: QuickCapture[];
-    wins: string[];
-    gratitudes: string[];
-    learnings: string | null;
-    failures: string | null;
-    forgiveness_items: ForgivenessItem[];
-    do_different: string | null;
-    note_to_tomorrow: string | null;
-    day_rating: number | null;
-    day_word: string | null;
-    is_morning_completed: boolean;
-    is_day_completed: boolean;
-    is_evening_completed: boolean;
-}
+import { useState, useEffect, useRef } from 'react';
+import { useTodayJournal, useUpdateTodayJournal, useCloseDay, useAddQuickCapture, useRefreshInspirational, BigRockItem, JOURNAL_KEYS } from '@/hooks/use-journal';
+import { useQueryClient } from '@tanstack/react-query';
+import { useObjectivesTree } from '@/hooks/use-objectives';
+import { useProjectsTree } from '@/hooks/use-projects';
 
 type EnergyLevel = 'high' | 'medium' | 'low';
 type JournalSection = 'morning' | 'day' | 'evening';
@@ -82,13 +28,18 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function MobileJournalPage() {
-    const [journal, setJournal] = useState<DailyJournal | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
+    const queryClient = useQueryClient();
+    const { data: journal, isLoading, error } = useTodayJournal();
+    const updateJournal = useUpdateTodayJournal();
+    const closeDay = useCloseDay();
+    const addQuickCapture = useAddQuickCapture();
+    const refreshInspirational = useRefreshInspirational();
+    const { data: objectives } = useObjectivesTree();
+    const { data: projects } = useProjectsTree();
+
     const [activeSection, setActiveSection] = useState<JournalSection>('morning');
     const [isDark, setIsDark] = useState(false);
     const [inspirationalCollapsed, setInspirationalCollapsed] = useState(false);
-    const [inspirationalContent, setInspirationalContent] = useState<InspirationalContent | null>(null);
 
     // Form states
     const [morningIntention, setMorningIntention] = useState('');
@@ -96,33 +47,26 @@ export default function MobileJournalPage() {
     const [energyNoon, setEnergyNoon] = useState<EnergyLevel | ''>('');
     const [energyAfternoon, setEnergyAfternoon] = useState<EnergyLevel | ''>('');
     const [energyNight, setEnergyNight] = useState<EnergyLevel | ''>('');
-    const [bigRockText, setBigRockText] = useState('');
-    const [bigRockCompleted, setBigRockCompleted] = useState(false);
-    const [dailyTasks, setDailyTasks] = useState<TaskItem[]>([]);
-    const [newTaskText, setNewTaskText] = useState('');
-    const [quickCaptures, setQuickCaptures] = useState<QuickCapture[]>([]);
+    const [bigRocks, setBigRocks] = useState<BigRockItem[]>([]);
+    const [bigRocksCount, setBigRocksCount] = useState(3);
     const [newCaptureText, setNewCaptureText] = useState('');
     const [wins, setWins] = useState<string[]>(['', '', '']);
     const [gratitudes, setGratitudes] = useState<string[]>(['', '', '']);
     const [learnings, setLearnings] = useState('');
     const [failures, setFailures] = useState('');
-    const [forgivenessItems, setForgivenessItems] = useState<ForgivenessItem[]>([]);
     const [doDifferent, setDoDifferent] = useState('');
     const [noteToTomorrow, setNoteToTomorrow] = useState('');
     const [dayRating, setDayRating] = useState<number | null>(null);
     const [dayWord, setDayWord] = useState('');
-
-    // Section completion states
-    const [isMorningCompleted, setIsMorningCompleted] = useState(false);
-    const [isDayCompleted, setIsDayCompleted] = useState(false);
-    const [isEveningCompleted, setIsEveningCompleted] = useState(false);
+    const [showBigRockSelector, setShowBigRockSelector] = useState(false);
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+    const [isClosing, setIsClosing] = useState(false);
 
     const today = new Date().toISOString().split('T')[0];
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Debounced values for autosave
     const debouncedIntention = useDebounce(morningIntention, 1500);
-    const debouncedBigRock = useDebounce(bigRockText, 1500);
     const debouncedLearnings = useDebounce(learnings, 1500);
     const debouncedFailures = useDebounce(failures, 1500);
     const debouncedDoDifferent = useDebounce(doDifferent, 1500);
@@ -140,99 +84,26 @@ export default function MobileJournalPage() {
         return () => observer.disconnect();
     }, []);
 
-    const fetchJournal = useCallback(async () => {
-        setLoading(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const headers = {
-                'Authorization': `Bearer ${session.data.session.access_token}`,
-                'Content-Type': 'application/json',
-            };
-
-            // Try to get the journal
-            let response = await fetch(`${API_URL}/api/v1/journal/${today}`, { headers });
-
-            // If not found, create it
-            if (response.status === 404) {
-                response = await fetch(`${API_URL}/api/v1/journal`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({ date: today }),
-                });
-            }
-
-            if (response.ok) {
-                const data = await response.json();
-                setJournal(data);
-                populateForm(data);
-            }
-        } catch (error) {
-            console.error('Error fetching journal:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [today]);
-
-    const populateForm = (data: DailyJournal) => {
-        setMorningIntention(data.morning_intention || '');
-        setEnergyMorning((data.energy_morning as EnergyLevel) || '');
-        setEnergyNoon((data.energy_noon as EnergyLevel) || '');
-        setEnergyAfternoon((data.energy_afternoon as EnergyLevel) || '');
-        setEnergyNight((data.energy_night as EnergyLevel) || '');
-        setInspirationalContent(data.inspirational_content || null);
-        setBigRockText(data.big_rock_text || '');
-        setBigRockCompleted(data.big_rock_completed || false);
-        setDailyTasks(data.daily_tasks || []);
-        setQuickCaptures(data.quick_captures || []);
-        setWins(data.wins?.length ? [...data.wins, '', '', ''].slice(0, 3) : ['', '', '']);
-        setGratitudes(data.gratitudes?.length ? [...data.gratitudes, '', '', ''].slice(0, 3) : ['', '', '']);
-        setLearnings(data.learnings || '');
-        setFailures(data.failures || '');
-        setForgivenessItems(data.forgiveness_items || []);
-        setDoDifferent(data.do_different || '');
-        setNoteToTomorrow(data.note_to_tomorrow || '');
-        setDayRating(data.day_rating);
-        setDayWord(data.day_word || '');
-        setIsMorningCompleted(data.is_morning_completed || false);
-        setIsDayCompleted(data.is_day_completed || false);
-        setIsEveningCompleted(data.is_evening_completed || false);
-    };
-
+    // Populate form when journal loads
     useEffect(() => {
-        fetchJournal();
-    }, [fetchJournal]);
-
-    const saveJournal = async (updates: Partial<DailyJournal>, showSaving = true) => {
-        if (showSaving) setSaving(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/journal/${today}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify(updates),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setJournal(data);
-                // Update completion states from response
-                setIsMorningCompleted(data.is_morning_completed);
-                setIsDayCompleted(data.is_day_completed);
-                setIsEveningCompleted(data.is_evening_completed);
-            }
-        } catch (error) {
-            console.error('Error saving journal:', error);
-        } finally {
-            if (showSaving) setSaving(false);
+        if (journal) {
+            setMorningIntention(journal.morning_intention || '');
+            setEnergyMorning((journal.energy_morning as EnergyLevel) || '');
+            setEnergyNoon((journal.energy_noon as EnergyLevel) || '');
+            setEnergyAfternoon((journal.energy_afternoon as EnergyLevel) || '');
+            setEnergyNight((journal.energy_night as EnergyLevel) || '');
+            setBigRocks(journal.big_rocks || []);
+            setBigRocksCount(journal.big_rocks_count || 3);
+            setWins(journal.wins?.length ? [...journal.wins, '', '', ''].slice(0, 3) : ['', '', '']);
+            setGratitudes(journal.gratitudes?.length ? [...journal.gratitudes, '', '', ''].slice(0, 3) : ['', '', '']);
+            setLearnings(journal.learnings || '');
+            setFailures(journal.failures || '');
+            setDoDifferent(journal.do_different || '');
+            setNoteToTomorrow(journal.note_to_tomorrow || '');
+            setDayRating(journal.day_rating);
+            setDayWord(journal.day_word || '');
         }
-    };
+    }, [journal]);
 
     // Autosave effect for text fields
     useEffect(() => {
@@ -240,7 +111,6 @@ export default function MobileJournalPage() {
 
         const hasChanges =
             debouncedIntention !== (journal.morning_intention || '') ||
-            debouncedBigRock !== (journal.big_rock_text || '') ||
             debouncedLearnings !== (journal.learnings || '') ||
             debouncedFailures !== (journal.failures || '') ||
             debouncedDoDifferent !== (journal.do_different || '') ||
@@ -248,105 +118,71 @@ export default function MobileJournalPage() {
             debouncedDayWord !== (journal.day_word || '');
 
         if (hasChanges) {
-            saveJournal({
-                morning_intention: debouncedIntention || null,
-                big_rock_text: debouncedBigRock || null,
-                learnings: debouncedLearnings || null,
-                failures: debouncedFailures || null,
-                do_different: debouncedDoDifferent || null,
-                note_to_tomorrow: debouncedNoteToTomorrow || null,
-                day_word: debouncedDayWord || null,
-            }, false);
+            updateJournal.mutate({
+                morning_intention: debouncedIntention || undefined,
+                learnings: debouncedLearnings || undefined,
+                failures: debouncedFailures || undefined,
+                do_different: debouncedDoDifferent || undefined,
+                note_to_tomorrow: debouncedNoteToTomorrow || undefined,
+                day_word: debouncedDayWord || undefined,
+            });
         }
-    }, [debouncedIntention, debouncedBigRock, debouncedLearnings, debouncedFailures, debouncedDoDifferent, debouncedNoteToTomorrow, debouncedDayWord]);
-
-    // Toggle section completion
-    const toggleSectionComplete = (section: JournalSection) => {
-        if (section === 'morning') {
-            const newValue = !isMorningCompleted;
-            setIsMorningCompleted(newValue);
-            saveJournal({ is_morning_completed: newValue });
-        } else if (section === 'day') {
-            const newValue = !isDayCompleted;
-            setIsDayCompleted(newValue);
-            saveJournal({ is_day_completed: newValue });
-        } else {
-            const newValue = !isEveningCompleted;
-            setIsEveningCompleted(newValue);
-            saveJournal({ is_evening_completed: newValue });
-        }
-    };
+    }, [debouncedIntention, debouncedLearnings, debouncedFailures, debouncedDoDifferent, debouncedNoteToTomorrow, debouncedDayWord]);
 
     // Energy handlers with immediate save
     const handleEnergyChange = (type: 'morning' | 'noon' | 'afternoon' | 'night', value: EnergyLevel) => {
         if (type === 'morning') {
             setEnergyMorning(value);
-            saveJournal({ energy_morning: value }, false);
+            updateJournal.mutate({ energy_morning: value });
         } else if (type === 'noon') {
             setEnergyNoon(value);
-            saveJournal({ energy_noon: value }, false);
+            updateJournal.mutate({ energy_noon: value });
         } else if (type === 'afternoon') {
             setEnergyAfternoon(value);
-            saveJournal({ energy_afternoon: value }, false);
+            updateJournal.mutate({ energy_afternoon: value });
         } else {
             setEnergyNight(value);
-            saveJournal({ energy_night: value }, false);
+            updateJournal.mutate({ energy_night: value });
         }
     };
 
-    // Big rock toggle
-    const toggleBigRock = () => {
-        const newValue = !bigRockCompleted;
-        setBigRockCompleted(newValue);
-        saveJournal({ big_rock_completed: newValue }, false);
+    // Big Rocks handlers
+    const handleBigRocksCountChange = (count: number) => {
+        setBigRocksCount(count);
+        updateJournal.mutate({ big_rocks_count: count });
     };
 
-    // Task handlers
-    const addTask = () => {
-        if (!newTaskText.trim()) return;
-        const newTask: TaskItem = {
+    const addBigRock = (rock: Omit<BigRockItem, 'id' | 'order'>) => {
+        const newRock: BigRockItem = {
+            ...rock,
             id: Date.now().toString(),
-            text: newTaskText.trim(),
-            completed: false,
+            order: bigRocks.length,
         };
-        const newTasks = [...dailyTasks, newTask];
-        setDailyTasks(newTasks);
-        setNewTaskText('');
-        saveJournal({ daily_tasks: newTasks }, false);
+        const newRocks = [...bigRocks, newRock];
+        setBigRocks(newRocks);
+        updateJournal.mutate({ big_rocks: newRocks });
+        setShowBigRockSelector(false);
     };
 
-    const toggleTask = (id: string) => {
-        const newTasks = dailyTasks.map(t =>
-            t.id === id ? { ...t, completed: !t.completed } : t
+    const toggleBigRock = (id: string) => {
+        const newRocks = bigRocks.map(r =>
+            r.id === id ? { ...r, completed: !r.completed } : r
         );
-        setDailyTasks(newTasks);
-        saveJournal({ daily_tasks: newTasks }, false);
+        setBigRocks(newRocks);
+        updateJournal.mutate({ big_rocks: newRocks });
     };
 
-    const removeTask = (id: string) => {
-        const newTasks = dailyTasks.filter(t => t.id !== id);
-        setDailyTasks(newTasks);
-        saveJournal({ daily_tasks: newTasks }, false);
+    const removeBigRock = (id: string) => {
+        const newRocks = bigRocks.filter(r => r.id !== id);
+        setBigRocks(newRocks);
+        updateJournal.mutate({ big_rocks: newRocks });
     };
 
-    // Quick capture handlers
-    const addCapture = () => {
+    // Quick capture handler
+    const handleAddCapture = () => {
         if (!newCaptureText.trim()) return;
-        const newCapture: QuickCapture = {
-            id: Date.now().toString(),
-            text: newCaptureText.trim(),
-            timestamp: new Date().toISOString(),
-        };
-        const newCaptures = [...quickCaptures, newCapture];
-        setQuickCaptures(newCaptures);
+        addQuickCapture.mutate(newCaptureText.trim());
         setNewCaptureText('');
-        saveJournal({ quick_captures: newCaptures }, false);
-    };
-
-    const removeCapture = (id: string) => {
-        const newCaptures = quickCaptures.filter(c => c.id !== id);
-        setQuickCaptures(newCaptures);
-        saveJournal({ quick_captures: newCaptures }, false);
     };
 
     // Wins handler with debounced save
@@ -357,7 +193,7 @@ export default function MobileJournalPage() {
 
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = setTimeout(() => {
-            saveJournal({ wins: newWins.filter(w => w.trim()) }, false);
+            updateJournal.mutate({ wins: newWins.filter(w => w.trim()) });
         }, 1500);
     };
 
@@ -369,45 +205,43 @@ export default function MobileJournalPage() {
 
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = setTimeout(() => {
-            saveJournal({ gratitudes: newGratitudes.filter(g => g.trim()) }, false);
+            updateJournal.mutate({ gratitudes: newGratitudes.filter(g => g.trim()) });
         }, 1500);
     };
 
     // Day rating handler
     const handleRatingChange = (rating: number) => {
         setDayRating(rating);
-        saveJournal({ day_rating: rating }, false);
+        updateJournal.mutate({ day_rating: rating });
     };
 
-    // Forgiveness handlers
-    const addForgivenessItem = (type: 'self' | 'other' | 'situation') => {
-        const newItem: ForgivenessItem = {
-            id: Date.now().toString(),
-            text: '',
-            type,
-        };
-        setForgivenessItems([...forgivenessItems, newItem]);
+    // Close day handler
+    const handleCloseDay = async () => {
+        setIsClosing(true);
+        try {
+            await closeDay.mutateAsync();
+            setShowCloseConfirm(false);
+        } catch (error) {
+            console.error('Error closing day:', error);
+        } finally {
+            setIsClosing(false);
+        }
     };
 
-    const updateForgivenessItem = (id: string, text: string) => {
-        const newItems = forgivenessItems.map(item =>
-            item.id === id ? { ...item, text } : item
-        );
-        setForgivenessItems(newItems);
-
-        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = setTimeout(() => {
-            saveJournal({ forgiveness_items: newItems }, false);
-        }, 1500);
+    // Refresh inspirational content handler
+    const handleRefreshInspirational = async () => {
+        try {
+            const newContent = await refreshInspirational.mutateAsync();
+            if (newContent && journal) {
+                updateJournal.mutate({ inspirational_content: newContent } as any);
+            }
+            queryClient.invalidateQueries({ queryKey: JOURNAL_KEYS.today });
+        } catch (error) {
+            console.error('Error refreshing inspirational content:', error);
+        }
     };
 
-    const removeForgivenessItem = (id: string) => {
-        const newItems = forgivenessItems.filter(item => item.id !== id);
-        setForgivenessItems(newItems);
-        saveJournal({ forgiveness_items: newItems }, false);
-    };
-
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-amber-500"></div>
@@ -415,10 +249,23 @@ export default function MobileJournalPage() {
         );
     }
 
+    if (error) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <p className="text-red-500">Error loading journal</p>
+            </div>
+        );
+    }
+
+    const isMorningCompleted = journal?.is_morning_completed || false;
+    const isDayCompleted = journal?.is_day_completed || false;
+    const isEveningCompleted = journal?.is_evening_completed || false;
+    const inspirationalContent = journal?.inspirational_content;
+
     const sections: { key: JournalSection; label: string; icon: string; completed: boolean }[] = [
         { key: 'morning', label: 'Mañana', icon: '🌅', completed: isMorningCompleted },
-        { key: 'day', label: 'Día', icon: '☀️', completed: isDayCompleted },
-        { key: 'evening', label: 'Noche', icon: '🌙', completed: isEveningCompleted },
+        { key: 'day', label: 'Inbox', icon: '📥', completed: isDayCompleted },
+        { key: 'evening', label: 'Cierre', icon: '🌙', completed: isEveningCompleted },
     ];
 
     const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
@@ -439,7 +286,7 @@ export default function MobileJournalPage() {
                         month: 'long',
                     })}
                 </h2>
-                {saving && <p className={`text-xs ${mutedTextClass}`}>Guardando...</p>}
+                {updateJournal.isPending && <p className={`text-xs ${mutedTextClass}`}>Guardando...</p>}
             </div>
 
             {/* Evangelio del día */}
@@ -472,19 +319,35 @@ export default function MobileJournalPage() {
             {/* Inspirational Content */}
             {inspirationalContent && (inspirationalContent.quote || inspirationalContent.refran || inspirationalContent.challenge || inspirationalContent.question || inspirationalContent.word) && (
                 <div className="rounded-xl overflow-hidden">
-                    <button
-                        onClick={() => setInspirationalCollapsed(!inspirationalCollapsed)}
-                        className="w-full bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-700 p-4 text-white text-left"
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="font-medium">✨ Inspiración del día</span>
-                            <span className={`transition-transform ${inspirationalCollapsed ? '' : 'rotate-180'}`}>▼</span>
-                        </div>
-                    </button>
+                    <div className="flex items-center bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-700 p-4 text-white">
+                        <button
+                            onClick={() => setInspirationalCollapsed(!inspirationalCollapsed)}
+                            className="flex-1 text-left"
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="font-medium">✨ Inspiración del día</span>
+                                <span className={`transition-transform ${inspirationalCollapsed ? '' : 'rotate-180'}`}>▼</span>
+                            </div>
+                        </button>
+                        <button
+                            onClick={handleRefreshInspirational}
+                            disabled={refreshInspirational.isPending}
+                            className="ml-3 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-all disabled:opacity-50"
+                            title="Obtener nuevo contenido"
+                        >
+                            <svg
+                                className={`w-4 h-4 ${refreshInspirational.isPending ? 'animate-spin' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
 
                     {!inspirationalCollapsed && (
                         <div className="bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-700 px-4 pb-4 text-white space-y-4">
-                            {/* Quote */}
                             {inspirationalContent.quote && (
                                 <div>
                                     <p className="text-lg italic font-light">"{inspirationalContent.quote}"</p>
@@ -494,12 +357,10 @@ export default function MobileJournalPage() {
                                 </div>
                             )}
 
-                            {/* Divider */}
                             {inspirationalContent.quote && (inspirationalContent.refran || inspirationalContent.challenge || inspirationalContent.question) && (
                                 <div className="border-t border-white/20" />
                             )}
 
-                            {/* Refran */}
                             {inspirationalContent.refran && (
                                 <div>
                                     <p className="text-xs uppercase tracking-wider opacity-70">Refrán del día:</p>
@@ -507,7 +368,6 @@ export default function MobileJournalPage() {
                                 </div>
                             )}
 
-                            {/* Challenge & Question */}
                             {(inspirationalContent.challenge || inspirationalContent.question) && (
                                 <div className="grid grid-cols-1 gap-3">
                                     {inspirationalContent.challenge && (
@@ -525,12 +385,10 @@ export default function MobileJournalPage() {
                                 </div>
                             )}
 
-                            {/* Divider */}
                             {(inspirationalContent.quote || inspirationalContent.refran || inspirationalContent.challenge || inspirationalContent.question) && inspirationalContent.word && (
                                 <div className="border-t border-white/20" />
                             )}
 
-                            {/* Word of the day */}
                             {inspirationalContent.word && (
                                 <div className="text-center">
                                     <p className="text-xs uppercase tracking-wider opacity-70">Palabra del día</p>
@@ -579,30 +437,68 @@ export default function MobileJournalPage() {
                         />
                     </div>
 
-                    {/* Big Rock */}
+                    {/* Big Rocks - Configurable */}
                     <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className={`font-medium ${textClass}`}>🪨 Roca Grande del Día</h3>
+                            <h3 className={`font-medium ${textClass}`}>🪨 Rocas Grandes ({bigRocks.length}/{bigRocksCount})</h3>
+                            <select
+                                value={bigRocksCount}
+                                onChange={(e) => handleBigRocksCountChange(Number(e.target.value))}
+                                className={`text-sm p-1 rounded border ${inputClass}`}
+                            >
+                                {[1, 2, 3, 4, 5].map(n => (
+                                    <option key={n} value={n}>{n} roca{n > 1 ? 's' : ''}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Existing Big Rocks */}
+                        <div className="space-y-2 mb-3">
+                            {bigRocks.map((rock) => (
+                                <div key={rock.id} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                    <button
+                                        onClick={() => toggleBigRock(rock.id)}
+                                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                            rock.completed
+                                                ? 'bg-green-500 border-green-500 text-white'
+                                                : isDark ? 'border-gray-500' : 'border-gray-300'
+                                        }`}
+                                    >
+                                        {rock.completed && '✓'}
+                                    </button>
+                                    <span className={`flex-1 text-sm ${rock.completed ? 'line-through opacity-60' : ''} ${textClass}`}>
+                                        {rock.text}
+                                        {rock.type !== 'custom' && (
+                                            <span className={`ml-2 text-xs px-1 py-0.5 rounded ${
+                                                rock.type === 'objective'
+                                                    ? (isDark ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-700')
+                                                    : (isDark ? 'bg-purple-900 text-purple-200' : 'bg-purple-100 text-purple-700')
+                                            }`}>
+                                                {rock.type === 'objective' ? 'OBJ' : 'PROY'}
+                                            </span>
+                                        )}
+                                    </span>
+                                    <button
+                                        onClick={() => removeBigRock(rock.id)}
+                                        className="text-red-500 text-xs px-1"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Add Big Rock Button */}
+                        {bigRocks.length < bigRocksCount && (
                             <button
-                                onClick={toggleBigRock}
-                                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                                    bigRockCompleted
-                                        ? 'bg-green-500 border-green-500 text-white'
-                                        : isDark ? 'border-gray-600' : 'border-gray-300'
+                                onClick={() => setShowBigRockSelector(true)}
+                                className={`w-full py-2 rounded-lg border-2 border-dashed ${
+                                    isDark ? 'border-gray-600 text-gray-400' : 'border-gray-300 text-gray-500'
                                 }`}
                             >
-                                {bigRockCompleted && '✓'}
+                                + Añadir roca grande
                             </button>
-                        </div>
-                        <input
-                            type="text"
-                            value={bigRockText}
-                            onChange={(e) => setBigRockText(e.target.value)}
-                            placeholder="Lo más importante que debes lograr hoy"
-                            className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass} ${
-                                bigRockCompleted ? 'line-through opacity-60' : ''
-                            }`}
-                        />
+                        )}
                     </div>
 
                     {/* Morning Energy */}
@@ -628,55 +524,9 @@ export default function MobileJournalPage() {
                         </div>
                     </div>
 
-                    {/* Daily Tasks */}
-                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
-                        <h3 className={`font-medium mb-3 ${textClass}`}>✅ Tareas del día</h3>
-                        <div className="flex gap-2 mb-3">
-                            <input
-                                type="text"
-                                value={newTaskText}
-                                onChange={(e) => setNewTaskText(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && addTask()}
-                                placeholder="Nueva tarea..."
-                                className={`flex-1 p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
-                            />
-                            <button
-                                onClick={addTask}
-                                className="px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium"
-                            >
-                                +
-                            </button>
-                        </div>
-                        <div className="space-y-2">
-                            {dailyTasks.map((task) => (
-                                <div key={task.id} className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => toggleTask(task.id)}
-                                        className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                                            task.completed
-                                                ? 'bg-green-500 border-green-500 text-white'
-                                                : isDark ? 'border-gray-600' : 'border-gray-300'
-                                        }`}
-                                    >
-                                        {task.completed && '✓'}
-                                    </button>
-                                    <span className={`flex-1 text-sm ${task.completed ? 'line-through opacity-60' : ''} ${textClass}`}>
-                                        {task.text}
-                                    </span>
-                                    <button
-                                        onClick={() => removeTask(task.id)}
-                                        className="text-red-500 text-xs px-1"
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
                     {/* Mark complete button */}
                     <button
-                        onClick={() => toggleSectionComplete('morning')}
+                        onClick={() => updateJournal.mutate({ is_morning_completed: !isMorningCompleted })}
                         className={`w-full py-3 rounded-xl font-medium transition-colors ${
                             isMorningCompleted
                                 ? 'bg-green-500 text-white'
@@ -688,40 +538,87 @@ export default function MobileJournalPage() {
                 </div>
             )}
 
-            {/* Day section */}
+            {/* Day section (Inbox) */}
             {activeSection === 'day' && (
                 <div className="space-y-4">
-                    {/* Quick Captures */}
+                    {/* Quick Captures / Inbox */}
                     <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
-                        <h3 className={`font-medium mb-3 ${textClass}`}>📸 Capturas rápidas</h3>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>📥 Inbox - Capturas rápidas</h3>
+                        <p className={`text-xs mb-3 ${mutedTextClass}`}>Captura todo aquí. Clasifica después.</p>
                         <div className="flex gap-2 mb-3">
                             <input
                                 type="text"
                                 value={newCaptureText}
                                 onChange={(e) => setNewCaptureText(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && addCapture()}
-                                placeholder="Captura una idea, pensamiento..."
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddCapture()}
+                                placeholder="Idea, tarea, pensamiento..."
                                 className={`flex-1 p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
                             />
                             <button
-                                onClick={addCapture}
+                                onClick={handleAddCapture}
+                                disabled={addQuickCapture.isPending}
                                 className="px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium"
                             >
                                 +
                             </button>
                         </div>
                         <div className="space-y-2">
-                            {quickCaptures.map((capture) => (
+                            {journal?.quick_captures?.map((capture) => (
                                 <div key={capture.id} className={`flex items-start gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                                     <span className={`flex-1 text-sm ${textClass}`}>{capture.text}</span>
-                                    <button
-                                        onClick={() => removeCapture(capture.id)}
-                                        className="text-red-500 text-xs px-1"
-                                    >
-                                        ✕
-                                    </button>
+                                    <span className={`text-xs ${mutedTextClass}`}>
+                                        {new Date(capture.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
                                 </div>
                             ))}
+                            {(!journal?.quick_captures || journal.quick_captures.length === 0) && (
+                                <p className={`text-center text-sm py-4 ${mutedTextClass}`}>
+                                    Sin capturas aún. ¡Empieza a capturar!
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Energy tracking during day */}
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>⚡ Energía del día</h3>
+                        <div className="space-y-3">
+                            <div>
+                                <p className={`text-xs mb-2 ${mutedTextClass}`}>Mediodía</p>
+                                <div className="flex gap-2">
+                                    {ENERGY_OPTIONS.map((option) => (
+                                        <button
+                                            key={option.value}
+                                            onClick={() => handleEnergyChange('noon', option.value)}
+                                            className={`flex-1 py-2 rounded-lg border text-center text-sm ${
+                                                energyNoon === option.value
+                                                    ? (isDark ? option.darkColor : option.color)
+                                                    : isDark ? 'bg-gray-700 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-600'
+                                            }`}
+                                        >
+                                            {option.icon}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <p className={`text-xs mb-2 ${mutedTextClass}`}>Tarde</p>
+                                <div className="flex gap-2">
+                                    {ENERGY_OPTIONS.map((option) => (
+                                        <button
+                                            key={option.value}
+                                            onClick={() => handleEnergyChange('afternoon', option.value)}
+                                            className={`flex-1 py-2 rounded-lg border text-center text-sm ${
+                                                energyAfternoon === option.value
+                                                    ? (isDark ? option.darkColor : option.color)
+                                                    : isDark ? 'bg-gray-700 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-600'
+                                            }`}
+                                        >
+                                            {option.icon}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -740,55 +637,9 @@ export default function MobileJournalPage() {
                         ))}
                     </div>
 
-                    {/* Noon Energy */}
-                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
-                        <h3 className={`font-medium mb-3 ${textClass}`}>⚡ Energía del mediodía</h3>
-                        <div className="flex gap-2">
-                            {ENERGY_OPTIONS.map((option) => (
-                                <button
-                                    key={option.value}
-                                    onClick={() => handleEnergyChange('noon', option.value)}
-                                    className={`flex-1 py-3 rounded-lg border-2 text-center transition-colors ${
-                                        energyNoon === option.value
-                                            ? (isDark ? option.darkColor : option.color) + ' border-current'
-                                            : isDark
-                                                ? 'bg-gray-700 border-gray-600 text-gray-400'
-                                                : 'bg-gray-50 border-gray-200 text-gray-600'
-                                    }`}
-                                >
-                                    <div className="text-2xl">{option.icon}</div>
-                                    <div className="text-xs mt-1">{option.label}</div>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Afternoon Energy */}
-                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
-                        <h3 className={`font-medium mb-3 ${textClass}`}>⚡ Energía de tarde</h3>
-                        <div className="flex gap-2">
-                            {ENERGY_OPTIONS.map((option) => (
-                                <button
-                                    key={option.value}
-                                    onClick={() => handleEnergyChange('afternoon', option.value)}
-                                    className={`flex-1 py-3 rounded-lg border-2 text-center transition-colors ${
-                                        energyAfternoon === option.value
-                                            ? (isDark ? option.darkColor : option.color) + ' border-current'
-                                            : isDark
-                                                ? 'bg-gray-700 border-gray-600 text-gray-400'
-                                                : 'bg-gray-50 border-gray-200 text-gray-600'
-                                    }`}
-                                >
-                                    <div className="text-2xl">{option.icon}</div>
-                                    <div className="text-xs mt-1">{option.label}</div>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
                     {/* Mark complete button */}
                     <button
-                        onClick={() => toggleSectionComplete('day')}
+                        onClick={() => updateJournal.mutate({ is_day_completed: !isDayCompleted })}
                         className={`w-full py-3 rounded-xl font-medium transition-colors ${
                             isDayCompleted
                                 ? 'bg-green-500 text-white'
@@ -800,9 +651,42 @@ export default function MobileJournalPage() {
                 </div>
             )}
 
-            {/* Evening section */}
+            {/* Evening section (Cierre) */}
             {activeSection === 'evening' && (
                 <div className="space-y-4">
+                    {/* Review Big Rocks */}
+                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                        <h3 className={`font-medium mb-3 ${textClass}`}>🪨 Revisión de Rocas Grandes</h3>
+                        {bigRocks.length > 0 ? (
+                            <div className="space-y-2">
+                                {bigRocks.map((rock) => (
+                                    <div key={rock.id} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                        <button
+                                            onClick={() => toggleBigRock(rock.id)}
+                                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                                rock.completed
+                                                    ? 'bg-green-500 border-green-500 text-white'
+                                                    : isDark ? 'border-gray-500' : 'border-gray-300'
+                                            }`}
+                                        >
+                                            {rock.completed && '✓'}
+                                        </button>
+                                        <span className={`flex-1 text-sm ${rock.completed ? 'line-through opacity-60' : ''} ${textClass}`}>
+                                            {rock.text}
+                                        </span>
+                                    </div>
+                                ))}
+                                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <p className={`text-sm ${mutedTextClass}`}>
+                                        Completadas: {bigRocks.filter(r => r.completed).length}/{bigRocks.length}
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className={`text-sm ${mutedTextClass}`}>No definiste rocas grandes hoy</p>
+                        )}
+                    </div>
+
                     {/* Gratitudes */}
                     <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
                         <h3 className={`font-medium mb-3 ${textClass}`}>🙏 Gratitudes</h3>
@@ -838,57 +722,6 @@ export default function MobileJournalPage() {
                             placeholder="¿Qué falló o no salió como esperabas?"
                             className={`w-full h-20 p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
                         />
-                    </div>
-
-                    {/* Forgiveness */}
-                    <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
-                        <h3 className={`font-medium mb-3 ${textClass}`}>💚 Perdón</h3>
-                        <div className="flex gap-2 mb-3">
-                            <button
-                                onClick={() => addForgivenessItem('self')}
-                                className={`flex-1 py-2 text-xs rounded-lg ${isDark ? 'bg-blue-900 text-blue-200' : 'bg-blue-50 text-blue-700'}`}
-                            >
-                                + A mí
-                            </button>
-                            <button
-                                onClick={() => addForgivenessItem('other')}
-                                className={`flex-1 py-2 text-xs rounded-lg ${isDark ? 'bg-green-900 text-green-200' : 'bg-green-50 text-green-700'}`}
-                            >
-                                + A otros
-                            </button>
-                            <button
-                                onClick={() => addForgivenessItem('situation')}
-                                className={`flex-1 py-2 text-xs rounded-lg ${isDark ? 'bg-purple-900 text-purple-200' : 'bg-purple-50 text-purple-700'}`}
-                            >
-                                + Situación
-                            </button>
-                        </div>
-                        {forgivenessItems.map((item) => (
-                            <div key={item.id} className="flex gap-2 mb-2">
-                                <span className={`text-xs px-2 py-1 rounded ${
-                                    item.type === 'self'
-                                        ? (isDark ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-700')
-                                        : item.type === 'other'
-                                            ? (isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-700')
-                                            : (isDark ? 'bg-purple-900 text-purple-200' : 'bg-purple-100 text-purple-700')
-                                }`}>
-                                    {item.type === 'self' ? '🙋' : item.type === 'other' ? '👥' : '📍'}
-                                </span>
-                                <input
-                                    type="text"
-                                    value={item.text}
-                                    onChange={(e) => updateForgivenessItem(item.id, e.target.value)}
-                                    placeholder="¿Qué perdonas?"
-                                    className={`flex-1 p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${inputClass}`}
-                                />
-                                <button
-                                    onClick={() => removeForgivenessItem(item.id)}
-                                    className="px-2 text-red-500"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        ))}
                     </div>
 
                     {/* Do Different */}
@@ -970,17 +803,124 @@ export default function MobileJournalPage() {
                         />
                     </div>
 
-                    {/* Mark complete button */}
-                    <button
-                        onClick={() => toggleSectionComplete('evening')}
-                        className={`w-full py-3 rounded-xl font-medium transition-colors ${
-                            isEveningCompleted
-                                ? 'bg-green-500 text-white'
-                                : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
-                        }`}
-                    >
-                        {isEveningCompleted ? '✓ Noche completada' : 'Marcar noche como completada'}
-                    </button>
+                    {/* Close Day Button */}
+                    {!journal?.generated_note_id ? (
+                        <button
+                            onClick={() => setShowCloseConfirm(true)}
+                            className="w-full py-4 rounded-xl font-medium bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+                        >
+                            🌙 Cerrar Día y Generar Nota
+                        </button>
+                    ) : (
+                        <div className={`p-4 rounded-xl border ${isDark ? 'bg-green-900/30 border-green-700' : 'bg-green-50 border-green-200'}`}>
+                            <div className="flex items-center gap-2">
+                                <span className="text-green-500 text-xl">✓</span>
+                                <div>
+                                    <p className={`font-medium ${isDark ? 'text-green-200' : 'text-green-800'}`}>Día cerrado</p>
+                                    <p className={`text-xs ${isDark ? 'text-green-300' : 'text-green-600'}`}>Tu Full Note fue generada</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Big Rock Selector Modal */}
+            {showBigRockSelector && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+                    <div className={`w-full max-h-[80vh] overflow-y-auto rounded-t-2xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                        <div className="sticky top-0 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-inherit">
+                            <h3 className={`font-semibold ${textClass}`}>Añadir Roca Grande</h3>
+                            <button onClick={() => setShowBigRockSelector(false)} className="text-gray-500">✕</button>
+                        </div>
+
+                        <div className="p-4 space-y-4">
+                            {/* Custom */}
+                            <div>
+                                <h4 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>Personalizada</h4>
+                                <input
+                                    type="text"
+                                    placeholder="Escribe tu roca grande..."
+                                    className={`w-full p-3 border rounded-lg ${inputClass}`}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                                            addBigRock({ text: e.currentTarget.value.trim(), type: 'custom', ref_id: null, completed: false });
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            {/* From Objectives */}
+                            {objectives && objectives.length > 0 && (
+                                <div>
+                                    <h4 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>De tus Objetivos</h4>
+                                    <div className="space-y-2">
+                                        {objectives.filter(o => o.status === 'active').slice(0, 5).map((obj) => (
+                                            <button
+                                                key={obj.id}
+                                                onClick={() => addBigRock({ text: obj.title, type: 'objective', ref_id: obj.id, completed: false })}
+                                                className={`w-full p-3 text-left rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-blue-50 border-blue-200'}`}
+                                            >
+                                                <span className={`text-sm ${textClass}`}>{obj.title}</span>
+                                                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-700'}`}>
+                                                    Objetivo
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* From Projects */}
+                            {projects && projects.length > 0 && (
+                                <div>
+                                    <h4 className={`text-sm font-medium mb-2 ${mutedTextClass}`}>De tus Proyectos</h4>
+                                    <div className="space-y-2">
+                                        {projects.filter(p => p.status === 'active').slice(0, 5).map((proj) => (
+                                            <button
+                                                key={proj.id}
+                                                onClick={() => addBigRock({ text: proj.name, type: 'project', ref_id: proj.id, completed: false })}
+                                                className={`w-full p-3 text-left rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-purple-50 border-purple-200'}`}
+                                            >
+                                                <span className={`text-sm ${textClass}`}>{proj.name}</span>
+                                                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-purple-900 text-purple-200' : 'bg-purple-100 text-purple-700'}`}>
+                                                    Proyecto
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Close Day Confirmation Modal */}
+            {showCloseConfirm && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className={`w-full max-w-sm rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                        <h3 className={`text-lg font-semibold mb-2 ${textClass}`}>🌙 Cerrar el día</h3>
+                        <p className={`text-sm mb-4 ${mutedTextClass}`}>
+                            Se generará una Full Note con el resumen de tu día usando IA.
+                            Esta acción no se puede deshacer.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowCloseConfirm(false)}
+                                className={`flex-1 py-2 rounded-lg border ${isDark ? 'border-gray-600 text-gray-300' : 'border-gray-300 text-gray-700'}`}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleCloseDay}
+                                disabled={isClosing}
+                                className="flex-1 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium disabled:opacity-50"
+                            >
+                                {isClosing ? 'Generando...' : 'Cerrar día'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

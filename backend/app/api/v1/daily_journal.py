@@ -49,6 +49,15 @@ class ForgivenessItem(BaseModel):
     type: str = "self"  # self, other, situation
 
 
+class BigRockItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    text: str
+    type: str = "custom"  # custom, objective, project
+    ref_id: Optional[str] = None  # ID of linked objective/project
+    completed: bool = False
+    order: int = 0
+
+
 class InspirationalContent(BaseModel):
     quote: Optional[str] = None
     quote_author: Optional[str] = None
@@ -67,7 +76,11 @@ class DailyJournalUpdate(BaseModel):
     morning_intention: Optional[str] = None
     energy_morning: Optional[str] = None
 
-    # Big rock
+    # Big rocks (new array system)
+    big_rocks: Optional[List[BigRockItem]] = None
+    big_rocks_count: Optional[int] = Field(None, ge=1, le=5)
+
+    # Legacy big rock fields (for backwards compatibility)
     big_rock_type: Optional[str] = None  # 'objective', 'project', 'custom'
     big_rock_id: Optional[str] = None
     big_rock_text: Optional[str] = None
@@ -106,6 +119,10 @@ class DailyJournalResponse(BaseModel):
     morning_intention: Optional[str]
     energy_morning: Optional[str]
     inspirational_content: dict
+    # New big rocks array
+    big_rocks: list = []
+    big_rocks_count: int = 3
+    # Legacy fields (for backwards compatibility)
     big_rock_type: Optional[str]
     big_rock_id: Optional[str]
     big_rock_text: Optional[str]
@@ -129,6 +146,7 @@ class DailyJournalResponse(BaseModel):
     is_morning_completed: bool
     is_day_completed: bool
     is_evening_completed: bool
+    generated_note_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -193,6 +211,8 @@ async def get_today_journal(db: Database, current_user: CurrentUser):
         "wins": [],
         "gratitudes": [],
         "forgiveness_items": [],
+        "big_rocks": [],  # New: multiple big rocks
+        "big_rocks_count": 3,  # Default 3 big rocks
         "big_rock_completed": False,
         "is_morning_completed": False,
         "is_day_completed": False,
@@ -274,6 +294,8 @@ async def create_journal_for_date(
         "wins": [],
         "gratitudes": [],
         "forgiveness_items": [],
+        "big_rocks": [],
+        "big_rocks_count": 3,
         "big_rock_completed": False,
         "is_morning_completed": False,
         "is_day_completed": False,
@@ -339,6 +361,8 @@ async def update_today_journal(
         update_data['commitments'] = [c.model_dump() if hasattr(c, 'model_dump') else c for c in update_data['commitments']]
     if 'quick_captures' in update_data and update_data['quick_captures']:
         update_data['quick_captures'] = [q.model_dump() if hasattr(q, 'model_dump') else q for q in update_data['quick_captures']]
+    if 'big_rocks' in update_data and update_data['big_rocks']:
+        update_data['big_rocks'] = [b.model_dump() if hasattr(b, 'model_dump') else b for b in update_data['big_rocks']]
 
     # Update
     result = db.table("daily_journal").update(update_data).eq(
@@ -379,6 +403,8 @@ async def update_journal(
         update_data['commitments'] = [c.model_dump() if hasattr(c, 'model_dump') else c for c in update_data['commitments']]
     if 'quick_captures' in update_data and update_data['quick_captures']:
         update_data['quick_captures'] = [q.model_dump() if hasattr(q, 'model_dump') else q for q in update_data['quick_captures']]
+    if 'big_rocks' in update_data and update_data['big_rocks']:
+        update_data['big_rocks'] = [b.model_dump() if hasattr(b, 'model_dump') else b for b in update_data['big_rocks']]
 
     result = db.table("daily_journal").update(update_data).eq(
         "id", journal_id
@@ -991,4 +1017,215 @@ async def generate_ai_summary(
         raise HTTPException(
             status_code=500,
             detail=f"Error al generar resumen con IA: {str(e)}"
+        )
+
+
+# =====================================================
+# Close Day & Generate Full Note
+# =====================================================
+
+DAILY_NOTE_PROMPT = """Genera un resumen del día en formato markdown para un diario personal.
+El tono debe ser en primera persona, reflexivo y personal.
+
+DATOS DEL DÍA ({date}):
+
+INTENCIÓN DEL DÍA:
+{morning_intention}
+
+BIG ROCKS (Prioridades del día):
+{big_rocks_text}
+
+CAPTURAS DEL DÍA (Inbox):
+{captures_text}
+
+LOGROS/WINS:
+{wins_text}
+
+GRATITUDES:
+{gratitudes_text}
+
+APRENDIZAJES:
+{learnings}
+
+EN QUÉ FALLÉ:
+{failures}
+
+QUÉ HARÍA DIFERENTE:
+{do_different}
+
+PERDONES (a mí mismo, a otros, a situaciones):
+{forgiveness_text}
+
+NOTA PARA MAÑANA:
+{note_to_tomorrow}
+
+VALORACIÓN DEL DÍA: {day_rating}/5
+PALABRA DEL DÍA: {day_word}
+
+---
+
+Genera una nota de diario personal en español con las siguientes secciones:
+
+# Diario - {date}
+
+## Intención y Enfoque
+(Qué me propuse y cómo fue)
+
+## Lo que hice hoy
+(Resumen de las capturas y actividades)
+
+## Victorias del día
+(Los logros, aunque sean pequeños)
+
+## Gratitudes
+(Las cosas buenas)
+
+## Reflexiones
+(Aprendizajes, lo que haría diferente, perdones)
+
+## Mirando a mañana
+(La nota para el día siguiente)
+
+---
+*Valoración: {day_rating}/5 | Palabra del día: {day_word}*
+
+Escribe de forma concisa pero significativa. No repitas textualmente, sintetiza con sentido."""
+
+
+@router.post("/today/close")
+async def close_day_and_generate_note(
+    db: Database,
+    current_user: CurrentUser
+):
+    """
+    Close today's journal and generate a Full Note summarizing the day.
+    This creates a 'note' type content item that can be viewed in Full Notes.
+    """
+    user_id = current_user["id"]
+    today = date.today()
+
+    # Get today's journal
+    result = db.table("daily_journal").select("*").eq(
+        "user_id", user_id
+    ).eq("date", today.isoformat()).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No journal found for today")
+
+    journal = result.data[0]
+
+    # Check if already closed with a note
+    if journal.get('generated_note_id'):
+        raise HTTPException(
+            status_code=400,
+            detail="Este día ya tiene una nota generada"
+        )
+
+    # Prepare data for the prompt
+    big_rocks = journal.get('big_rocks', []) or []
+    big_rocks_text = "\n".join([
+        f"- {'[x]' if br.get('completed') else '[ ]'} {br.get('text', '')}"
+        for br in big_rocks
+    ]) if big_rocks else "No se definieron Big Rocks"
+
+    captures = journal.get('quick_captures', []) or []
+    captures_text = "\n".join([
+        f"- {c.get('text', '')}" for c in captures
+    ]) if captures else "Sin capturas"
+
+    wins = journal.get('wins', []) or []
+    wins_text = "\n".join([f"- {w}" for w in wins]) if wins else "Sin logros registrados"
+
+    gratitudes = journal.get('gratitudes', []) or []
+    gratitudes_text = "\n".join([f"- {g}" for g in gratitudes]) if gratitudes else "Sin gratitudes"
+
+    forgiveness_items = journal.get('forgiveness_items', []) or []
+    forgiveness_text = "\n".join([
+        f"- ({fi.get('type', 'self')}): {fi.get('text', '')}"
+        for fi in forgiveness_items
+    ]) if forgiveness_items else journal.get('forgiveness', 'Sin perdones')
+
+    # Build the prompt
+    prompt = DAILY_NOTE_PROMPT.format(
+        date=today.strftime("%d de %B de %Y"),
+        morning_intention=journal.get('morning_intention') or "Sin intención definida",
+        big_rocks_text=big_rocks_text,
+        captures_text=captures_text,
+        wins_text=wins_text,
+        gratitudes_text=gratitudes_text,
+        learnings=journal.get('learnings') or "Sin aprendizajes",
+        failures=journal.get('failures') or "Sin fallos registrados",
+        do_different=journal.get('do_different') or "Sin reflexión",
+        forgiveness_text=forgiveness_text,
+        note_to_tomorrow=journal.get('note_to_tomorrow') or "Sin nota",
+        day_rating=journal.get('day_rating') or "?",
+        day_word=journal.get('day_word') or "sin definir",
+    )
+
+    try:
+        # Generate note content with Claude
+        client = get_anthropic_client()
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            messages=[{
+                "role": "user",
+                "content": prompt
+            }]
+        )
+
+        note_content = response.content[0].text
+
+        # Track usage
+        if response.usage:
+            await usage_tracker.track_usage(
+                user_id=user_id,
+                provider="anthropic",
+                model="claude-sonnet-4-20250514",
+                operation="journal_daily_note",
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                metadata={"date": today.isoformat()}
+            )
+
+        # Create the Full Note in contents table
+        note_title = f"Diario - {today.strftime('%d %b %Y')}"
+
+        new_note = {
+            "user_id": user_id,
+            "title": note_title,
+            "raw_content": note_content,
+            "type": "note",
+            "url": f"journal://{today.isoformat()}",
+            "processing_status": "completed",
+            "user_tags": ["diario", "journal", today.strftime("%Y-%m")],
+            "is_favorite": False,
+            "is_archived": False,
+        }
+
+        note_result = db.table("contents").insert(new_note).execute()
+
+        if not note_result.data:
+            raise HTTPException(status_code=500, detail="Failed to create note")
+
+        note_id = note_result.data[0]['id']
+
+        # Update journal with the note reference and mark as completed
+        db.table("daily_journal").update({
+            "generated_note_id": note_id,
+            "is_evening_completed": True,
+        }).eq("id", journal['id']).execute()
+
+        return {
+            "success": True,
+            "note_id": note_id,
+            "note_title": note_title,
+            "note_content": note_content,
+            "message": "Día cerrado y nota generada correctamente"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar nota del día: {str(e)}"
         )
