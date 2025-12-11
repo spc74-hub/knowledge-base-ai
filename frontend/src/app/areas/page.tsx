@@ -13,6 +13,7 @@ import {
     type Area
 } from '@/hooks/use-areas';
 import Link from 'next/link';
+import { ICON_CATEGORIES, ICON_CATEGORY_NAMES } from '@/lib/icons';
 
 const STATUS_CONFIG = {
     active: { label: 'Activa', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
@@ -20,7 +21,6 @@ const STATUS_CONFIG = {
     archived: { label: 'Archivada', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
 };
 
-const AREA_ICONS = ['📋', '👨‍👩‍👧‍👦', '💪', '💰', '🎯', '📚', '🏠', '💼', '🧘', '🎨', '✈️', '🤝', '🌱', '⚡', '🔬', '🎵'];
 const AREA_COLORS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
 
 export default function AreasPage() {
@@ -48,6 +48,7 @@ export default function AreasPage() {
     const [formIcon, setFormIcon] = useState('📋');
     const [formColor, setFormColor] = useState('#6366f1');
     const [formStatus, setFormStatus] = useState('active');
+    const [iconCategory, setIconCategory] = useState('Personal');
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -61,6 +62,7 @@ export default function AreasPage() {
         setFormIcon('📋');
         setFormColor('#6366f1');
         setFormStatus('active');
+        setIconCategory('Personal');
     };
 
     const handleCreate = async () => {
@@ -317,16 +319,32 @@ export default function AreasPage() {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Icono
                                     </label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {AREA_ICONS.map((icon) => (
+                                    {/* Category tabs */}
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                        {ICON_CATEGORY_NAMES.map((category) => (
+                                            <button
+                                                key={category}
+                                                onClick={() => setIconCategory(category)}
+                                                className={`px-2 py-1 text-xs rounded ${iconCategory === category ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                            >
+                                                {category}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {/* Icons grid */}
+                                    <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg max-h-32 overflow-y-auto">
+                                        {ICON_CATEGORIES[iconCategory]?.map((icon) => (
                                             <button
                                                 key={icon}
                                                 onClick={() => setFormIcon(icon)}
-                                                className={`text-2xl p-2 rounded-lg ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                                className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                                             >
                                                 {icon}
                                             </button>
                                         ))}
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Seleccionado: {formIcon}
                                     </div>
                                 </div>
 

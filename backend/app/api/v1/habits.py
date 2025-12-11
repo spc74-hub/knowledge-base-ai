@@ -173,9 +173,15 @@ def is_habit_scheduled_for_date(habit: dict, check_date: date) -> bool:
     if freq_type == "daily":
         return True
 
+    # Ensure freq_days contains integers (handle string values from DB)
+    try:
+        freq_days_int = [int(d) for d in freq_days] if freq_days else [0, 1, 2, 3, 4, 5, 6]
+    except (ValueError, TypeError):
+        freq_days_int = [0, 1, 2, 3, 4, 5, 6]
+
     # Convert to Sunday=0 format
     day_of_week = (check_date.weekday() + 1) % 7
-    return day_of_week in freq_days
+    return day_of_week in freq_days_int
 
 
 def get_day_stats(logs: List[dict]) -> dict:
@@ -258,13 +264,15 @@ async def get_today_habits(db: Database, current_user: CurrentUser):
         habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
 
         habits = []
-        for habit in (habits_result.data or []):
+        for habit_data in (habits_result.data or []):
             # Check if habit should be tracked today
-            if is_habit_scheduled_for_date(habit, today):
+            if is_habit_scheduled_for_date(habit_data, today):
+                # Create a copy to avoid modifying the original
+                habit = dict(habit_data)
                 # Get today's log
                 log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today_str).execute()
                 habit["today_log"] = log.data[0] if log.data else None
-                habit["is_completed"] = habit["today_log"] and habit["today_log"]["status"] == "completed"
+                habit["is_completed"] = bool(habit["today_log"] and habit["today_log"].get("status") == "completed")
                 habit["is_scheduled"] = True
                 habits.append(habit)
 
@@ -293,14 +301,17 @@ async def get_all_habits_for_today(db: Database, current_user: CurrentUser):
         habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
 
         habits = []
-        for habit in (habits_result.data or []):
+        for habit_data in (habits_result.data or []):
+            # Create a copy to avoid modifying the original
+            habit = dict(habit_data)
+
             # Check if scheduled for today
             is_scheduled = is_habit_scheduled_for_date(habit, today)
 
             # Get today's log
             log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today_str).execute()
             habit["today_log"] = log.data[0] if log.data else None
-            habit["is_completed"] = habit["today_log"] and habit["today_log"]["status"] == "completed"
+            habit["is_completed"] = bool(habit["today_log"] and habit["today_log"].get("status") == "completed")
             habit["is_scheduled"] = is_scheduled
             habits.append(habit)
 
@@ -326,6 +337,64 @@ async def get_all_habits_for_today(db: Database, current_user: CurrentUser):
             }
         }
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/for-date/{target_date}")
+async def get_habits_for_date(target_date: str, db: Database, current_user: CurrentUser):
+    """
+    Get ALL active habits with their status for a specific date.
+    Includes both scheduled and non-scheduled habits.
+    Each habit has an 'is_scheduled' flag indicating if it was due that day.
+    """
+    try:
+        user_id = current_user["id"]
+        check_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+        date_str = check_date.isoformat()
+
+        # Get all active habits
+        habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
+
+        habits = []
+        for habit_data in (habits_result.data or []):
+            # Create a copy to avoid modifying the original
+            habit = dict(habit_data)
+
+            # Check if scheduled for this date
+            is_scheduled = is_habit_scheduled_for_date(habit, check_date)
+
+            # Get log for the date
+            log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", date_str).execute()
+            habit["today_log"] = log.data[0] if log.data else None
+            habit["is_completed"] = bool(habit["today_log"] and habit["today_log"].get("status") == "completed")
+            habit["is_scheduled"] = is_scheduled
+            habits.append(habit)
+
+        # Sort: scheduled first, then incomplete first, then by target_time
+        habits.sort(key=lambda h: (
+            not h["is_scheduled"],  # Scheduled first
+            h["is_completed"],       # Incomplete first
+            h.get("target_time") or "99:99"
+        ))
+
+        # Count stats
+        scheduled_count = len([h for h in habits if h["is_scheduled"]])
+        completed_scheduled = len([h for h in habits if h["is_scheduled"] and h["is_completed"]])
+
+        return {
+            "data": habits,
+            "date": date_str,
+            "stats": {
+                "total_active": len(habits),
+                "scheduled_today": scheduled_count,
+                "completed_scheduled": completed_scheduled,
+                "extra_completed": len([h for h in habits if not h["is_scheduled"] and h["is_completed"]])
+            }
+        }
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -807,7 +876,7 @@ async def get_calendar_data(year: int, month: int, db: Database, current_user: C
             end_date = f"{year}-{month + 1:02d}-01"
 
         # Get all active habits
-        habits = db.table("habits").select("id, name, icon, color, frequency_type, frequency_days").eq("user_id", user_id).eq("is_active", True).execute()
+        habits = db.table("habits").select("id, name, icon, color, frequency_type, frequency_days, area_id").eq("user_id", user_id).eq("is_active", True).execute()
 
         # Get logs for the month
         logs = db.table("habit_logs").select("*").eq("user_id", user_id).gte("date", start_date).lt("date", end_date).execute()
@@ -835,6 +904,7 @@ async def get_calendar_data(year: int, month: int, db: Database, current_user: C
                         "name": habit["name"],
                         "icon": habit["icon"],
                         "color": habit["color"],
+                        "area_id": habit.get("area_id"),
                         "status": log["status"] if log else None,
                         "log_id": log["id"] if log else None,
                     })
@@ -949,7 +1019,7 @@ async def get_stats_summary(db: Database, current_user: CurrentUser):
         all_logs = logs.data or []
 
         # Get areas
-        areas = db.table("areas").select("id, name, icon").eq("user_id", user_id).execute()
+        areas = db.table("areas_of_responsibility").select("id, name, icon").eq("user_id", user_id).execute()
         area_map = {a["id"]: a for a in (areas.data or [])}
 
         # Calculate stats by period

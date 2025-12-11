@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { ICON_CATEGORIES, ICON_CATEGORY_NAMES } from '@/lib/icons';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -42,6 +43,8 @@ interface CalendarDayData {
         icon: string;
         color: string;
         status: string | null;
+        is_scheduled?: boolean;
+        area_id?: string | null;
     }[];
     completed: number;
     total: number;
@@ -92,7 +95,6 @@ interface StatsSummary {
     };
 }
 
-const HABIT_ICONS = ['✅', '💪', '📚', '🧘', '💧', '🏃', '🥗', '😴', '📝', '🎯', '💰', '🎵', '🌱', '🧠', '⏰', '🙏'];
 const HABIT_COLORS = ['#10b981', '#6366f1', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 const TIME_OF_DAY_OPTIONS = [
     { value: 'anytime', label: 'Cualquier momento', icon: '🕐' },
@@ -100,14 +102,25 @@ const TIME_OF_DAY_OPTIONS = [
     { value: 'afternoon', label: 'Tarde', icon: '☀️' },
     { value: 'evening', label: 'Noche', icon: '🌙' },
 ];
-const DAYS_OF_WEEK = [
-    { value: 0, label: 'Dom' },
+// Days of week starting Monday (for calendar display)
+const DAYS_OF_WEEK_CALENDAR = [
     { value: 1, label: 'Lun' },
     { value: 2, label: 'Mar' },
     { value: 3, label: 'Mie' },
     { value: 4, label: 'Jue' },
     { value: 5, label: 'Vie' },
     { value: 6, label: 'Sab' },
+    { value: 0, label: 'Dom' },
+];
+// Days of week for habit frequency selection (Sunday=0 format for backend)
+const DAYS_OF_WEEK = [
+    { value: 1, label: 'Lun' },
+    { value: 2, label: 'Mar' },
+    { value: 3, label: 'Mie' },
+    { value: 4, label: 'Jue' },
+    { value: 5, label: 'Vie' },
+    { value: 6, label: 'Sab' },
+    { value: 0, label: 'Dom' },
 ];
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -143,6 +156,7 @@ export default function HabitsPage() {
     const [formDays, setFormDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
     const [formTimeOfDay, setFormTimeOfDay] = useState<'morning' | 'afternoon' | 'evening' | 'anytime'>('anytime');
     const [formAreaId, setFormAreaId] = useState('');
+    const [formIconCategory, setFormIconCategory] = useState('Personal');
     const [saving, setSaving] = useState(false);
 
     // Status selection
@@ -153,6 +167,12 @@ export default function HabitsPage() {
     const [showStats, setShowStats] = useState(false);
     const [stats, setStats] = useState<StatsSummary | null>(null);
     const [loadingStats, setLoadingStats] = useState(false);
+
+    // All habits section - collapsed by default
+    const [showAllHabits, setShowAllHabits] = useState(false);
+
+    // Non-scheduled habits for selected day (habits that exist but aren't scheduled for this day)
+    const [nonScheduledHabits, setNonScheduledHabits] = useState<CalendarDayData['habits']>([]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -226,6 +246,7 @@ export default function HabitsPage() {
         }
     }, [user, fetchCalendar]);
 
+
     const fetchStats = useCallback(async () => {
         setLoadingStats(true);
         try {
@@ -263,6 +284,32 @@ export default function HabitsPage() {
         }
     }, [selectedDate, calendarData]);
 
+    // Calculate non-scheduled habits for the selected day
+    useEffect(() => {
+        if (habits.length === 0) {
+            setNonScheduledHabits([]);
+            return;
+        }
+
+        // Get IDs of scheduled habits
+        const scheduledIds = new Set(selectedDayHabits.map(h => h.habit_id));
+
+        // Filter out habits that aren't scheduled for this day
+        const nonScheduled = habits
+            .filter(h => h.is_active && !scheduledIds.has(h.id))
+            .map(h => ({
+                habit_id: h.id,
+                name: h.name,
+                icon: h.icon,
+                color: h.color,
+                status: h.today_log?.status || null,
+                is_scheduled: false,
+                area_id: h.area_id,
+            }));
+
+        setNonScheduledHabits(nonScheduled);
+    }, [habits, selectedDayHabits]);
+
     const resetForm = () => {
         setFormName('');
         setFormDescription('');
@@ -272,6 +319,7 @@ export default function HabitsPage() {
         setFormDays([0, 1, 2, 3, 4, 5, 6]);
         setFormTimeOfDay('anytime');
         setFormAreaId('');
+        setFormIconCategory('Personal');
         setEditingHabit(null);
     };
 
@@ -357,6 +405,8 @@ export default function HabitsPage() {
         }
     };
 
+    const today = new Date().toISOString().split('T')[0];
+
     const handleSetStatus = async (habitId: string, status: string) => {
         try {
             const session = await supabase.auth.getSession();
@@ -424,10 +474,10 @@ export default function HabitsPage() {
     };
 
     const goToToday = () => {
-        const today = new Date();
-        setCalendarYear(today.getFullYear());
-        setCalendarMonth(today.getMonth() + 1);
-        setSelectedDate(today.toISOString().split('T')[0]);
+        const now = new Date();
+        setCalendarYear(now.getFullYear());
+        setCalendarMonth(now.getMonth() + 1);
+        setSelectedDate(now.toISOString().split('T')[0]);
     };
 
     const getStatusColor = (status: string | null) => {
@@ -460,9 +510,18 @@ export default function HabitsPage() {
 
     if (!user) return null;
 
-    const today = new Date().toISOString().split('T')[0];
     const selectedDateObj = new Date(selectedDate + 'T12:00:00');
-    const isToday = selectedDate === today;
+    const isViewingToday = selectedDate === today;
+
+    // Use calendar data for the selected day
+    const displayHabits = selectedDayHabits;
+    const scheduledCount = selectedDayHabits.length;
+
+    // Helper to get area info
+    const getAreaInfo = (areaId: string | null | undefined) => {
+        if (!areaId) return null;
+        return areas.find(a => a.id === areaId);
+    };
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -489,46 +548,46 @@ export default function HabitsPage() {
             {/* Main content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Calendar */}
-                    <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                    {/* Calendar - Compact */}
+                    <div className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3">
                         {/* Calendar navigation */}
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center justify-between mb-2">
                             <button
                                 onClick={prevMonth}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300"
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300 text-sm"
                             >
                                 ←
                             </button>
-                            <div className="flex items-center gap-3">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                                     {MONTHS[calendarMonth - 1]} {calendarYear}
                                 </h2>
                                 <button
                                     onClick={goToToday}
-                                    className="text-xs px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800"
+                                    className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800"
                                 >
                                     Hoy
                                 </button>
                             </div>
                             <button
                                 onClick={nextMonth}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300"
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300 text-sm"
                             >
                                 →
                             </button>
                         </div>
 
-                        {/* Calendar grid */}
-                        <div className="grid grid-cols-7 gap-1">
-                            {/* Header */}
-                            {DAYS_OF_WEEK.map((day) => (
-                                <div key={day.value} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-2">
-                                    {day.label}
+                        {/* Calendar grid - Compact */}
+                        <div className="grid grid-cols-7 gap-0.5">
+                            {/* Header - Monday first */}
+                            {DAYS_OF_WEEK_CALENDAR.map((day) => (
+                                <div key={day.value} className="text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 py-1">
+                                    {day.label.charAt(0)}
                                 </div>
                             ))}
 
-                            {/* Empty cells for alignment */}
-                            {calendarData.length > 0 && Array.from({ length: calendarData[0].day_of_week }).map((_, i) => (
+                            {/* Empty cells for alignment - convert Sunday=0 to Monday=0 */}
+                            {calendarData.length > 0 && Array.from({ length: (calendarData[0].day_of_week + 6) % 7 }).map((_, i) => (
                                 <div key={`empty-${i}`} className="aspect-square"></div>
                             ))}
 
@@ -544,9 +603,9 @@ export default function HabitsPage() {
                                     <button
                                         key={day.date}
                                         onClick={() => setSelectedDate(day.date)}
-                                        className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all relative ${
+                                        className={`aspect-square rounded flex flex-col items-center justify-center text-xs transition-all relative ${
                                             isSelected
-                                                ? 'bg-green-600 text-white ring-2 ring-green-400'
+                                                ? 'bg-green-600 text-white'
                                                 : isDayToday
                                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
                                                 : 'hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -558,16 +617,16 @@ export default function HabitsPage() {
 
                                         {/* Habit indicators */}
                                         {hasHabits && (
-                                            <div className="flex gap-0.5 mt-0.5">
+                                            <div className="flex gap-0.5">
                                                 {allDone ? (
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`}></span>
+                                                    <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`}></span>
                                                 ) : someProgress ? (
                                                     <>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`}></span>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/50' : 'bg-gray-300 dark:bg-gray-500'}`}></span>
+                                                        <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`}></span>
+                                                        <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white/50' : 'bg-gray-300 dark:bg-gray-500'}`}></span>
                                                     </>
                                                 ) : (
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/50' : 'bg-gray-300 dark:bg-gray-500'}`}></span>
+                                                    <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white/50' : 'bg-gray-300 dark:bg-gray-500'}`}></span>
                                                 )}
                                             </div>
                                         )}
@@ -576,71 +635,88 @@ export default function HabitsPage() {
                             })}
                         </div>
 
-                        {/* Legend */}
-                        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
-                            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full"></span> Todo completado</span>
-                            <span className="flex items-center gap-1"><span className="w-2 h-2 bg-gray-300 dark:bg-gray-500 rounded-full"></span> Pendiente</span>
+                        {/* Legend - Compact */}
+                        <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t dark:border-gray-700 text-[10px] text-gray-500 dark:text-gray-400">
+                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Completado</span>
+                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-gray-300 dark:bg-gray-500 rounded-full"></span> Pendiente</span>
                         </div>
                     </div>
 
-                    {/* Habits list panel */}
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                    {/* Habits list panel - Expanded */}
+                    <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                         {/* Selected date header */}
-                        <div className="p-4 border-b dark:border-gray-700">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">
-                                {isToday ? 'Hoy' : selectedDateObj.toLocaleDateString('es-ES', {
-                                    weekday: 'long',
-                                    day: 'numeric',
-                                    month: 'long',
-                                })}
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {selectedDayHabits.length} habito{selectedDayHabits.length !== 1 ? 's' : ''} programado{selectedDayHabits.length !== 1 ? 's' : ''}
-                            </p>
+                        <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
+                            <div>
+                                <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
+                                    {isViewingToday ? 'Hoy' : selectedDateObj.toLocaleDateString('es-ES', {
+                                        weekday: 'long',
+                                        day: 'numeric',
+                                        month: 'long',
+                                    })}
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {scheduledCount} programado{scheduledCount !== 1 ? 's' : ''} · {displayHabits.filter(h => h.status === 'completed').length} completado{displayHabits.filter(h => h.status === 'completed').length !== 1 ? 's' : ''}
+                                </p>
+                            </div>
+                            {/* Progress indicator */}
+                            {scheduledCount > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-green-500 transition-all duration-300"
+                                            style={{ width: `${(displayHabits.filter(h => h.status === 'completed').length / scheduledCount) * 100}%` }}
+                                        />
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                                        {Math.round((displayHabits.filter(h => h.status === 'completed').length / scheduledCount) * 100)}%
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Habits for selected day */}
-                        <div className="divide-y dark:divide-gray-700 max-h-[400px] overflow-y-auto">
-                            {selectedDayHabits.length === 0 ? (
+                        <div className="max-h-[500px] overflow-y-auto">
+                            {displayHabits.length === 0 && nonScheduledHabits.length === 0 ? (
                                 <div className="p-6 text-center text-gray-500 dark:text-gray-400">
                                     <div className="text-3xl mb-2">📅</div>
-                                    <p>No hay habitos para este dia</p>
+                                    <p>No hay habitos</p>
                                 </div>
                             ) : (
-                                selectedDayHabits.map((habit) => (
-                                    <div
-                                        key={habit.habit_id}
-                                        className="p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                                    >
-                                        {/* Status indicator / button */}
-                                        <button
-                                            onClick={() => {
-                                                setStatusModalHabit(habit);
-                                                setShowStatusModal(true);
-                                            }}
-                                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                                                habit.status
-                                                    ? `${getStatusColor(habit.status)} text-white`
-                                                    : 'border-2 border-gray-300 dark:border-gray-500 hover:border-green-500'
-                                            }`}
+                                // Group habits by area
+                                (() => {
+                                    const renderHabit = (habit: typeof displayHabits[0], isScheduled: boolean = true) => (
+                                        <div
+                                            key={habit.habit_id}
+                                            className={`p-2 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg ${!isScheduled ? 'opacity-60' : ''}`}
                                         >
-                                            {habit.status ? getStatusIcon(habit.status) : ''}
-                                        </button>
+                                            {/* Status indicator / button */}
+                                            <button
+                                                onClick={() => {
+                                                    setStatusModalHabit(habit);
+                                                    setShowStatusModal(true);
+                                                }}
+                                                className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                                                    habit.status
+                                                        ? `${getStatusColor(habit.status)} text-white`
+                                                        : isScheduled
+                                                        ? 'border-2 border-gray-300 dark:border-gray-500 hover:border-green-500'
+                                                        : 'border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-green-500'
+                                                }`}
+                                            >
+                                                {habit.status ? getStatusIcon(habit.status) : ''}
+                                            </button>
 
-                                        {/* Habit info */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
+                                            {/* Habit info */}
+                                            <div className="flex-1 min-w-0 flex items-center gap-2">
                                                 <span>{habit.icon}</span>
-                                                <span className={`font-medium text-gray-900 dark:text-white ${
+                                                <span className={`font-medium text-gray-900 dark:text-white text-sm ${
                                                     habit.status === 'completed' ? 'line-through opacity-60' : ''
                                                 }`}>
                                                     {habit.name}
                                                 </span>
                                             </div>
-                                        </div>
 
-                                        {/* Quick actions */}
-                                        <div className="flex gap-1">
+                                            {/* Quick actions */}
                                             <Link
                                                 href={`/habits/${habit.habit_id}`}
                                                 className="p-1 text-gray-400 hover:text-indigo-600"
@@ -649,17 +725,93 @@ export default function HabitsPage() {
                                                 📊
                                             </Link>
                                         </div>
-                                    </div>
-                                ))
+                                    );
+
+                                    // Group scheduled habits by area
+                                    const scheduledByArea: Record<string, typeof displayHabits> = {};
+                                    const scheduledNoArea: typeof displayHabits = [];
+
+                                    displayHabits.forEach(habit => {
+                                        if (habit.area_id) {
+                                            if (!scheduledByArea[habit.area_id]) {
+                                                scheduledByArea[habit.area_id] = [];
+                                            }
+                                            scheduledByArea[habit.area_id].push(habit);
+                                        } else {
+                                            scheduledNoArea.push(habit);
+                                        }
+                                    });
+
+                                    const sortedAreaIds = Object.keys(scheduledByArea).sort((a, b) => {
+                                        const areaA = areas.find(ar => ar.id === a);
+                                        const areaB = areas.find(ar => ar.id === b);
+                                        return (areaA?.name || '').localeCompare(areaB?.name || '');
+                                    });
+
+                                    return (
+                                        <div className="p-2 space-y-2">
+                                            {/* Scheduled habits section */}
+                                            {displayHabits.length > 0 && (
+                                                <div className="space-y-2">
+                                                    {/* Areas with habits */}
+                                                    {sortedAreaIds.map(areaId => {
+                                                        const areaInfo = areas.find(a => a.id === areaId);
+                                                        const areaHabits = scheduledByArea[areaId];
+
+                                                        return (
+                                                            <div key={areaId}>
+                                                                <div className="flex items-center gap-2 px-2 py-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg mb-1">
+                                                                    <span className="text-sm">{areaInfo?.icon || '📁'}</span>
+                                                                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                                                        {areaInfo?.name || 'Area'}
+                                                                    </span>
+                                                                </div>
+                                                                {areaHabits.map(h => renderHabit(h, true))}
+                                                            </div>
+                                                        );
+                                                    })}
+
+                                                    {/* Scheduled habits without area */}
+                                                    {scheduledNoArea.length > 0 && (
+                                                        <div>
+                                                            {sortedAreaIds.length > 0 && (
+                                                                <div className="flex items-center gap-2 px-2 py-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg mb-1">
+                                                                    <span className="text-sm">📋</span>
+                                                                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Sin area</span>
+                                                                </div>
+                                                            )}
+                                                            {scheduledNoArea.map(h => renderHabit(h, true))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Non-scheduled habits section */}
+                                            {nonScheduledHabits.length > 0 && (
+                                                <div className="mt-4 pt-3 border-t border-dashed dark:border-gray-700">
+                                                    <div className="flex items-center gap-2 px-2 py-1 mb-2">
+                                                        <span className="text-sm">📅</span>
+                                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                            Otros habitos ({nonScheduledHabits.length})
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-1">
+                                                        {nonScheduledHabits.map(h => renderHabit(h, false))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()
                             )}
                         </div>
 
                         {/* Quick complete all button */}
-                        {selectedDayHabits.length > 0 && selectedDayHabits.some(h => !h.status) && (
+                        {displayHabits.length > 0 && displayHabits.some(h => !h.status) && (
                             <div className="p-3 border-t dark:border-gray-700">
                                 <button
                                     onClick={async () => {
-                                        for (const habit of selectedDayHabits) {
+                                        for (const habit of displayHabits) {
                                             if (!habit.status) {
                                                 await handleSetStatus(habit.habit_id, 'completed');
                                             }
@@ -825,14 +977,21 @@ export default function HabitsPage() {
                     )}
                 </div>
 
-                {/* All habits section */}
+                {/* All habits section - grouped by area, collapsible */}
                 <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                    <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-900 dark:text-white">Todos los habitos</h3>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">{habits.length} habito{habits.length !== 1 ? 's' : ''}</span>
-                    </div>
+                    <button
+                        onClick={() => setShowAllHabits(!showAllHabits)}
+                        className="w-full p-4 flex items-center justify-between text-left"
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className="text-lg">📋</span>
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Todos los habitos</h3>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">({habits.length})</span>
+                        </div>
+                        <span className={`transition-transform ${showAllHabits ? 'rotate-180' : ''}`}>▼</span>
+                    </button>
 
-                    {habits.length === 0 ? (
+                    {showAllHabits && habits.length === 0 ? (
                         <div className="p-8 text-center">
                             <div className="text-4xl mb-3">✨</div>
                             <p className="text-gray-600 dark:text-gray-400 mb-4">Crea tu primer habito para empezar</p>
@@ -843,52 +1002,163 @@ export default function HabitsPage() {
                                 + Crear habito
                             </button>
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-4">
-                            {habits.map((habit) => (
-                                <div
-                                    key={habit.id}
-                                    className="p-3 rounded-lg border dark:border-gray-700 hover:shadow-md transition-shadow"
-                                >
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <span
-                                                className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
-                                                style={{ backgroundColor: habit.color + '20' }}
-                                            >
-                                                {habit.icon}
-                                            </span>
+                    ) : showAllHabits && habits.length > 0 ? (
+                        <div className="border-t dark:border-gray-700 p-4 space-y-4">
+                            {/* Group habits by area */}
+                            {(() => {
+                                // Build area groups
+                                const habitsByArea: Record<string, Habit[]> = {};
+                                const noAreaHabits: Habit[] = [];
+
+                                habits.forEach(habit => {
+                                    if (habit.area_id) {
+                                        if (!habitsByArea[habit.area_id]) {
+                                            habitsByArea[habit.area_id] = [];
+                                        }
+                                        habitsByArea[habit.area_id].push(habit);
+                                    } else {
+                                        noAreaHabits.push(habit);
+                                    }
+                                });
+
+                                // Sort areas by name
+                                const sortedAreaIds = Object.keys(habitsByArea).sort((a, b) => {
+                                    const areaA = areas.find(ar => ar.id === a);
+                                    const areaB = areas.find(ar => ar.id === b);
+                                    return (areaA?.name || '').localeCompare(areaB?.name || '');
+                                });
+
+                                return (
+                                    <>
+                                        {/* Areas with habits */}
+                                        {sortedAreaIds.map(areaId => {
+                                            const areaInfo = areas.find(a => a.id === areaId);
+                                            const areaHabits = habitsByArea[areaId];
+
+                                            return (
+                                                <div key={areaId}>
+                                                    {/* Area header */}
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <span className="text-lg">{areaInfo?.icon || '📁'}</span>
+                                                        <h4 className="font-medium text-gray-900 dark:text-white">
+                                                            {areaInfo?.name || 'Area desconocida'}
+                                                        </h4>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                            ({areaHabits.length} habito{areaHabits.length !== 1 ? 's' : ''})
+                                                        </span>
+                                                    </div>
+                                                    {/* Habits grid */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                                        {areaHabits.map((habit) => (
+                                                            <div
+                                                                key={habit.id}
+                                                                className="p-3 rounded-lg border dark:border-gray-700 hover:shadow-md transition-shadow"
+                                                            >
+                                                                <div className="flex items-start justify-between">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span
+                                                                            className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+                                                                            style={{ backgroundColor: habit.color + '20' }}
+                                                                        >
+                                                                            {habit.icon}
+                                                                        </span>
+                                                                        <div>
+                                                                            <h4 className="font-medium text-gray-900 dark:text-white text-sm">{habit.name}</h4>
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                                {habit.frequency_type === 'daily' ? 'Diario' :
+                                                                                 habit.frequency_days?.length === 7 ? 'Todos los dias' :
+                                                                                 `${habit.frequency_days?.length || 0} dias/sem`}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex gap-1">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const fullHabit = habits.find(h => h.id === habit.id);
+                                                                                if (fullHabit) openEditModal(fullHabit);
+                                                                            }}
+                                                                            className="p-1 text-gray-400 hover:text-blue-600 text-sm"
+                                                                        >
+                                                                            ✏️
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDelete(habit)}
+                                                                            className="p-1 text-gray-400 hover:text-red-600 text-sm"
+                                                                        >
+                                                                            🗑️
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+
+                                        {/* Habits without area */}
+                                        {noAreaHabits.length > 0 && (
                                             <div>
-                                                <h4 className="font-medium text-gray-900 dark:text-white text-sm">{habit.name}</h4>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    {habit.frequency_type === 'daily' ? 'Diario' :
-                                                     habit.frequency_days?.length === 7 ? 'Todos los dias' :
-                                                     `${habit.frequency_days?.length || 0} dias/sem`}
-                                                </p>
+                                                {/* No area header */}
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="text-lg">📋</span>
+                                                    <h4 className="font-medium text-gray-900 dark:text-white">Sin area</h4>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                        ({noAreaHabits.length} habito{noAreaHabits.length !== 1 ? 's' : ''})
+                                                    </span>
+                                                </div>
+                                                {/* Habits grid */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                                    {noAreaHabits.map((habit) => (
+                                                        <div
+                                                            key={habit.id}
+                                                            className="p-3 rounded-lg border dark:border-gray-700 hover:shadow-md transition-shadow"
+                                                        >
+                                                            <div className="flex items-start justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span
+                                                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+                                                                        style={{ backgroundColor: habit.color + '20' }}
+                                                                    >
+                                                                        {habit.icon}
+                                                                    </span>
+                                                                    <div>
+                                                                        <h4 className="font-medium text-gray-900 dark:text-white text-sm">{habit.name}</h4>
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                            {habit.frequency_type === 'daily' ? 'Diario' :
+                                                                             habit.frequency_days?.length === 7 ? 'Todos los dias' :
+                                                                             `${habit.frequency_days?.length || 0} dias/sem`}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex gap-1">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const fullHabit = habits.find(h => h.id === habit.id);
+                                                                            if (fullHabit) openEditModal(fullHabit);
+                                                                        }}
+                                                                        className="p-1 text-gray-400 hover:text-blue-600 text-sm"
+                                                                    >
+                                                                        ✏️
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDelete(habit)}
+                                                                        className="p-1 text-gray-400 hover:text-red-600 text-sm"
+                                                                    >
+                                                                        🗑️
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex gap-1">
-                                            <button
-                                                onClick={() => {
-                                                    const fullHabit = habits.find(h => h.id === habit.id);
-                                                    if (fullHabit) openEditModal(fullHabit);
-                                                }}
-                                                className="p-1 text-gray-400 hover:text-blue-600 text-sm"
-                                            >
-                                                ✏️
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(habit)}
-                                                className="p-1 text-gray-400 hover:text-red-600 text-sm"
-                                            >
-                                                🗑️
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
-                    )}
+                    ) : null}
                 </div>
             </main>
 
@@ -914,34 +1184,50 @@ export default function HabitsPage() {
                                     />
                                 </div>
 
-                                {/* Icon + Color row */}
-                                <div className="flex gap-4">
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Icono</label>
-                                        <div className="flex flex-wrap gap-1">
-                                            {HABIT_ICONS.slice(0, 8).map((icon) => (
-                                                <button
-                                                    key={icon}
-                                                    onClick={() => setFormIcon(icon)}
-                                                    className={`text-lg p-1.5 rounded ${formIcon === icon ? 'bg-green-100 dark:bg-green-900 ring-1 ring-green-500' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                                                >
-                                                    {icon}
-                                                </button>
-                                            ))}
-                                        </div>
+                                {/* Icon selector */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Icono</label>
+                                    {/* Category tabs */}
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                        {ICON_CATEGORY_NAMES.map((category) => (
+                                            <button
+                                                key={category}
+                                                onClick={() => setFormIconCategory(category)}
+                                                className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                            >
+                                                {category}
+                                            </button>
+                                        ))}
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Color</label>
-                                        <div className="flex gap-1">
-                                            {HABIT_COLORS.slice(0, 4).map((color) => (
-                                                <button
-                                                    key={color}
-                                                    onClick={() => setFormColor(color)}
-                                                    className={`w-6 h-6 rounded-full ${formColor === color ? 'ring-2 ring-offset-1 ring-gray-900 dark:ring-white' : ''}`}
-                                                    style={{ backgroundColor: color }}
-                                                />
-                                            ))}
-                                        </div>
+                                    {/* Icons grid */}
+                                    <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg max-h-24 overflow-y-auto">
+                                        {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
+                                            <button
+                                                key={icon}
+                                                onClick={() => setFormIcon(icon)}
+                                                className={`text-xl p-1.5 rounded-lg transition-all ${formIcon === icon ? 'bg-green-100 dark:bg-green-900 ring-2 ring-green-500 scale-110' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                            >
+                                                {icon}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Seleccionado: {formIcon}
+                                    </div>
+                                </div>
+
+                                {/* Color selector */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Color</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {HABIT_COLORS.map((color) => (
+                                            <button
+                                                key={color}
+                                                onClick={() => setFormColor(color)}
+                                                className={`w-7 h-7 rounded-full ${formColor === color ? 'ring-2 ring-offset-2 ring-gray-900 dark:ring-white' : ''}`}
+                                                style={{ backgroundColor: color }}
+                                            />
+                                        ))}
                                     </div>
                                 </div>
 

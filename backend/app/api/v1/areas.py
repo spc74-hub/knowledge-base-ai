@@ -198,8 +198,9 @@ async def create_area(area: AreaCreate, db: Database, current_user: CurrentUser)
 
 
 @router.put("/{area_id}")
+@router.patch("/{area_id}")
 async def update_area(area_id: str, area: AreaUpdate, db: Database, current_user: CurrentUser):
-    """Update an area."""
+    """Update an area (supports both PUT and PATCH)."""
     try:
         user_id = current_user["id"]
 

@@ -1064,32 +1064,60 @@ PALABRA DEL DÍA: {day_word}
 
 ---
 
-Genera una nota de diario personal en español con las siguientes secciones:
+Genera una nota de diario personal en español siguiendo EXACTAMENTE este formato markdown:
 
 # Diario - {date}
 
-## Intención y Enfoque
-(Qué me propuse y cómo fue)
+## 🎯 Intención y Enfoque
 
-## Lo que hice hoy
-(Resumen de las capturas y actividades)
+Escribe 2-3 oraciones sobre qué me propuse y cómo fue el enfoque del día.
 
-## Victorias del día
-(Los logros, aunque sean pequeños)
+## 📋 Lo que hice hoy
 
-## Gratitudes
-(Las cosas buenas)
+Resume las actividades principales en formato lista con bullets:
+- Actividad 1
+- Actividad 2
+- Actividad 3
 
-## Reflexiones
-(Aprendizajes, lo que haría diferente, perdones)
+## 🏆 Victorias del día
 
-## Mirando a mañana
-(La nota para el día siguiente)
+Lista los logros conseguidos, aunque sean pequeños:
+- Victoria 1
+- Victoria 2
+
+## 🙏 Gratitudes
+
+Las cosas por las que estoy agradecido hoy:
+- Gratitud 1
+- Gratitud 2
+
+## 💭 Reflexiones
+
+### Lo que aprendí
+Párrafo corto con los aprendizajes del día.
+
+### Lo que haría diferente
+Párrafo breve sobre mejoras para el futuro.
+
+## ➡️ Mirando a mañana
+
+Nota o intención para el día siguiente.
 
 ---
-*Valoración: {day_rating}/5 | Palabra del día: {day_word}*
 
-Escribe de forma concisa pero significativa. No repitas textualmente, sintetiza con sentido."""
+**Valoración:** {day_rating}/5 ⭐ | **Palabra del día:** _{day_word}_
+
+---
+
+INSTRUCCIONES IMPORTANTES:
+1. Usa emojis en los headers para hacerlo más visual
+2. Usa bullets (-) para listas, NO números
+3. Sintetiza la información, no copies textualmente
+4. Si alguna sección no tiene datos, escribe algo positivo o reflexivo
+5. Mantén un tono personal y cercano en primera persona
+6. Cada sección debe tener contenido significativo
+7. Usa **negritas** para destacar palabras clave importantes
+8. Usa _cursiva_ para énfasis o palabras del día"""
 
 
 @router.post("/today/close")

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { ICON_CATEGORIES, ICON_CATEGORY_NAMES } from '@/lib/icons';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -19,15 +20,25 @@ interface Habit {
     icon: string;
     color: string;
     frequency_type: string;
+    frequency_days: number[] | null;
     time_of_day: 'morning' | 'afternoon' | 'evening' | 'anytime';
     is_active: boolean;
     today_log: HabitLog | null;
     is_completed?: boolean;
+    is_scheduled?: boolean;
+    area_id?: string | null;
 }
 
-const TIME_OF_DAY_OPTIONS: { value: string; label: string; icon: string }[] = [
+interface Area {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+}
+
+const TIME_OF_DAY_OPTIONS = [
     { value: 'anytime', label: 'Cualquier momento', icon: '🕐' },
-    { value: 'morning', label: 'Manana', icon: '🌅' },
+    { value: 'morning', label: 'Mañana', icon: '🌅' },
     { value: 'afternoon', label: 'Tarde', icon: '☀️' },
     { value: 'evening', label: 'Noche', icon: '🌙' },
 ];
@@ -44,13 +55,31 @@ const FREQUENCY_OPTIONS = [
     { value: 'custom', label: 'Personalizado' },
 ];
 
+// Days starting Monday
+const DAYS_OF_WEEK = [
+    { value: 1, label: 'L', fullLabel: 'Lunes' },
+    { value: 2, label: 'M', fullLabel: 'Martes' },
+    { value: 3, label: 'X', fullLabel: 'Miércoles' },
+    { value: 4, label: 'J', fullLabel: 'Jueves' },
+    { value: 5, label: 'V', fullLabel: 'Viernes' },
+    { value: 6, label: 'S', fullLabel: 'Sábado' },
+    { value: 0, label: 'D', fullLabel: 'Domingo' },
+];
+
+const HABIT_COLORS = ['#10b981', '#6366f1', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+
 export default function MobileHabitsPage() {
     const [habits, setHabits] = useState<Habit[]>([]);
+    const [areas, setAreas] = useState<Area[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedTimeFilter, setSelectedTimeFilter] = useState<string>('all');
     const [statusModalHabit, setStatusModalHabit] = useState<Habit | null>(null);
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [isDark, setIsDark] = useState(false);
+
+    // Calendar state
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [showCalendar, setShowCalendar] = useState(false);
 
     // CRUD modals
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -67,10 +96,14 @@ export default function MobileHabitsPage() {
         icon: '✅',
         color: '#10b981',
         frequency_type: 'daily',
+        frequency_days: [0, 1, 2, 3, 4, 5, 6] as number[],
         time_of_day: 'anytime',
+        area_id: '',
     });
+    const [formIconCategory, setFormIconCategory] = useState('Personal');
 
-    const today = new Date().toISOString().split('T')[0];
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const isToday = formatDate(selectedDate) === formatDate(new Date());
 
     // Check dark mode
     useEffect(() => {
@@ -83,16 +116,35 @@ export default function MobileHabitsPage() {
         return () => observer.disconnect();
     }, []);
 
+    // Fetch areas
+    const fetchAreas = useCallback(async () => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}/api/v1/areas?status=active`, {
+                headers: { 'Authorization': `Bearer ${session.data.session.access_token}` },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setAreas(data.areas || data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching areas:', error);
+        }
+    }, []);
+
     const fetchHabits = useCallback(async () => {
         setLoading(true);
         try {
             const session = await supabase.auth.getSession();
             if (!session.data.session) return;
 
-            // Fetch all habits when in manage mode, otherwise only active
+            const dateStr = formatDate(selectedDate);
             const url = showManageMode
                 ? `${API_URL}/api/v1/habits/`
-                : `${API_URL}/api/v1/habits/?active_only=true`;
+                : `${API_URL}/api/v1/habits/for-date/${dateStr}`;
 
             const response = await fetch(url, {
                 headers: {
@@ -104,13 +156,27 @@ export default function MobileHabitsPage() {
                 const data = await response.json();
                 const habitsArray = Array.isArray(data) ? data : (data.habits || data.data || []);
                 setHabits(habitsArray);
+            } else if (response.status === 404) {
+                // Fallback to all habits if endpoint doesn't exist
+                const fallbackUrl = `${API_URL}/api/v1/habits/?active_only=true`;
+                const fallbackResponse = await fetch(fallbackUrl, {
+                    headers: { 'Authorization': `Bearer ${session.data.session.access_token}` },
+                });
+                if (fallbackResponse.ok) {
+                    const data = await fallbackResponse.json();
+                    setHabits(data.habits || data.data || data || []);
+                }
             }
         } catch (error) {
             console.error('Error fetching habits:', error);
         } finally {
             setLoading(false);
         }
-    }, [showManageMode]);
+    }, [showManageMode, selectedDate]);
+
+    useEffect(() => {
+        fetchAreas();
+    }, [fetchAreas]);
 
     useEffect(() => {
         fetchHabits();
@@ -128,7 +194,7 @@ export default function MobileHabitsPage() {
                     'Authorization': `Bearer ${session.data.session.access_token}`,
                 },
                 body: JSON.stringify({
-                    date: today,
+                    date: formatDate(selectedDate),
                     status,
                     value: status === 'completed' ? 1 : status === 'partial' ? 0.5 : 0,
                 }),
@@ -162,7 +228,9 @@ export default function MobileHabitsPage() {
                     icon: formData.icon,
                     color: formData.color,
                     frequency_type: formData.frequency_type,
+                    frequency_days: formData.frequency_type === 'custom' ? formData.frequency_days : null,
                     time_of_day: formData.time_of_day,
+                    area_id: formData.area_id || null,
                 }),
             });
 
@@ -196,7 +264,9 @@ export default function MobileHabitsPage() {
                     icon: formData.icon,
                     color: formData.color,
                     frequency_type: formData.frequency_type,
+                    frequency_days: formData.frequency_type === 'custom' ? formData.frequency_days : null,
                     time_of_day: formData.time_of_day,
+                    area_id: formData.area_id || null,
                 }),
             });
 
@@ -213,7 +283,7 @@ export default function MobileHabitsPage() {
 
     // Delete habit
     const handleDelete = async (habit: Habit) => {
-        if (!confirm('¿Eliminar este habito?')) return;
+        if (!confirm('¿Eliminar este hábito?')) return;
 
         try {
             const session = await supabase.auth.getSession();
@@ -270,8 +340,11 @@ export default function MobileHabitsPage() {
             icon: '✅',
             color: '#10b981',
             frequency_type: 'daily',
+            frequency_days: [0, 1, 2, 3, 4, 5, 6],
             time_of_day: 'anytime',
+            area_id: '',
         });
+        setFormIconCategory('Personal');
     };
 
     const openEditModal = (habit: Habit) => {
@@ -282,7 +355,9 @@ export default function MobileHabitsPage() {
             icon: habit.icon,
             color: habit.color,
             frequency_type: habit.frequency_type,
+            frequency_days: habit.frequency_days || [0, 1, 2, 3, 4, 5, 6],
             time_of_day: habit.time_of_day,
+            area_id: habit.area_id || '',
         });
         setShowEditModal(true);
     };
@@ -308,16 +383,57 @@ export default function MobileHabitsPage() {
         return habit.time_of_day === selectedTimeFilter;
     });
 
-    // Group habits by time of day
-    const groupedHabits = filteredHabits.reduce((acc, habit) => {
+    // Separate scheduled and non-scheduled habits
+    const scheduledHabits = filteredHabits.filter(h => h.is_scheduled !== false);
+    const nonScheduledHabits = filteredHabits.filter(h => h.is_scheduled === false);
+
+    // Group scheduled habits by time of day
+    const groupedHabits = scheduledHabits.reduce((acc, habit) => {
         const time = habit.time_of_day || 'anytime';
         if (!acc[time]) acc[time] = [];
         acc[time].push(habit);
         return acc;
     }, {} as Record<string, Habit[]>);
 
-    const completedCount = habits.filter(h => h.today_log?.status === 'completed').length;
-    const totalCount = habits.filter(h => h.is_active).length;
+    // Only count scheduled habits for progress
+    const completedCount = scheduledHabits.filter(h => h.today_log?.status === 'completed').length;
+    const totalCount = scheduledHabits.filter(h => h.is_active !== false).length;
+
+    // Generate calendar days
+    const getCalendarDays = () => {
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const days: (Date | null)[] = [];
+
+        // Get Monday as start (0 = Monday in this system)
+        let startOffset = firstDay.getDay() - 1;
+        if (startOffset < 0) startOffset = 6;
+
+        // Add empty slots for days before the first
+        for (let i = 0; i < startOffset; i++) {
+            days.push(null);
+        }
+
+        // Add all days of the month
+        for (let d = 1; d <= lastDay.getDate(); d++) {
+            days.push(new Date(year, month, d));
+        }
+
+        return days;
+    };
+
+    // Navigate calendar
+    const navigateMonth = (direction: number) => {
+        const newDate = new Date(selectedDate);
+        newDate.setMonth(newDate.getMonth() + direction);
+        setSelectedDate(newDate);
+    };
+
+    const goToToday = () => {
+        setSelectedDate(new Date());
+    };
 
     if (loading) {
         return (
@@ -334,12 +450,108 @@ export default function MobileHabitsPage() {
         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
         : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400';
 
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
     return (
         <div className="space-y-4">
+            {/* Date selector header */}
+            <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
+                <div className="flex items-center justify-between">
+                    <button
+                        onClick={() => setShowCalendar(!showCalendar)}
+                        className="flex items-center gap-2"
+                    >
+                        <span className="text-2xl">📅</span>
+                        <div className="text-left">
+                            <div className={`font-semibold ${textClass}`}>
+                                {isToday ? 'Hoy' : selectedDate.toLocaleDateString('es-ES', { weekday: 'long' })}
+                            </div>
+                            <div className={`text-sm ${mutedTextClass}`}>
+                                {selectedDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </div>
+                        </div>
+                        <span className={`ml-2 ${mutedTextClass}`}>{showCalendar ? '▲' : '▼'}</span>
+                    </button>
+                    {!isToday && (
+                        <button
+                            onClick={goToToday}
+                            className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-medium"
+                        >
+                            Hoy
+                        </button>
+                    )}
+                </div>
+
+                {/* Calendar dropdown */}
+                {showCalendar && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        {/* Month navigation */}
+                        <div className="flex items-center justify-between mb-4">
+                            <button
+                                onClick={() => navigateMonth(-1)}
+                                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                ←
+                            </button>
+                            <span className={`font-semibold ${textClass}`}>
+                                {monthNames[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+                            </span>
+                            <button
+                                onClick={() => navigateMonth(1)}
+                                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                →
+                            </button>
+                        </div>
+
+                        {/* Day headers */}
+                        <div className="grid grid-cols-7 gap-1 mb-2">
+                            {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day, i) => (
+                                <div key={i} className={`text-center text-xs font-medium py-1 ${mutedTextClass}`}>
+                                    {day}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Calendar grid */}
+                        <div className="grid grid-cols-7 gap-1">
+                            {getCalendarDays().map((day, i) => {
+                                if (!day) {
+                                    return <div key={i} className="aspect-square" />;
+                                }
+                                const isSelected = formatDate(day) === formatDate(selectedDate);
+                                const isTodayDate = formatDate(day) === formatDate(new Date());
+
+                                return (
+                                    <button
+                                        key={i}
+                                        onClick={() => {
+                                            setSelectedDate(day);
+                                            setShowCalendar(false);
+                                        }}
+                                        className={`aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-colors ${
+                                            isSelected
+                                                ? 'bg-amber-500 text-white'
+                                                : isTodayDate
+                                                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                                    : isDark
+                                                        ? 'hover:bg-gray-700 text-gray-300'
+                                                        : 'hover:bg-gray-100 text-gray-700'
+                                        }`}
+                                    >
+                                        {day.getDate()}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Progress header */}
             <div className={`rounded-xl p-4 shadow-sm border ${cardClass}`}>
                 <div className="flex items-center justify-between mb-3">
-                    <h2 className={`font-semibold ${textClass}`}>Progreso de hoy</h2>
+                    <h2 className={`font-semibold ${textClass}`}>Progreso</h2>
                     <span className="text-2xl font-bold text-amber-600">
                         {completedCount}/{totalCount}
                     </span>
@@ -362,7 +574,7 @@ export default function MobileHabitsPage() {
                     className="flex-1 py-2.5 rounded-xl bg-amber-500/80 text-white font-medium flex items-center justify-center gap-2"
                 >
                     <span className="text-lg">+</span>
-                    <span>Nuevo habito</span>
+                    <span>Nuevo hábito</span>
                 </button>
                 <button
                     onClick={() => setShowManageMode(!showManageMode)}
@@ -413,7 +625,7 @@ export default function MobileHabitsPage() {
             {filteredHabits.length === 0 ? (
                 <div className="text-center py-12">
                     <div className="text-5xl mb-4">✅</div>
-                    <p className={mutedTextClass}>No hay habitos para mostrar</p>
+                    <p className={mutedTextClass}>No hay hábitos para este día</p>
                 </div>
             ) : showManageMode ? (
                 // Manage mode - flat list with edit option
@@ -443,8 +655,6 @@ export default function MobileHabitsPage() {
                                     <span className={`text-xs ${mutedTextClass}`}>·</span>
                                     <span className={`text-xs ${mutedTextClass}`}>
                                         {TIME_OF_DAY_OPTIONS.find(t => t.value === habit.time_of_day)?.icon}
-                                        {' '}
-                                        {TIME_OF_DAY_OPTIONS.find(t => t.value === habit.time_of_day)?.label}
                                     </span>
                                     {!habit.is_active && (
                                         <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
@@ -460,22 +670,50 @@ export default function MobileHabitsPage() {
             ) : (
                 <div className="space-y-3">
                     {selectedTimeFilter === 'all' ? (
-                        // Show grouped by time of day
-                        Object.entries(groupedHabits).map(([time, timeHabits]) => {
-                            const timeOption = TIME_OF_DAY_OPTIONS.find(t => t.value === time);
-                            return (
-                                <div key={time} className="space-y-2">
+                        <>
+                            {/* Scheduled habits grouped by time of day */}
+                            {Object.entries(groupedHabits).map(([time, timeHabits]) => {
+                                const timeOption = TIME_OF_DAY_OPTIONS.find(t => t.value === time);
+                                const activeHabits = timeHabits.filter(h => h.is_active !== false);
+                                if (activeHabits.length === 0) return null;
+                                return (
+                                    <div key={time} className="space-y-2">
+                                        <h3 className={`text-sm font-medium flex items-center gap-2 ${mutedTextClass}`}>
+                                            <span>{timeOption?.icon || '🕐'}</span>
+                                            <span>{timeOption?.label || 'Cualquier momento'}</span>
+                                        </h3>
+                                        {activeHabits.map(habit => (
+                                            <HabitCard
+                                                key={habit.id}
+                                                habit={habit}
+                                                status={getHabitStatus(habit)}
+                                                statusColor={getStatusColor(getHabitStatus(habit))}
+                                                isDark={isDark}
+                                                onTap={() => {
+                                                    setStatusModalHabit(habit);
+                                                    setShowStatusModal(true);
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                );
+                            })}
+
+                            {/* Non-scheduled habits section */}
+                            {nonScheduledHabits.filter(h => h.is_active !== false).length > 0 && (
+                                <div className="space-y-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                                     <h3 className={`text-sm font-medium flex items-center gap-2 ${mutedTextClass}`}>
-                                        <span>{timeOption?.icon || '🕐'}</span>
-                                        <span>{timeOption?.label || 'Cualquier momento'}</span>
+                                        <span>📅</span>
+                                        <span>Otros hábitos ({nonScheduledHabits.filter(h => h.is_active !== false).length})</span>
                                     </h3>
-                                    {timeHabits.filter(h => h.is_active).map(habit => (
+                                    {nonScheduledHabits.filter(h => h.is_active !== false).map(habit => (
                                         <HabitCard
                                             key={habit.id}
                                             habit={habit}
                                             status={getHabitStatus(habit)}
                                             statusColor={getStatusColor(getHabitStatus(habit))}
                                             isDark={isDark}
+                                            isNonScheduled={true}
                                             onTap={() => {
                                                 setStatusModalHabit(habit);
                                                 setShowStatusModal(true);
@@ -483,23 +721,47 @@ export default function MobileHabitsPage() {
                                         />
                                     ))}
                                 </div>
-                            );
-                        })
+                            )}
+                        </>
                     ) : (
-                        // Show flat list
-                        filteredHabits.filter(h => h.is_active).map(habit => (
-                            <HabitCard
-                                key={habit.id}
-                                habit={habit}
-                                status={getHabitStatus(habit)}
-                                statusColor={getStatusColor(getHabitStatus(habit))}
-                                isDark={isDark}
-                                onTap={() => {
-                                    setStatusModalHabit(habit);
-                                    setShowStatusModal(true);
-                                }}
-                            />
-                        ))
+                        // Show flat list (filtered by time, still separate scheduled/non-scheduled)
+                        <>
+                            {scheduledHabits.filter(h => h.is_active !== false).map(habit => (
+                                <HabitCard
+                                    key={habit.id}
+                                    habit={habit}
+                                    status={getHabitStatus(habit)}
+                                    statusColor={getStatusColor(getHabitStatus(habit))}
+                                    isDark={isDark}
+                                    onTap={() => {
+                                        setStatusModalHabit(habit);
+                                        setShowStatusModal(true);
+                                    }}
+                                />
+                            ))}
+                            {nonScheduledHabits.filter(h => h.is_active !== false).length > 0 && (
+                                <div className="space-y-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                    <h3 className={`text-sm font-medium flex items-center gap-2 ${mutedTextClass}`}>
+                                        <span>📅</span>
+                                        <span>Otros hábitos ({nonScheduledHabits.filter(h => h.is_active !== false).length})</span>
+                                    </h3>
+                                    {nonScheduledHabits.filter(h => h.is_active !== false).map(habit => (
+                                        <HabitCard
+                                            key={habit.id}
+                                            habit={habit}
+                                            status={getHabitStatus(habit)}
+                                            statusColor={getStatusColor(getHabitStatus(habit))}
+                                            isDark={isDark}
+                                            isNonScheduled={true}
+                                            onTap={() => {
+                                                setStatusModalHabit(habit);
+                                                setShowStatusModal(true);
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}
@@ -564,7 +826,7 @@ export default function MobileHabitsPage() {
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className={`font-semibold text-lg ${textClass}`}>Nuevo habito</h3>
+                            <h3 className={`font-semibold text-lg ${textClass}`}>Nuevo hábito</h3>
                             <button onClick={() => setShowCreateModal(false)} className={mutedTextClass}>✕</button>
                         </div>
 
@@ -576,75 +838,144 @@ export default function MobileHabitsPage() {
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass}`}
-                                    placeholder="Nombre del habito"
+                                    placeholder="Nombre del hábito"
                                 />
                             </div>
 
                             <div>
-                                <label className={`text-sm font-medium ${mutedTextClass}`}>Descripcion</label>
+                                <label className={`text-sm font-medium ${mutedTextClass}`}>Descripción</label>
                                 <textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass}`}
                                     rows={2}
-                                    placeholder="Descripcion (opcional)"
+                                    placeholder="Descripción (opcional)"
                                 />
                             </div>
 
-                            <div className="flex gap-4">
-                                <div className="flex-1">
-                                    <label className={`text-sm font-medium ${mutedTextClass}`}>Icono</label>
-                                    <input
-                                        type="text"
-                                        value={formData.icon}
-                                        onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                                        className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass} text-center text-2xl`}
-                                        maxLength={4}
-                                    />
+                            {/* Icon selector with categories */}
+                            <div>
+                                <label className={`text-sm font-medium ${mutedTextClass}`}>Icono</label>
+                                <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                                    {ICON_CATEGORY_NAMES.map((category) => (
+                                        <button
+                                            key={category}
+                                            onClick={() => setFormIconCategory(category)}
+                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            {category}
+                                        </button>
+                                    ))}
                                 </div>
-                                <div className="flex-1">
-                                    <label className={`text-sm font-medium ${mutedTextClass}`}>Color</label>
-                                    <input
-                                        type="color"
-                                        value={formData.color}
-                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                        className="w-full mt-1 h-10 rounded-lg border cursor-pointer"
-                                    />
+                                <div className={`flex flex-wrap gap-2 p-2 rounded-lg max-h-24 overflow-y-auto ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                                    {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
+                                        <button
+                                            key={icon}
+                                            onClick={() => setFormData({ ...formData, icon })}
+                                            className={`text-xl p-1.5 rounded-lg ${formData.icon === icon ? 'bg-amber-100 dark:bg-amber-900 ring-2 ring-amber-500' : ''}`}
+                                        >
+                                            {icon}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
+                            {/* Color selector */}
+                            <div>
+                                <label className={`text-sm font-medium ${mutedTextClass}`}>Color</label>
+                                <div className="flex gap-2 mt-1 flex-wrap">
+                                    {HABIT_COLORS.map((color) => (
+                                        <button
+                                            key={color}
+                                            onClick={() => setFormData({ ...formData, color })}
+                                            className={`w-8 h-8 rounded-full ${formData.color === color ? 'ring-2 ring-offset-2 ring-gray-900 dark:ring-white' : ''}`}
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Frequency */}
                             <div>
                                 <label className={`text-sm font-medium ${mutedTextClass}`}>Frecuencia</label>
-                                <select
-                                    value={formData.frequency_type}
-                                    onChange={(e) => setFormData({ ...formData, frequency_type: e.target.value })}
-                                    className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass}`}
-                                >
+                                <div className="flex gap-2 mt-1">
                                     {FREQUENCY_OPTIONS.map(f => (
-                                        <option key={f.value} value={f.value}>{f.label}</option>
+                                        <button
+                                            key={f.value}
+                                            onClick={() => setFormData({ ...formData, frequency_type: f.value })}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_type === f.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            {f.label}
+                                        </button>
                                     ))}
-                                </select>
+                                </div>
                             </div>
 
+                            {/* Days selector for custom frequency */}
+                            {formData.frequency_type === 'custom' && (
+                                <div>
+                                    <label className={`text-sm font-medium ${mutedTextClass}`}>Días de la semana</label>
+                                    <div className="flex gap-1 mt-1">
+                                        {DAYS_OF_WEEK.map((day) => (
+                                            <button
+                                                key={day.value}
+                                                onClick={() => {
+                                                    const newDays = formData.frequency_days.includes(day.value)
+                                                        ? formData.frequency_days.filter(d => d !== day.value)
+                                                        : [...formData.frequency_days, day.value];
+                                                    setFormData({ ...formData, frequency_days: newDays });
+                                                }}
+                                                className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_days.includes(day.value) ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                            >
+                                                {day.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Time of day */}
                             <div>
-                                <label className={`text-sm font-medium ${mutedTextClass}`}>Momento del dia</label>
-                                <select
-                                    value={formData.time_of_day}
-                                    onChange={(e) => setFormData({ ...formData, time_of_day: e.target.value })}
-                                    className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass}`}
-                                >
+                                <label className={`text-sm font-medium ${mutedTextClass}`}>Momento del día</label>
+                                <div className="grid grid-cols-2 gap-2 mt-1">
                                     {TIME_OF_DAY_OPTIONS.map(t => (
-                                        <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
+                                        <button
+                                            key={t.value}
+                                            onClick={() => setFormData({ ...formData, time_of_day: t.value })}
+                                            className={`py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${formData.time_of_day === t.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            <span>{t.icon}</span>
+                                            <span>{t.label}</span>
+                                        </button>
                                     ))}
-                                </select>
+                                </div>
                             </div>
+
+                            {/* Area selector */}
+                            {areas.length > 0 && (
+                                <div>
+                                    <label className={`text-sm font-medium ${mutedTextClass}`}>Área (opcional)</label>
+                                    <select
+                                        value={formData.area_id}
+                                        onChange={(e) => setFormData({ ...formData, area_id: e.target.value })}
+                                        className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass}`}
+                                    >
+                                        <option value="">Sin área</option>
+                                        {areas.map(area => (
+                                            <option key={area.id} value={area.id}>
+                                                {area.icon} {area.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <button
                                 onClick={handleCreate}
                                 disabled={!formData.name}
                                 className="w-full py-3 rounded-xl bg-amber-500 text-white font-medium disabled:opacity-50"
                             >
-                                Crear habito
+                                Crear hábito
                             </button>
                         </div>
                     </div>
@@ -659,7 +990,7 @@ export default function MobileHabitsPage() {
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className={`font-semibold text-lg ${textClass}`}>Editar habito</h3>
+                            <h3 className={`font-semibold text-lg ${textClass}`}>Editar hábito</h3>
                             <button onClick={() => { setShowEditModal(false); setEditingHabit(null); }} className={mutedTextClass}>✕</button>
                         </div>
 
@@ -675,7 +1006,7 @@ export default function MobileHabitsPage() {
                             </div>
 
                             <div>
-                                <label className={`text-sm font-medium ${mutedTextClass}`}>Descripcion</label>
+                                <label className={`text-sm font-medium ${mutedTextClass}`}>Descripción</label>
                                 <textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -684,53 +1015,122 @@ export default function MobileHabitsPage() {
                                 />
                             </div>
 
-                            <div className="flex gap-4">
-                                <div className="flex-1">
-                                    <label className={`text-sm font-medium ${mutedTextClass}`}>Icono</label>
-                                    <input
-                                        type="text"
-                                        value={formData.icon}
-                                        onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                                        className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass} text-center text-2xl`}
-                                        maxLength={4}
-                                    />
+                            {/* Icon selector with categories */}
+                            <div>
+                                <label className={`text-sm font-medium ${mutedTextClass}`}>Icono</label>
+                                <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                                    {ICON_CATEGORY_NAMES.map((category) => (
+                                        <button
+                                            key={category}
+                                            onClick={() => setFormIconCategory(category)}
+                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            {category}
+                                        </button>
+                                    ))}
                                 </div>
-                                <div className="flex-1">
-                                    <label className={`text-sm font-medium ${mutedTextClass}`}>Color</label>
-                                    <input
-                                        type="color"
-                                        value={formData.color}
-                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                        className="w-full mt-1 h-10 rounded-lg border cursor-pointer"
-                                    />
+                                <div className={`flex flex-wrap gap-2 p-2 rounded-lg max-h-24 overflow-y-auto ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                                    {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
+                                        <button
+                                            key={icon}
+                                            onClick={() => setFormData({ ...formData, icon })}
+                                            className={`text-xl p-1.5 rounded-lg ${formData.icon === icon ? 'bg-amber-100 dark:bg-amber-900 ring-2 ring-amber-500' : ''}`}
+                                        >
+                                            {icon}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
+                            {/* Color selector */}
+                            <div>
+                                <label className={`text-sm font-medium ${mutedTextClass}`}>Color</label>
+                                <div className="flex gap-2 mt-1 flex-wrap">
+                                    {HABIT_COLORS.map((color) => (
+                                        <button
+                                            key={color}
+                                            onClick={() => setFormData({ ...formData, color })}
+                                            className={`w-8 h-8 rounded-full ${formData.color === color ? 'ring-2 ring-offset-2 ring-gray-900 dark:ring-white' : ''}`}
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Frequency */}
                             <div>
                                 <label className={`text-sm font-medium ${mutedTextClass}`}>Frecuencia</label>
-                                <select
-                                    value={formData.frequency_type}
-                                    onChange={(e) => setFormData({ ...formData, frequency_type: e.target.value })}
-                                    className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass}`}
-                                >
+                                <div className="flex gap-2 mt-1">
                                     {FREQUENCY_OPTIONS.map(f => (
-                                        <option key={f.value} value={f.value}>{f.label}</option>
+                                        <button
+                                            key={f.value}
+                                            onClick={() => setFormData({ ...formData, frequency_type: f.value })}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_type === f.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            {f.label}
+                                        </button>
                                     ))}
-                                </select>
+                                </div>
                             </div>
 
+                            {/* Days selector for custom frequency */}
+                            {formData.frequency_type === 'custom' && (
+                                <div>
+                                    <label className={`text-sm font-medium ${mutedTextClass}`}>Días de la semana</label>
+                                    <div className="flex gap-1 mt-1">
+                                        {DAYS_OF_WEEK.map((day) => (
+                                            <button
+                                                key={day.value}
+                                                onClick={() => {
+                                                    const newDays = formData.frequency_days.includes(day.value)
+                                                        ? formData.frequency_days.filter(d => d !== day.value)
+                                                        : [...formData.frequency_days, day.value];
+                                                    setFormData({ ...formData, frequency_days: newDays });
+                                                }}
+                                                className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_days.includes(day.value) ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                            >
+                                                {day.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Time of day */}
                             <div>
-                                <label className={`text-sm font-medium ${mutedTextClass}`}>Momento del dia</label>
-                                <select
-                                    value={formData.time_of_day}
-                                    onChange={(e) => setFormData({ ...formData, time_of_day: e.target.value })}
-                                    className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass}`}
-                                >
+                                <label className={`text-sm font-medium ${mutedTextClass}`}>Momento del día</label>
+                                <div className="grid grid-cols-2 gap-2 mt-1">
                                     {TIME_OF_DAY_OPTIONS.map(t => (
-                                        <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
+                                        <button
+                                            key={t.value}
+                                            onClick={() => setFormData({ ...formData, time_of_day: t.value })}
+                                            className={`py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${formData.time_of_day === t.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                        >
+                                            <span>{t.icon}</span>
+                                            <span>{t.label}</span>
+                                        </button>
                                     ))}
-                                </select>
+                                </div>
                             </div>
+
+                            {/* Area selector */}
+                            {areas.length > 0 && (
+                                <div>
+                                    <label className={`text-sm font-medium ${mutedTextClass}`}>Área (opcional)</label>
+                                    <select
+                                        value={formData.area_id}
+                                        onChange={(e) => setFormData({ ...formData, area_id: e.target.value })}
+                                        className={`w-full mt-1 px-3 py-2 rounded-lg border ${inputClass}`}
+                                    >
+                                        <option value="">Sin área</option>
+                                        {areas.map(area => (
+                                            <option key={area.id} value={area.id}>
+                                                {area.icon} {area.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <button
                                 onClick={handleUpdate}
@@ -789,6 +1189,14 @@ export default function MobileHabitsPage() {
                                     {TIME_OF_DAY_OPTIONS.find(t => t.value === viewingHabit.time_of_day)?.label}
                                 </span>
                             </div>
+                            {viewingHabit.frequency_type === 'custom' && viewingHabit.frequency_days && (
+                                <div className="flex justify-between">
+                                    <span className={mutedTextClass}>Días:</span>
+                                    <span className={textClass}>
+                                        {viewingHabit.frequency_days.map(d => DAYS_OF_WEEK.find(day => day.value === d)?.label).join(', ')}
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-2">
@@ -866,12 +1274,14 @@ function HabitCard({
     statusColor,
     isDark,
     onTap,
+    isNonScheduled = false,
 }: {
     habit: Habit;
     status: string | null;
     statusColor: string;
     isDark: boolean;
     onTap: () => void;
+    isNonScheduled?: boolean;
 }) {
     return (
         <button
@@ -880,10 +1290,10 @@ function HabitCard({
                 isDark
                     ? 'bg-gray-800 border-gray-700'
                     : 'bg-white border-gray-100'
-            }`}
+            } ${isNonScheduled ? 'opacity-70' : ''}`}
         >
             <span
-                className="w-12 h-12 rounded-full flex items-center justify-center text-2xl flex-shrink-0"
+                className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl flex-shrink-0 ${isNonScheduled ? 'grayscale-[30%]' : ''}`}
                 style={{ backgroundColor: habit.color + '30' }}
             >
                 {habit.icon}

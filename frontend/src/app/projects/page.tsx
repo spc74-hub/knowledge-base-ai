@@ -21,6 +21,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ICON_CATEGORIES, ICON_CATEGORY_NAMES } from '@/lib/icons';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -35,8 +36,6 @@ const COLORS = [
     '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
     '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6'
 ];
-
-const ICONS = ['📁', '🎯', '🚀', '💡', '📚', '🔬', '🎨', '💻', '📊', '🏠'];
 
 // Tree Node Component
 function TreeNode({
@@ -176,6 +175,7 @@ export default function ProjectsPage() {
     const [formDeadline, setFormDeadline] = useState('');
     const [formColor, setFormColor] = useState('#6366f1');
     const [formIcon, setFormIcon] = useState('📁');
+    const [formIconCategory, setFormIconCategory] = useState('Personal');
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -519,6 +519,7 @@ export default function ProjectsPage() {
         setFormDeadline('');
         setFormColor('#6366f1');
         setFormIcon('📁');
+        setFormIconCategory('Personal');
         setCreateParentId(null);
         setEditMode(false);
     };
@@ -736,17 +737,34 @@ export default function ProjectsPage() {
                                     </div>
                                     <div className="mb-4">
                                         <label className="block text-sm font-medium mb-1 dark:text-gray-300">Icono</label>
-                                        <div className="flex gap-2 flex-wrap">
-                                            {ICONS.map(icon => (
+                                        {/* Category tabs */}
+                                        <div className="flex flex-wrap gap-1 mb-2">
+                                            {ICON_CATEGORY_NAMES.map((category) => (
+                                                <button
+                                                    key={category}
+                                                    type="button"
+                                                    onClick={() => setFormIconCategory(category)}
+                                                    className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                                >
+                                                    {category}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {/* Icons grid */}
+                                        <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg max-h-28 overflow-y-auto">
+                                            {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
                                                 <button
                                                     key={icon}
                                                     type="button"
                                                     onClick={() => setFormIcon(icon)}
-                                                    className={`text-2xl p-2 rounded-lg ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                                    className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                                                 >
                                                     {icon}
                                                 </button>
                                             ))}
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            Seleccionado: {formIcon}
                                         </div>
                                     </div>
                                     <div className="mb-4">
@@ -1010,17 +1028,34 @@ export default function ProjectsPage() {
                             </div>
                             <div className="mb-4">
                                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Icono</label>
-                                <div className="flex gap-2 flex-wrap">
-                                    {ICONS.map(icon => (
+                                {/* Category tabs */}
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                    {ICON_CATEGORY_NAMES.map((category) => (
+                                        <button
+                                            key={category}
+                                            type="button"
+                                            onClick={() => setFormIconCategory(category)}
+                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                        >
+                                            {category}
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* Icons grid */}
+                                <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg max-h-28 overflow-y-auto">
+                                    {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
                                         <button
                                             key={icon}
                                             type="button"
                                             onClick={() => setFormIcon(icon)}
-                                            className={`text-2xl p-2 rounded-lg ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                            className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                                         >
                                             {icon}
                                         </button>
                                     ))}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Seleccionado: {formIcon}
                                 </div>
                             </div>
                             <div className="mb-4">

@@ -298,6 +298,13 @@ export default function DailyJournalPage() {
     const [localNoteToTomorrow, setLocalNoteToTomorrow] = useState('');
     const [localDayWord, setLocalDayWord] = useState('');
 
+    // Generated note modal state
+    const [generatedNote, setGeneratedNote] = useState<{
+        noteId: string;
+        noteTitle: string;
+        noteContent: string;
+    } | null>(null);
+
     // Debounced values
     const debouncedIntention = useDebounce(localIntention, 800);
     const debouncedLearnings = useDebounce(localLearnings, 800);
@@ -309,16 +316,16 @@ export default function DailyJournalPage() {
     // Get active journal (today or past)
     const activeJournal = viewingPastJournal ? pastJournal : journal;
 
-    // Fetch habits - gets ALL active habits, not just scheduled ones
+    // Fetch habits - gets ALL active habits
     const fetchHabits = useCallback(async () => {
         if (!token) return;
         try {
-            const response = await fetch(`${API_URL}/api/v1/habits/all-for-today`, {
+            const response = await fetch(`${API_URL}/api/v1/habits?status=active&limit=100`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (response.ok) {
                 const result = await response.json();
-                setHabits(result.data || []);
+                setHabits(result.habits || []);
             }
         } catch (error) {
             console.error('Error fetching habits:', error);
@@ -599,12 +606,19 @@ export default function DailyJournalPage() {
             }
 
             // Then close the journal and generate the note
-            await closeDayMutation.mutateAsync();
+            const result = await closeDayMutation.mutateAsync();
 
             // Refresh habits to show updated statuses
             fetchHabits();
 
-            alert('¡Día cerrado! Se ha generado una nota con el resumen de tu día.');
+            // Show the generated note in a modal
+            if (result.note_content) {
+                setGeneratedNote({
+                    noteId: result.note_id,
+                    noteTitle: result.note_title,
+                    noteContent: result.note_content,
+                });
+            }
         } catch (error: any) {
             alert(error.message || 'Error al cerrar el día');
         }
@@ -1565,6 +1579,98 @@ export default function DailyJournalPage() {
                     </div>
                 )}
             </main>
+
+            {/* Generated Note Modal */}
+            {generatedNote && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Modal Header */}
+                        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 text-white">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-3xl">🎉</span>
+                                    <div>
+                                        <h2 className="text-xl font-bold">¡Día cerrado!</h2>
+                                        <p className="text-sm opacity-90">{generatedNote.noteTitle}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setGeneratedNote(null)}
+                                    className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Content - Markdown rendered */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="prose prose-sm dark:prose-invert max-w-none
+                                prose-headings:text-indigo-700 dark:prose-headings:text-indigo-300
+                                prose-h1:text-2xl prose-h1:font-bold prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-2 prose-h1:mb-4
+                                prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-6 prose-h2:mb-3 prose-h2:text-purple-600 dark:prose-h2:text-purple-400
+                                prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:my-2
+                                prose-ul:my-2 prose-li:my-1
+                                prose-strong:text-gray-900 dark:prose-strong:text-white
+                                prose-em:text-gray-600 dark:prose-em:text-gray-400
+                                prose-hr:my-6 prose-hr:border-gray-200 dark:prose-hr:border-gray-700
+                            ">
+                                {generatedNote.noteContent.split('\n').map((line, idx) => {
+                                    // Parse markdown-like content
+                                    if (line.startsWith('# ')) {
+                                        return <h1 key={idx}>{line.substring(2)}</h1>;
+                                    }
+                                    if (line.startsWith('## ')) {
+                                        return <h2 key={idx}>{line.substring(3)}</h2>;
+                                    }
+                                    if (line.startsWith('### ')) {
+                                        return <h3 key={idx}>{line.substring(4)}</h3>;
+                                    }
+                                    if (line.startsWith('- ')) {
+                                        return <li key={idx} className="ml-4">{line.substring(2)}</li>;
+                                    }
+                                    if (line.startsWith('* ')) {
+                                        return <li key={idx} className="ml-4">{line.substring(2)}</li>;
+                                    }
+                                    if (line.startsWith('---')) {
+                                        return <hr key={idx} />;
+                                    }
+                                    if (line.trim() === '') {
+                                        return <br key={idx} />;
+                                    }
+                                    // Handle bold and italic
+                                    const parsedLine = line
+                                        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                                        .replace(/_(.+?)_/g, '<em>$1</em>');
+                                    return <p key={idx} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
+                            <button
+                                onClick={() => setGeneratedNote(null)}
+                                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                            >
+                                Cerrar
+                            </button>
+                            <Link
+                                href={`/notes/${generatedNote.noteId}/edit`}
+                                className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-medium flex items-center gap-2"
+                            >
+                                <span>Editar nota</span>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -55,14 +55,15 @@ export default function MobileLayout({
 
     const navItems = [
         { href: '/m/dashboard', icon: '🏠', label: 'Panel' },
-        { href: '/m/notes', icon: '📝', label: 'Notas' },
-        { href: '/m/full-notes', icon: '📄', label: 'Full' },
-        { href: '/m/contents', icon: '📚', label: 'Contenidos' },
+        { href: '/m/habits', icon: '✅', label: 'Hábitos' },
         { href: '/m/journal', icon: '📓', label: 'Diario' },
+        { href: '/m/contents', icon: '📚', label: 'Contenido' },
+        { href: '/m/notes', icon: '📋', label: 'Notas' },
+        { href: '/m/full-notes', icon: '📝', label: 'Full' },
     ];
 
     return (
-        <div className={`min-h-screen pb-20 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className={`min-h-screen pb-16 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             {/* Header */}
             <header className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 text-white px-4 py-3 sticky top-0 z-40 safe-area-top">
                 <div className="flex items-center justify-between">
@@ -98,7 +99,7 @@ export default function MobileLayout({
             <nav className={`fixed bottom-0 left-0 right-0 border-t safe-area-bottom z-50 ${
                 darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
             }`}>
-                <div className="flex justify-around items-center h-16">
+                <div className="flex justify-around items-center h-14">
                     {navItems.map((item) => {
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                         return (
@@ -113,8 +114,8 @@ export default function MobileLayout({
                                             : 'text-gray-500 hover:text-gray-700'
                                 }`}
                             >
-                                <span className="text-2xl mb-1">{item.icon}</span>
-                                <span className="text-xs font-medium">{item.label}</span>
+                                <span className="text-lg mb-0.5">{item.icon}</span>
+                                <span className="text-[10px] font-medium">{item.label}</span>
                             </Link>
                         );
                     })}
