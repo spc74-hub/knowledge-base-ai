@@ -164,7 +164,7 @@ export default function MobileFullNotesPage() {
                             🔍
                         </button>
                         <Link
-                            href="/notes/new"
+                            href="/m/full-notes/new"
                             className="px-3 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-sm font-medium"
                         >
                             + Nueva
@@ -222,7 +222,7 @@ export default function MobileFullNotesPage() {
                         </p>
                         {!appliedSearch && (
                             <Link
-                                href="/notes/new"
+                                href="/m/full-notes/new"
                                 className="inline-block px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-sm"
                             >
                                 Crear primera nota
@@ -233,7 +233,7 @@ export default function MobileFullNotesPage() {
                     notes.map(note => (
                         <Link
                             key={note.id}
-                            href={`/notes/${note.id}/edit`}
+                            href={`/m/full-notes/${note.id}`}
                             className={`block ${cardClass} rounded-xl p-4 border ${borderClass}`}
                         >
                             <div className="flex items-start justify-between mb-2">
