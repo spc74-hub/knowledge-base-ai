@@ -1,25 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { supabase } from '@/lib/supabase';
+import { useFullNotes, useToggleFullNoteFavorite, type FullNote } from '@/hooks/use-full-notes';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-interface FullNote {
-    id: string;
-    title: string;
-    summary: string | null;
-    raw_content?: string;
-    user_tags: string[];
-    priority: string | null;
-    is_favorite: boolean;
-    created_at: string;
-    updated_at: string;
-}
 
 const PRIORITIES = {
     important: { label: 'Importante', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
@@ -47,13 +33,21 @@ const stripHtmlTags = (html: string): string => {
 export default function FullNotesPage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
-    const [notes, setNotes] = useState<FullNote[]>([]);
-    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [appliedSearch, setAppliedSearch] = useState('');
     const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'title'>('updated_at');
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-    const [totalNotes, setTotalNotes] = useState(0);
+
+    // React Query hooks for data fetching with caching
+    const { data, isLoading: loading } = useFullNotes({
+        search: appliedSearch,
+        sortBy,
+        sortOrder,
+    });
+    const toggleFavoriteMutation = useToggleFullNoteFavorite();
+
+    const notes = data?.data || [];
+    const totalNotes = data?.meta?.total || notes.length;
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -61,75 +55,10 @@ export default function FullNotesPage() {
         }
     }, [user, authLoading, router]);
 
-    const fetchNotes = useCallback(async () => {
-        setLoading(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) {
-                console.log('No session');
-                setLoading(false);
-                return;
-            }
-
-            const params = new URLSearchParams({
-                type: 'note',
-                per_page: '100',
-                sort_by: sortBy,
-                sort_order: sortOrder,
-            });
-
-            if (appliedSearch) {
-                params.set('q', appliedSearch);
-            }
-
-            const response = await fetch(`${API_URL}/api/v1/content/?${params.toString()}`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                setNotes(result.data || []);
-                setTotalNotes(result.meta?.total || result.data?.length || 0);
-            } else {
-                console.error('Error fetching full notes:', response.status);
-            }
-        } catch (error) {
-            console.error('Error fetching full notes:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [appliedSearch, sortBy, sortOrder]);
-
-    useEffect(() => {
-        if (user) {
-            fetchNotes();
-        }
-    }, [user, fetchNotes]);
-
-    const toggleFavorite = async (note: FullNote, e: React.MouseEvent) => {
+    const toggleFavorite = (note: FullNote, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/content/${note.id}/favorite`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                setNotes(prev => prev.map(n =>
-                    n.id === note.id ? { ...n, is_favorite: !n.is_favorite } : n
-                ));
-            }
-        } catch (error) {
-            console.error('Error toggling favorite:', error);
-        }
+        toggleFavoriteMutation.mutate(note.id);
     };
 
     const handleSearch = (e: React.FormEvent) => {

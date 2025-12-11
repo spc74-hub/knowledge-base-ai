@@ -163,7 +163,7 @@ export default function EditNotePage() {
                 throw new Error(errorData.detail || 'Error al eliminar la nota');
             }
 
-            router.push('/notes');
+            router.push('/full-notes');
 
         } catch (err: any) {
             setError(err.message || 'Error al eliminar la nota');
@@ -206,7 +206,7 @@ export default function EditNotePage() {
             <header className="bg-white dark:bg-gray-800 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/notes" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                        <Link href="/full-notes" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                             ← Volver
                         </Link>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Editar Nota</h1>

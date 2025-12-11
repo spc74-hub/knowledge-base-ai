@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
+import { useQuickNotes, useCreateQuickNote, useUpdateQuickNote, useDeleteQuickNote, useToggleQuickNotePin, QUICK_NOTES_KEYS, type QuickNote, type Facets } from '@/hooks/use-quick-notes';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -15,29 +17,8 @@ const QuickNoteEditor = dynamic(() => import('@/components/editor/QuickNoteEdito
     loading: () => <div className="h-[150px] bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
 });
 
-interface Note {
-    id: string;
-    title: string;
-    content: string;
-    note_type: string;
-    tags: string[];
-    linked_content_ids: string[];
-    linked_note_ids: string[];
-    source_content_id: string | null;
-    linked_project_id: string | null;
-    linked_model_id: string | null;
-    is_pinned: boolean;
-    is_completed: boolean;
-    is_full_note?: boolean;
-    priority: string | null;
-    created_at: string;
-    updated_at: string;
-    // Enriched data from search
-    source_content?: { id: string; title: string; type: string; url?: string };
-    linked_project?: { id: string; name: string; icon?: string; color?: string };
-    linked_model?: { id: string; tag: string; taxonomy_value: string };
-    linked_objectives?: { id: string; title: string; icon?: string; color?: string; status?: string }[];
-}
+// Note and Facets types imported from @/hooks/use-quick-notes
+type Note = QuickNote;
 
 interface ContentItem {
     id: string;
@@ -59,20 +40,7 @@ interface ObjectiveItem {
     color: string;
 }
 
-interface Facet {
-    value: string;
-    label: string;
-    icon: string;
-    count: number;
-}
-
-interface Facets {
-    note_types: Facet[];
-    linkage: Facet[];
-    priorities: Facet[];
-    total_notes: number;
-    pinned_count: number;
-}
+// Facet and Facets types imported from @/hooks/use-quick-notes
 
 const PRIORITIES = {
     important: { label: 'Importante', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
@@ -117,9 +85,6 @@ export default function NotesPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
-    const [notes, setNotes] = useState<Note[]>([]);
-    const [facets, setFacets] = useState<Facets | null>(null);
-    const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedNote, setSelectedNote] = useState<Note | null>(null);
@@ -135,6 +100,30 @@ export default function NotesPage() {
     const [sortBy, setSortBy] = useState<string>('created_at');
     const [sortOrder, setSortOrder] = useState<string>('desc');
     const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    // React Query hooks for data fetching with caching
+    const { data: queryData, isLoading: loading } = useQuickNotes({
+        filterType,
+        linkageFilter,
+        searchQuery: appliedSearchQuery,
+        showCompleted,
+        priorityFilter,
+        excludePriorities,
+        sortBy,
+        sortOrder,
+    });
+    const createNoteMutation = useCreateQuickNote();
+    const updateNoteMutation = useUpdateQuickNote();
+    const deleteNoteMutation = useDeleteQuickNote();
+    const togglePinMutation = useToggleQuickNotePin();
+    const queryClient = useQueryClient();
+
+    // Helper to invalidate notes cache
+    const invalidateNotes = () => queryClient.invalidateQueries({ queryKey: QUICK_NOTES_KEYS.all });
+
+    // Derive values from React Query
+    const notes = queryData?.data || [];
+    const facets = queryData?.facets || null;
 
     // Quick create form state
     const [quickContent, setQuickContent] = useState('');
@@ -203,69 +192,7 @@ export default function NotesPage() {
         }
     }, [user, authLoading, router]);
 
-    const fetchNotes = useCallback(async () => {
-        setLoading(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) {
-                console.log('No session found in fetchNotes');
-                setLoading(false);
-                return;
-            }
-
-            const requestBody: Record<string, unknown> = {
-                limit: 100,
-                offset: 0,
-                include_full_notes: true,
-                sort_by: sortBy,
-                sort_order: sortOrder,
-            };
-
-            if (filterType !== 'all') {
-                requestBody.note_types = [filterType];
-            }
-            if (linkageFilter !== 'all') {
-                requestBody.linkage_type = linkageFilter;
-            }
-            if (appliedSearchQuery) {
-                requestBody.query = appliedSearchQuery;
-            }
-            if (priorityFilter.length > 0) {
-                requestBody.priorities = priorityFilter;
-            }
-            if (excludePriorities.length > 0) {
-                requestBody.exclude_priorities = excludePriorities;
-            }
-
-            const response = await fetch(`${API_URL}/api/v1/notes/search`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify(requestBody),
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                let data = result.data || [];
-
-                // Filter completed actions if needed
-                if (!showCompleted && filterType === 'action') {
-                    data = data.filter((n: Note) => !n.is_completed);
-                }
-
-                setNotes(data);
-                setFacets(result.facets || null);
-            } else {
-                console.error('Error response from notes/search:', response.status, await response.text());
-            }
-        } catch (error) {
-            console.error('Error fetching notes:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [filterType, linkageFilter, appliedSearchQuery, showCompleted, priorityFilter, excludePriorities, sortBy, sortOrder]);
+    // Data fetching is now handled by React Query hooks above
 
     const fetchAvailableItems = useCallback(async () => {
         try {
@@ -296,10 +223,9 @@ export default function NotesPage() {
 
     useEffect(() => {
         if (user) {
-            fetchNotes();
             fetchAvailableItems();
         }
-    }, [user, fetchNotes, fetchAvailableItems]);
+    }, [user, fetchAvailableItems]);
 
     const handleQuickCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -352,7 +278,7 @@ export default function NotesPage() {
 
                 setShowCreateModal(false);
                 resetQuickForm();
-                fetchNotes();
+                invalidateNotes();
             }
         } catch (error) {
             console.error('Error creating note:', error);
@@ -375,9 +301,7 @@ export default function NotesPage() {
             });
 
             if (response.ok) {
-                setNotes(prev => prev.map(n =>
-                    n.id === note.id ? { ...n, is_completed: !n.is_completed } : n
-                ));
+                invalidateNotes();
                 if (selectedNote?.id === note.id) {
                     setSelectedNote({ ...note, is_completed: !note.is_completed });
                 }
@@ -401,7 +325,7 @@ export default function NotesPage() {
             });
 
             if (response.ok) {
-                fetchNotes();
+                invalidateNotes();
                 if (selectedNote?.id === note.id) {
                     setSelectedNote({ ...note, is_pinned: !note.is_pinned });
                 }
@@ -438,7 +362,7 @@ export default function NotesPage() {
 
             if (response.ok) {
                 setEditMode(false);
-                fetchNotes();
+                invalidateNotes();
                 const updated = await response.json();
                 setSelectedNote(updated);
             }
@@ -466,7 +390,7 @@ export default function NotesPage() {
             if (response.ok) {
                 setShowDetailModal(false);
                 setSelectedNote(null);
-                fetchNotes();
+                invalidateNotes();
             }
         } catch (error) {
             console.error('Error deleting note:', error);
@@ -1161,7 +1085,7 @@ export default function NotesPage() {
                                             });
                                             if (response.ok) {
                                                 setSelectedNote({ ...selectedNote, priority: newPriority });
-                                                setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, priority: newPriority } : n));
+                                                invalidateNotes();
                                             }
                                         } catch (error) {
                                             console.error('Error setting priority:', error);

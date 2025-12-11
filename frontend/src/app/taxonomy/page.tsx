@@ -2,10 +2,18 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import {
+    useTaxonomyNodes,
+    useTaxonomyContents,
+    useTaxonomyTypes,
+    useTaxonomyFacets,
+    useInvalidateTaxonomy,
+    TAXONOMY_KEYS,
+} from '@/hooks/use-taxonomy';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { TagFilter } from '@/components/tag-filter';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -56,24 +64,20 @@ export default function TaxonomyExplorerPage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
 
+    const queryClient = useQueryClient();
+
     // State
     const [rootType, setRootType] = useState<RootType>('category');
     const [typeFilters, setTypeFilters] = useState<Set<string>>(new Set());
-    const [availableTypes, setAvailableTypes] = useState<{ value: string; label: string; count: number }[]>([]);
-    const [nodes, setNodes] = useState<TaxonomyNode[]>([]);
     const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
-    const [contents, setContents] = useState<ContentItem[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [showContents, setShowContents] = useState(false);
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
     const [nodeChildren, setNodeChildren] = useState<Record<string, TaxonomyNode[]>>({});
-    const [totalContents, setTotalContents] = useState(0);
 
     // Pagination state
     const PAGE_SIZE = 100;
-    const [hasMoreContents, setHasMoreContents] = useState(true);
     const [loadingMoreContents, setLoadingMoreContents] = useState(false);
+    const [allContents, setAllContents] = useState<ContentItem[]>([]);
 
     // Detail modal state
     const [showDetailModal, setShowDetailModal] = useState(false);
@@ -81,7 +85,7 @@ export default function TaxonomyExplorerPage() {
 
     // Enabled drill-down levels (only selected root type and concepts by default)
     const [enabledLevels, setEnabledLevels] = useState<Set<RootType>>(
-        new Set(['category', 'concept'])
+        new Set<RootType>(['category', 'concept'])
     );
 
     // User experts state
@@ -102,7 +106,6 @@ export default function TaxonomyExplorerPage() {
         products: Facet[];
         persons: Facet[];
     }
-    const [facets, setFacets] = useState<Facets | null>(null);
     const [facetFilters, setFacetFilters] = useState<{
         categories: string[];
         concepts: string[];
@@ -142,6 +145,68 @@ export default function TaxonomyExplorerPage() {
         maturity_level: true,
     });
 
+    // React Query hooks
+    const taxonomyNodesQuery = useTaxonomyNodes({
+        rootType,
+        breadcrumb: [],
+        typeFilters: Array.from(typeFilters),
+        categories: facetFilters.categories.length > 0 ? facetFilters.categories : undefined,
+        concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : undefined,
+        organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : undefined,
+        products: facetFilters.products.length > 0 ? facetFilters.products : undefined,
+        persons: facetFilters.persons.length > 0 ? facetFilters.persons : undefined,
+        processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : undefined,
+        maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : undefined,
+        has_comment: facetFilters.has_comment,
+        is_favorite: facetFilters.is_favorite,
+    });
+
+    const taxonomyContentsQuery = useTaxonomyContents({
+        breadcrumb,
+        typeFilters: Array.from(typeFilters),
+        offset: 0,
+        limit: PAGE_SIZE,
+        categories: facetFilters.categories.length > 0 ? facetFilters.categories : undefined,
+        concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : undefined,
+        organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : undefined,
+        products: facetFilters.products.length > 0 ? facetFilters.products : undefined,
+        persons: facetFilters.persons.length > 0 ? facetFilters.persons : undefined,
+        processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : undefined,
+        maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : undefined,
+        has_comment: facetFilters.has_comment,
+        is_favorite: facetFilters.is_favorite,
+    });
+
+    const taxonomyTypesQuery = useTaxonomyTypes({
+        persons: facetFilters.persons.length > 0 ? facetFilters.persons : undefined,
+        is_favorite: facetFilters.is_favorite,
+        has_comment: facetFilters.has_comment,
+        processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : undefined,
+        maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : undefined,
+    });
+
+    const taxonomyFacetsQuery = useTaxonomyFacets();
+
+    // Derived data from queries
+    const nodes = taxonomyNodesQuery.data?.nodes || [];
+    const totalContents = showContents
+        ? (taxonomyContentsQuery.data?.total || 0)
+        : (taxonomyNodesQuery.data?.total_contents || 0);
+    const availableTypes = taxonomyTypesQuery.data || [];
+    const facets = taxonomyFacetsQuery.data || null;
+    const loading = taxonomyNodesQuery.isLoading || (showContents && taxonomyContentsQuery.isLoading);
+    const error = taxonomyNodesQuery.error?.message || taxonomyContentsQuery.error?.message || null;
+
+    // Sync allContents with query data when breadcrumb changes
+    useEffect(() => {
+        if (taxonomyContentsQuery.data?.contents) {
+            setAllContents(taxonomyContentsQuery.data.contents);
+        }
+    }, [taxonomyContentsQuery.data?.contents, breadcrumb]);
+
+    const contents = allContents;
+    const hasMoreContents = taxonomyContentsQuery.data?.hasMore && contents.length < totalContents;
+
     const getAuthHeaders = async () => {
         const session = await supabase.auth.getSession();
         if (!session.data.session?.access_token) {
@@ -153,62 +218,6 @@ export default function TaxonomyExplorerPage() {
         };
     };
 
-    // Fetch available content types (with filters applied)
-    const fetchTypes = useCallback(async () => {
-        if (!user) return;
-        try {
-            const headers = await getAuthHeaders();
-
-            // Check if we have any filters that should affect type counts
-            const hasFilters =
-                facetFilters.persons.length > 0 ||
-                facetFilters.is_favorite !== null ||
-                facetFilters.has_comment !== null ||
-                facetFilters.processing_status.length > 0 ||
-                facetFilters.maturity_level.length > 0;
-
-            let response;
-            if (hasFilters) {
-                // Use POST with filters
-                response = await fetch(`${API_URL}/api/v1/taxonomy/types`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
-                        is_favorite: facetFilters.is_favorite,
-                        has_comment: facetFilters.has_comment,
-                        processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
-                        maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
-                    }),
-                });
-            } else {
-                // Use GET without filters (faster)
-                response = await fetch(`${API_URL}/api/v1/taxonomy/types`, { headers });
-            }
-
-            if (response.ok) {
-                const data = await response.json();
-                setAvailableTypes(data.types || []);
-            }
-        } catch (err) {
-            console.error('Error fetching types:', err);
-        }
-    }, [user, facetFilters.persons, facetFilters.is_favorite, facetFilters.has_comment, facetFilters.processing_status, facetFilters.maturity_level]);
-
-    // Fetch facets for filters
-    const fetchFacets = useCallback(async () => {
-        if (!user) return;
-        try {
-            const headers = await getAuthHeaders();
-            const response = await fetch(`${API_URL}/api/v1/search/facets`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setFacets(data);
-            }
-        } catch (err) {
-            console.error('Error fetching facets:', err);
-        }
-    }, [user]);
 
     // Fetch user experts for filtering
     const fetchUserExperts = useCallback(async () => {
@@ -262,122 +271,6 @@ export default function TaxonomyExplorerPage() {
         return Array.isArray(val) && val.length > 0;
     });
 
-    // Fetch taxonomy nodes
-    const fetchNodes = useCallback(async (
-        rootTypeParam: RootType,
-        parentType?: string,
-        parentValue?: string
-    ) => {
-        if (!user) return;
-        setLoading(true);
-        setError(null);
-
-        try {
-            const headers = await getAuthHeaders();
-            const requestBody = {
-                root_type: rootTypeParam,
-                type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
-                parent_type: parentType,
-                parent_value: parentValue,
-                // Additional facet filters
-                categories: facetFilters.categories.length > 0 ? facetFilters.categories : null,
-                concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : null,
-                organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
-                products: facetFilters.products.length > 0 ? facetFilters.products : null,
-                persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
-                processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
-                maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
-                has_comment: facetFilters.has_comment,
-                is_favorite: facetFilters.is_favorite,
-            };
-            console.log('Taxonomy nodes request:', requestBody);
-            const response = await fetch(`${API_URL}/api/v1/taxonomy/nodes`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(requestBody),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Error al cargar datos');
-            }
-
-            const data = await response.json();
-            console.log('Taxonomy nodes response:', data);
-            setTotalContents(data.total_contents);
-
-            if (parentType && parentValue) {
-                // Store as children of the parent node
-                const parentId = `${parentType}:${parentValue}`;
-                setNodeChildren(prev => ({
-                    ...prev,
-                    [parentId]: data.nodes
-                }));
-            } else {
-                setNodes(data.nodes);
-            }
-        } catch (err) {
-            console.error('Taxonomy fetch error:', err);
-            setError(err instanceof Error ? err.message : 'Error desconocido');
-        } finally {
-            setLoading(false);
-        }
-    }, [user, typeFilters, facetFilters]);
-
-    // Fetch contents for current filters
-    const fetchContents = useCallback(async (reset: boolean = true) => {
-        if (!user) return;
-        if (reset) {
-            setLoading(true);
-            setContents([]);
-        }
-
-        try {
-            const headers = await getAuthHeaders();
-
-            // Build filters from breadcrumb
-            const filters: Record<string, string> = {};
-            breadcrumb.forEach(item => {
-                filters[item.type] = item.value;
-            });
-
-            const response = await fetch(`${API_URL}/api/v1/taxonomy/contents`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    filters,
-                    type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
-                    categories: facetFilters.categories.length > 0 ? facetFilters.categories : null,
-                    concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : null,
-                    organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
-                    products: facetFilters.products.length > 0 ? facetFilters.products : null,
-                    persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
-                    processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
-                    maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
-                    has_comment: facetFilters.has_comment,
-                    is_favorite: facetFilters.is_favorite,
-                    limit: PAGE_SIZE,
-                    offset: 0,
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Error al cargar contenidos');
-            }
-
-            const data = await response.json();
-            setContents(data.contents || []);
-            const total = data.total || data.contents?.length || 0;
-            setTotalContents(total);
-            // More contents available if total is greater than what we have
-            setHasMoreContents((data.contents?.length || 0) < total);
-            setShowContents(true);
-        } catch (err) {
-            console.error('Contents fetch error:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [user, breadcrumb, typeFilters, facetFilters]);
 
     // Load more contents
     const loadMoreContents = async () => {
@@ -419,13 +312,7 @@ export default function TaxonomyExplorerPage() {
 
             const data = await response.json();
             if (data.contents && data.contents.length > 0) {
-                const newContents = [...contents, ...data.contents];
-                setContents(newContents);
-                // Check if we have all contents
-                const total = data.total || totalContents;
-                setHasMoreContents(newContents.length < total);
-            } else {
-                setHasMoreContents(false);
+                setAllContents(prev => [...prev, ...data.contents]);
             }
         } catch (err) {
             console.error('Load more contents error:', err);
@@ -441,27 +328,12 @@ export default function TaxonomyExplorerPage() {
         }
     }, [authLoading, user, router]);
 
-    // Initial load - only fetch facets and experts once
+    // Initial load - only fetch experts once
     useEffect(() => {
         if (user) {
-            fetchFacets();
             fetchUserExperts();
         }
-    }, [user, fetchFacets, fetchUserExperts]);
-
-    // Fetch types when filters change (or on initial load)
-    useEffect(() => {
-        if (user) {
-            fetchTypes();
-        }
-    }, [user, fetchTypes]);
-
-    // Fetch nodes when rootType or filters change
-    useEffect(() => {
-        if (user) {
-            fetchNodes(rootType);
-        }
-    }, [user, rootType, fetchNodes]);
+    }, [user, fetchUserExperts]);
 
     // Handle root type change
     const handleRootTypeChange = (newType: RootType) => {
@@ -471,8 +343,8 @@ export default function TaxonomyExplorerPage() {
         setExpandedNodes(new Set());
         setNodeChildren({});
         // Reset enabled levels to only the new root type and concepts
-        setEnabledLevels(new Set([newType, 'concept']));
-        fetchNodes(newType);
+        setEnabledLevels(new Set<RootType>([newType, 'concept']));
+        // React Query will automatically refetch when rootType changes
     };
 
     // Toggle a type filter
@@ -519,7 +391,49 @@ export default function TaxonomyExplorerPage() {
             // Determine next level type
             const nextType = getNextLevelType(node.type as RootType);
             if (nextType) {
-                await fetchNodes(nextType, node.type, node.label);
+                // Fetch children for this node using React Query
+                const childBreadcrumb: BreadcrumbItem[] = [{
+                    type: node.type,
+                    value: node.label,
+                    label: node.label,
+                }];
+
+                try {
+                    const headers = await getAuthHeaders();
+                    const requestBody = {
+                        root_type: nextType,
+                        type_filters: typeFilters.size > 0 ? Array.from(typeFilters) : null,
+                        parent_type: node.type,
+                        parent_value: node.label,
+                        categories: facetFilters.categories.length > 0 ? facetFilters.categories : null,
+                        concepts: facetFilters.concepts.length > 0 ? facetFilters.concepts : null,
+                        organizations: facetFilters.organizations.length > 0 ? facetFilters.organizations : null,
+                        products: facetFilters.products.length > 0 ? facetFilters.products : null,
+                        persons: facetFilters.persons.length > 0 ? facetFilters.persons : null,
+                        processing_status: facetFilters.processing_status.length > 0 ? facetFilters.processing_status : null,
+                        maturity_level: facetFilters.maturity_level.length > 0 ? facetFilters.maturity_level : null,
+                        has_comment: facetFilters.has_comment,
+                        is_favorite: facetFilters.is_favorite,
+                    };
+
+                    const response = await fetch(`${API_URL}/api/v1/taxonomy/nodes`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Store as children of the parent node
+                        const parentId = `${node.type}:${node.label}`;
+                        setNodeChildren(prev => ({
+                            ...prev,
+                            [parentId]: data.nodes
+                        }));
+                    }
+                } catch (err) {
+                    console.error('Error fetching node children:', err);
+                }
             }
         }
     };
@@ -594,12 +508,6 @@ export default function TaxonomyExplorerPage() {
         }
     };
 
-    // Fetch contents when breadcrumb changes and showContents is true
-    useEffect(() => {
-        if (showContents && breadcrumb.length > 0) {
-            fetchContents();
-        }
-    }, [showContents, breadcrumb, fetchContents]);
 
     // Render a tree node
     const renderNode = (node: TaxonomyNode, depth: number = 0) => {
@@ -1360,11 +1268,13 @@ export default function TaxonomyExplorerPage() {
                     setSelectedContent(updated);
                 }}
                 onArchive={() => {
-                    fetchContents();
+                    taxonomyContentsQuery.refetch();
+                    taxonomyNodesQuery.refetch();
                     setShowDetailModal(false);
                 }}
                 onDelete={() => {
-                    fetchContents();
+                    taxonomyContentsQuery.refetch();
+                    taxonomyNodesQuery.refetch();
                     setShowDetailModal(false);
                 }}
             />

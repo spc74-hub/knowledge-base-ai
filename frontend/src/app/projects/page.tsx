@@ -2,67 +2,25 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import {
+    useProjectsTree,
+    useProjectDetail,
+    useCreateProject,
+    useUpdateProject,
+    useDeleteProject,
+    useToggleProjectFavorite,
+    useMoveProject,
+    PROJECTS_KEYS,
+    type ProjectTree,
+    type ProjectDetail,
+    type Content,
+    type StandaloneNote
+} from '@/hooks/use-projects';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
-
-interface Project {
-    id: string;
-    name: string;
-    description: string | null;
-    status: string;
-    deadline: string | null;
-    completed_at: string | null;
-    color: string;
-    icon: string;
-    position: number;
-    parent_project_id: string | null;
-    content_count: number;
-    children_count: number;
-    is_favorite: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-interface ProjectTree {
-    id: string;
-    name: string;
-    icon: string;
-    color: string;
-    status: string;
-    parent_project_id: string | null;
-    children: ProjectTree[];
-    content_count: number;
-}
-
-interface Content {
-    id: string;
-    title: string;
-    type: string;
-    is_favorite: boolean;
-    maturity_level: string;
-    created_at: string;
-    project_id?: string | null;
-}
-
-interface StandaloneNote {
-    id: string;
-    title: string;
-    content: string;
-    note_type: string;
-    tags: string[];
-    is_pinned: boolean;
-    linked_project_id?: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-interface ProjectDetail extends Project {
-    contents: Content[];
-    children: Project[];
-    notes?: StandaloneNote[];
-}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -176,12 +134,19 @@ function TreeNode({
 export default function ProjectsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const queryClient = useQueryClient();
     const { user, loading: authLoading } = useAuth();
-    const [projectTree, setProjectTree] = useState<ProjectTree[]>([]);
-    const [loading, setLoading] = useState(true);
+
+    // React Query hooks
+    const { data: projectTree = [], isLoading: loadingTree } = useProjectsTree();
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-    const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null);
-    const [loadingDetail, setLoadingDetail] = useState(false);
+    const { data: selectedProject, isLoading: loadingDetail } = useProjectDetail(selectedProjectId);
+    const createProjectMutation = useCreateProject();
+    const updateProjectMutation = useUpdateProject();
+    const deleteProjectMutation = useDeleteProject();
+    const toggleFavoriteMutation = useToggleProjectFavorite();
+    const moveProjectMutation = useMoveProject();
+
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
     // Drag & Drop state
@@ -205,16 +170,12 @@ export default function ProjectsPage() {
     const [linkingContents, setLinkingContents] = useState(false);
     const [linkingNotes, setLinkingNotes] = useState(false);
 
-    // Favorite toggling
-    const [togglingFavorite, setTogglingFavorite] = useState(false);
-
     // Form state
     const [formName, setFormName] = useState('');
     const [formDescription, setFormDescription] = useState('');
     const [formDeadline, setFormDeadline] = useState('');
     const [formColor, setFormColor] = useState('#6366f1');
     const [formIcon, setFormIcon] = useState('📁');
-    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -222,11 +183,20 @@ export default function ProjectsPage() {
         }
     }, [user, authLoading, router]);
 
+    // Auto-expand all projects when tree loads
     useEffect(() => {
-        if (user) {
-            fetchProjectTree();
+        if (projectTree.length > 0) {
+            const allIds = new Set<string>();
+            const collectIds = (nodes: ProjectTree[]) => {
+                nodes.forEach(n => {
+                    allIds.add(n.id);
+                    if (n.children) collectIds(n.children);
+                });
+            };
+            collectIds(projectTree);
+            setExpandedIds(allIds);
         }
-    }, [user]);
+    }, [projectTree]);
 
     // Open create modal if ?create=true
     useEffect(() => {
@@ -241,84 +211,19 @@ export default function ProjectsPage() {
         const idParam = searchParams.get('id');
         if (idParam && projectTree.length > 0) {
             setSelectedProjectId(idParam);
-            fetchProjectDetail(idParam);
         }
     }, [searchParams, projectTree]);
 
-    const fetchProjectTree = async () => {
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/projects/tree`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setProjectTree(data);
-                // Auto-expand all by default
-                const allIds = new Set<string>();
-                const collectIds = (nodes: ProjectTree[]) => {
-                    nodes.forEach(n => {
-                        allIds.add(n.id);
-                        if (n.children) collectIds(n.children);
-                    });
-                };
-                collectIds(data);
-                setExpandedIds(allIds);
-            }
-        } catch (error) {
-            console.error('Error fetching project tree:', error);
-        } finally {
-            setLoading(false);
+    // Update form when project detail loads
+    useEffect(() => {
+        if (selectedProject) {
+            setFormName(selectedProject.name);
+            setFormDescription(selectedProject.description || '');
+            setFormDeadline(selectedProject.deadline ? selectedProject.deadline.split('T')[0] : '');
+            setFormColor(selectedProject.color);
+            setFormIcon(selectedProject.icon);
         }
-    };
-
-    const fetchProjectDetail = async (projectId: string) => {
-        setLoadingDetail(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            // Fetch project and linked notes in parallel
-            const [projectResponse, notesResponse] = await Promise.all([
-                fetch(`${API_URL}/api/v1/projects/${projectId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${session.data.session.access_token}`,
-                    },
-                }),
-                fetch(`${API_URL}/api/v1/projects/${projectId}/notes`, {
-                    headers: {
-                        'Authorization': `Bearer ${session.data.session.access_token}`,
-                    },
-                })
-            ]);
-
-            if (projectResponse.ok) {
-                const data = await projectResponse.json();
-                // Add notes to project data
-                if (notesResponse.ok) {
-                    data.notes = await notesResponse.json();
-                } else {
-                    data.notes = [];
-                }
-                setSelectedProject(data);
-                // Set form values for editing
-                setFormName(data.name);
-                setFormDescription(data.description || '');
-                setFormDeadline(data.deadline ? data.deadline.split('T')[0] : '');
-                setFormColor(data.color);
-                setFormIcon(data.icon);
-            }
-        } catch (error) {
-            console.error('Error fetching project detail:', error);
-        } finally {
-            setLoadingDetail(false);
-        }
-    };
+    }, [selectedProject]);
 
     const fetchAvailableContents = async () => {
         setLoadingContents(true);
@@ -390,8 +295,7 @@ export default function ProjectsPage() {
             if (response.ok) {
                 setShowContentSelector(false);
                 setSelectedContentIds([]);
-                fetchProjectTree();
-                fetchProjectDetail(selectedProjectId);
+                queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.all });
             }
         } catch (error) {
             console.error('Error linking contents:', error);
@@ -420,7 +324,7 @@ export default function ProjectsPage() {
             if (response.ok) {
                 setShowNoteSelector(false);
                 setSelectedNoteIds([]);
-                fetchProjectDetail(selectedProjectId);
+                queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.all });
             }
         } catch (error) {
             console.error('Error linking notes:', error);
@@ -446,7 +350,7 @@ export default function ProjectsPage() {
             });
 
             if (response.ok) {
-                fetchProjectDetail(selectedProjectId);
+                queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.all });
             }
         } catch (error) {
             console.error('Error unlinking note:', error);
@@ -470,8 +374,7 @@ export default function ProjectsPage() {
             });
 
             if (response.ok) {
-                fetchProjectTree();
-                fetchProjectDetail(selectedProjectId);
+                queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.all });
             }
         } catch (error) {
             console.error('Error unlinking content:', error);
@@ -493,7 +396,6 @@ export default function ProjectsPage() {
     const handleSelectProject = (id: string) => {
         setSelectedProjectId(id);
         setEditMode(false);
-        fetchProjectDetail(id);
     };
 
     const handleToggleExpand = (id: string) => {
@@ -529,35 +431,15 @@ export default function ProjectsPage() {
             return;
         }
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/projects/reorder`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
+        moveProjectMutation.mutate(
+            { projectId: draggedId, targetParentId: targetId },
+            {
+                onSettled: () => {
+                    setDraggedId(null);
+                    setDragOverId(null);
                 },
-                body: JSON.stringify({
-                    project_id: draggedId,
-                    new_parent_id: targetId,
-                    new_position: 0,
-                }),
-            });
-
-            if (response.ok) {
-                fetchProjectTree();
-                if (selectedProjectId) {
-                    fetchProjectDetail(selectedProjectId);
-                }
             }
-        } catch (error) {
-            console.error('Error reordering project:', error);
-        } finally {
-            setDraggedId(null);
-            setDragOverId(null);
-        }
+        );
     };
 
     const handleDropToRoot = (e: React.DragEvent) => {
@@ -566,149 +448,69 @@ export default function ProjectsPage() {
 
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSaving(true);
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/projects/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
+        createProjectMutation.mutate(
+            {
+                name: formName,
+                description: formDescription || undefined,
+                deadline: formDeadline || undefined,
+                color: formColor,
+                icon: formIcon,
+                parent_project_id: createParentId,
+            },
+            {
+                onSuccess: () => {
+                    setShowCreateModal(false);
+                    resetForm();
                 },
-                body: JSON.stringify({
-                    name: formName,
-                    description: formDescription || null,
-                    deadline: formDeadline || null,
-                    color: formColor,
-                    icon: formIcon,
-                    parent_project_id: createParentId,
-                }),
-            });
-
-            if (response.ok) {
-                setShowCreateModal(false);
-                resetForm();
-                fetchProjectTree();
             }
-        } catch (error) {
-            console.error('Error creating project:', error);
-        } finally {
-            setSaving(false);
-        }
+        );
     };
 
     const handleUpdateProject = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedProject) return;
-        setSaving(true);
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProject.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
+        updateProjectMutation.mutate(
+            {
+                id: selectedProject.id,
+                name: formName,
+                description: formDescription || undefined,
+                deadline: formDeadline || undefined,
+                color: formColor,
+                icon: formIcon,
+            },
+            {
+                onSuccess: () => {
+                    setEditMode(false);
                 },
-                body: JSON.stringify({
-                    name: formName,
-                    description: formDescription || null,
-                    deadline: formDeadline || null,
-                    color: formColor,
-                    icon: formIcon,
-                }),
-            });
-
-            if (response.ok) {
-                setEditMode(false);
-                fetchProjectTree();
-                fetchProjectDetail(selectedProject.id);
             }
-        } catch (error) {
-            console.error('Error updating project:', error);
-        } finally {
-            setSaving(false);
-        }
+        );
     };
 
     const handleUpdateStatus = async (status: string) => {
         if (!selectedProject) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProject.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({ status }),
-            });
-
-            if (response.ok) {
-                fetchProjectTree();
-                fetchProjectDetail(selectedProject.id);
-            }
-        } catch (error) {
-            console.error('Error updating status:', error);
-        }
+        updateProjectMutation.mutate({
+            id: selectedProject.id,
+            status,
+        });
     };
 
     const handleDeleteProject = async () => {
         if (!selectedProject || !confirm('¿Eliminar este proyecto? Los subproyectos se convertirán en proyectos raíz.')) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProject.id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
+        deleteProjectMutation.mutate(selectedProject.id, {
+            onSuccess: () => {
                 setSelectedProjectId(null);
-                setSelectedProject(null);
-                fetchProjectTree();
-            }
-        } catch (error) {
-            console.error('Error deleting project:', error);
-        }
+            },
+        });
     };
 
     const handleToggleFavorite = async () => {
-        if (!selectedProject || togglingFavorite) return;
-        setTogglingFavorite(true);
+        if (!selectedProject || toggleFavoriteMutation.isPending) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/projects/${selectedProject.id}/favorite`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setSelectedProject({ ...selectedProject, is_favorite: data.is_favorite });
-            }
-        } catch (error) {
-            console.error('Error toggling favorite:', error);
-        } finally {
-            setTogglingFavorite(false);
-        }
+        toggleFavoriteMutation.mutate(selectedProject.id);
     };
 
     const resetForm = () => {
@@ -727,7 +529,7 @@ export default function ProjectsPage() {
         setShowCreateModal(true);
     };
 
-    if (authLoading || loading) {
+    if (authLoading || loadingTree) {
         return (
             <div className="min-h-screen flex items-center justify-center dark:bg-gray-900">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 dark:border-white"></div>
@@ -856,7 +658,7 @@ export default function ProjectsPage() {
                                 <div className="flex gap-2 flex-wrap items-center">
                                     <button
                                         onClick={handleToggleFavorite}
-                                        disabled={togglingFavorite}
+                                        disabled={toggleFavoriteMutation.isPending}
                                         className={`p-2 text-xl rounded-lg transition-colors ${
                                             selectedProject.is_favorite
                                                 ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
@@ -979,10 +781,10 @@ export default function ProjectsPage() {
                                             </button>
                                             <button
                                                 type="submit"
-                                                disabled={saving}
+                                                disabled={updateProjectMutation.isPending}
                                                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                                             >
-                                                {saving ? 'Guardando...' : 'Guardar'}
+                                                {updateProjectMutation.isPending ? 'Guardando...' : 'Guardar'}
                                             </button>
                                         </div>
                                     </div>
@@ -1248,10 +1050,10 @@ export default function ProjectsPage() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={saving || !formName}
+                                    disabled={createProjectMutation.isPending || !formName}
                                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                                 >
-                                    {saving ? 'Creando...' : 'Crear'}
+                                    {createProjectMutation.isPending ? 'Creando...' : 'Crear'}
                                 </button>
                             </div>
                         </form>

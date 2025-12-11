@@ -1,8 +1,29 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import {
+    useObjectivesTree,
+    useObjectiveDetail,
+    useCreateObjective,
+    useUpdateObjective,
+    useDeleteObjective,
+    useToggleObjectiveFavorite,
+    useMoveObjective,
+    useCreateObjectiveAction,
+    useToggleObjectiveAction,
+    useDeleteObjectiveAction,
+    OBJECTIVES_KEYS,
+    type ObjectiveTree,
+    type ObjectiveDetail,
+    type Action,
+    type Content,
+    type StandaloneNote,
+    type Project,
+    type MentalModel,
+} from '@/hooks/use-objectives';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -31,82 +52,6 @@ const COLORS = [
 ];
 
 const ICONS = ['🎯', '🚀', '💡', '📈', '🏆', '⭐', '🔥', '💪', '🎓', '💰'];
-
-interface ObjectiveTree {
-    id: string;
-    title: string;
-    icon: string;
-    color: string;
-    status: string;
-    progress: number;
-    parent_id: string | null;
-    horizon: string;
-    children: ObjectiveTree[];
-}
-
-interface Action {
-    id: string;
-    title: string;
-    is_completed: boolean;
-    position: number;
-}
-
-interface Content {
-    id: string;
-    title: string;
-    content_type: string;
-    is_favorite: boolean;
-    created_at: string;
-}
-
-interface StandaloneNote {
-    id: string;
-    title: string;
-    content: string;
-    note_type: string;
-    tags: string[];
-    is_pinned: boolean;
-    created_at: string;
-}
-
-interface Project {
-    id: string;
-    name: string;
-    status: string;
-    color: string;
-    icon: string;
-}
-
-interface MentalModel {
-    id: string;
-    name: string;
-    slug: string;
-    icon: string;
-    color: string;
-}
-
-interface ObjectiveDetail {
-    id: string;
-    title: string;
-    description: string | null;
-    horizon: string;
-    target_date: string | null;
-    status: string;
-    progress: number;
-    color: string;
-    icon: string;
-    parent_id: string | null;
-    is_favorite: boolean;
-    created_at: string;
-    updated_at: string;
-    objective_actions: Action[];
-    contents: Content[];
-    contents_count: number;
-    notes: StandaloneNote[];
-    projects: Project[];
-    mental_models: MentalModel[];
-    children: ObjectiveTree[];
-}
 
 // Tree Node Component
 function TreeNode({
@@ -204,12 +149,22 @@ function TreeNode({
 export default function ObjectivesPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const queryClient = useQueryClient();
     const { user, loading: authLoading } = useAuth();
-    const [objectiveTree, setObjectiveTree] = useState<ObjectiveTree[]>([]);
-    const [loading, setLoading] = useState(true);
+
+    // React Query hooks
+    const { data: objectiveTree = [], isLoading: loading } = useObjectivesTree();
     const [selectedObjectiveId, setSelectedObjectiveId] = useState<string | null>(null);
-    const [selectedObjective, setSelectedObjective] = useState<ObjectiveDetail | null>(null);
-    const [loadingDetail, setLoadingDetail] = useState(false);
+    const { data: selectedObjective, isLoading: loadingDetail } = useObjectiveDetail(selectedObjectiveId);
+    const createObjectiveMutation = useCreateObjective();
+    const updateObjectiveMutation = useUpdateObjective();
+    const deleteObjectiveMutation = useDeleteObjective();
+    const toggleFavoriteMutation = useToggleObjectiveFavorite();
+    const moveObjectiveMutation = useMoveObjective();
+    const createActionMutation = useCreateObjectiveAction();
+    const toggleActionMutation = useToggleObjectiveAction();
+    const deleteActionMutation = useDeleteObjectiveAction();
+
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
     // Drag & Drop state
@@ -242,25 +197,15 @@ export default function ObjectivesPage() {
     const [formStatus, setFormStatus] = useState('pending');
     const [formColor, setFormColor] = useState('#6366f1');
     const [formIcon, setFormIcon] = useState('🎯');
-    const [saving, setSaving] = useState(false);
 
     // Action form
     const [newActionTitle, setNewActionTitle] = useState('');
-
-    // Favorite toggling
-    const [togglingFavorite, setTogglingFavorite] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
         }
     }, [user, authLoading, router]);
-
-    useEffect(() => {
-        if (user) {
-            fetchObjectiveTree();
-        }
-    }, [user]);
 
     // Open create modal if ?create=true
     useEffect(() => {
@@ -275,72 +220,36 @@ export default function ObjectivesPage() {
         const idParam = searchParams.get('id');
         if (idParam && objectiveTree.length > 0) {
             setSelectedObjectiveId(idParam);
-            fetchObjectiveDetail(idParam);
         }
     }, [searchParams, objectiveTree]);
 
-    const fetchObjectiveTree = async () => {
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/objectives/tree`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setObjectiveTree(data);
-                // Auto-expand all by default
-                const allIds = new Set<string>();
-                const collectIds = (nodes: ObjectiveTree[]) => {
-                    nodes.forEach(n => {
-                        allIds.add(n.id);
-                        if (n.children) collectIds(n.children);
-                    });
-                };
-                collectIds(data);
-                setExpandedIds(allIds);
-            }
-        } catch (error) {
-            console.error('Error fetching objective tree:', error);
-        } finally {
-            setLoading(false);
+    // Auto-expand all nodes by default
+    useEffect(() => {
+        if (objectiveTree.length > 0) {
+            const allIds = new Set<string>();
+            const collectIds = (nodes: ObjectiveTree[]) => {
+                nodes.forEach(n => {
+                    allIds.add(n.id);
+                    if (n.children) collectIds(n.children);
+                });
+            };
+            collectIds(objectiveTree);
+            setExpandedIds(allIds);
         }
-    };
+    }, [objectiveTree]);
 
-    const fetchObjectiveDetail = async (objectiveId: string) => {
-        setLoadingDetail(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/objectives/${objectiveId}`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setSelectedObjective(data);
-                // Set form values for editing
-                setFormTitle(data.title);
-                setFormDescription(data.description || '');
-                setFormHorizon(data.horizon);
-                setFormTargetDate(data.target_date ? data.target_date.split('T')[0] : '');
-                setFormStatus(data.status);
-                setFormColor(data.color);
-                setFormIcon(data.icon);
-            }
-        } catch (error) {
-            console.error('Error fetching objective detail:', error);
-        } finally {
-            setLoadingDetail(false);
+    // Set form values when objective detail is loaded
+    useEffect(() => {
+        if (selectedObjective) {
+            setFormTitle(selectedObjective.title);
+            setFormDescription(selectedObjective.description || '');
+            setFormHorizon(selectedObjective.horizon);
+            setFormTargetDate(selectedObjective.target_date ? selectedObjective.target_date.split('T')[0] : '');
+            setFormStatus(selectedObjective.status);
+            setFormColor(selectedObjective.color);
+            setFormIcon(selectedObjective.icon);
         }
-    };
+    }, [selectedObjective]);
 
     // Fetch available items for selectors
     const fetchAvailableContents = async () => {
@@ -455,7 +364,7 @@ export default function ObjectivesPage() {
 
             setShowContentSelector(false);
             setSelectedIds([]);
-            fetchObjectiveDetail(selectedObjectiveId);
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
         } catch (error) {
             console.error('Error linking contents:', error);
         } finally {
@@ -481,7 +390,7 @@ export default function ObjectivesPage() {
 
             setShowNoteSelector(false);
             setSelectedIds([]);
-            fetchObjectiveDetail(selectedObjectiveId);
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
         } catch (error) {
             console.error('Error linking notes:', error);
         } finally {
@@ -507,7 +416,7 @@ export default function ObjectivesPage() {
 
             setShowProjectSelector(false);
             setSelectedIds([]);
-            fetchObjectiveDetail(selectedObjectiveId);
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
         } catch (error) {
             console.error('Error linking projects:', error);
         } finally {
@@ -533,7 +442,7 @@ export default function ObjectivesPage() {
 
             setShowModelSelector(false);
             setSelectedIds([]);
-            fetchObjectiveDetail(selectedObjectiveId);
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
         } catch (error) {
             console.error('Error linking mental models:', error);
         } finally {
@@ -557,7 +466,7 @@ export default function ObjectivesPage() {
                 body: JSON.stringify([contentId]),
             });
 
-            fetchObjectiveDetail(selectedObjectiveId);
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
         } catch (error) {
             console.error('Error unlinking content:', error);
         }
@@ -578,7 +487,7 @@ export default function ObjectivesPage() {
                 body: JSON.stringify([noteId]),
             });
 
-            fetchObjectiveDetail(selectedObjectiveId);
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
         } catch (error) {
             console.error('Error unlinking note:', error);
         }
@@ -599,7 +508,7 @@ export default function ObjectivesPage() {
                 body: JSON.stringify([projectId]),
             });
 
-            fetchObjectiveDetail(selectedObjectiveId);
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
         } catch (error) {
             console.error('Error unlinking project:', error);
         }
@@ -620,7 +529,7 @@ export default function ObjectivesPage() {
                 body: JSON.stringify([modelId]),
             });
 
-            fetchObjectiveDetail(selectedObjectiveId);
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
         } catch (error) {
             console.error('Error unlinking mental model:', error);
         }
@@ -654,7 +563,6 @@ export default function ObjectivesPage() {
     const handleSelectObjective = (id: string) => {
         setSelectedObjectiveId(id);
         setEditMode(false);
-        fetchObjectiveDetail(id);
     };
 
     const handleToggleExpand = (id: string) => {
@@ -690,35 +598,15 @@ export default function ObjectivesPage() {
             return;
         }
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/objectives/reorder`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
+        moveObjectiveMutation.mutate(
+            { objectiveId: draggedId, targetParentId: targetId },
+            {
+                onSettled: () => {
+                    setDraggedId(null);
+                    setDragOverId(null);
                 },
-                body: JSON.stringify({
-                    objective_id: draggedId,
-                    new_parent_id: targetId,
-                    new_position: 0,
-                }),
-            });
-
-            if (response.ok) {
-                fetchObjectiveTree();
-                if (selectedObjectiveId) {
-                    fetchObjectiveDetail(selectedObjectiveId);
-                }
             }
-        } catch (error) {
-            console.error('Error reordering objective:', error);
-        } finally {
-            setDraggedId(null);
-            setDragOverId(null);
-        }
+        );
     };
 
     const handleDropToRoot = (e: React.DragEvent) => {
@@ -727,220 +615,106 @@ export default function ObjectivesPage() {
 
     const handleCreateObjective = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSaving(true);
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/objectives/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
+        createObjectiveMutation.mutate(
+            {
+                title: formTitle,
+                description: formDescription || undefined,
+                horizon: formHorizon,
+                target_date: formTargetDate || undefined,
+                status: formStatus,
+                color: formColor,
+                icon: formIcon,
+                parent_id: createParentId,
+            },
+            {
+                onSuccess: () => {
+                    setShowCreateModal(false);
+                    resetForm();
                 },
-                body: JSON.stringify({
-                    title: formTitle,
-                    description: formDescription || null,
-                    horizon: formHorizon,
-                    target_date: formTargetDate || null,
-                    status: formStatus,
-                    color: formColor,
-                    icon: formIcon,
-                    parent_id: createParentId,
-                }),
-            });
-
-            if (response.ok) {
-                setShowCreateModal(false);
-                resetForm();
-                fetchObjectiveTree();
             }
-        } catch (error) {
-            console.error('Error creating objective:', error);
-        } finally {
-            setSaving(false);
-        }
+        );
     };
 
     const handleUpdateObjective = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedObjective) return;
-        setSaving(true);
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/objectives/${selectedObjective.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
+        updateObjectiveMutation.mutate(
+            {
+                id: selectedObjective.id,
+                title: formTitle,
+                description: formDescription || undefined,
+                horizon: formHorizon,
+                target_date: formTargetDate || undefined,
+                status: formStatus,
+                color: formColor,
+                icon: formIcon,
+            },
+            {
+                onSuccess: () => {
+                    setEditMode(false);
                 },
-                body: JSON.stringify({
-                    title: formTitle,
-                    description: formDescription || null,
-                    horizon: formHorizon,
-                    target_date: formTargetDate || null,
-                    status: formStatus,
-                    color: formColor,
-                    icon: formIcon,
-                }),
-            });
-
-            if (response.ok) {
-                setEditMode(false);
-                fetchObjectiveTree();
-                fetchObjectiveDetail(selectedObjective.id);
             }
-        } catch (error) {
-            console.error('Error updating objective:', error);
-        } finally {
-            setSaving(false);
-        }
+        );
     };
 
     const handleUpdateStatus = async (status: string) => {
         if (!selectedObjective) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/objectives/${selectedObjective.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({ status }),
-            });
-
-            if (response.ok) {
-                fetchObjectiveTree();
-                fetchObjectiveDetail(selectedObjective.id);
-            }
-        } catch (error) {
-            console.error('Error updating status:', error);
-        }
+        updateObjectiveMutation.mutate({
+            id: selectedObjective.id,
+            status,
+        });
     };
 
     const handleDeleteObjective = async () => {
         if (!selectedObjective || !confirm('¿Eliminar este objetivo? Los subobjetivos se convertirán en objetivos raíz.')) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/objectives/${selectedObjective.id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
+        deleteObjectiveMutation.mutate(selectedObjective.id, {
+            onSuccess: () => {
                 setSelectedObjectiveId(null);
-                setSelectedObjective(null);
-                fetchObjectiveTree();
-            }
-        } catch (error) {
-            console.error('Error deleting objective:', error);
-        }
+            },
+        });
     };
 
     // Action handlers
     const handleAddAction = async () => {
         if (!selectedObjective || !newActionTitle.trim()) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            await fetch(`${API_URL}/api/v1/objectives/${selectedObjective.id}/actions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
+        createActionMutation.mutate(
+            { objectiveId: selectedObjective.id, title: newActionTitle },
+            {
+                onSuccess: () => {
+                    setNewActionTitle('');
                 },
-                body: JSON.stringify({ title: newActionTitle }),
-            });
-
-            setNewActionTitle('');
-            fetchObjectiveDetail(selectedObjective.id);
-            fetchObjectiveTree();
-        } catch (error) {
-            console.error('Error adding action:', error);
-        }
+            }
+        );
     };
 
     const handleToggleAction = async (actionId: string, currentState: boolean) => {
         if (!selectedObjective) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            await fetch(`${API_URL}/api/v1/objectives/${selectedObjective.id}/actions/${actionId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({ is_completed: !currentState }),
-            });
-
-            fetchObjectiveDetail(selectedObjective.id);
-            fetchObjectiveTree();
-        } catch (error) {
-            console.error('Error toggling action:', error);
-        }
+        toggleActionMutation.mutate({
+            objectiveId: selectedObjective.id,
+            actionId,
+            isCompleted: currentState,
+        });
     };
 
     const handleDeleteAction = async (actionId: string) => {
         if (!selectedObjective) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            await fetch(`${API_URL}/api/v1/objectives/${selectedObjective.id}/actions/${actionId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${session.data.session.access_token}` },
-            });
-
-            fetchObjectiveDetail(selectedObjective.id);
-            fetchObjectiveTree();
-        } catch (error) {
-            console.error('Error deleting action:', error);
-        }
+        deleteActionMutation.mutate({
+            objectiveId: selectedObjective.id,
+            actionId,
+        });
     };
 
     const handleToggleFavorite = async () => {
-        if (!selectedObjective || togglingFavorite) return;
-        setTogglingFavorite(true);
+        if (!selectedObjective || toggleFavoriteMutation.isPending) return;
 
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/objectives/${selectedObjective.id}/favorite`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setSelectedObjective({ ...selectedObjective, is_favorite: data.is_favorite });
-            }
-        } catch (error) {
-            console.error('Error toggling favorite:', error);
-        } finally {
-            setTogglingFavorite(false);
-        }
+        toggleFavoriteMutation.mutate(selectedObjective.id);
     };
 
     const resetForm = () => {
@@ -1093,7 +867,7 @@ export default function ObjectivesPage() {
                                 <div className="flex gap-2 flex-wrap items-center">
                                     <button
                                         onClick={handleToggleFavorite}
-                                        disabled={togglingFavorite}
+                                        disabled={toggleFavoriteMutation.isPending}
                                         className={`p-2 text-xl rounded-lg transition-colors ${
                                             selectedObjective.is_favorite
                                                 ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
@@ -1209,10 +983,10 @@ export default function ObjectivesPage() {
                                             </button>
                                             <button
                                                 type="submit"
-                                                disabled={saving}
+                                                disabled={updateObjectiveMutation.isPending}
                                                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                                             >
-                                                {saving ? 'Guardando...' : 'Guardar'}
+                                                {updateObjectiveMutation.isPending ? 'Guardando...' : 'Guardar'}
                                             </button>
                                         </div>
                                     </div>
@@ -1647,10 +1421,10 @@ export default function ObjectivesPage() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={saving || !formTitle}
+                                    disabled={createObjectiveMutation.isPending || !formTitle}
                                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                                 >
-                                    {saving ? 'Creando...' : 'Crear'}
+                                    {createObjectiveMutation.isPending ? 'Creando...' : 'Crear'}
                                 </button>
                             </div>
                         </form>

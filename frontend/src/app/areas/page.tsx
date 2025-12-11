@@ -1,34 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
-import { supabase } from '@/lib/supabase';
+import {
+    useAreas,
+    useCreateArea,
+    useUpdateArea,
+    useDeleteArea,
+    AREAS_KEYS,
+    type Area
+} from '@/hooks/use-areas';
 import Link from 'next/link';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-interface AreaStats {
-    objectives: number;
-    projects: number;
-    contents: number;
-    notes: number;
-    sub_areas: number;
-    mental_models: number;
-    habits: number;
-}
-
-interface Area {
-    id: string;
-    name: string;
-    description: string | null;
-    icon: string;
-    color: string;
-    status: string;
-    display_order: number;
-    created_at: string;
-    stats?: AreaStats;
-}
 
 const STATUS_CONFIG = {
     active: { label: 'Activa', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
@@ -41,13 +25,22 @@ const AREA_COLORS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#8b
 
 export default function AreasPage() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { user, loading: authLoading } = useAuth();
-    const [areas, setAreas] = useState<Area[]>([]);
-    const [loading, setLoading] = useState(true);
+
+    // Status filter
+    const [statusFilter, setStatusFilter] = useState<string>('active');
+
+    // React Query hooks
+    const { data: areas = [], isLoading } = useAreas({ statusFilter });
+    const createAreaMutation = useCreateArea();
+    const updateAreaMutation = useUpdateArea();
+    const deleteAreaMutation = useDeleteArea();
+
+    // Modal state
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedArea, setSelectedArea] = useState<Area | null>(null);
-    const [statusFilter, setStatusFilter] = useState<string>('active');
 
     // Form state
     const [formName, setFormName] = useState('');
@@ -55,46 +48,12 @@ export default function AreasPage() {
     const [formIcon, setFormIcon] = useState('📋');
     const [formColor, setFormColor] = useState('#6366f1');
     const [formStatus, setFormStatus] = useState('active');
-    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
         }
     }, [authLoading, user, router]);
-
-    const fetchAreas = useCallback(async () => {
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const params = new URLSearchParams();
-            if (statusFilter !== 'all') {
-                params.append('status_filter', statusFilter);
-            }
-
-            const response = await fetch(`${API_URL}/api/v1/areas?${params}`, {
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setAreas(data.data || []);
-            }
-        } catch (error) {
-            console.error('Error fetching areas:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [statusFilter]);
-
-    useEffect(() => {
-        if (user) {
-            fetchAreas();
-        }
-    }, [user, fetchAreas]);
 
     const resetForm = () => {
         setFormName('');
@@ -107,71 +66,40 @@ export default function AreasPage() {
     const handleCreate = async () => {
         if (!formName.trim()) return;
 
-        setSaving(true);
         try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/areas`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    name: formName.trim(),
-                    description: formDescription.trim() || null,
-                    icon: formIcon,
-                    color: formColor,
-                    status: formStatus,
-                }),
+            await createAreaMutation.mutateAsync({
+                name: formName.trim(),
+                description: formDescription.trim() || undefined,
+                icon: formIcon,
+                color: formColor,
+                status: formStatus,
             });
 
-            if (response.ok) {
-                setShowCreateModal(false);
-                resetForm();
-                fetchAreas();
-            }
+            setShowCreateModal(false);
+            resetForm();
         } catch (error) {
             console.error('Error creating area:', error);
-        } finally {
-            setSaving(false);
         }
     };
 
     const handleEdit = async () => {
         if (!selectedArea || !formName.trim()) return;
 
-        setSaving(true);
         try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/areas/${selectedArea.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    name: formName.trim(),
-                    description: formDescription.trim() || null,
-                    icon: formIcon,
-                    color: formColor,
-                    status: formStatus,
-                }),
+            await updateAreaMutation.mutateAsync({
+                id: selectedArea.id,
+                name: formName.trim(),
+                description: formDescription.trim() || undefined,
+                icon: formIcon,
+                color: formColor,
+                status: formStatus,
             });
 
-            if (response.ok) {
-                setShowEditModal(false);
-                setSelectedArea(null);
-                resetForm();
-                fetchAreas();
-            }
+            setShowEditModal(false);
+            setSelectedArea(null);
+            resetForm();
         } catch (error) {
             console.error('Error updating area:', error);
-        } finally {
-            setSaving(false);
         }
     };
 
@@ -179,19 +107,7 @@ export default function AreasPage() {
         if (!confirm(`¿Eliminar el area "${area.name}"? Los elementos vinculados no se eliminaran.`)) return;
 
         try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) return;
-
-            const response = await fetch(`${API_URL}/api/v1/areas/${area.id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-            });
-
-            if (response.ok) {
-                fetchAreas();
-            }
+            await deleteAreaMutation.mutateAsync(area.id);
         } catch (error) {
             console.error('Error deleting area:', error);
         }
@@ -207,7 +123,7 @@ export default function AreasPage() {
         setShowEditModal(true);
     };
 
-    if (authLoading || loading) {
+    if (authLoading || isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
@@ -463,10 +379,10 @@ export default function AreasPage() {
                                 </button>
                                 <button
                                     onClick={showCreateModal ? handleCreate : handleEdit}
-                                    disabled={saving || !formName.trim()}
+                                    disabled={(showCreateModal ? createAreaMutation.isPending : updateAreaMutation.isPending) || !formName.trim()}
                                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                                 >
-                                    {saving ? 'Guardando...' : showCreateModal ? 'Crear' : 'Guardar'}
+                                    {(showCreateModal ? createAreaMutation.isPending : updateAreaMutation.isPending) ? 'Guardando...' : showCreateModal ? 'Crear' : 'Guardar'}
                                 </button>
                             </div>
                         </div>

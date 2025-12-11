@@ -2,62 +2,49 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import {
+    useMentalModels,
+    useMentalModelsCatalog,
+    useMentalModelContents,
+    useActivateMentalModel,
+    useCreateMentalModel,
+    useUpdateMentalModel,
+    useDeactivateMentalModel,
+    useToggleMentalModelFavorite,
+    MENTAL_MODELS_KEYS,
+    type MentalModel,
+    type CatalogModel,
+    type ContentItem,
+} from '@/hooks/use-mental-models';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-interface MentalModel {
-    id: string;
-    slug: string;
-    name: string;
-    description: string | null;
-    notes: string;
-    is_active: boolean;
-    is_favorite: boolean;
-    color: string;
-    icon: string;
-    content_count: number;
-    last_used_at: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-interface CatalogModel {
-    slug: string;
-    name: string;
-    description: string;
-    icon: string;
-}
-
-interface ContentItem {
-    id: string;
-    title: string;
-    url: string;
-    type: string;
-    summary: string;
-    iab_tier1: string;
-    created_at: string;
-    application_notes?: string;
-}
-
 export default function MentalModelsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const queryClient = useQueryClient();
     const { user, loading: authLoading } = useAuth();
 
+    // React Query hooks
+    const { data: myModels = [], isLoading: modelsLoading } = useMentalModels(true);
+    const { data: catalog = [], isLoading: catalogLoading } = useMentalModelsCatalog();
+    const activateMutation = useActivateMentalModel();
+    const createMutation = useCreateMentalModel();
+    const updateMutation = useUpdateMentalModel();
+    const deactivateMutation = useDeactivateMentalModel();
+    const toggleFavoriteMutation = useToggleMentalModelFavorite();
+
     // State
-    const [myModels, setMyModels] = useState<MentalModel[]>([]);
-    const [catalog, setCatalog] = useState<CatalogModel[]>([]);
-    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Detail view
     const [selectedModel, setSelectedModel] = useState<MentalModel | null>(null);
-    const [modelContents, setModelContents] = useState<ContentItem[]>([]);
-    const [loadingDetail, setLoadingDetail] = useState(false);
+    const { data: modelContents = [], isLoading: loadingDetail } = useMentalModelContents(selectedModel?.id || null);
     const [editingNotes, setEditingNotes] = useState(false);
     const [notesValue, setNotesValue] = useState('');
 
@@ -70,10 +57,6 @@ export default function MentalModelsPage() {
         icon: '🧠',
         color: '#8b5cf6',
     });
-    const [savingModel, setSavingModel] = useState(false);
-
-    // Favorite toggling
-    const [togglingFavorite, setTogglingFavorite] = useState(false);
 
     // Available icons for selection
     const availableIcons = ['🧠', '💡', '🎯', '🔬', '📊', '⚡', '🔄', '📈', '🎨', '🔍', '💭', '🌟', '🚀', '⭐', '✨', '🎲', '🧩', '🔮', '📐', '🧮'];
@@ -89,51 +72,9 @@ export default function MentalModelsPage() {
         };
     };
 
-    const fetchMyModels = async () => {
-        try {
-            const headers = await getAuthHeaders();
-            const response = await fetch(`${API_URL}/api/v1/mental-models/?include_inactive=true`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setMyModels(data.models || []);
-            }
-        } catch (err: any) {
-            setError(err.message);
-        }
-    };
-
-    const fetchCatalog = async () => {
-        try {
-            const response = await fetch(`${API_URL}/api/v1/mental-models/catalog`);
-            if (response.ok) {
-                const data = await response.json();
-                setCatalog(data.models || []);
-            }
-        } catch (err) {
-            console.error('Error fetching catalog:', err);
-        }
-    };
-
     const activateModel = async (model: CatalogModel) => {
         try {
-            const headers = await getAuthHeaders();
-            const response = await fetch(`${API_URL}/api/v1/mental-models/`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    slug: model.slug,
-                    name: model.name,
-                    description: model.description,
-                    icon: model.icon,
-                }),
-            });
-
-            if (response.ok) {
-                await fetchMyModels();
-            } else {
-                const data = await response.json();
-                setError(data.detail || 'Error al activar modelo');
-            }
+            await activateMutation.mutateAsync(model);
         } catch (err: any) {
             setError(err.message);
         }
@@ -143,57 +84,30 @@ export default function MentalModelsPage() {
         if (!confirm('Desactivar este modelo mental?')) return;
 
         try {
-            const headers = await getAuthHeaders();
-            await fetch(`${API_URL}/api/v1/mental-models/${modelId}`, {
-                method: 'DELETE',
-                headers,
-            });
-            await fetchMyModels();
+            await deactivateMutation.mutateAsync(modelId);
             if (selectedModel?.id === modelId) {
                 setSelectedModel(null);
-                setModelContents([]);
             }
         } catch (err: any) {
             setError(err.message);
         }
     };
 
-    const openModelDetail = async (model: MentalModel) => {
+    const openModelDetail = (model: MentalModel) => {
         setSelectedModel(model);
         setNotesValue(model.notes || '');
-        setLoadingDetail(true);
-
-        try {
-            const headers = await getAuthHeaders();
-            const response = await fetch(`${API_URL}/api/v1/mental-models/${model.id}`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setModelContents(data.contents || []);
-            }
-        } catch (err) {
-            console.error('Error loading model detail:', err);
-        } finally {
-            setLoadingDetail(false);
-        }
     };
 
     const saveNotes = async () => {
         if (!selectedModel) return;
 
         try {
-            const headers = await getAuthHeaders();
-            const response = await fetch(`${API_URL}/api/v1/mental-models/${selectedModel.id}`, {
-                method: 'PUT',
-                headers,
-                body: JSON.stringify({ notes: notesValue }),
+            const updated = await updateMutation.mutateAsync({
+                id: selectedModel.id,
+                notes: notesValue,
             });
-
-            if (response.ok) {
-                const updated = await response.json();
-                setSelectedModel({ ...selectedModel, notes: updated.notes });
-                setMyModels(myModels.map(m => m.id === selectedModel.id ? { ...m, notes: updated.notes } : m));
-                setEditingNotes(false);
-            }
+            setSelectedModel({ ...selectedModel, notes: updated.notes });
+            setEditingNotes(false);
         } catch (err: any) {
             setError(err.message);
         }
@@ -222,25 +136,13 @@ export default function MentalModelsPage() {
     };
 
     const handleToggleFavorite = async () => {
-        if (!selectedModel || togglingFavorite) return;
-        setTogglingFavorite(true);
+        if (!selectedModel || toggleFavoriteMutation.isPending) return;
 
         try {
-            const headers = await getAuthHeaders();
-            const response = await fetch(`${API_URL}/api/v1/mental-models/${selectedModel.id}/favorite`, {
-                method: 'POST',
-                headers,
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setSelectedModel({ ...selectedModel, is_favorite: data.is_favorite });
-                setMyModels(myModels.map(m => m.id === selectedModel.id ? { ...m, is_favorite: data.is_favorite } : m));
-            }
+            const data = await toggleFavoriteMutation.mutateAsync(selectedModel.id);
+            setSelectedModel({ ...selectedModel, is_favorite: data.is_favorite });
         } catch (error) {
             console.error('Error toggling favorite:', error);
-        } finally {
-            setTogglingFavorite(false);
         }
     };
 
@@ -250,61 +152,31 @@ export default function MentalModelsPage() {
             return;
         }
 
-        setSavingModel(true);
         try {
-            const headers = await getAuthHeaders();
-
             if (editingModel) {
                 // Update existing model
-                const response = await fetch(`${API_URL}/api/v1/mental-models/${editingModel.id}`, {
-                    method: 'PUT',
-                    headers,
-                    body: JSON.stringify({
-                        name: formData.name,
-                        description: formData.description || null,
-                        icon: formData.icon,
-                        color: formData.color,
-                    }),
+                const updated = await updateMutation.mutateAsync({
+                    id: editingModel.id,
+                    name: formData.name,
+                    description: formData.description || undefined,
+                    icon: formData.icon,
+                    color: formData.color,
                 });
-
-                if (response.ok) {
-                    const updated = await response.json();
-                    setMyModels(myModels.map(m => m.id === editingModel.id ? updated : m));
-                    if (selectedModel?.id === editingModel.id) {
-                        setSelectedModel(updated);
-                    }
-                    setShowCreateModal(false);
-                } else {
-                    const data = await response.json();
-                    setError(data.detail || 'Error al actualizar modelo');
+                if (selectedModel?.id === editingModel.id) {
+                    setSelectedModel(updated);
                 }
             } else {
                 // Create new custom model
-                const slug = formData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-                const response = await fetch(`${API_URL}/api/v1/mental-models/`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        slug: `custom-${slug}-${Date.now()}`,
-                        name: formData.name,
-                        description: formData.description || null,
-                        icon: formData.icon,
-                        color: formData.color,
-                    }),
+                await createMutation.mutateAsync({
+                    name: formData.name,
+                    description: formData.description,
+                    icon: formData.icon,
+                    color: formData.color,
                 });
-
-                if (response.ok) {
-                    await fetchMyModels();
-                    setShowCreateModal(false);
-                } else {
-                    const data = await response.json();
-                    setError(data.detail || 'Error al crear modelo');
-                }
             }
+            setShowCreateModal(false);
         } catch (err: any) {
             setError(err.message);
-        } finally {
-            setSavingModel(false);
         }
     };
 
@@ -313,12 +185,6 @@ export default function MentalModelsPage() {
             router.push('/login');
         }
     }, [authLoading, user, router]);
-
-    useEffect(() => {
-        if (user) {
-            Promise.all([fetchMyModels(), fetchCatalog()]).finally(() => setLoading(false));
-        }
-    }, [user]);
 
     // Select model from URL ?id= param
     useEffect(() => {
@@ -330,6 +196,8 @@ export default function MentalModelsPage() {
             }
         }
     }, [searchParams, myModels]);
+
+    const loading = modelsLoading || catalogLoading;
 
     if (authLoading || loading) {
         return (
@@ -505,7 +373,7 @@ export default function MentalModelsPage() {
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={handleToggleFavorite}
-                                            disabled={togglingFavorite}
+                                            disabled={toggleFavoriteMutation.isPending}
                                             className={`p-2 text-xl rounded-lg transition-colors ${
                                                 selectedModel.is_favorite
                                                     ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
@@ -759,10 +627,10 @@ export default function MentalModelsPage() {
                             </button>
                             <button
                                 onClick={handleSaveModel}
-                                disabled={savingModel || !formData.name.trim()}
+                                disabled={createMutation.isPending || updateMutation.isPending || !formData.name.trim()}
                                 className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                             >
-                                {savingModel ? 'Guardando...' : (editingModel ? 'Guardar cambios' : 'Crear modelo')}
+                                {(createMutation.isPending || updateMutation.isPending) ? 'Guardando...' : (editingModel ? 'Guardar cambios' : 'Crear modelo')}
                             </button>
                         </div>
                     </div>

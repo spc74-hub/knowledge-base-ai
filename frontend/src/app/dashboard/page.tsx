@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useDashboardSummary, useObjectSummary, useJournalInsights, useJournalHistory } from '@/hooks/use-dashboard';
 import Link from 'next/link';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 import { QuickViewPopup } from '@/components/quick-view-popup';
@@ -18,47 +19,7 @@ const DEFAULT_KPI_ORDER = ['contents', 'objectives', 'projects', 'mental_models'
 // Default overview sections order
 const DEFAULT_OVERVIEW_ORDER = ['objectives', 'projects', 'mental_models', 'contents', 'notes', 'habits', 'areas'];
 
-// Types
-interface DashboardSummary {
-  kpis: {
-    contents: { total: number; pending: number; failed: number };
-    objectives: { active: number; total: number };
-    projects: { active: number; total: number };
-    mental_models: { active: number };
-    notes: { total: number };
-    full_notes: { total: number };
-    tags: { total: number };
-    folders: { total: number };
-    usage: { cost_30d: number };
-    areas: { active: number };
-    habits: { active: number };
-  };
-  recent: {
-    contents: any[];
-    objectives: any[];
-    projects: any[];
-    mental_models: any[];
-    notes: any[];
-    simple_notes: any[];
-    full_notes: any[];
-    areas: any[];
-    habits: any[];
-  };
-  habits_today: {
-    logs: any[];
-    total: number;
-    completed: number;
-  };
-}
-
-interface ObjectSummary {
-  type: string;
-  recent?: any[];
-  active?: any[];
-  favorites?: any[];
-  pinned?: any[];
-  items?: any[];
-}
+// Types imported from @/hooks/use-dashboard
 
 type SidebarCategory = 'overview' | 'contents' | 'objectives' | 'projects' | 'mental_models' | 'notes' | 'tags' | 'areas' | 'habits' | 'daily-journal';
 
@@ -77,14 +38,30 @@ interface SidebarSection {
 
 export default function DashboardPage() {
   const { user, loading: authLoading, token } = useAuth();
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [objectSummary, setObjectSummary] = useState<ObjectSummary | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<SidebarCategory>('overview');
-  const [loading, setLoading] = useState(true);
-  const [loadingObject, setLoadingObject] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [hasFetched, setHasFetched] = useState(false);
+
+  // React Query hooks for data fetching with caching
+  const {
+    data: summary,
+    isLoading: loading,
+    error: summaryError,
+    dataUpdatedAt,
+    refetch: refetchSummary
+  } = useDashboardSummary();
+
+  const {
+    data: objectSummary,
+    isLoading: loadingObject
+  } = useObjectSummary(selectedCategory);
+
+  const { data: journalInsightsData, isLoading: loadingJournalInsights } = useJournalInsights(30);
+  const { data: journalHistoryData } = useJournalHistory(7);
+
+  // Derive values from React Query
+  const lastRefresh = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const error = summaryError?.message || null;
+  const journalInsights = journalInsightsData || null;
+  const journalHistory = journalHistoryData || [];
 
   // URL Modal state
   const [showUrlModal, setShowUrlModal] = useState(false);
@@ -133,10 +110,7 @@ export default function DashboardPage() {
   const [quickViewType, setQuickViewType] = useState<'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag' | 'habit' | 'area' | 'quick_note' | 'full_note'>('content');
   const [quickViewPosition, setQuickViewPosition] = useState<{ x: number; y: number } | undefined>(undefined);
 
-  // Daily Journal insights state
-  const [journalInsights, setJournalInsights] = useState<any>(null);
-  const [loadingJournalInsights, setLoadingJournalInsights] = useState(false);
-  const [journalHistory, setJournalHistory] = useState<any[]>([]);
+  // Daily Journal insights - now handled by React Query hooks above
 
   // Handle quick view on item click
   const handleQuickView = (item: any, type: 'content' | 'objective' | 'project' | 'mental_model' | 'note' | 'tag' | 'habit' | 'area' | 'quick_note' | 'full_note', event?: React.MouseEvent) => {
@@ -217,6 +191,7 @@ export default function DashboardPage() {
     setDragOverBox(null);
   };
 
+  // Auth headers helper for manual fetches (URL save, content detail)
   const getAuthHeaders = useCallback(() => {
     return {
       'Content-Type': 'application/json',
@@ -224,119 +199,8 @@ export default function DashboardPage() {
     };
   }, [token]);
 
-  // Fetch main dashboard summary
-  const fetchSummary = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_URL}/api/v1/dashboard/summary`, {
-        headers: getAuthHeaders(),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSummary(data);
-        setLastRefresh(new Date());
-      } else {
-        setError(`Error ${response.status}: ${response.statusText}`);
-        console.error('Dashboard API error:', response.status, response.statusText);
-      }
-    } catch (err) {
-      setError('Error de conexion con el servidor');
-      console.error('Error fetching dashboard summary:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user, getAuthHeaders]);
-
-  // Fetch object-specific summary
-  const fetchObjectSummary = useCallback(async (objectType: string) => {
-    if (!user || objectType === 'overview' || objectType === 'daily-journal') {
-      setObjectSummary(null);
-      return;
-    }
-    setLoadingObject(true);
-    try {
-      const url = `${API_URL}/api/v1/dashboard/objects/${objectType}`;
-      console.log('Fetching object summary:', url);
-      const response = await fetch(url, {
-        headers: getAuthHeaders(),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Object summary data:', data);
-        setObjectSummary(data);
-      } else {
-        console.error('Object summary error:', response.status, await response.text());
-      }
-    } catch (error) {
-      console.error('Error fetching object summary:', error);
-    } finally {
-      setLoadingObject(false);
-    }
-  }, [user, getAuthHeaders]);
-
-  // Fetch journal insights when daily-journal is selected
-  const fetchJournalInsights = useCallback(async () => {
-    if (!user) return;
-    setLoadingJournalInsights(true);
-    try {
-      const [insightsRes, historyRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/daily-journal/stats/insights?days=30`, {
-          headers: getAuthHeaders(),
-        }),
-        fetch(`${API_URL}/api/v1/daily-journal/?limit=7`, {
-          headers: getAuthHeaders(),
-        }),
-      ]);
-
-      if (insightsRes.ok) {
-        const data = await insightsRes.json();
-        setJournalInsights(data);
-      }
-      if (historyRes.ok) {
-        const data = await historyRes.json();
-        setJournalHistory(data);
-      }
-    } catch (error) {
-      console.error('Error fetching journal insights:', error);
-    } finally {
-      setLoadingJournalInsights(false);
-    }
-  }, [user, getAuthHeaders]);
-
-  // Safety timeout - if auth takes too long, stop showing loading
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (authLoading) {
-        console.warn('Auth loading timeout - forcing state');
-        setLoading(false);
-      }
-    }, 5000); // 5 second timeout
-    return () => clearTimeout(timeout);
-  }, [authLoading]);
-
-  useEffect(() => {
-    if (user && !authLoading && !hasFetched) {
-      fetchSummary();
-      setHasFetched(true);
-    }
-    // If no user and auth is done, stop loading
-    if (!user && !authLoading) {
-      setLoading(false);
-    }
-  }, [user, authLoading, hasFetched, fetchSummary]);
-
-  useEffect(() => {
-    fetchObjectSummary(selectedCategory);
-  }, [selectedCategory, fetchObjectSummary]);
-
-  // Fetch journal insights when selecting daily-journal
-  useEffect(() => {
-    if (selectedCategory === 'daily-journal') {
-      fetchJournalInsights();
-    }
-  }, [selectedCategory, fetchJournalInsights]);
+  // Data fetching is now handled by React Query hooks above
+  // No need for manual useEffects - React Query handles caching and refetching
 
   // Save URL
   const handleSaveUrl = async () => {
@@ -351,7 +215,7 @@ export default function DashboardPage() {
       if (response.ok) {
         setUrlInput('');
         setShowUrlModal(false);
-        fetchSummary(); // Refresh
+        refetchSummary(); // Refresh
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Error saving URL:', response.status, errorData);
@@ -474,7 +338,7 @@ export default function DashboardPage() {
         <div className="text-center py-12">
           <p className="text-red-400 mb-2">{error}</p>
           <button
-            onClick={fetchSummary}
+            onClick={() => refetchSummary()}
             className="text-indigo-400 hover:text-indigo-300"
           >
             Reintentar
@@ -488,7 +352,7 @@ export default function DashboardPage() {
         <div className="text-center py-12">
           <p className="text-gray-400">Cargando resumen...</p>
           <button
-            onClick={fetchSummary}
+            onClick={() => refetchSummary()}
             className="mt-4 text-indigo-400 hover:text-indigo-300"
           >
             Reintentar
@@ -1990,7 +1854,7 @@ export default function DashboardPage() {
               💬 Chat
             </Link>
             <button
-              onClick={() => { setHasFetched(false); fetchSummary(); }}
+              onClick={() => refetchSummary()}
               className="text-gray-400 hover:text-white p-2"
               title={lastRefresh ? `Ultimo: ${lastRefresh.toLocaleTimeString()}` : 'Refrescar'}
             >

@@ -1,61 +1,39 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { TagFilter } from '@/components/tag-filter';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+    useExplorerFacets,
+    useUserExperts,
+    useAvailableTags,
+    useContentsSearch,
+    useNotesSearch,
+    useToggleNotePin,
+    useBulkDeleteNotes,
+    useBulkArchiveContents,
+    useBulkDeleteContents,
+    EXPLORER_KEYS,
+    type Facets,
+    type Content,
+    type StandaloneNote,
+    type NotesFacets,
+    type ContentsFilters,
+    type NotesFilters,
+} from '@/hooks/use-explorer';
 
+// Local Facet interface for facet sections
 interface Facet {
     value: string;
     count: number;
 }
 
-interface Facets {
-    types: Facet[];
-    categories: Facet[];
-    concepts: Facet[];
-    organizations: Facet[];
-    products: Facet[];
-    persons: Facet[];
-    user_tags: Facet[];
-    total_contents: number;
-}
-
-// Standalone Notes (Reflexiones) types
-interface StandaloneNote {
-    id: string;
-    title: string;
-    content: string;
-    note_type: string;
-    tags: string[];
-    source_content_id: string | null;
-    source_content?: {
-        id: string;
-        title: string;
-        type: string;
-        url: string;
-    } | null;
-    linked_project_id: string | null;
-    linked_project?: {
-        id: string;
-        name: string;
-        icon: string;
-        color: string;
-    } | null;
-    linked_model_id: string | null;
-    linked_model?: {
-        id: string;
-        taxonomy_value: string;
-    } | null;
-    is_pinned: boolean;
-    is_full_note?: boolean;  // True for contents with type='note'
-    created_at: string;
-    updated_at: string;
-}
-
+// NoteTypeFacet for local UI display
 interface NoteTypeFacet {
     value: string;
     label: string;
@@ -63,6 +41,7 @@ interface NoteTypeFacet {
     count: number;
 }
 
+// LinkageFacet for local UI display
 interface LinkageFacet {
     value: string;
     label: string;
@@ -70,98 +49,20 @@ interface LinkageFacet {
     count: number;
 }
 
-interface NotesFacets {
-    note_types: NoteTypeFacet[];
-    linkage: LinkageFacet[];
-    total_notes: number;
-    pinned_count: number;
-}
-
-interface NotesFilters {
-    note_types: string[];
-    has_source_content: boolean | null;  // true = linked, false = orphan, null = all (legacy)
-    linkage_type: string | null;  // 'content', 'project', 'model', 'independent', null = all
-    is_pinned: boolean | null;
-}
-
 type ExplorerTab = 'contents' | 'notes';
 
-interface Expert {
-    id: string;
-    person_name: string;
-    expertise_area: string | null;
-    is_active: boolean;
-}
-
-interface Content {
-    id: string;
-    title: string;
-    summary: string | null;
-    url: string;
-    type: string;
-    iab_tier1: string | null;
-    iab_tier2: string | null;
-    iab_tier3: string | null;
-    concepts: string[];
-    entities: {
-        organizations?: Array<string | { name: string }>;
-        products?: Array<string | { name: string }>;
-        persons?: Array<string | { name: string }>;
-    } | null;
-    schema_type: string | null;
-    content_format: string | null;
-    technical_level: string | null;
-    language: string | null;
-    sentiment: string | null;
-    reading_time_minutes: number | null;
-    processing_status: string;
-    maturity_level: string | null;
-    is_favorite: boolean;
-    is_archived: boolean;
-    user_tags: string[];
-    user_note: string | null;
-    note_category: string | null;
-    metadata: Record<string, any> | null;
-    created_at: string;
-    raw_content: string | null;
-    // Fields from global search
-    relevance_score?: number;
-    match_fields?: string[];
-}
-
-interface Filters {
-    types: string[];
-    types_exclude: string[];  // Types to exclude
-    categories: string[];
-    concepts: string[];
-    organizations: string[];
-    products: string[];
-    persons: string[];
-    experts: string[];  // User's saved experts (gurus)
-    user_tags: string[];
-    inherited_tags: string[];
-    processing_status: string[];
-    maturity_level: string[];
-    maturity_level_exclude: string[];  // Maturity levels to exclude
-    has_comment: boolean | null;
-    is_favorite: boolean | null;
-    // Date range filters (YYYY-MM-DD format)
-    date_from: string | null;
-    date_to: string | null;
-    // View count range filters
-    min_views: number | null;
-    max_views: number | null;
-}
+// Local Filters interface (extends imported ContentsFilters)
+interface Filters extends ContentsFilters {}
 
 function ExplorePageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
-    const [facets, setFacets] = useState<Facets | null>(null);
-    const [results, setResults] = useState<Content[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searching, setSearching] = useState(false);
+    const queryClient = useQueryClient();
+
+    // Local UI state
     const [searchQuery, setSearchQuery] = useState('');
+    const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
     const [filters, setFilters] = useState<Filters>({
         types: [],
         types_exclude: [],
@@ -183,8 +84,6 @@ function ExplorePageContent() {
         min_views: null,
         max_views: null
     });
-    const [userExperts, setUserExperts] = useState<Expert[]>([]);
-    const [availableTags, setAvailableTags] = useState<{ user_tags: string[]; inherited_tags: { tag: string; color: string }[] }>({ user_tags: [], inherited_tags: [] });
     const [expandedSections, setExpandedSections] = useState({
         types: false,
         categories: true,
@@ -193,12 +92,11 @@ function ExplorePageContent() {
         products: false,
         persons: false,
         experts: false,
-        date_views: false,  // Collapsed by default
+        date_views: false,
         processing_status: false,
         maturity_level: false,
         has_comment: false
     });
-    // Search within facets
     const [facetSearch, setFacetSearch] = useState({
         categories: '',
         concepts: '',
@@ -206,24 +104,17 @@ function ExplorePageContent() {
         products: '',
         persons: ''
     });
-    // Track if using global search
-    const [isGlobalSearch, setIsGlobalSearch] = useState(false);
-    // Sorting state
     const [sortBy, setSortBy] = useState<'created_at' | 'view_count' | 'title'>('created_at');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedContent, setSelectedContent] = useState<ContentDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [selectedContentIds, setSelectedContentIds] = useState<Set<string>>(new Set());
-    const [archivingContents, setArchivingContents] = useState(false);
-    const [deletingContents, setDeletingContents] = useState(false);
 
     // Tab state
     const [activeTab, setActiveTab] = useState<ExplorerTab>('contents');
 
-    // Notes (Reflexiones) state
-    const [notes, setNotes] = useState<StandaloneNote[]>([]);
-    const [notesFacets, setNotesFacets] = useState<NotesFacets | null>(null);
+    // Notes UI state
     const [notesFilters, setNotesFilters] = useState<NotesFilters>({
         note_types: [],
         has_source_content: null,
@@ -231,19 +122,78 @@ function ExplorePageContent() {
         is_pinned: null
     });
     const [notesSearchQuery, setNotesSearchQuery] = useState('');
-    const [searchingNotes, setSearchingNotes] = useState(false);
-    const [notesLoaded, setNotesLoaded] = useState(false);
-    const [totalNotes, setTotalNotes] = useState(0);
-    const [hasMoreNotes, setHasMoreNotes] = useState(true);
-    const [loadingMoreNotes, setLoadingMoreNotes] = useState(false);
+    const [appliedNotesSearchQuery, setAppliedNotesSearchQuery] = useState('');
     const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
-    const [deletingNotes, setDeletingNotes] = useState(false);
 
-    // Pagination state - reduced from 100 to 50 for faster initial load
-    const PAGE_SIZE = 50;
-    const [totalResults, setTotalResults] = useState(0);
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
+    // React Query hooks for data fetching with caching
+    const { data: facets } = useExplorerFacets();
+    const { data: userExperts = [] } = useUserExperts();
+    const { data: availableTags = { user_tags: [], inherited_tags: [] } } = useAvailableTags();
+
+    // Determine if using global search (query + no filters)
+    const hasFilters = useMemo(() => Object.entries(filters).some(([key, val]) => {
+        if (key === 'has_comment' || key === 'is_favorite') return val !== null;
+        if (key === 'date_from' || key === 'date_to') return val !== null;
+        if (key === 'min_views' || key === 'max_views') return val !== null;
+        return Array.isArray(val) && val.length > 0;
+    }), [filters]);
+    const isGlobalSearch = !!appliedSearchQuery && !hasFilters;
+
+    // Contents search with React Query (infinite query for pagination)
+    const contentsSearchParams = useMemo(() => ({
+        query: appliedSearchQuery,
+        filters,
+        sortBy,
+        sortOrder,
+    }), [appliedSearchQuery, filters, sortBy, sortOrder]);
+
+    const {
+        data: contentsData,
+        isLoading: searching,
+        isFetchingNextPage: loadingMore,
+        hasNextPage: hasMore,
+        fetchNextPage: loadMoreResults,
+    } = useContentsSearch(contentsSearchParams);
+
+    // Flatten paginated results
+    const results = useMemo(() => {
+        if (!contentsData?.pages) return [];
+        return contentsData.pages.flatMap(page => page.data);
+    }, [contentsData]);
+
+    const totalResults = contentsData?.pages[0]?.meta?.total_results || results.length;
+
+    // Notes search with React Query (infinite query for pagination)
+    const notesSearchParams = useMemo(() => ({
+        query: appliedNotesSearchQuery,
+        filters: notesFilters,
+    }), [appliedNotesSearchQuery, notesFilters]);
+
+    const {
+        data: notesData,
+        isLoading: searchingNotes,
+        isFetchingNextPage: loadingMoreNotes,
+        hasNextPage: hasMoreNotes,
+        fetchNextPage: loadMoreNotes,
+    } = useNotesSearch(notesSearchParams);
+
+    // Flatten paginated notes results
+    const notes = useMemo(() => {
+        if (!notesData?.pages) return [];
+        return notesData.pages.flatMap(page => page.data);
+    }, [notesData]);
+
+    const notesFacets = notesData?.pages[0]?.facets || null;
+    const totalNotes = notesFacets?.total_notes || notes.length;
+
+    // Mutation hooks
+    const toggleNotePinMutation = useToggleNotePin();
+    const bulkDeleteNotesMutation = useBulkDeleteNotes();
+    const bulkArchiveContentsMutation = useBulkArchiveContents();
+    const bulkDeleteContentsMutation = useBulkDeleteContents();
+
+    // Derive loading state
+    const loading = searching && results.length === 0;
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const API_BASE = `${API_URL}/api/v1`;
@@ -262,276 +212,24 @@ function ExplorePageContent() {
         };
     };
 
-    const fetchFacets = async (forceRefresh: boolean = false) => {
-        try {
-            const headers = await getAuthHeader();
-            // Always use static facets (total counts per category)
-            // This provides a consistent UX - filters don't make options disappear
-            const url = forceRefresh
-                ? `${API_BASE}/search/facets?force_refresh=true`
-                : `${API_BASE}/search/facets`;
-            const response = await fetch(url, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setFacets(data);
-            }
-        } catch (error) {
-            console.error('Error fetching facets:', error);
-        }
-    };
+    // Helper to invalidate queries
+    const invalidateContents = () => queryClient.invalidateQueries({ queryKey: EXPLORER_KEYS.all });
 
-    // Fetch user's saved experts (gurus) for filtering
-    const fetchUserExperts = async () => {
-        try {
-            const headers = await getAuthHeader();
-            const response = await fetch(`${API_BASE}/experts/`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setUserExperts(data.experts || []);
-            }
-        } catch (error) {
-            console.error('Error fetching user experts:', error);
-        }
-    };
+    // Apply search with debounce
+    useEffect(() => {
+        const debounce = setTimeout(() => {
+            setAppliedSearchQuery(searchQuery);
+        }, 500);
+        return () => clearTimeout(debounce);
+    }, [searchQuery]);
 
-    const searchWithFilters = useCallback(async (reset: boolean = true) => {
-        if (reset) {
-            setSearching(true);
-            setResults([]);
-        }
-        try {
-            const headers = await getAuthHeader();
-            const hasFilters = Object.entries(filters).some(([key, val]) => {
-                if (key === 'has_comment') return val !== null;
-                return Array.isArray(val) && val.length > 0;
-            });
-
-            // Use global search when there's a query and no filters
-            // This searches across title, summary, concepts, entities, etc.
-            if (searchQuery && !hasFilters) {
-                setIsGlobalSearch(true);
-                const response = await fetch(`${API_BASE}/search/global`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        query: searchQuery,
-                        limit: PAGE_SIZE,
-                        offset: 0
-                    }),
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    setResults(data.data);
-                    setTotalResults(data.meta?.total_results || data.data.length);
-                    setHasMore(data.data.length === PAGE_SIZE);
-                }
-            } else {
-                // Use faceted search when filters are applied
-                setIsGlobalSearch(false);
-                // Combine persons (from entities) and experts (user's saved gurus)
-                const allPersons = [...filters.persons, ...filters.experts];
-                const requestBody = {
-                    query: searchQuery || null,
-                    types: filters.types.length > 0 ? filters.types : null,
-                    types_exclude: filters.types_exclude.length > 0 ? filters.types_exclude : null,
-                    categories: filters.categories.length > 0 ? filters.categories : null,
-                    concepts: filters.concepts.length > 0 ? filters.concepts : null,
-                    organizations: filters.organizations.length > 0 ? filters.organizations : null,
-                    products: filters.products.length > 0 ? filters.products : null,
-                    persons: allPersons.length > 0 ? allPersons : null,
-                    user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
-                    inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
-                    processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
-                    maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
-                    maturity_level_exclude: filters.maturity_level_exclude.length > 0 ? filters.maturity_level_exclude : null,
-                    has_comment: filters.has_comment,
-                    is_favorite: filters.is_favorite,
-                    date_from: filters.date_from,
-                    date_to: filters.date_to,
-                    min_views: filters.min_views,
-                    max_views: filters.max_views,
-                    sort_by: sortBy,
-                    sort_order: sortOrder,
-                    limit: PAGE_SIZE,
-                    offset: 0
-                };
-                console.log('Faceted search request:', requestBody);
-                const response = await fetch(`${API_BASE}/search/faceted`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify(requestBody),
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('Faceted search response:', data);
-                    setResults(data.data);
-                    setTotalResults(data.meta?.total_results || data.data.length);
-                    setHasMore(data.data.length === PAGE_SIZE);
-                } else {
-                    const errorText = await response.text();
-                    console.error('Faceted search error:', response.status, errorText);
-                }
-            }
-        } catch (error) {
-            console.error('Error searching:', error);
-        } finally {
-            setSearching(false);
-        }
-    }, [searchQuery, filters, sortBy, sortOrder]);
-
-    const loadMoreResults = async () => {
-        if (loadingMore || !hasMore) return;
-
-        setLoadingMore(true);
-        try {
-            const headers = await getAuthHeader();
-
-            // Use the same search type as the initial search
-            if (isGlobalSearch) {
-                const response = await fetch(`${API_BASE}/search/global`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        query: searchQuery,
-                        limit: PAGE_SIZE,
-                        offset: results.length
-                    }),
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    setResults(prev => [...prev, ...data.data]);
-                    setHasMore(data.data.length === PAGE_SIZE);
-                }
-            } else {
-                const response = await fetch(`${API_BASE}/search/faceted`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        query: searchQuery || null,
-                        types: filters.types.length > 0 ? filters.types : null,
-                        types_exclude: filters.types_exclude.length > 0 ? filters.types_exclude : null,
-                        categories: filters.categories.length > 0 ? filters.categories : null,
-                        concepts: filters.concepts.length > 0 ? filters.concepts : null,
-                        organizations: filters.organizations.length > 0 ? filters.organizations : null,
-                        products: filters.products.length > 0 ? filters.products : null,
-                        persons: filters.persons.length > 0 ? filters.persons : null,
-                        user_tags: filters.user_tags.length > 0 ? filters.user_tags : null,
-                        inherited_tags: filters.inherited_tags.length > 0 ? filters.inherited_tags : null,
-                        processing_status: filters.processing_status.length > 0 ? filters.processing_status : null,
-                        maturity_level: filters.maturity_level.length > 0 ? filters.maturity_level : null,
-                        maturity_level_exclude: filters.maturity_level_exclude.length > 0 ? filters.maturity_level_exclude : null,
-                        has_comment: filters.has_comment,
-                        is_favorite: filters.is_favorite,
-                        date_from: filters.date_from,
-                        date_to: filters.date_to,
-                        min_views: filters.min_views,
-                        max_views: filters.max_views,
-                        sort_by: sortBy,
-                        sort_order: sortOrder,
-                        limit: PAGE_SIZE,
-                        offset: results.length
-                    }),
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    setResults(prev => [...prev, ...data.data]);
-                    setHasMore(data.data.length === PAGE_SIZE);
-                }
-            }
-        } catch (error) {
-            console.error('Error loading more:', error);
-        } finally {
-            setLoadingMore(false);
-        }
-    };
-
-    const fetchAvailableTags = async () => {
-        try {
-            const headers = await getAuthHeader();
-            const response = await fetch(`${API_BASE}/tags/available`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setAvailableTags(data);
-            }
-        } catch (error) {
-            console.error('Error fetching available tags:', error);
-        }
-    };
-
-    // Notes (Reflexiones) functions
-    const searchNotes = useCallback(async (reset: boolean = true) => {
-        if (reset) {
-            setSearchingNotes(true);
-            setNotes([]);
-        }
-        try {
-            const headers = await getAuthHeader();
-            const requestBody = {
-                query: notesSearchQuery || null,
-                note_types: notesFilters.note_types.length > 0 ? notesFilters.note_types : null,
-                has_source_content: notesFilters.has_source_content,
-                linkage_type: notesFilters.linkage_type,
-                is_pinned: notesFilters.is_pinned,
-                limit: PAGE_SIZE,
-                offset: 0
-            };
-
-            const response = await fetch(`${API_BASE}/notes/search`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(requestBody),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setNotes(data.data);
-                setNotesFacets(data.facets);
-                setTotalNotes(data.facets?.total_notes || data.data.length);
-                setHasMoreNotes(data.data.length === PAGE_SIZE);
-                setNotesLoaded(true);
-            }
-        } catch (error) {
-            console.error('Error searching notes:', error);
-        } finally {
-            setSearchingNotes(false);
-        }
-    }, [notesSearchQuery, notesFilters]);
-
-    const loadMoreNotes = async () => {
-        if (loadingMoreNotes || !hasMoreNotes) return;
-
-        setLoadingMoreNotes(true);
-        try {
-            const headers = await getAuthHeader();
-            const response = await fetch(`${API_BASE}/notes/search`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    query: notesSearchQuery || null,
-                    note_types: notesFilters.note_types.length > 0 ? notesFilters.note_types : null,
-                    has_source_content: notesFilters.has_source_content,
-                    linkage_type: notesFilters.linkage_type,
-                    is_pinned: notesFilters.is_pinned,
-                    limit: PAGE_SIZE,
-                    offset: notes.length
-                }),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setNotes(prev => [...prev, ...data.data]);
-                setHasMoreNotes(data.data.length === PAGE_SIZE);
-            }
-        } catch (error) {
-            console.error('Error loading more notes:', error);
-        } finally {
-            setLoadingMoreNotes(false);
-        }
-    };
+    // Apply notes search with debounce
+    useEffect(() => {
+        const debounce = setTimeout(() => {
+            setAppliedNotesSearchQuery(notesSearchQuery);
+        }, 500);
+        return () => clearTimeout(debounce);
+    }, [notesSearchQuery]);
 
     const toggleNoteTypeFilter = (noteType: string) => {
         setNotesFilters(prev => {
@@ -573,68 +271,14 @@ function ExplorePageContent() {
         if (selectedNoteIds.size === 0) return;
         if (!confirm(`¿Eliminar ${selectedNoteIds.size} nota(s)?`)) return;
 
-        setDeletingNotes(true);
-        try {
-            const headers = await getAuthHeader();
-            const response = await fetch(`${API_BASE}/notes/bulk/delete`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(Array.from(selectedNoteIds)),
-            });
-
-            if (response.ok) {
-                setSelectedNoteIds(new Set());
-                searchNotes();
-            }
-        } catch (error) {
-            console.error('Error deleting notes:', error);
-        } finally {
-            setDeletingNotes(false);
-        }
+        bulkDeleteNotesMutation.mutate(Array.from(selectedNoteIds), {
+            onSuccess: () => setSelectedNoteIds(new Set()),
+        });
     };
 
-    const toggleNotePin = async (noteId: string) => {
-        try {
-            const headers = await getAuthHeader();
-            const response = await fetch(`${API_BASE}/notes/${noteId}/pin`, {
-                method: 'POST',
-                headers,
-            });
-
-            if (response.ok) {
-                // Refresh notes list
-                searchNotes(false);
-            }
-        } catch (error) {
-            console.error('Error toggling pin:', error);
-        }
+    const toggleNotePin = (noteId: string) => {
+        toggleNotePinMutation.mutate(noteId);
     };
-
-    useEffect(() => {
-        if (user) {
-            fetchFacets();
-            searchWithFilters();
-            fetchAvailableTags();
-            fetchUserExperts();
-        }
-    }, [user]);
-
-    // Load notes when switching to notes tab (lazy loading)
-    useEffect(() => {
-        if (activeTab === 'notes' && !notesLoaded && user) {
-            searchNotes();
-        }
-    }, [activeTab, notesLoaded, user]);
-
-    // Search notes with debounce when filters change
-    useEffect(() => {
-        if (activeTab === 'notes' && user && notesLoaded) {
-            const debounce = setTimeout(() => {
-                searchNotes();
-            }, 500);
-            return () => clearTimeout(debounce);
-        }
-    }, [notesFilters, notesSearchQuery, activeTab, user, notesLoaded]);
 
     // Handle ?content=ID query parameter to open content detail from chat links
     useEffect(() => {
@@ -687,18 +331,6 @@ function ExplorePageContent() {
             router.replace('/explore', { scroll: false });
         }
     }, [searchParams, user, router]);
-
-    useEffect(() => {
-        if (user) {
-            // Increased debounce to 500ms for better performance
-            const debounce = setTimeout(() => {
-                searchWithFilters();
-                // Note: We don't refetch facets on filter changes
-                // Facets are static and cached, showing total counts
-            }, 500);
-            return () => clearTimeout(debounce);
-        }
-    }, [filters, searchQuery, searchWithFilters, user]);
 
     // Handle sort changes - trigger search immediately when sort changes
     const handleSortChange = (newSortBy: 'created_at' | 'view_count' | 'title') => {
@@ -807,9 +439,7 @@ function ExplorePageContent() {
 
             if (!error) {
                 setSelectedContent({ ...selectedContent, is_favorite: newFavoriteStatus });
-                setResults(results.map(c =>
-                    c.id === contentId ? { ...c, is_favorite: newFavoriteStatus } : c
-                ));
+                invalidateContents();
             }
         } catch (error) {
             console.error('Error toggling favorite:', error);
@@ -830,76 +460,28 @@ function ExplorePageContent() {
 
     const handleBulkArchive = async () => {
         if (selectedContentIds.size === 0) return;
-
         if (!confirm(`¿Estas seguro de archivar ${selectedContentIds.size} elemento(s)?`)) return;
 
-        setArchivingContents(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) throw new Error('No session');
-
-            const response = await fetch(`${API_BASE}/content/bulk/archive`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    content_ids: Array.from(selectedContentIds),
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Error al archivar');
-            }
-
-            setSelectedContentIds(new Set());
-            searchWithFilters();
-            fetchFacets(true); // Force refresh after bulk archive
-        } catch (error) {
-            console.error('Error archiving contents:', error);
-        } finally {
-            setArchivingContents(false);
-        }
+        bulkArchiveContentsMutation.mutate(Array.from(selectedContentIds), {
+            onSuccess: () => setSelectedContentIds(new Set()),
+        });
     };
 
     const handleBulkDelete = async () => {
         if (selectedContentIds.size === 0) return;
-
         if (!confirm(`¿Estas seguro de ELIMINAR PERMANENTEMENTE ${selectedContentIds.size} elemento(s)? Esta accion no se puede deshacer.`)) return;
 
-        setDeletingContents(true);
-        try {
-            const session = await supabase.auth.getSession();
-            if (!session.data.session) throw new Error('No session');
-
-            const response = await fetch(`${API_BASE}/content/bulk/delete`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.data.session.access_token}`,
-                },
-                body: JSON.stringify({
-                    content_ids: Array.from(selectedContentIds),
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Error al eliminar');
-            }
-
-            setSelectedContentIds(new Set());
-            searchWithFilters();
-            fetchFacets(true); // Force refresh after bulk delete
-        } catch (error) {
-            console.error('Error deleting contents:', error);
-        } finally {
-            setDeletingContents(false);
-        }
+        bulkDeleteContentsMutation.mutate(Array.from(selectedContentIds), {
+            onSuccess: () => setSelectedContentIds(new Set()),
+        });
     };
 
+    // Derive mutation loading states
+    const archivingContents = bulkArchiveContentsMutation.isPending;
+    const deletingContents = bulkDeleteContentsMutation.isPending;
+    const deletingNotes = bulkDeleteNotesMutation.isPending;
+
     if (authLoading || loading) {
-        Promise.all([fetchFacets(), fetchUserExperts()]).then(() => setLoading(false));
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
@@ -1873,7 +1455,7 @@ function ExplorePageContent() {
                             {hasMore && results.length > 0 && (
                                 <div className="py-6 text-center">
                                     <button
-                                        onClick={loadMoreResults}
+                                        onClick={() => loadMoreResults()}
                                         disabled={loadingMore}
                                         className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
                                     >
@@ -2196,7 +1778,7 @@ function ExplorePageContent() {
                                     {hasMoreNotes && notes.length > 0 && (
                                         <div className="py-6 text-center">
                                             <button
-                                                onClick={loadMoreNotes}
+                                                onClick={() => loadMoreNotes()}
                                                 disabled={loadingMoreNotes}
                                                 className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
                                             >
@@ -2233,15 +1815,13 @@ function ExplorePageContent() {
                 onClose={() => setShowDetailModal(false)}
                 onUpdate={(updated) => {
                     setSelectedContent(updated);
-                    setResults(results.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+                    invalidateContents();
                 }}
-                onArchive={(contentId) => {
-                    setResults(results.filter(c => c.id !== contentId));
-                    fetchFacets(true); // Force refresh after archive
+                onArchive={() => {
+                    invalidateContents();
                 }}
-                onDelete={(contentId) => {
-                    setResults(results.filter(c => c.id !== contentId));
-                    fetchFacets(true); // Force refresh after delete
+                onDelete={() => {
+                    invalidateContents();
                 }}
                 onFilterClick={(filterType, value) => {
                     if (filterType === 'concepts') toggleFilter('concepts', value);
