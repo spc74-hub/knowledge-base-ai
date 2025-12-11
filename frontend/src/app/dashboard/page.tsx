@@ -654,9 +654,12 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-4">
             {/* Simple Notes - Left Column */}
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-amber-400 text-sm font-medium">📝 Quick Notes</span>
-                <Link href="/notes?new=true" target="_blank" className="text-xs text-gray-400 hover:text-amber-400">+</Link>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-400 text-sm font-medium">📝 Quick Notes</span>
+                  <Link href="/notes?new=true" target="_blank" className="text-xs text-gray-400 hover:text-amber-400">+</Link>
+                </div>
+                <Link href="/notes" target="_blank" className="text-xs text-amber-400 hover:text-amber-300">ver →</Link>
               </div>
               {(summary.recent.simple_notes || []).length > 0 ? (
                 <div className="space-y-1.5">
@@ -677,21 +680,25 @@ export default function DashboardPage() {
             </div>
             {/* Full Notes - Right Column */}
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-indigo-400 text-sm font-medium">📄 Full Notes</span>
-                <Link href="/notes/new" target="_blank" className="text-xs text-gray-400 hover:text-indigo-400">+</Link>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-indigo-400 text-sm font-medium">📄 Full Notes</span>
+                  <Link href="/notes/new" target="_blank" className="text-xs text-gray-400 hover:text-indigo-400">+</Link>
+                </div>
+                <Link href="/full-notes" target="_blank" className="text-xs text-indigo-400 hover:text-indigo-300">ver →</Link>
               </div>
               {(summary.recent.full_notes || []).length > 0 ? (
                 <div className="space-y-1.5">
                   {(summary.recent.full_notes || []).slice(0, 4).map((note: any) => (
-                    <button
+                    <Link
                       key={note.id}
-                      onClick={(e) => handleQuickView(note, 'full_note', e)}
+                      href={`/notes/${note.id}/edit`}
+                      target="_blank"
                       className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg hover:bg-gray-800/50 transition-colors w-full text-left group"
                     >
                       <span className="text-sm">{note.is_pinned ? '📌' : '📄'}</span>
                       <p className="text-white text-xs flex-1 truncate group-hover:text-indigo-300">{note.title}</p>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               ) : (
