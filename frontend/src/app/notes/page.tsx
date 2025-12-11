@@ -44,7 +44,7 @@ interface ObjectiveItem {
 
 const PRIORITIES = {
     urgent: { label: 'Urgente', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
-    important: { label: 'Importante', icon: '⚪', color: 'bg-white text-gray-800 dark:bg-gray-200 dark:text-gray-800 border border-gray-300' },
+    important: { label: 'Importante', icon: '🟢', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
     A: { label: 'A', icon: '🟠', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
     B: { label: 'B', icon: '🟡', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
     C: { label: 'C', icon: '⚫', color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
@@ -667,6 +667,9 @@ export default function NotesPage() {
                                         {facets?.priorities?.map(p => {
                                             const isIncluded = priorityFilter.includes(p.value);
                                             const isExcluded = excludePriorities.includes(p.value);
+                                            // Use local PRIORITIES config for icons (override backend)
+                                            const priorityConfig = PRIORITIES[p.value as keyof typeof PRIORITIES];
+                                            const icon = priorityConfig?.icon || p.icon;
                                             return (
                                                 <div key={p.value} className="flex items-center justify-between">
                                                     <button
@@ -685,7 +688,7 @@ export default function NotesPage() {
                                                             'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
                                                         }`}
                                                     >
-                                                        <span>{p.icon}</span>
+                                                        <span>{icon}</span>
                                                         <span>{p.label}</span>
                                                         <span className="text-xs opacity-60 ml-auto">{p.count}</span>
                                                     </button>
@@ -972,17 +975,19 @@ export default function NotesPage() {
                                                 </span>
                                             )}
 
-                                            {/* Date */}
-                                            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                                                {new Date(note.created_at).toLocaleDateString()}
+                                            {/* Date - fixed width for alignment */}
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 w-[70px] text-right">
+                                                {new Date(note.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                             </span>
 
-                                            {/* Priority badge - to the right of date */}
-                                            {note.priority && (
-                                                <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${PRIORITIES[note.priority as keyof typeof PRIORITIES]?.color || ''}`}>
-                                                    {PRIORITIES[note.priority as keyof typeof PRIORITIES]?.icon}
-                                                </span>
-                                            )}
+                                            {/* Priority badge - fixed width for alignment */}
+                                            <span className="w-[24px] flex-shrink-0 text-center">
+                                                {note.priority ? (
+                                                    <span className={`text-xs px-1 py-0.5 rounded ${PRIORITIES[note.priority as keyof typeof PRIORITIES]?.color || ''}`}>
+                                                        {PRIORITIES[note.priority as keyof typeof PRIORITIES]?.icon}
+                                                    </span>
+                                                ) : null}
+                                            </span>
                                         </div>
                                     );
                                 })}

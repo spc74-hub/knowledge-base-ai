@@ -675,7 +675,7 @@ async def search_notes_with_facets(
             if 'independent' in linkage_types_to_include:
                 query = query.is_("source_content_id", "null").is_("linked_project_id", "null").is_("linked_model_id", "null")
 
-        # Apply exclude filters for linkage
+        # Apply exclude filters for linkage (make notes NOT appear if they have that link type)
         if linkage_types_to_exclude:
             if 'content' in linkage_types_to_exclude:
                 query = query.is_("source_content_id", "null")
@@ -683,6 +683,8 @@ async def search_notes_with_facets(
                 query = query.is_("linked_project_id", "null")
             if 'model' in linkage_types_to_exclude:
                 query = query.is_("linked_model_id", "null")
+            # 'independent' exclusion: exclude notes that have NO links (are independent)
+            # This requires post-query filtering since we need to check all link fields
 
         if data.is_pinned is not None:
             query = query.eq("is_pinned", data.is_pinned)
@@ -746,6 +748,17 @@ async def search_notes_with_facets(
         # Exclude objectives (notes that are linked to objectives)
         if exclude_objectives and objective_linked_note_ids:
             notes = [n for n in notes if n["id"] not in objective_linked_note_ids]
+
+        # Exclude independent notes (notes with no links at all)
+        if 'independent' in linkage_types_to_exclude:
+            def has_any_link(note):
+                return (
+                    note.get("source_content_id") is not None or
+                    note.get("linked_project_id") is not None or
+                    note.get("linked_model_id") is not None or
+                    note["id"] in objective_linked_note_ids
+                )
+            notes = [n for n in notes if has_any_link(n)]
 
         # Get source content info for notes that have it
         source_content_ids = list(set(
@@ -842,10 +855,18 @@ async def search_notes_with_facets(
         include_full = data.include_full_notes is not False
         want_full_notes = not data.note_types or 'full_note' in data.note_types
 
+        # Don't include full notes if they are explicitly excluded
+        if data.exclude_note_types and 'full_note' in data.exclude_note_types:
+            want_full_notes = False
+
         # Don't include full notes if a linkage filter is active (except 'project')
         # Full notes can only have project links via project_id
-        if data.linkage_type and data.linkage_type not in ['project', 'independent']:
-            want_full_notes = False
+        linkage_active = data.linkage_type or data.linkage_types
+        if linkage_active:
+            linkage_list = data.linkage_types or ([data.linkage_type] if data.linkage_type else [])
+            # Full notes only support 'project' and 'independent' linkage
+            if not any(lt in ['project', 'independent'] for lt in linkage_list):
+                want_full_notes = False
 
         full_notes_data = []
         full_notes_count = 0
@@ -1005,11 +1026,11 @@ async def search_notes_with_facets(
                 {"value": "independent", "label": "Independientes", "icon": "📝", "count": independent_count + full_notes_independent},
             ],
             "priorities": [
-                {"value": "important", "label": "Importante", "icon": "🔴", "count": priority_counts["important"]},
-                {"value": "urgent", "label": "Urgente", "icon": "🟠", "count": priority_counts["urgent"]},
-                {"value": "A", "label": "A", "icon": "🔵", "count": priority_counts["A"]},
-                {"value": "B", "label": "B", "icon": "🔷", "count": priority_counts["B"]},
-                {"value": "C", "label": "C", "icon": "🩵", "count": priority_counts["C"]},
+                {"value": "urgent", "label": "Urgente", "icon": "🔴", "count": priority_counts["urgent"]},
+                {"value": "important", "label": "Importante", "icon": "🟢", "count": priority_counts["important"]},
+                {"value": "A", "label": "A", "icon": "🟠", "count": priority_counts["A"]},
+                {"value": "B", "label": "B", "icon": "🟡", "count": priority_counts["B"]},
+                {"value": "C", "label": "C", "icon": "⚫", "count": priority_counts["C"]},
             ],
             "total_notes": total_all,
             "pinned_count": pinned_count,
