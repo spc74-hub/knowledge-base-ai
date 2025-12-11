@@ -961,6 +961,13 @@ export default function DashboardPage() {
           >
             📄 Full Note
           </Link>
+          <Link
+            href="/full-notes"
+            target="_blank"
+            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 font-medium shadow-md"
+          >
+            📄 Ver Full Notes
+          </Link>
         </div>
       </div>
     );
