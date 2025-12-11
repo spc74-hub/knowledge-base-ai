@@ -50,12 +50,15 @@ export interface Facets {
 }
 
 export interface QuickNotesParams {
-    filterType?: string;
-    linkageFilter?: string;
+    filterType?: string[];
+    excludeTypes?: string[];
+    linkageFilter?: string[];
+    excludeLinkage?: string[];
     searchQuery?: string;
     showCompleted?: boolean;
     priorityFilter?: string[];
     excludePriorities?: string[];
+    favoriteFilter?: 'all' | 'favorites' | 'not_favorites';
     sortBy?: string;
     sortOrder?: string;
 }
@@ -72,12 +75,15 @@ export interface QuickNotesResponse {
 export function useQuickNotes(params: QuickNotesParams = {}) {
     const { user, token } = useAuth();
     const {
-        filterType = 'all',
-        linkageFilter = 'all',
+        filterType = [],
+        excludeTypes = [],
+        linkageFilter = [],
+        excludeLinkage = [],
         searchQuery = '',
         showCompleted = true,
         priorityFilter = [],
         excludePriorities = [],
+        favoriteFilter = 'all',
         sortBy = 'created_at',
         sortOrder = 'desc',
     } = params;
@@ -85,11 +91,14 @@ export function useQuickNotes(params: QuickNotesParams = {}) {
     return useQuery({
         queryKey: QUICK_NOTES_KEYS.list({
             filterType,
+            excludeTypes,
             linkageFilter,
+            excludeLinkage,
             searchQuery,
             showCompleted,
             priorityFilter,
             excludePriorities,
+            favoriteFilter,
             sortBy,
             sortOrder,
         }),
@@ -102,11 +111,17 @@ export function useQuickNotes(params: QuickNotesParams = {}) {
                 sort_order: sortOrder,
             };
 
-            if (filterType !== 'all') {
-                requestBody.note_types = [filterType];
+            if (filterType.length > 0) {
+                requestBody.note_types = filterType;
             }
-            if (linkageFilter !== 'all') {
-                requestBody.linkage_type = linkageFilter;
+            if (excludeTypes.length > 0) {
+                requestBody.exclude_note_types = excludeTypes;
+            }
+            if (linkageFilter.length > 0) {
+                requestBody.linkage_types = linkageFilter;
+            }
+            if (excludeLinkage.length > 0) {
+                requestBody.exclude_linkage_types = excludeLinkage;
             }
             if (searchQuery) {
                 requestBody.query = searchQuery;
@@ -116,6 +131,9 @@ export function useQuickNotes(params: QuickNotesParams = {}) {
             }
             if (excludePriorities.length > 0) {
                 requestBody.exclude_priorities = excludePriorities;
+            }
+            if (favoriteFilter !== 'all') {
+                requestBody.is_pinned = favoriteFilter === 'favorites';
             }
 
             const response = await fetch(`${API_URL}/api/v1/notes/search`, {
@@ -135,7 +153,7 @@ export function useQuickNotes(params: QuickNotesParams = {}) {
             let data = result.data || [];
 
             // Filter completed actions if needed
-            if (!showCompleted && filterType === 'action') {
+            if (!showCompleted && filterType.includes('action')) {
                 data = data.filter((n: QuickNote) => !n.is_completed);
             }
 

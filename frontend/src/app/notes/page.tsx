@@ -43,11 +43,11 @@ interface ObjectiveItem {
 // Facet and Facets types imported from @/hooks/use-quick-notes
 
 const PRIORITIES = {
-    important: { label: 'Importante', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
-    urgent: { label: 'Urgente', icon: '🟠', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
-    A: { label: 'A', icon: '🔵', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-    B: { label: 'B', icon: '🔷', color: 'bg-blue-50 text-blue-600 dark:bg-blue-800 dark:text-blue-300' },
-    C: { label: 'C', icon: '🩵', color: 'bg-sky-50 text-sky-500 dark:bg-sky-900 dark:text-sky-300' },
+    urgent: { label: 'Urgente', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+    important: { label: 'Importante', icon: '⚪', color: 'bg-white text-gray-800 dark:bg-gray-200 dark:text-gray-800 border border-gray-300' },
+    A: { label: 'A', icon: '🟠', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+    B: { label: 'B', icon: '🟡', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
+    C: { label: 'C', icon: '⚫', color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
 } as const;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -65,7 +65,10 @@ const stripHtmlTags = (html: string): string => {
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/\s+/g, ' ')  // Collapse multiple spaces
-        .trim();
+        .trim()
+        // Remove leading checkboxes, bullets, and list markers
+        .replace(/^[\s•◦▪▸▹→\-\*\[\]☐☑✓✔✗✘○●◯◉⬜⬛]+\s*/g, '')
+        .replace(/^\d+[\.\)]\s*/g, '');  // Remove numbered list markers like "1." or "1)"
 };
 
 const NOTE_TYPES = {
@@ -90,13 +93,16 @@ export default function NotesPage() {
     const [selectedNote, setSelectedNote] = useState<Note | null>(null);
 
     // Filters
-    const [filterType, setFilterType] = useState<string>('all');
-    const [linkageFilter, setLinkageFilter] = useState<string>('all');
+    const [filterType, setFilterType] = useState<string[]>([]);
+    const [excludeTypes, setExcludeTypes] = useState<string[]>([]);
+    const [linkageFilter, setLinkageFilter] = useState<string[]>([]);
+    const [excludeLinkage, setExcludeLinkage] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
     const [showCompleted, setShowCompleted] = useState(true);
     const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
     const [excludePriorities, setExcludePriorities] = useState<string[]>([]);
+    const [favoriteFilter, setFavoriteFilter] = useState<'all' | 'favorites' | 'not_favorites'>('all');
     const [sortBy, setSortBy] = useState<string>('created_at');
     const [sortOrder, setSortOrder] = useState<string>('desc');
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -104,11 +110,14 @@ export default function NotesPage() {
     // React Query hooks for data fetching with caching
     const { data: queryData, isLoading: loading } = useQuickNotes({
         filterType,
+        excludeTypes,
         linkageFilter,
+        excludeLinkage,
         searchQuery: appliedSearchQuery,
         showCompleted,
         priorityFilter,
         excludePriorities,
+        favoriteFilter,
         sortBy,
         sortOrder,
     });
@@ -163,7 +172,7 @@ export default function NotesPage() {
             // Valid note types including full_note
             const validTypes = [...Object.keys(NOTE_TYPES), 'full_note'];
             if (validTypes.includes(typeParam)) {
-                setFilterType(typeParam);
+                setFilterType([typeParam]);
             }
         }
 
@@ -710,55 +719,150 @@ export default function NotesPage() {
                                     </div>
                                 </div>
 
+                                {/* Favorites filter */}
+                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Favoritos</h3>
+                                    <div className="flex gap-1">
+                                        {[
+                                            { value: 'all' as const, label: 'Todos' },
+                                            { value: 'favorites' as const, label: '📌' },
+                                            { value: 'not_favorites' as const, label: '○' },
+                                        ].map(opt => (
+                                            <button
+                                                key={opt.value}
+                                                onClick={() => setFavoriteFilter(opt.value)}
+                                                className={`flex-1 px-2 py-1.5 rounded text-sm ${
+                                                    favoriteFilter === opt.value
+                                                        ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200'
+                                                        : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                                }`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 {/* Type filters */}
                                 <div className="mb-4 pb-4 border-b dark:border-gray-700">
                                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tipo de nota</h3>
                                     <div className="space-y-1">
-                                        <button
-                                            onClick={() => setFilterType('all')}
-                                            className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between ${filterType === 'all' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
-                                        >
-                                            <span>Todas</span>
-                                            {facets && <span className="text-xs opacity-60">{facets.total_notes}</span>}
-                                        </button>
-                                        {facets?.note_types.map(type => (
+                                        {facets?.note_types.map(type => {
+                                            const isIncluded = filterType.includes(type.value);
+                                            const isExcluded = excludeTypes.includes(type.value);
+                                            return (
+                                                <div key={type.value} className="flex items-center justify-between">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (isIncluded) {
+                                                                setFilterType(filterType.filter(x => x !== type.value));
+                                                            } else if (isExcluded) {
+                                                                setExcludeTypes(excludeTypes.filter(x => x !== type.value));
+                                                            } else {
+                                                                setFilterType([...filterType, type.value]);
+                                                            }
+                                                        }}
+                                                        className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${
+                                                            isIncluded ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                                                            isExcluded ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 line-through' :
+                                                            'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                                        }`}
+                                                    >
+                                                        <span>{type.icon}</span>
+                                                        <span>{type.label}</span>
+                                                        <span className="text-xs opacity-60 ml-auto">{type.count}</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (isExcluded) {
+                                                                setExcludeTypes(excludeTypes.filter(x => x !== type.value));
+                                                            } else {
+                                                                setFilterType(filterType.filter(x => x !== type.value));
+                                                                setExcludeTypes([...excludeTypes, type.value]);
+                                                            }
+                                                        }}
+                                                        className={`ml-1 px-2 py-1.5 rounded text-xs ${
+                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-gray-400'
+                                                        }`}
+                                                        title="Excluir"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {(filterType.length > 0 || excludeTypes.length > 0) && (
                                             <button
-                                                key={type.value}
-                                                onClick={() => setFilterType(type.value)}
-                                                className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between ${filterType === type.value ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+                                                onClick={() => { setFilterType([]); setExcludeTypes([]); }}
+                                                className="w-full text-center text-xs text-indigo-600 dark:text-indigo-400 mt-2 hover:underline"
                                             >
-                                                <span>{type.icon} {type.label}</span>
-                                                <span className="text-xs opacity-60">{type.count}</span>
+                                                Limpiar filtros de tipo
                                             </button>
-                                        ))}
+                                        )}
                                     </div>
                                 </div>
 
                                 {/* Linkage filters */}
-                                <div className="mb-4">
-                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vinculacion</h3>
+                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vinculación</h3>
                                     <div className="space-y-1">
-                                        <button
-                                            onClick={() => setLinkageFilter('all')}
-                                            className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between ${linkageFilter === 'all' ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
-                                        >
-                                            <span>Todas</span>
-                                        </button>
-                                        {facets?.linkage.map(link => (
+                                        {facets?.linkage.map(link => {
+                                            const isIncluded = linkageFilter.includes(link.value);
+                                            const isExcluded = excludeLinkage.includes(link.value);
+                                            return (
+                                                <div key={link.value} className="flex items-center justify-between">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (isIncluded) {
+                                                                setLinkageFilter(linkageFilter.filter(x => x !== link.value));
+                                                            } else if (isExcluded) {
+                                                                setExcludeLinkage(excludeLinkage.filter(x => x !== link.value));
+                                                            } else {
+                                                                setLinkageFilter([...linkageFilter, link.value]);
+                                                            }
+                                                        }}
+                                                        className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${
+                                                            isIncluded ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                                                            isExcluded ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 line-through' :
+                                                            'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                                        }`}
+                                                    >
+                                                        <span>{link.icon}</span>
+                                                        <span>{link.label}</span>
+                                                        <span className="text-xs opacity-60 ml-auto">{link.count}</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (isExcluded) {
+                                                                setExcludeLinkage(excludeLinkage.filter(x => x !== link.value));
+                                                            } else {
+                                                                setLinkageFilter(linkageFilter.filter(x => x !== link.value));
+                                                                setExcludeLinkage([...excludeLinkage, link.value]);
+                                                            }
+                                                        }}
+                                                        className={`ml-1 px-2 py-1.5 rounded text-xs ${
+                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-gray-400'
+                                                        }`}
+                                                        title="Excluir"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {(linkageFilter.length > 0 || excludeLinkage.length > 0) && (
                                             <button
-                                                key={link.value}
-                                                onClick={() => setLinkageFilter(link.value)}
-                                                className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between ${linkageFilter === link.value ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+                                                onClick={() => { setLinkageFilter([]); setExcludeLinkage([]); }}
+                                                className="w-full text-center text-xs text-indigo-600 dark:text-indigo-400 mt-2 hover:underline"
                                             >
-                                                <span>{link.icon} {link.label}</span>
-                                                <span className="text-xs opacity-60">{link.count}</span>
+                                                Limpiar filtros de vinculación
                                             </button>
-                                        ))}
+                                        )}
                                     </div>
                                 </div>
 
                                 {/* Actions filter */}
-                                {filterType === 'action' && (
+                                {filterType.includes('action') && (
                                     <div className="mb-4">
                                         <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                                             <input
@@ -828,13 +932,6 @@ export default function NotesPage() {
                                                 <span className="text-indigo-500 flex-shrink-0">📌</span>
                                             )}
 
-                                            {/* Priority badge */}
-                                            {note.priority && (
-                                                <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${PRIORITIES[note.priority as keyof typeof PRIORITIES]?.color || ''}`}>
-                                                    {PRIORITIES[note.priority as keyof typeof PRIORITIES]?.icon}
-                                                </span>
-                                            )}
-
                                             {/* Content preview */}
                                             <div className="flex-1 min-w-0">
                                                 <p className={`text-sm dark:text-gray-200 truncate ${note.is_completed ? 'line-through' : ''}`}>
@@ -879,6 +976,13 @@ export default function NotesPage() {
                                             <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                                 {new Date(note.created_at).toLocaleDateString()}
                                             </span>
+
+                                            {/* Priority badge - to the right of date */}
+                                            {note.priority && (
+                                                <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${PRIORITIES[note.priority as keyof typeof PRIORITIES]?.color || ''}`}>
+                                                    {PRIORITIES[note.priority as keyof typeof PRIORITIES]?.icon}
+                                                </span>
+                                            )}
                                         </div>
                                     );
                                 })}

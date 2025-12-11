@@ -599,8 +599,11 @@ class NotesSearchRequest(BaseModel):
     """Request for searching notes with facets."""
     query: Optional[str] = None
     note_types: Optional[List[str]] = None  # includes 'full_note' for contents with type='note'
+    exclude_note_types: Optional[List[str]] = None  # Exclude these note types
     has_source_content: Optional[bool] = None  # True = linked, False = orphan, None = all
-    linkage_type: Optional[str] = None  # 'content', 'project', 'model', 'independent'
+    linkage_type: Optional[str] = None  # 'content', 'project', 'model', 'independent' (legacy, single)
+    linkage_types: Optional[List[str]] = None  # Multiple linkage types to include
+    exclude_linkage_types: Optional[List[str]] = None  # Exclude these linkage types
     is_pinned: Optional[bool] = None
     include_full_notes: Optional[bool] = True  # Whether to include contents with type='note'
     priorities: Optional[List[str]] = None  # Filter by priorities (include)
@@ -634,31 +637,52 @@ async def search_notes_with_facets(
         if data.note_types:
             query = query.in_("note_type", data.note_types)
 
+        # Exclude note types
+        if data.exclude_note_types:
+            for excl_type in data.exclude_note_types:
+                query = query.neq("note_type", excl_type)
+
         # Legacy filter (keep for backwards compatibility)
         if data.has_source_content is True:
             query = query.neq("source_content_id", None)
         elif data.has_source_content is False:
             query = query.is_("source_content_id", "null")
 
-        # New linkage type filter
-        # For 'objective' we need to check the junction table separately
+        # Get objective-linked note IDs for filtering
         objective_linked_note_ids = set()
-        if data.linkage_type == 'objective':
-            # Get note IDs that are linked to any objective
-            obj_notes_response = db.table("objective_notes").select("note_id").eq("user_id", user_id).execute()
-            objective_linked_note_ids = set(on["note_id"] for on in (obj_notes_response.data or []))
+        obj_notes_response = db.table("objective_notes").select("note_id").eq("user_id", user_id).execute()
+        objective_linked_note_ids = set(on["note_id"] for on in (obj_notes_response.data or []))
 
-        if data.linkage_type == 'content':
-            query = query.not_.is_("source_content_id", "null")
-        elif data.linkage_type == 'project':
-            query = query.not_.is_("linked_project_id", "null")
-        elif data.linkage_type == 'model':
-            query = query.not_.is_("linked_model_id", "null")
-        elif data.linkage_type == 'objective':
-            # Filter will be applied after query execution
-            pass
-        elif data.linkage_type == 'independent':
-            query = query.is_("source_content_id", "null").is_("linked_project_id", "null").is_("linked_model_id", "null")
+        # Handle linkage filters (both include and exclude)
+        # Priority: linkage_types (new) > linkage_type (legacy)
+        linkage_types_to_include = data.linkage_types or ([data.linkage_type] if data.linkage_type else [])
+        linkage_types_to_exclude = data.exclude_linkage_types or []
+
+        # These will be used for post-query filtering when needed
+        include_objectives = 'objective' in linkage_types_to_include
+        exclude_objectives = 'objective' in linkage_types_to_exclude
+
+        # Apply include filters for linkage (if any specified)
+        if linkage_types_to_include:
+            # Build OR conditions for included linkage types
+            # Note: 'objective' is handled post-query
+            if 'content' in linkage_types_to_include:
+                query = query.not_.is_("source_content_id", "null")
+            if 'project' in linkage_types_to_include:
+                query = query.not_.is_("linked_project_id", "null")
+            if 'model' in linkage_types_to_include:
+                query = query.not_.is_("linked_model_id", "null")
+            if 'independent' in linkage_types_to_include:
+                query = query.is_("source_content_id", "null").is_("linked_project_id", "null").is_("linked_model_id", "null")
+
+        # Apply exclude filters for linkage
+        if linkage_types_to_exclude:
+            if 'content' in linkage_types_to_exclude:
+                query = query.is_("source_content_id", "null")
+            if 'project' in linkage_types_to_exclude:
+                query = query.is_("linked_project_id", "null")
+            if 'model' in linkage_types_to_exclude:
+                query = query.is_("linked_model_id", "null")
 
         if data.is_pinned is not None:
             query = query.eq("is_pinned", data.is_pinned)
@@ -680,13 +704,11 @@ async def search_notes_with_facets(
         # Always pin first, then by selected sort
         query = query.order("is_pinned", desc=True)
 
-        if data.sort_by == "priority":
-            # Priority order: important, urgent, A, B, C, null (nulls last)
-            query = query.order("priority", desc=is_desc, nullsfirst=False)
-            query = query.order("created_at", desc=True)
-        elif data.sort_by == "title":
+        # For priority sorting, we'll do it in Python since we need custom order
+        # For other fields, use database sorting
+        if data.sort_by == "title":
             query = query.order("title", desc=is_desc)
-        else:  # default: created_at
+        else:  # default: created_at (also used as secondary sort for priority)
             query = query.order("created_at", desc=is_desc)
 
         query = query.range(data.offset, data.offset + data.limit - 1)
@@ -694,11 +716,36 @@ async def search_notes_with_facets(
         response = query.execute()
         notes = response.data or []
 
-        # If filtering by objective, apply the filter now
-        if data.linkage_type == 'objective' and objective_linked_note_ids:
+        # Custom priority sorting: urgent, important, A, B, C, null
+        if data.sort_by == "priority":
+            PRIORITY_ORDER = {"urgent": 0, "important": 1, "A": 2, "B": 3, "C": 4}
+
+            def get_priority_rank(note):
+                priority = note.get("priority")
+                if priority is None:
+                    return 999  # nulls last
+                return PRIORITY_ORDER.get(priority, 998)
+
+            # Sort by: pinned first, then priority, then created_at
+            notes = sorted(
+                notes,
+                key=lambda n: (
+                    not n.get("is_pinned", False),  # pinned first
+                    get_priority_rank(n) if not is_desc else -get_priority_rank(n),
+                    n.get("created_at", ""),
+                ),
+                reverse=is_desc if data.sort_by != "priority" else False
+            )
+
+        # Post-query filtering for objectives (since it's via junction table)
+        if include_objectives and objective_linked_note_ids:
             notes = [n for n in notes if n["id"] in objective_linked_note_ids]
-        elif data.linkage_type == 'objective' and not objective_linked_note_ids:
+        elif include_objectives and not objective_linked_note_ids:
             notes = []
+
+        # Exclude objectives (notes that are linked to objectives)
+        if exclude_objectives and objective_linked_note_ids:
+            notes = [n for n in notes if n["id"] not in objective_linked_note_ids]
 
         # Get source content info for notes that have it
         source_content_ids = list(set(
