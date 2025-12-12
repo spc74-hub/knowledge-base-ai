@@ -49,6 +49,61 @@ export interface ContentItem {
     application_notes?: string;
 }
 
+export interface MentalModelAction {
+    id: string;
+    title: string;
+    is_completed: boolean;
+    position: number;
+    created_at: string;
+}
+
+export interface MentalModelNote {
+    id: string;
+    title: string;
+    content: string;
+    note_type: string;
+    tags: string[];
+    is_pinned: boolean;
+    created_at: string;
+}
+
+export interface MentalModelProject {
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    icon: string;
+    color: string;
+}
+
+export interface MentalModelObjective {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    progress: number;
+    icon: string;
+    color: string;
+    horizon: string;
+}
+
+export interface MentalModelArea {
+    id: string;
+    name: string;
+    description: string | null;
+    icon: string;
+    color: string;
+    status: string;
+}
+
+export interface MentalModelDetail extends MentalModel {
+    mental_model_actions?: MentalModelAction[];
+    linked_notes?: MentalModelNote[];
+    projects?: MentalModelProject[];
+    objectives?: MentalModelObjective[];
+    areas?: MentalModelArea[];
+}
+
 /**
  * Hook for fetching user's mental models.
  */
@@ -266,6 +321,182 @@ export function useToggleMentalModelFavorite() {
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: MENTAL_MODELS_KEYS.all });
+        },
+    });
+}
+
+/**
+ * Hook for fetching mental model detail with actions and linked entities.
+ */
+export function useMentalModelDetail(modelId: string | null) {
+    const { user, token } = useAuth();
+
+    return useQuery({
+        queryKey: MENTAL_MODELS_KEYS.detail(modelId || ''),
+        queryFn: async (): Promise<MentalModelDetail> => {
+            const response = await fetch(`${API_URL}/api/v1/mental-models/${modelId}`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        enabled: !!user && !!token && !!modelId,
+        staleTime: 5 * 60 * 1000,
+    });
+}
+
+// =====================================================
+// Actions CRUD
+// =====================================================
+
+/**
+ * Hook for creating an action in a mental model.
+ */
+export function useCreateMentalModelAction() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ modelId, title }: { modelId: string; title: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/mental-models/${modelId}/actions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ title }),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { modelId }) => {
+            queryClient.invalidateQueries({ queryKey: MENTAL_MODELS_KEYS.detail(modelId) });
+        },
+    });
+}
+
+/**
+ * Hook for updating an action in a mental model.
+ */
+export function useUpdateMentalModelAction() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ modelId, actionId, title, is_completed }: {
+            modelId: string;
+            actionId: string;
+            title?: string;
+            is_completed?: boolean;
+        }) => {
+            const response = await fetch(`${API_URL}/api/v1/mental-models/${modelId}/actions/${actionId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ title, is_completed }),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { modelId }) => {
+            queryClient.invalidateQueries({ queryKey: MENTAL_MODELS_KEYS.detail(modelId) });
+        },
+    });
+}
+
+/**
+ * Hook for deleting an action from a mental model.
+ */
+export function useDeleteMentalModelAction() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ modelId, actionId }: { modelId: string; actionId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/mental-models/${modelId}/actions/${actionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { modelId }) => {
+            queryClient.invalidateQueries({ queryKey: MENTAL_MODELS_KEYS.detail(modelId) });
+        },
+    });
+}
+
+// =====================================================
+// Notes Linking
+// =====================================================
+
+/**
+ * Hook for linking notes to a mental model.
+ */
+export function useLinkNotesToMentalModel() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ modelId, noteIds }: { modelId: string; noteIds: string[] }) => {
+            const response = await fetch(`${API_URL}/api/v1/mental-models/${modelId}/link-notes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(noteIds),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { modelId }) => {
+            queryClient.invalidateQueries({ queryKey: MENTAL_MODELS_KEYS.detail(modelId) });
+        },
+    });
+}
+
+/**
+ * Hook for unlinking a note from a mental model.
+ */
+export function useUnlinkNoteFromMentalModel() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ modelId, noteId }: { modelId: string; noteId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/mental-models/${modelId}/unlink-note/${noteId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { modelId }) => {
+            queryClient.invalidateQueries({ queryKey: MENTAL_MODELS_KEYS.detail(modelId) });
         },
     });
 }

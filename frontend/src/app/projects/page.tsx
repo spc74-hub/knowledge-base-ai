@@ -12,11 +12,21 @@ import {
     useDeleteProject,
     useToggleProjectFavorite,
     useMoveProject,
+    useCreateProjectAction,
+    useUpdateProjectAction,
+    useDeleteProjectAction,
+    useLinkMentalModelsToProject,
+    useUnlinkMentalModelsFromProject,
+    useLinkObjectivesToProject,
+    useUnlinkObjectivesFromProject,
     PROJECTS_KEYS,
     type ProjectTree,
     type ProjectDetail,
     type Content,
-    type StandaloneNote
+    type StandaloneNote,
+    type ProjectAction,
+    type MentalModel,
+    type Objective
 } from '@/hooks/use-projects';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -146,6 +156,17 @@ export default function ProjectsPage() {
     const toggleFavoriteMutation = useToggleProjectFavorite();
     const moveProjectMutation = useMoveProject();
 
+    // Action mutations
+    const createActionMutation = useCreateProjectAction();
+    const updateActionMutation = useUpdateProjectAction();
+    const deleteActionMutation = useDeleteProjectAction();
+
+    // Linking mutations
+    const linkMentalModelsMutation = useLinkMentalModelsToProject();
+    const unlinkMentalModelsMutation = useUnlinkMentalModelsFromProject();
+    const linkObjectivesMutation = useLinkObjectivesToProject();
+    const unlinkObjectivesMutation = useUnlinkObjectivesFromProject();
+
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
     // Drag & Drop state
@@ -168,6 +189,19 @@ export default function ProjectsPage() {
     const [loadingNotes, setLoadingNotes] = useState(false);
     const [linkingContents, setLinkingContents] = useState(false);
     const [linkingNotes, setLinkingNotes] = useState(false);
+
+    // Actions state
+    const [newActionTitle, setNewActionTitle] = useState('');
+
+    // Mental Models and Objectives linking modals
+    const [showMentalModelSelector, setShowMentalModelSelector] = useState(false);
+    const [showObjectiveSelector, setShowObjectiveSelector] = useState(false);
+    const [availableMentalModels, setAvailableMentalModels] = useState<MentalModel[]>([]);
+    const [availableObjectives, setAvailableObjectives] = useState<Objective[]>([]);
+    const [selectedMentalModelIds, setSelectedMentalModelIds] = useState<string[]>([]);
+    const [selectedObjectiveIds, setSelectedObjectiveIds] = useState<string[]>([]);
+    const [loadingMentalModels, setLoadingMentalModels] = useState(false);
+    const [loadingObjectives, setLoadingObjectives] = useState(false);
 
     // Form state
     const [formName, setFormName] = useState('');
@@ -391,6 +425,129 @@ export default function ProjectsPage() {
         setSelectedNoteIds([]);
         fetchAvailableNotes();
         setShowNoteSelector(true);
+    };
+
+    // =====================================================
+    // Actions handlers
+    // =====================================================
+
+    const handleAddAction = async () => {
+        if (!selectedProjectId || !newActionTitle.trim()) return;
+
+        createActionMutation.mutate(
+            { projectId: selectedProjectId, title: newActionTitle.trim() },
+            { onSuccess: () => setNewActionTitle('') }
+        );
+    };
+
+    const handleToggleAction = async (actionId: string, isCompleted: boolean) => {
+        if (!selectedProjectId) return;
+        updateActionMutation.mutate({
+            projectId: selectedProjectId,
+            actionId,
+            is_completed: !isCompleted
+        });
+    };
+
+    const handleDeleteAction = async (actionId: string) => {
+        if (!selectedProjectId) return;
+        deleteActionMutation.mutate({ projectId: selectedProjectId, actionId });
+    };
+
+    // =====================================================
+    // Mental Models handlers
+    // =====================================================
+
+    const fetchAvailableMentalModels = async () => {
+        if (!user) return;
+        setLoadingMentalModels(true);
+        try {
+            const { data: session } = await supabase.auth.getSession();
+            const response = await fetch(`${API_URL}/api/v1/mental-models/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(session?.session?.access_token ? { Authorization: `Bearer ${session.session.access_token}` } : {}),
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out already linked models
+                const linkedIds = new Set(selectedProject?.mental_models?.map(m => m.id) || []);
+                const available = (data.models || []).filter((m: MentalModel) => !linkedIds.has(m.id));
+                setAvailableMentalModels(available);
+            }
+        } catch (error) {
+            console.error('Error fetching mental models:', error);
+        } finally {
+            setLoadingMentalModels(false);
+        }
+    };
+
+    const openMentalModelSelector = () => {
+        setSelectedMentalModelIds([]);
+        fetchAvailableMentalModels();
+        setShowMentalModelSelector(true);
+    };
+
+    const handleLinkMentalModels = async () => {
+        if (!selectedProjectId || selectedMentalModelIds.length === 0) return;
+        linkMentalModelsMutation.mutate(
+            { projectId: selectedProjectId, modelIds: selectedMentalModelIds },
+            { onSuccess: () => setShowMentalModelSelector(false) }
+        );
+    };
+
+    const handleUnlinkMentalModel = async (modelId: string) => {
+        if (!selectedProjectId) return;
+        unlinkMentalModelsMutation.mutate({ projectId: selectedProjectId, modelIds: [modelId] });
+    };
+
+    // =====================================================
+    // Objectives handlers
+    // =====================================================
+
+    const fetchAvailableObjectives = async () => {
+        if (!user) return;
+        setLoadingObjectives(true);
+        try {
+            const { data: session } = await supabase.auth.getSession();
+            const response = await fetch(`${API_URL}/api/v1/objectives/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(session?.session?.access_token ? { Authorization: `Bearer ${session.session.access_token}` } : {}),
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out already linked objectives
+                const linkedIds = new Set(selectedProject?.objectives?.map(o => o.id) || []);
+                const available = (data.objectives || []).filter((o: Objective) => !linkedIds.has(o.id));
+                setAvailableObjectives(available);
+            }
+        } catch (error) {
+            console.error('Error fetching objectives:', error);
+        } finally {
+            setLoadingObjectives(false);
+        }
+    };
+
+    const openObjectiveSelector = () => {
+        setSelectedObjectiveIds([]);
+        fetchAvailableObjectives();
+        setShowObjectiveSelector(true);
+    };
+
+    const handleLinkObjectives = async () => {
+        if (!selectedProjectId || selectedObjectiveIds.length === 0) return;
+        linkObjectivesMutation.mutate(
+            { projectId: selectedProjectId, objectiveIds: selectedObjectiveIds },
+            { onSuccess: () => setShowObjectiveSelector(false) }
+        );
+    };
+
+    const handleUnlinkObjective = async (objectiveId: string) => {
+        if (!selectedProjectId) return;
+        unlinkObjectivesMutation.mutate({ projectId: selectedProjectId, objectiveIds: [objectiveId] });
     };
 
     const handleSelectProject = (id: string) => {
@@ -875,6 +1032,162 @@ export default function ProjectsPage() {
                                         </div>
                                     )}
 
+                                    {/* Actions */}
+                                    <div className="mb-6">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-semibold dark:text-white">
+                                                Acciones ({selectedProject.project_actions?.length || 0})
+                                            </h3>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                {selectedProject.project_actions?.filter(a => a.is_completed).length || 0}/
+                                                {selectedProject.project_actions?.length || 0}
+                                            </span>
+                                        </div>
+                                        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4">
+                                            {/* Action list */}
+                                            {selectedProject.project_actions && selectedProject.project_actions.length > 0 && (
+                                                <div className="space-y-2 mb-4">
+                                                    {selectedProject.project_actions
+                                                        .sort((a, b) => a.position - b.position)
+                                                        .map(action => (
+                                                            <div
+                                                                key={action.id}
+                                                                className="flex items-center gap-3 group"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={action.is_completed}
+                                                                    onChange={() => handleToggleAction(action.id, action.is_completed)}
+                                                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                                                                />
+                                                                <span className={`flex-1 ${action.is_completed ? 'line-through text-gray-400' : 'dark:text-white'}`}>
+                                                                    {action.title}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => handleDeleteAction(action.id)}
+                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                    title="Eliminar acción"
+                                                                >
+                                                                    ✕
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            )}
+                                            {/* New action input */}
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={newActionTitle}
+                                                    onChange={(e) => setNewActionTitle(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddAction()}
+                                                    placeholder="Nueva acción..."
+                                                    className="flex-1 px-3 py-2 text-sm border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                />
+                                                <button
+                                                    onClick={handleAddAction}
+                                                    disabled={!newActionTitle.trim() || createActionMutation.isPending}
+                                                    className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Añadir
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Objectives */}
+                                    <div className="mb-6">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-semibold dark:text-white">
+                                                Objetivos ({selectedProject.objectives?.length || 0})
+                                            </h3>
+                                            <button
+                                                onClick={openObjectiveSelector}
+                                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                                            >
+                                                + Vincular
+                                            </button>
+                                        </div>
+                                        {!selectedProject.objectives || selectedProject.objectives.length === 0 ? (
+                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-4">
+                                                No hay objetivos vinculados a este proyecto.
+                                            </p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {selectedProject.objectives.map(objective => (
+                                                    <div
+                                                        key={objective.id}
+                                                        className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg group"
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <Link
+                                                                href={`/objectives?id=${objective.id}`}
+                                                                className="flex items-center gap-2 flex-1 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                                            >
+                                                                <span
+                                                                    className="text-lg w-7 h-7 flex items-center justify-center rounded"
+                                                                    style={{ backgroundColor: objective.color + '20' }}
+                                                                >
+                                                                    {objective.icon}
+                                                                </span>
+                                                                <span className="dark:text-white">{objective.title}</span>
+                                                            </Link>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs text-gray-500">{objective.progress}%</span>
+                                                                <button
+                                                                    onClick={() => handleUnlinkObjective(objective.id)}
+                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                    title="Desvincular objetivo"
+                                                                >
+                                                                    ✕
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Mental Models */}
+                                    <div className="mb-6">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-semibold dark:text-white">
+                                                Modelos Mentales ({selectedProject.mental_models?.length || 0})
+                                            </h3>
+                                            <button
+                                                onClick={openMentalModelSelector}
+                                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                                            >
+                                                + Vincular
+                                            </button>
+                                        </div>
+                                        {!selectedProject.mental_models || selectedProject.mental_models.length === 0 ? (
+                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-4">
+                                                No hay modelos mentales vinculados a este proyecto.
+                                            </p>
+                                        ) : (
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedProject.mental_models.map(model => (
+                                                    <div
+                                                        key={model.id}
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-full group"
+                                                    >
+                                                        <span>{model.icon}</span>
+                                                        <span className="text-sm dark:text-white">{model.name}</span>
+                                                        <button
+                                                            onClick={() => handleUnlinkMentalModel(model.id)}
+                                                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+                                                            title="Desvincular modelo"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Standalone Notes */}
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between mb-3">
@@ -1253,6 +1566,166 @@ export default function ProjectsPage() {
                                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                             >
                                 {linkingNotes ? 'Vinculando...' : `Vincular (${selectedNoteIds.length})`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Objectives Selector Modal */}
+            {showObjectiveSelector && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
+                        <h3 className="text-xl font-bold mb-4 dark:text-white">
+                            Vincular objetivos a {selectedProject?.name}
+                        </h3>
+
+                        {loadingObjectives ? (
+                            <div className="flex justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+                            </div>
+                        ) : availableObjectives.length === 0 ? (
+                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                                No hay objetivos disponibles para vincular
+                            </p>
+                        ) : (
+                            <>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                    Selecciona los objetivos que deseas vincular a este proyecto
+                                </p>
+                                <div className="space-y-2 max-h-80 overflow-y-auto">
+                                    {availableObjectives.map(objective => (
+                                        <label
+                                            key={objective.id}
+                                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors
+                                                ${selectedObjectiveIds.includes(objective.id)
+                                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedObjectiveIds.includes(objective.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedObjectiveIds([...selectedObjectiveIds, objective.id]);
+                                                    } else {
+                                                        setSelectedObjectiveIds(selectedObjectiveIds.filter(id => id !== objective.id));
+                                                    }
+                                                }}
+                                                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <span
+                                                className="text-lg w-7 h-7 flex items-center justify-center rounded"
+                                                style={{ backgroundColor: objective.color + '20' }}
+                                            >
+                                                {objective.icon}
+                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                                <span className="font-medium dark:text-white">{objective.title}</span>
+                                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                    <span>{objective.horizon}</span>
+                                                    <span>•</span>
+                                                    <span>{objective.progress}%</span>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700 mt-4">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowObjectiveSelector(false);
+                                    setSelectedObjectiveIds([]);
+                                }}
+                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleLinkObjectives}
+                                disabled={linkObjectivesMutation.isPending || selectedObjectiveIds.length === 0}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                {linkObjectivesMutation.isPending ? 'Vinculando...' : `Vincular (${selectedObjectiveIds.length})`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mental Models Selector Modal */}
+            {showMentalModelSelector && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
+                        <h3 className="text-xl font-bold mb-4 dark:text-white">
+                            Vincular modelos mentales a {selectedProject?.name}
+                        </h3>
+
+                        {loadingMentalModels ? (
+                            <div className="flex justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+                            </div>
+                        ) : availableMentalModels.length === 0 ? (
+                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                                No hay modelos mentales disponibles para vincular
+                            </p>
+                        ) : (
+                            <>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                    Selecciona los modelos mentales que deseas vincular
+                                </p>
+                                <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+                                    {availableMentalModels.map(model => (
+                                        <label
+                                            key={model.id}
+                                            className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors
+                                                ${selectedMentalModelIds.includes(model.id)
+                                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedMentalModelIds.includes(model.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedMentalModelIds([...selectedMentalModelIds, model.id]);
+                                                    } else {
+                                                        setSelectedMentalModelIds(selectedMentalModelIds.filter(id => id !== model.id));
+                                                    }
+                                                }}
+                                                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <span className="text-lg">{model.icon}</span>
+                                            <span className="text-sm font-medium dark:text-white truncate">{model.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700 mt-4">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowMentalModelSelector(false);
+                                    setSelectedMentalModelIds([]);
+                                }}
+                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleLinkMentalModels}
+                                disabled={linkMentalModelsMutation.isPending || selectedMentalModelIds.length === 0}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                {linkMentalModelsMutation.isPending ? 'Vinculando...' : `Vincular (${selectedMentalModelIds.length})`}
                             </button>
                         </div>
                     </div>

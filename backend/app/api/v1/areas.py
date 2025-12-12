@@ -6,6 +6,7 @@ Handles CRUD operations for areas, sub-areas, and area-mental model relationship
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional, List
+from datetime import datetime, timezone
 
 from app.api.deps import Database, CurrentUser
 
@@ -48,6 +49,15 @@ class SubAreaUpdate(BaseModel):
 
 class AreaMentalModelLink(BaseModel):
     mental_model_id: str
+
+
+class ActionCreate(BaseModel):
+    title: str
+
+
+class ActionUpdate(BaseModel):
+    title: Optional[str] = None
+    is_completed: Optional[bool] = None
 
 
 class ReorderRequest(BaseModel):
@@ -115,13 +125,15 @@ async def get_area(area_id: str, db: Database, current_user: CurrentUser):
     try:
         user_id = current_user["id"]
 
-        # Get area
-        result = db.table("areas_of_responsibility").select("*").eq("id", area_id).eq("user_id", user_id).single().execute()
+        # Get area with actions
+        result = db.table("areas_of_responsibility").select(
+            "*, area_actions(id, title, is_completed, position, created_at)"
+        ).eq("id", area_id).eq("user_id", user_id).single().execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
-        area = result.data
+        area = dict(result.data)
 
         # Get sub-areas
         sub_areas = db.table("sub_areas").select("*").eq("area_id", area_id).order("display_order").execute()
@@ -131,17 +143,17 @@ async def get_area(area_id: str, db: Database, current_user: CurrentUser):
         mm_links = db.table("area_mental_models").select("mental_model_id").eq("area_id", area_id).execute()
         if mm_links.data:
             mm_ids = [link["mental_model_id"] for link in mm_links.data]
-            mental_models = db.table("mental_models").select("id, name, description, icon").in_("id", mm_ids).execute()
+            mental_models = db.table("mental_models").select("id, name, description, icon, color").in_("id", mm_ids).execute()
             area["mental_models"] = mental_models.data or []
         else:
             area["mental_models"] = []
 
         # Get linked objectives
-        objectives = db.table("objectives").select("id, title, description, status, target_date").eq("area_id", area_id).order("created_at", desc=True).execute()
+        objectives = db.table("objectives").select("id, title, description, status, progress, icon, color, horizon, target_date").eq("area_id", area_id).order("created_at", desc=True).execute()
         area["objectives"] = objectives.data or []
 
         # Get linked projects
-        projects = db.table("projects").select("id, name, description, status").eq("area_id", area_id).order("updated_at", desc=True).execute()
+        projects = db.table("projects").select("id, name, description, status, icon, color").eq("area_id", area_id).order("updated_at", desc=True).execute()
         area["projects"] = projects.data or []
 
         # Get linked habits
@@ -149,8 +161,18 @@ async def get_area(area_id: str, db: Database, current_user: CurrentUser):
         area["habits"] = habits.data or []
 
         # Get linked contents (limit to recent 10)
-        contents = db.table("contents").select("id, title, type, schema_type, created_at").eq("area_id", area_id).order("created_at", desc=True).limit(10).execute()
+        contents = db.table("contents").select("id, title, type, schema_type, created_at, is_favorite").eq("area_id", area_id).order("created_at", desc=True).limit(10).execute()
         area["recent_contents"] = contents.data or []
+
+        # Get linked notes (via junction table)
+        try:
+            notes_result = db.table("area_notes").select(
+                "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
+            ).eq("area_id", area_id).execute()
+            area["notes"] = [r["standalone_notes"] for r in notes_result.data if r.get("standalone_notes")]
+        except Exception as e:
+            print(f"Error fetching notes for area: {e}")
+            area["notes"] = []
 
         return area
 
@@ -546,3 +568,142 @@ async def unlink_project_from_area(area_id: str, project_id: str, db: Database, 
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =====================================================
+# Actions CRUD
+# =====================================================
+
+@router.post("/{area_id}/actions")
+async def create_action(
+    area_id: str,
+    data: ActionCreate,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Add an action to an area."""
+    user_id = current_user["id"]
+
+    # Verify area exists and belongs to user
+    area_check = db.table("areas_of_responsibility").select("id").eq(
+        "id", area_id
+    ).eq("user_id", user_id).execute()
+
+    if not area_check.data:
+        raise HTTPException(status_code=404, detail="Area not found")
+
+    # Get next position
+    pos_result = db.table("area_actions").select("position").eq(
+        "area_id", area_id
+    ).order("position", desc=True).limit(1).execute()
+
+    next_pos = (pos_result.data[0]["position"] + 1) if pos_result.data else 0
+
+    result = db.table("area_actions").insert({
+        "area_id": area_id,
+        "user_id": user_id,
+        "title": data.title,
+        "position": next_pos,
+    }).execute()
+
+    return result.data[0]
+
+
+@router.put("/{area_id}/actions/{action_id}")
+async def update_action(
+    area_id: str,
+    action_id: str,
+    data: ActionUpdate,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Update an action."""
+    user_id = current_user["id"]
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    if "is_completed" in update_data and update_data["is_completed"]:
+        update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+
+    result = db.table("area_actions").update(update_data).eq(
+        "id", action_id
+    ).eq("area_id", area_id).eq("user_id", user_id).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return result.data[0]
+
+
+@router.delete("/{area_id}/actions/{action_id}")
+async def delete_action(
+    area_id: str,
+    action_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Delete an action."""
+    user_id = current_user["id"]
+
+    result = db.table("area_actions").delete().eq(
+        "id", action_id
+    ).eq("area_id", area_id).eq("user_id", user_id).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return {"success": True}
+
+
+# =====================================================
+# Notes Linking
+# =====================================================
+
+@router.post("/{area_id}/link-notes")
+async def link_notes_to_area(
+    area_id: str,
+    note_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link multiple notes to an area."""
+    user_id = current_user["id"]
+
+    # Verify area belongs to user
+    area_check = db.table("areas_of_responsibility").select("id").eq(
+        "id", area_id
+    ).eq("user_id", user_id).execute()
+
+    if not area_check.data:
+        raise HTTPException(status_code=404, detail="Area not found")
+
+    linked = 0
+    for note_id in note_ids:
+        try:
+            db.table("area_notes").insert({
+                "area_id": area_id,
+                "note_id": note_id,
+                "user_id": user_id,
+            }).execute()
+            linked += 1
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                print(f"Error linking note {note_id}: {e}")
+
+    return {"success": True, "linked": linked}
+
+
+@router.delete("/{area_id}/unlink-note/{note_id}")
+async def unlink_note_from_area(
+    area_id: str,
+    note_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink a note from an area."""
+    user_id = current_user["id"]
+
+    db.table("area_notes").delete().eq(
+        "area_id", area_id
+    ).eq("note_id", note_id).eq("user_id", user_id).execute()
+
+    return {"success": True}

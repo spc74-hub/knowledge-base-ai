@@ -65,10 +65,39 @@ export interface StandaloneNote {
     updated_at: string;
 }
 
+export interface ProjectAction {
+    id: string;
+    title: string;
+    is_completed: boolean;
+    position: number;
+    created_at: string;
+}
+
+export interface MentalModel {
+    id: string;
+    name: string;
+    slug: string;
+    icon: string;
+    color: string;
+}
+
+export interface Objective {
+    id: string;
+    title: string;
+    status: string;
+    progress: number;
+    icon: string;
+    color: string;
+    horizon: string;
+}
+
 export interface ProjectDetail extends Project {
     contents: Content[];
     children: Project[];
     notes?: StandaloneNote[];
+    project_actions?: ProjectAction[];
+    mental_models?: MentalModel[];
+    objectives?: Objective[];
 }
 
 export interface ProjectsParams {
@@ -333,6 +362,218 @@ export function useMoveProject() {
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.all });
+        },
+    });
+}
+
+// =====================================================
+// Actions CRUD
+// =====================================================
+
+/**
+ * Hook for creating an action in a project.
+ */
+export function useCreateProjectAction() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ projectId, title }: { projectId: string; title: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/projects/${projectId}/actions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ title }),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.detail(projectId) });
+        },
+    });
+}
+
+/**
+ * Hook for updating an action in a project.
+ */
+export function useUpdateProjectAction() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ projectId, actionId, title, is_completed }: {
+            projectId: string;
+            actionId: string;
+            title?: string;
+            is_completed?: boolean;
+        }) => {
+            const response = await fetch(`${API_URL}/api/v1/projects/${projectId}/actions/${actionId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ title, is_completed }),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.detail(projectId) });
+        },
+    });
+}
+
+/**
+ * Hook for deleting an action from a project.
+ */
+export function useDeleteProjectAction() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ projectId, actionId }: { projectId: string; actionId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/projects/${projectId}/actions/${actionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.detail(projectId) });
+        },
+    });
+}
+
+// =====================================================
+// Mental Models Linking
+// =====================================================
+
+/**
+ * Hook for linking mental models to a project.
+ */
+export function useLinkMentalModelsToProject() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ projectId, modelIds }: { projectId: string; modelIds: string[] }) => {
+            const response = await fetch(`${API_URL}/api/v1/projects/${projectId}/link-mental-models`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(modelIds),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.detail(projectId) });
+        },
+    });
+}
+
+/**
+ * Hook for unlinking mental models from a project.
+ */
+export function useUnlinkMentalModelsFromProject() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ projectId, modelIds }: { projectId: string; modelIds: string[] }) => {
+            const response = await fetch(`${API_URL}/api/v1/projects/${projectId}/unlink-mental-models`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(modelIds),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.detail(projectId) });
+        },
+    });
+}
+
+// =====================================================
+// Objectives Linking
+// =====================================================
+
+/**
+ * Hook for linking objectives to a project.
+ */
+export function useLinkObjectivesToProject() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ projectId, objectiveIds }: { projectId: string; objectiveIds: string[] }) => {
+            const response = await fetch(`${API_URL}/api/v1/projects/${projectId}/link-objectives`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(objectiveIds),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.detail(projectId) });
+        },
+    });
+}
+
+/**
+ * Hook for unlinking objectives from a project.
+ */
+export function useUnlinkObjectivesFromProject() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ projectId, objectiveIds }: { projectId: string; objectiveIds: string[] }) => {
+            const response = await fetch(`${API_URL}/api/v1/projects/${projectId}/unlink-objectives`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(objectiveIds),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: PROJECTS_KEYS.detail(projectId) });
         },
     });
 }

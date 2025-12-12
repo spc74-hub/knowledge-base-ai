@@ -32,6 +32,16 @@ class ProjectUpdate(BaseModel):
     parent_project_id: Optional[str] = None  # Move to different parent
 
 
+# Action schemas
+class ActionCreate(BaseModel):
+    title: str
+
+
+class ActionUpdate(BaseModel):
+    title: Optional[str] = None
+    is_completed: Optional[bool] = None
+
+
 class ProjectResponse(BaseModel):
     id: str
     name: str
@@ -177,17 +187,20 @@ async def get_projects_tree(
         )
 
 
-@router.get("/{project_id}", response_model=ProjectDetailResponse)
+@router.get("/{project_id}")
 async def get_project(
     project_id: str,
     current_user: CurrentUser,
     db: Database
 ):
     """
-    Get a specific project with its linked contents and subprojects.
+    Get a specific project with all related data.
     """
     try:
-        response = db.table("projects").select("*").eq(
+        # Get project with actions
+        response = db.table("projects").select(
+            "*, project_actions(id, title, is_completed, position, created_at)"
+        ).eq(
             "id", project_id
         ).eq(
             "user_id", current_user["id"]
@@ -199,7 +212,7 @@ async def get_project(
                 detail="Project not found"
             )
 
-        project = response.data
+        project = dict(response.data)
 
         # Get linked contents
         contents_response = db.table("contents").select(
@@ -211,6 +224,38 @@ async def get_project(
         project["contents"] = contents_response.data or []
         project["content_count"] = len(project["contents"])
 
+        # Get linked mental models
+        try:
+            mm_result = db.table("project_mental_models").select(
+                "mental_model_id, mental_models(id, name, slug, icon, color)"
+            ).eq("project_id", project_id).execute()
+            project["mental_models"] = [r["mental_models"] for r in mm_result.data if r.get("mental_models")]
+        except Exception as e:
+            print(f"Error fetching mental models for project: {e}")
+            project["mental_models"] = []
+
+        # Get linked objectives (using objective_projects table)
+        try:
+            obj_result = db.table("objective_projects").select(
+                "objective_id, objectives(id, title, status, progress, icon, color, horizon)"
+            ).eq("project_id", project_id).execute()
+            project["objectives"] = [r["objectives"] for r in obj_result.data if r.get("objectives")]
+        except Exception as e:
+            print(f"Error fetching objectives for project: {e}")
+            project["objectives"] = []
+
+        # Get linked notes
+        try:
+            notes_response = db.table("standalone_notes").select(
+                "id, title, content, note_type, tags, is_pinned, created_at"
+            ).eq("linked_project_id", project_id).eq(
+                "user_id", current_user["id"]
+            ).order("is_pinned", desc=True).order("created_at", desc=True).execute()
+            project["notes"] = notes_response.data or []
+        except Exception as e:
+            print(f"Error fetching notes for project: {e}")
+            project["notes"] = []
+
         # Get children (subprojects)
         children_response = db.table("projects").select("*").eq(
             "parent_project_id", project_id
@@ -218,12 +263,13 @@ async def get_project(
 
         children = []
         for child in children_response.data or []:
+            child_data = dict(child)
             child_content_response = db.table("contents").select("id", count="exact").eq(
                 "project_id", child["id"]
             ).eq("is_archived", False).execute()
-            child["content_count"] = child_content_response.count or 0
-            child["children_count"] = 0  # Can be expanded if needed
-            children.append(child)
+            child_data["content_count"] = child_content_response.count or 0
+            child_data["children_count"] = 0
+            children.append(child_data)
 
         project["children"] = children
         project["children_count"] = len(children)
@@ -766,3 +812,256 @@ async def get_project_notes(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+# =====================================================
+# Actions CRUD
+# =====================================================
+
+@router.post("/{project_id}/actions")
+async def create_action(
+    project_id: str,
+    data: ActionCreate,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Add an action to a project."""
+    # Verify project exists and belongs to user
+    proj_check = db.table("projects").select("id").eq(
+        "id", project_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not proj_check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Get next position
+    pos_result = db.table("project_actions").select("position").eq(
+        "project_id", project_id
+    ).order("position", desc=True).limit(1).execute()
+
+    next_pos = (pos_result.data[0]["position"] + 1) if pos_result.data else 0
+
+    result = db.table("project_actions").insert({
+        "project_id": project_id,
+        "user_id": current_user["id"],
+        "title": data.title,
+        "position": next_pos,
+    }).execute()
+
+    return result.data[0]
+
+
+@router.put("/{project_id}/actions/{action_id}")
+async def update_action(
+    project_id: str,
+    action_id: str,
+    data: ActionUpdate,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Update an action."""
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    if "is_completed" in update_data and update_data["is_completed"]:
+        update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+
+    result = db.table("project_actions").update(update_data).eq(
+        "id", action_id
+    ).eq("project_id", project_id).eq("user_id", current_user["id"]).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return result.data[0]
+
+
+@router.delete("/{project_id}/actions/{action_id}")
+async def delete_action(
+    project_id: str,
+    action_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Delete an action."""
+    result = db.table("project_actions").delete().eq(
+        "id", action_id
+    ).eq("project_id", project_id).eq("user_id", current_user["id"]).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return {"success": True}
+
+
+# =====================================================
+# Link/Unlink Mental Models
+# =====================================================
+
+@router.post("/{project_id}/link/mental-model/{model_id}")
+async def link_mental_model(
+    project_id: str,
+    model_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link a mental model to a project."""
+    try:
+        db.table("project_mental_models").insert({
+            "project_id": project_id,
+            "mental_model_id": model_id,
+            "user_id": current_user["id"],
+        }).execute()
+        return {"success": True}
+    except Exception as e:
+        if "duplicate" in str(e).lower():
+            return {"success": True, "message": "Already linked"}
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{project_id}/link/mental-model/{model_id}")
+async def unlink_mental_model(
+    project_id: str,
+    model_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink a mental model from a project."""
+    db.table("project_mental_models").delete().eq(
+        "project_id", project_id
+    ).eq("mental_model_id", model_id).eq("user_id", current_user["id"]).execute()
+    return {"success": True}
+
+
+@router.post("/{project_id}/link-mental-models")
+async def link_mental_models_to_project(
+    project_id: str,
+    model_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link multiple mental models to a project."""
+    # Verify project belongs to user
+    proj_check = db.table("projects").select("id").eq(
+        "id", project_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not proj_check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    linked = 0
+    for model_id in model_ids:
+        try:
+            db.table("project_mental_models").insert({
+                "project_id": project_id,
+                "mental_model_id": model_id,
+                "user_id": current_user["id"],
+            }).execute()
+            linked += 1
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                print(f"Error linking mental model {model_id}: {e}")
+
+    return {"success": True, "linked": linked}
+
+
+@router.post("/{project_id}/unlink-mental-models")
+async def unlink_mental_models_from_project(
+    project_id: str,
+    model_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink multiple mental models from a project."""
+    for model_id in model_ids:
+        db.table("project_mental_models").delete().eq(
+            "project_id", project_id
+        ).eq("mental_model_id", model_id).eq("user_id", current_user["id"]).execute()
+
+    return {"success": True}
+
+
+# =====================================================
+# Link/Unlink Objectives (using existing objective_projects table)
+# =====================================================
+
+@router.post("/{project_id}/link/objective/{objective_id}")
+async def link_objective(
+    project_id: str,
+    objective_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link an objective to a project."""
+    try:
+        db.table("objective_projects").insert({
+            "objective_id": objective_id,
+            "project_id": project_id,
+            "user_id": current_user["id"],
+        }).execute()
+        return {"success": True}
+    except Exception as e:
+        if "duplicate" in str(e).lower():
+            return {"success": True, "message": "Already linked"}
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{project_id}/link/objective/{objective_id}")
+async def unlink_objective(
+    project_id: str,
+    objective_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink an objective from a project."""
+    db.table("objective_projects").delete().eq(
+        "project_id", project_id
+    ).eq("objective_id", objective_id).eq("user_id", current_user["id"]).execute()
+    return {"success": True}
+
+
+@router.post("/{project_id}/link-objectives")
+async def link_objectives_to_project(
+    project_id: str,
+    objective_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link multiple objectives to a project."""
+    # Verify project belongs to user
+    proj_check = db.table("projects").select("id").eq(
+        "id", project_id
+    ).eq("user_id", current_user["id"]).execute()
+
+    if not proj_check.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    linked = 0
+    for objective_id in objective_ids:
+        try:
+            db.table("objective_projects").insert({
+                "objective_id": objective_id,
+                "project_id": project_id,
+                "user_id": current_user["id"],
+            }).execute()
+            linked += 1
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                print(f"Error linking objective {objective_id}: {e}")
+
+    return {"success": True, "linked": linked}
+
+
+@router.post("/{project_id}/unlink-objectives")
+async def unlink_objectives_from_project(
+    project_id: str,
+    objective_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink multiple objectives from a project."""
+    for objective_id in objective_ids:
+        db.table("objective_projects").delete().eq(
+            "project_id", project_id
+        ).eq("objective_id", objective_id).eq("user_id", current_user["id"]).execute()
+
+    return {"success": True}

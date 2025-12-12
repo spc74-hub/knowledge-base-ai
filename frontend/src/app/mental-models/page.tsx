@@ -13,10 +13,19 @@ import {
     useUpdateMentalModel,
     useDeactivateMentalModel,
     useToggleMentalModelFavorite,
+    useMentalModelDetail,
+    useCreateMentalModelAction,
+    useUpdateMentalModelAction,
+    useDeleteMentalModelAction,
+    useLinkNotesToMentalModel,
+    useUnlinkNoteFromMentalModel,
     MENTAL_MODELS_KEYS,
     type MentalModel,
     type CatalogModel,
     type ContentItem,
+    type MentalModelAction,
+    type MentalModelNote,
+    type MentalModelDetail,
 } from '@/hooks/use-mental-models';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -24,11 +33,21 @@ import { ThemeToggle } from '@/components/theme-toggle';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+interface StandaloneNote {
+    id: string;
+    title: string;
+    content: string;
+    note_type: string;
+    tags: string[];
+    is_pinned: boolean;
+    created_at: string;
+}
+
 export default function MentalModelsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const queryClient = useQueryClient();
-    const { user, loading: authLoading } = useAuth();
+    const { user, token, loading: authLoading } = useAuth();
 
     // React Query hooks
     const { data: myModels = [], isLoading: modelsLoading } = useMentalModels(true);
@@ -45,8 +64,22 @@ export default function MentalModelsPage() {
     // Detail view
     const [selectedModel, setSelectedModel] = useState<MentalModel | null>(null);
     const { data: modelContents = [], isLoading: loadingDetail } = useMentalModelContents(selectedModel?.id || null);
+    const { data: modelDetail, refetch: refetchDetail } = useMentalModelDetail(selectedModel?.id || null);
     const [editingNotes, setEditingNotes] = useState(false);
     const [notesValue, setNotesValue] = useState('');
+
+    // Actions state
+    const [newActionTitle, setNewActionTitle] = useState('');
+    const createActionMutation = useCreateMentalModelAction();
+    const updateActionMutation = useUpdateMentalModelAction();
+    const deleteActionMutation = useDeleteMentalModelAction();
+
+    // Notes linking state
+    const [showNotesSelector, setShowNotesSelector] = useState(false);
+    const [availableNotes, setAvailableNotes] = useState<StandaloneNote[]>([]);
+    const [loadingNotes, setLoadingNotes] = useState(false);
+    const linkNotesMutation = useLinkNotesToMentalModel();
+    const unlinkNoteMutation = useUnlinkNoteFromMentalModel();
 
     // Create/Edit model modal
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -177,6 +210,91 @@ export default function MentalModelsPage() {
             setShowCreateModal(false);
         } catch (err: any) {
             setError(err.message);
+        }
+    };
+
+    // Actions handlers
+    const handleCreateAction = async () => {
+        if (!newActionTitle.trim() || !selectedModel) return;
+        try {
+            await createActionMutation.mutateAsync({ modelId: selectedModel.id, title: newActionTitle.trim() });
+            setNewActionTitle('');
+            refetchDetail();
+        } catch (error) {
+            console.error('Error creating action:', error);
+        }
+    };
+
+    const handleToggleAction = async (action: MentalModelAction) => {
+        if (!selectedModel) return;
+        try {
+            await updateActionMutation.mutateAsync({
+                modelId: selectedModel.id,
+                actionId: action.id,
+                is_completed: !action.is_completed,
+            });
+            refetchDetail();
+        } catch (error) {
+            console.error('Error toggling action:', error);
+        }
+    };
+
+    const handleDeleteAction = async (actionId: string) => {
+        if (!selectedModel) return;
+        try {
+            await deleteActionMutation.mutateAsync({ modelId: selectedModel.id, actionId });
+            refetchDetail();
+        } catch (error) {
+            console.error('Error deleting action:', error);
+        }
+    };
+
+    // Notes handlers
+    const fetchAvailableNotes = async () => {
+        setLoadingNotes(true);
+        try {
+            const response = await fetch(`${API_URL}/api/v1/notes/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out notes already linked to this model
+                const linkedNoteIds = new Set((modelDetail?.linked_notes || []).map(n => n.id));
+                setAvailableNotes((data.notes || []).filter((n: StandaloneNote) => !linkedNoteIds.has(n.id)));
+            }
+        } catch (error) {
+            console.error('Error fetching notes:', error);
+        } finally {
+            setLoadingNotes(false);
+        }
+    };
+
+    const handleOpenNotesSelector = () => {
+        fetchAvailableNotes();
+        setShowNotesSelector(true);
+    };
+
+    const handleLinkNote = async (noteId: string) => {
+        if (!selectedModel) return;
+        try {
+            await linkNotesMutation.mutateAsync({ modelId: selectedModel.id, noteIds: [noteId] });
+            setShowNotesSelector(false);
+            refetchDetail();
+        } catch (error) {
+            console.error('Error linking note:', error);
+        }
+    };
+
+    const handleUnlinkNote = async (noteId: string) => {
+        if (!selectedModel) return;
+        try {
+            await unlinkNoteMutation.mutateAsync({ modelId: selectedModel.id, noteId });
+            refetchDetail();
+        } catch (error) {
+            console.error('Error unlinking note:', error);
         }
     };
 
@@ -454,6 +572,167 @@ export default function MentalModelsPage() {
                                 )}
                             </div>
 
+                            {/* Actions Section */}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6 mb-6">
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Acciones</h2>
+
+                                {/* Add action input */}
+                                <div className="flex gap-2 mb-4">
+                                    <input
+                                        type="text"
+                                        value={newActionTitle}
+                                        onChange={(e) => setNewActionTitle(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleCreateAction()}
+                                        placeholder="Nueva accion..."
+                                        className="flex-1 px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                                    />
+                                    <button
+                                        onClick={handleCreateAction}
+                                        disabled={!newActionTitle.trim() || createActionMutation.isPending}
+                                        className="px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+
+                                {/* Actions list */}
+                                {(!modelDetail?.mental_model_actions || modelDetail.mental_model_actions.length === 0) ? (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        No hay acciones pendientes
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {modelDetail.mental_model_actions.map((action) => (
+                                            <div key={action.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={action.is_completed}
+                                                    onChange={() => handleToggleAction(action)}
+                                                    className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                                />
+                                                <span className={`flex-1 text-sm ${action.is_completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+                                                    {action.title}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleDeleteAction(action.id)}
+                                                    className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Linked Notes Section */}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6 mb-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Notas vinculadas</h2>
+                                    <button
+                                        onClick={handleOpenNotesSelector}
+                                        className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
+                                    >
+                                        + Vincular
+                                    </button>
+                                </div>
+
+                                {(!modelDetail?.linked_notes || modelDetail.linked_notes.length === 0) ? (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        No hay notas vinculadas
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {modelDetail.linked_notes.map((note) => (
+                                            <div key={note.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg group">
+                                                <span className="text-lg">📝</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                        {note.title}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 truncate">
+                                                        {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleUnlinkNote(note.id)}
+                                                    className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                    title="Desvincular"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Linked Entities Section */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                {/* Projects */}
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Proyectos vinculados</h3>
+                                    {(!modelDetail?.projects || modelDetail.projects.length === 0) ? (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Sin proyectos</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {modelDetail.projects.map((proj) => (
+                                                <Link
+                                                    key={proj.id}
+                                                    href={`/projects?id=${proj.id}`}
+                                                    className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+                                                >
+                                                    <span>{proj.icon}</span>
+                                                    <span className="text-sm text-gray-900 dark:text-white truncate">{proj.name}</span>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Objectives */}
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Objetivos vinculados</h3>
+                                    {(!modelDetail?.objectives || modelDetail.objectives.length === 0) ? (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Sin objetivos</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {modelDetail.objectives.map((obj) => (
+                                                <Link
+                                                    key={obj.id}
+                                                    href={`/objectives?id=${obj.id}`}
+                                                    className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+                                                >
+                                                    <span>{obj.icon}</span>
+                                                    <span className="text-sm text-gray-900 dark:text-white truncate">{obj.title}</span>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Areas */}
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Areas vinculadas</h3>
+                                    {(!modelDetail?.areas || modelDetail.areas.length === 0) ? (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Sin areas</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {modelDetail.areas.map((area) => (
+                                                <Link
+                                                    key={area.id}
+                                                    href={`/areas/${area.id}`}
+                                                    className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+                                                >
+                                                    <span>{area.icon}</span>
+                                                    <span className="text-sm text-gray-900 dark:text-white truncate">{area.name}</span>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* Associated contents */}
                             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6">
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -632,6 +911,56 @@ export default function MentalModelsPage() {
                             >
                                 {(createMutation.isPending || updateMutation.isPending) ? 'Guardando...' : (editingModel ? 'Guardar cambios' : 'Crear modelo')}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Notes Selector Modal */}
+            {showNotesSelector && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Nota</h3>
+                            <button
+                                onClick={() => setShowNotesSelector(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto max-h-[60vh]">
+                            {loadingNotes ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                                </div>
+                            ) : availableNotes.length === 0 ? (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No hay notas disponibles para vincular
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {availableNotes.map((note) => (
+                                        <button
+                                            key={note.id}
+                                            onClick={() => handleLinkNote(note.id)}
+                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg">📝</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                        {note.title}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 truncate">
+                                                        {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

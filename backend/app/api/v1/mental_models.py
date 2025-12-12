@@ -3,6 +3,7 @@ Mental Models API endpoints.
 Manages mental models and their association with content.
 """
 from typing import List, Optional
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from app.api.deps import Database, CurrentUser
@@ -144,6 +145,15 @@ class ContentMentalModelCreate(BaseModel):
     application_notes: Optional[str] = None
 
 
+class ActionCreate(BaseModel):
+    title: str
+
+
+class ActionUpdate(BaseModel):
+    title: Optional[str] = None
+    is_completed: Optional[bool] = None
+
+
 @router.get("/catalog")
 async def get_models_catalog():
     """Get the catalog of predefined mental models."""
@@ -217,11 +227,11 @@ async def get_mental_model(
     current_user: CurrentUser,
     db: Database,
 ):
-    """Get a specific mental model with its associated contents."""
-    # Get the model
-    model_result = db.table("mental_models").select("*").eq(
-        "id", model_id
-    ).eq("user_id", current_user["id"]).execute()
+    """Get a specific mental model with all related data."""
+    # Get the model with actions
+    model_result = db.table("mental_models").select(
+        "*, mental_model_actions(id, title, is_completed, position, created_at)"
+    ).eq("id", model_id).eq("user_id", current_user["id"]).execute()
 
     if not model_result.data:
         raise HTTPException(
@@ -229,7 +239,7 @@ async def get_mental_model(
             detail="Modelo mental no encontrado"
         )
 
-    model = model_result.data[0]
+    model = dict(model_result.data[0])
 
     # Get associated contents
     associations = db.table("content_mental_models").select(
@@ -241,7 +251,7 @@ async def get_mental_model(
     contents = []
     if content_ids:
         contents_result = db.table("contents").select(
-            "id, title, url, type, summary, iab_tier1, created_at"
+            "id, title, url, type, summary, iab_tier1, created_at, is_favorite"
         ).in_("id", content_ids).execute()
         contents = contents_result.data or []
 
@@ -250,11 +260,50 @@ async def get_mental_model(
         for content in contents:
             content["application_notes"] = notes_map.get(content["id"])
 
-    return {
-        "model": model,
-        "contents": contents,
-        "content_count": len(contents)
-    }
+    model["contents"] = contents
+    model["content_count"] = len(contents)
+
+    # Get linked notes
+    try:
+        notes_result = db.table("mental_model_notes").select(
+            "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
+        ).eq("mental_model_id", model_id).execute()
+        model["notes"] = [r["standalone_notes"] for r in notes_result.data if r.get("standalone_notes")]
+    except Exception as e:
+        print(f"Error fetching notes for mental model: {e}")
+        model["notes"] = []
+
+    # Get linked projects (via project_mental_models)
+    try:
+        projects_result = db.table("project_mental_models").select(
+            "project_id, projects(id, name, description, status, icon, color)"
+        ).eq("mental_model_id", model_id).execute()
+        model["projects"] = [r["projects"] for r in projects_result.data if r.get("projects")]
+    except Exception as e:
+        print(f"Error fetching projects for mental model: {e}")
+        model["projects"] = []
+
+    # Get linked objectives (via objective_mental_models)
+    try:
+        objectives_result = db.table("objective_mental_models").select(
+            "objective_id, objectives(id, title, status, progress, icon, color, horizon)"
+        ).eq("mental_model_id", model_id).execute()
+        model["objectives"] = [r["objectives"] for r in objectives_result.data if r.get("objectives")]
+    except Exception as e:
+        print(f"Error fetching objectives for mental model: {e}")
+        model["objectives"] = []
+
+    # Get linked areas (via area_mental_models)
+    try:
+        areas_result = db.table("area_mental_models").select(
+            "area_id, areas_of_responsibility(id, name, icon, color)"
+        ).eq("mental_model_id", model_id).execute()
+        model["areas"] = [r["areas_of_responsibility"] for r in areas_result.data if r.get("areas_of_responsibility")]
+    except Exception as e:
+        print(f"Error fetching areas for mental model: {e}")
+        model["areas"] = []
+
+    return model
 
 
 @router.put("/{model_id}")
@@ -459,3 +508,142 @@ async def get_models_for_content(
         model["application_notes"] = notes_map.get(model["id"])
 
     return {"models": models.data or []}
+
+
+# =====================================================
+# Actions CRUD
+# =====================================================
+
+@router.post("/{model_id}/actions")
+async def create_action(
+    model_id: str,
+    data: ActionCreate,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Add an action to a mental model."""
+    user_id = current_user["id"]
+
+    # Verify model exists and belongs to user
+    model_check = db.table("mental_models").select("id").eq(
+        "id", model_id
+    ).eq("user_id", user_id).execute()
+
+    if not model_check.data:
+        raise HTTPException(status_code=404, detail="Mental model not found")
+
+    # Get next position
+    pos_result = db.table("mental_model_actions").select("position").eq(
+        "mental_model_id", model_id
+    ).order("position", desc=True).limit(1).execute()
+
+    next_pos = (pos_result.data[0]["position"] + 1) if pos_result.data else 0
+
+    result = db.table("mental_model_actions").insert({
+        "mental_model_id": model_id,
+        "user_id": user_id,
+        "title": data.title,
+        "position": next_pos,
+    }).execute()
+
+    return result.data[0]
+
+
+@router.put("/{model_id}/actions/{action_id}")
+async def update_action(
+    model_id: str,
+    action_id: str,
+    data: ActionUpdate,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Update an action."""
+    user_id = current_user["id"]
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    if "is_completed" in update_data and update_data["is_completed"]:
+        update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+
+    result = db.table("mental_model_actions").update(update_data).eq(
+        "id", action_id
+    ).eq("mental_model_id", model_id).eq("user_id", user_id).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return result.data[0]
+
+
+@router.delete("/{model_id}/actions/{action_id}")
+async def delete_action(
+    model_id: str,
+    action_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Delete an action."""
+    user_id = current_user["id"]
+
+    result = db.table("mental_model_actions").delete().eq(
+        "id", action_id
+    ).eq("mental_model_id", model_id).eq("user_id", user_id).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Action not found")
+
+    return {"success": True}
+
+
+# =====================================================
+# Notes Linking
+# =====================================================
+
+@router.post("/{model_id}/link-notes")
+async def link_notes_to_mental_model(
+    model_id: str,
+    note_ids: List[str],
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Link multiple notes to a mental model."""
+    user_id = current_user["id"]
+
+    # Verify model belongs to user
+    model_check = db.table("mental_models").select("id").eq(
+        "id", model_id
+    ).eq("user_id", user_id).execute()
+
+    if not model_check.data:
+        raise HTTPException(status_code=404, detail="Mental model not found")
+
+    linked = 0
+    for note_id in note_ids:
+        try:
+            db.table("mental_model_notes").insert({
+                "mental_model_id": model_id,
+                "note_id": note_id,
+                "user_id": user_id,
+            }).execute()
+            linked += 1
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                print(f"Error linking note {note_id}: {e}")
+
+    return {"success": True, "linked": linked}
+
+
+@router.delete("/{model_id}/unlink-note/{note_id}")
+async def unlink_note_from_mental_model(
+    model_id: str,
+    note_id: str,
+    current_user: CurrentUser,
+    db: Database,
+):
+    """Unlink a note from a mental model."""
+    user_id = current_user["id"]
+
+    db.table("mental_model_notes").delete().eq(
+        "mental_model_id", model_id
+    ).eq("note_id", note_id).eq("user_id", user_id).execute()
+
+    return {"success": True}

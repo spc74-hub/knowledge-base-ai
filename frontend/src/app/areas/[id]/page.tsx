@@ -5,6 +5,16 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import {
+    useAreaDetail,
+    useCreateAreaAction,
+    useUpdateAreaAction,
+    useDeleteAreaAction,
+    useLinkNotesToArea,
+    useUnlinkNoteFromArea,
+    type AreaAction,
+    type AreaNote,
+} from '@/hooks/use-areas';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -16,7 +26,7 @@ interface SubArea {
     display_order: number;
 }
 
-interface AreaDetail {
+interface AreaDetailData {
     id: string;
     name: string;
     description: string | null;
@@ -30,6 +40,18 @@ interface AreaDetail {
     habits: any[];
     mental_models: any[];
     recent_contents: any[];
+    area_actions?: AreaAction[];
+    notes?: AreaNote[];
+}
+
+interface StandaloneNote {
+    id: string;
+    title: string;
+    content: string;
+    note_type: string;
+    tags: string[];
+    is_pinned: boolean;
+    created_at: string;
 }
 
 const STATUS_CONFIG = {
@@ -42,8 +64,8 @@ export default function AreaDetailPage() {
     const router = useRouter();
     const params = useParams();
     const areaId = params.id as string;
-    const { user, loading: authLoading } = useAuth();
-    const [area, setArea] = useState<AreaDetail | null>(null);
+    const { user, token, loading: authLoading } = useAuth();
+    const [area, setArea] = useState<AreaDetailData | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'overview' | 'sub-areas' | 'objectives' | 'projects' | 'habits'>('overview');
 
@@ -52,6 +74,19 @@ export default function AreaDetailPage() {
     const [subAreaName, setSubAreaName] = useState('');
     const [subAreaDescription, setSubAreaDescription] = useState('');
     const [savingSubArea, setSavingSubArea] = useState(false);
+
+    // Actions state
+    const [newActionTitle, setNewActionTitle] = useState('');
+    const createActionMutation = useCreateAreaAction();
+    const updateActionMutation = useUpdateAreaAction();
+    const deleteActionMutation = useDeleteAreaAction();
+
+    // Notes state
+    const [showNotesSelector, setShowNotesSelector] = useState(false);
+    const [availableNotes, setAvailableNotes] = useState<StandaloneNote[]>([]);
+    const [loadingNotes, setLoadingNotes] = useState(false);
+    const linkNotesMutation = useLinkNotesToArea();
+    const unlinkNoteMutation = useUnlinkNoteFromArea();
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -139,6 +174,87 @@ export default function AreaDetailPage() {
             fetchArea();
         } catch (error) {
             console.error('Error deleting sub-area:', error);
+        }
+    };
+
+    // Actions handlers
+    const handleCreateAction = async () => {
+        if (!newActionTitle.trim() || !areaId) return;
+        try {
+            await createActionMutation.mutateAsync({ areaId, title: newActionTitle.trim() });
+            setNewActionTitle('');
+            fetchArea();
+        } catch (error) {
+            console.error('Error creating action:', error);
+        }
+    };
+
+    const handleToggleAction = async (action: AreaAction) => {
+        try {
+            await updateActionMutation.mutateAsync({
+                areaId,
+                actionId: action.id,
+                is_completed: !action.is_completed,
+            });
+            fetchArea();
+        } catch (error) {
+            console.error('Error toggling action:', error);
+        }
+    };
+
+    const handleDeleteAction = async (actionId: string) => {
+        try {
+            await deleteActionMutation.mutateAsync({ areaId, actionId });
+            fetchArea();
+        } catch (error) {
+            console.error('Error deleting action:', error);
+        }
+    };
+
+    // Notes handlers
+    const fetchAvailableNotes = async () => {
+        setLoadingNotes(true);
+        try {
+            const response = await fetch(`${API_URL}/api/v1/notes/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Filter out notes already linked to this area
+                const linkedNoteIds = new Set((area?.notes || []).map(n => n.id));
+                setAvailableNotes((data.notes || []).filter((n: StandaloneNote) => !linkedNoteIds.has(n.id)));
+            }
+        } catch (error) {
+            console.error('Error fetching notes:', error);
+        } finally {
+            setLoadingNotes(false);
+        }
+    };
+
+    const handleOpenNotesSelector = () => {
+        fetchAvailableNotes();
+        setShowNotesSelector(true);
+    };
+
+    const handleLinkNote = async (noteId: string) => {
+        try {
+            await linkNotesMutation.mutateAsync({ areaId, noteIds: [noteId] });
+            setShowNotesSelector(false);
+            fetchArea();
+        } catch (error) {
+            console.error('Error linking note:', error);
+        }
+    };
+
+    const handleUnlinkNote = async (noteId: string) => {
+        try {
+            await unlinkNoteMutation.mutateAsync({ areaId, noteId });
+            fetchArea();
+        } catch (error) {
+            console.error('Error unlinking note:', error);
         }
     };
 
@@ -243,6 +359,101 @@ export default function AreaDetailPage() {
                                         <div className="text-sm text-gray-500 dark:text-gray-400">Sub-areas</div>
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* Actions Section */}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Acciones</h3>
+
+                                {/* Add action input */}
+                                <div className="flex gap-2 mb-4">
+                                    <input
+                                        type="text"
+                                        value={newActionTitle}
+                                        onChange={(e) => setNewActionTitle(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleCreateAction()}
+                                        placeholder="Nueva accion..."
+                                        className="flex-1 px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                                    />
+                                    <button
+                                        onClick={handleCreateAction}
+                                        disabled={!newActionTitle.trim() || createActionMutation.isPending}
+                                        className="px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+
+                                {/* Actions list */}
+                                {(!area.area_actions || area.area_actions.length === 0) ? (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        No hay acciones pendientes
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {area.area_actions.map((action) => (
+                                            <div key={action.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={action.is_completed}
+                                                    onChange={() => handleToggleAction(action)}
+                                                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                />
+                                                <span className={`flex-1 text-sm ${action.is_completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+                                                    {action.title}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleDeleteAction(action.id)}
+                                                    className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Notes Section */}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-semibold text-gray-900 dark:text-white">Notas vinculadas</h3>
+                                    <button
+                                        onClick={handleOpenNotesSelector}
+                                        className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
+                                    >
+                                        + Vincular
+                                    </button>
+                                </div>
+
+                                {(!area.notes || area.notes.length === 0) ? (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        No hay notas vinculadas
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {area.notes.map((note) => (
+                                            <div key={note.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg group">
+                                                <span className="text-lg">📝</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                        {note.title}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 truncate">
+                                                        {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleUnlinkNote(note.id)}
+                                                    className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                    title="Desvincular"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Recent contents */}
@@ -482,6 +693,56 @@ export default function AreaDetailPage() {
                     </div>
                 )}
             </main>
+
+            {/* Notes Selector Modal */}
+            {showNotesSelector && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Nota</h3>
+                            <button
+                                onClick={() => setShowNotesSelector(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto max-h-[60vh]">
+                            {loadingNotes ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                </div>
+                            ) : availableNotes.length === 0 ? (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No hay notas disponibles para vincular
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {availableNotes.map((note) => (
+                                        <button
+                                            key={note.id}
+                                            onClick={() => handleLinkNote(note.id)}
+                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg">📝</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                        {note.title}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 truncate">
+                                                        {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
