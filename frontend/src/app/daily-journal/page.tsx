@@ -517,7 +517,7 @@ export default function DailyJournalPage() {
             const newCaptureItem = {
                 id: crypto.randomUUID(),
                 text: newCapture.trim(),
-                created_at: new Date().toISOString(),
+                timestamp: new Date().toISOString(),
             };
             const currentCaptures = activeJournal.quick_captures || [];
             updateJournal({ quick_captures: [...currentCaptures, newCaptureItem] });
@@ -1378,7 +1378,7 @@ export default function DailyJournalPage() {
                                                     <div className="flex-1">
                                                         <p className="text-gray-900 dark:text-white">{capture.text}</p>
                                                         <p className="text-xs text-gray-500 mt-2">
-                                                            {new Date(capture.timestamp || capture.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                                            {new Date(capture.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                                         </p>
                                                     </div>
                                                     {isJournalEditable && (
