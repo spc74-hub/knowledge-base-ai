@@ -11,6 +11,7 @@ import {
     useJournalHistory,
     useJournalStats,
     useUpdateTodayJournal,
+    useUpdateJournalById,
     useAddQuickCapture,
     useCloseDay,
     useGenerateAISummary,
@@ -267,7 +268,8 @@ export default function DailyJournalPage() {
     const { data: journal, isLoading: journalLoading } = useTodayJournal();
     const { data: historyData } = useJournalHistory(90);
     const { data: stats } = useJournalStats();
-    const updateJournalMutation = useUpdateTodayJournal();
+    const updateTodayMutation = useUpdateTodayJournal();
+    const updateByIdMutation = useUpdateJournalById();
     const addCaptureMutation = useAddQuickCapture();
     const closeDayMutation = useCloseDay();
     const generateAISummaryMutation = useGenerateAISummary();
@@ -317,6 +319,27 @@ export default function DailyJournalPage() {
 
     // Get active journal (today or past)
     const activeJournal = viewingPastJournal ? pastJournal : journal;
+
+    // Journal is editable if evening is not completed (allows editing past journals)
+    const isJournalEditable = activeJournal && !activeJournal.is_evening_completed;
+
+    // Wrapper function to update the correct journal (today or past by ID)
+    const updateJournal = useCallback((updates: Record<string, unknown>) => {
+        if (!activeJournal?.id) return;
+
+        if (viewingPastJournal) {
+            // Update past journal by ID
+            updateByIdMutation.mutate({ journalId: activeJournal.id, updates });
+            // Also update local state for immediate feedback
+            setPastJournal(prev => prev ? { ...prev, ...updates } as DailyJournal : null);
+        } else {
+            // Update today's journal
+            updateTodayMutation.mutate(updates);
+        }
+    }, [activeJournal?.id, viewingPastJournal, updateByIdMutation, updateTodayMutation]);
+
+    // Check if mutation is pending
+    const updateJournalPending = updateTodayMutation.isPending || updateByIdMutation.isPending;
 
     // Fetch habits - gets ALL active habits
     const fetchHabits = useCallback(async () => {
@@ -444,42 +467,42 @@ export default function DailyJournalPage() {
         }
     }, [activeJournal?.id]);
 
-    // Auto-save debounced values
+    // Auto-save debounced values (only if journal is editable - not completed)
     useEffect(() => {
-        if (activeJournal && !viewingPastJournal && debouncedIntention !== (activeJournal.morning_intention || '')) {
-            updateJournalMutation.mutate({ morning_intention: debouncedIntention });
+        if (isJournalEditable && debouncedIntention !== (activeJournal.morning_intention || '')) {
+            updateJournal({ morning_intention: debouncedIntention });
         }
-    }, [debouncedIntention]);
+    }, [debouncedIntention, isJournalEditable]);
 
     useEffect(() => {
-        if (activeJournal && !viewingPastJournal && debouncedLearnings !== (activeJournal.learnings || '')) {
-            updateJournalMutation.mutate({ learnings: debouncedLearnings });
+        if (isJournalEditable && debouncedLearnings !== (activeJournal.learnings || '')) {
+            updateJournal({ learnings: debouncedLearnings });
         }
-    }, [debouncedLearnings]);
+    }, [debouncedLearnings, isJournalEditable]);
 
     useEffect(() => {
-        if (activeJournal && !viewingPastJournal && debouncedFailures !== (activeJournal.failures || '')) {
-            updateJournalMutation.mutate({ failures: debouncedFailures });
+        if (isJournalEditable && debouncedFailures !== (activeJournal.failures || '')) {
+            updateJournal({ failures: debouncedFailures });
         }
-    }, [debouncedFailures]);
+    }, [debouncedFailures, isJournalEditable]);
 
     useEffect(() => {
-        if (activeJournal && !viewingPastJournal && debouncedDoDifferent !== (activeJournal.do_different || '')) {
-            updateJournalMutation.mutate({ do_different: debouncedDoDifferent });
+        if (isJournalEditable && debouncedDoDifferent !== (activeJournal.do_different || '')) {
+            updateJournal({ do_different: debouncedDoDifferent });
         }
-    }, [debouncedDoDifferent]);
+    }, [debouncedDoDifferent, isJournalEditable]);
 
     useEffect(() => {
-        if (activeJournal && !viewingPastJournal && debouncedNoteToTomorrow !== (activeJournal.note_to_tomorrow || '')) {
-            updateJournalMutation.mutate({ note_to_tomorrow: debouncedNoteToTomorrow });
+        if (isJournalEditable && debouncedNoteToTomorrow !== (activeJournal.note_to_tomorrow || '')) {
+            updateJournal({ note_to_tomorrow: debouncedNoteToTomorrow });
         }
-    }, [debouncedNoteToTomorrow]);
+    }, [debouncedNoteToTomorrow, isJournalEditable]);
 
     useEffect(() => {
-        if (activeJournal && !viewingPastJournal && debouncedDayWord !== (activeJournal.day_word || '')) {
-            updateJournalMutation.mutate({ day_word: debouncedDayWord });
+        if (isJournalEditable && debouncedDayWord !== (activeJournal.day_word || '')) {
+            updateJournal({ day_word: debouncedDayWord });
         }
-    }, [debouncedDayWord]);
+    }, [debouncedDayWord, isJournalEditable]);
 
     // Handlers
     const handleAddCapture = () => {
@@ -489,19 +512,19 @@ export default function DailyJournalPage() {
     };
 
     const handleSetEnergy = (field: string, level: EnergyLevel) => {
-        updateJournalMutation.mutate({ [field]: level });
+        updateJournal({ [field]: level });
     };
 
     const handleSetDayRating = (rating: number) => {
-        updateJournalMutation.mutate({ day_rating: rating });
+        updateJournal({ day_rating: rating });
     };
 
     const handleToggleMorningComplete = () => {
-        updateJournalMutation.mutate({ is_morning_completed: !activeJournal?.is_morning_completed });
+        updateJournal({ is_morning_completed: !activeJournal?.is_morning_completed });
     };
 
     const handleToggleEveningComplete = () => {
-        updateJournalMutation.mutate({ is_evening_completed: !activeJournal?.is_evening_completed });
+        updateJournal({ is_evening_completed: !activeJournal?.is_evening_completed });
     };
 
     // Big Rocks handlers
@@ -527,7 +550,7 @@ export default function DailyJournalPage() {
             newRocks = newRocks.slice(0, count);
         }
 
-        updateJournalMutation.mutate({
+        updateJournal({
             big_rocks_count: count,
             big_rocks: newRocks,
         });
@@ -547,7 +570,7 @@ export default function DailyJournalPage() {
                 type,
                 ref_id: refId || null,
             };
-            updateJournalMutation.mutate({ big_rocks: newRocks });
+            updateJournal({ big_rocks: newRocks });
         } else if (currentRocks.length < count) {
             // Add new rock
             const newRock: BigRockItem = {
@@ -558,7 +581,7 @@ export default function DailyJournalPage() {
                 completed: false,
                 order: currentRocks.length,
             };
-            updateJournalMutation.mutate({ big_rocks: [...currentRocks, newRock] });
+            updateJournal({ big_rocks: [...currentRocks, newRock] });
         }
 
         setBigRockSelectionMode(null);
@@ -570,14 +593,14 @@ export default function DailyJournalPage() {
         const newRocks = [...(activeJournal.big_rocks || [])];
         if (newRocks[index]) {
             newRocks[index] = { ...newRocks[index], completed: !newRocks[index].completed };
-            updateJournalMutation.mutate({ big_rocks: newRocks });
+            updateJournal({ big_rocks: newRocks });
         }
     };
 
     const handleRemoveBigRock = (index: number) => {
         if (!activeJournal) return;
         const newRocks = (activeJournal.big_rocks || []).filter((_, i) => i !== index);
-        updateJournalMutation.mutate({ big_rocks: newRocks });
+        updateJournal({ big_rocks: newRocks });
     };
 
     // Close Day handler
@@ -631,7 +654,7 @@ export default function DailyJournalPage() {
         try {
             const newContent = await refreshInspirationalMutation.mutateAsync();
             if (newContent && activeJournal) {
-                updateJournalMutation.mutate({ inspirational_content: newContent } as any);
+                updateJournal({ inspirational_content: newContent } as any);
             }
             queryClient.invalidateQueries({ queryKey: JOURNAL_KEYS.today });
         } catch (error) {
@@ -720,7 +743,7 @@ export default function DailyJournalPage() {
     }) : today;
 
     const history = historyData?.journals || [];
-    const saving = updateJournalMutation.isPending || addCaptureMutation.isPending;
+    const saving = updateJournalPending || addCaptureMutation.isPending;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">

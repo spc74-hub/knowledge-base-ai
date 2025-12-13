@@ -329,6 +329,37 @@ export function useUpdateTodayJournal() {
 }
 
 /**
+ * Hook for updating any journal by ID.
+ */
+export function useUpdateJournalById() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ journalId, updates }: { journalId: string; updates: JournalUpdate }) => {
+            const response = await fetch(`${API_URL}/api/v1/daily-journal/${journalId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(updates),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: () => {
+            // Invalidate all journal queries to refresh data
+            queryClient.invalidateQueries({ queryKey: JOURNAL_KEYS.all });
+            queryClient.invalidateQueries({ queryKey: JOURNAL_KEYS.today });
+            queryClient.invalidateQueries({ queryKey: JOURNAL_KEYS.stats });
+        },
+    });
+}
+
+/**
  * Hook for adding a quick capture to today's journal.
  */
 export function useAddQuickCapture() {
