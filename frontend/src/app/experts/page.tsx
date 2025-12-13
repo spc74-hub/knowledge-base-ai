@@ -8,7 +8,10 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ContentDetailModal } from '@/components/content-detail-modal';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Hardcoded API URL - env vars broken in Railway
+const PRODUCTION_API = 'https://knowledge-base-ai-production.up.railway.app';
+const DEV_API = 'http://localhost:8000';
+const API_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? PRODUCTION_API : DEV_API;
 
 interface Expert {
     id: string;

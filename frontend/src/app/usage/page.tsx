@@ -40,7 +40,11 @@ export default function UsagePage() {
   const [operationUsage, setOperationUsage] = useState<OperationUsage[]>([])
   const [days, setDays] = useState(30)
 
-  const API_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1`
+  // Hardcoded API URL - env vars broken in Railway
+  const BASE_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? 'https://knowledge-base-ai-production.up.railway.app'
+    : 'http://localhost:8000';
+  const API_URL = `${BASE_URL}/api/v1`
 
   useEffect(() => {
     if (!authLoading && !user) {
