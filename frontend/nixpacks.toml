@@ -1,8 +1,8 @@
 [phases.build]
-cmds = ["npm run build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/"]
+cmds = ["npm run build"]
 
 [phases.install]
 cacheDirectories = []
 
 [start]
-cmd = "node .next/standalone/server.js"
+cmd = "npm run start"
