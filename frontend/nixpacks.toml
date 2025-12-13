@@ -1,0 +1,6 @@
+[phases.build]
+cmds = ["npm run build"]
+
+# Disable caching to ensure env vars are always fresh
+[phases.install]
+cacheDirectories = []
