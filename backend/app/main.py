@@ -40,7 +40,9 @@ app = FastAPI(
     title="Knowledge Base AI API",
     description="Personal knowledge base with AI-powered classification",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    # Disable automatic redirects for trailing slashes to avoid HTTP redirect issues
+    redirect_slashes=False
 )
 
 # CORS - allow all origins for bookmarklet support

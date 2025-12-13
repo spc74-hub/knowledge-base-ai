@@ -338,7 +338,7 @@ export default function DailyJournalPage() {
     const fetchObjectives = useCallback(async () => {
         if (!token) return;
         try {
-            const response = await fetch(`${API_URL}/api/v1/objectives?status=active&limit=10`, {
+            const response = await fetch(`${API_URL}/api/v1/objectives/?status=active&limit=10`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (response.ok) {
@@ -354,7 +354,7 @@ export default function DailyJournalPage() {
     const fetchProjects = useCallback(async () => {
         if (!token) return;
         try {
-            const response = await fetch(`${API_URL}/api/v1/projects?status=active`, {
+            const response = await fetch(`${API_URL}/api/v1/projects/?status=active`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (response.ok) {
