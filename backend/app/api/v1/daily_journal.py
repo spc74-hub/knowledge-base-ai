@@ -147,6 +147,7 @@ class DailyJournalResponse(BaseModel):
     is_day_completed: bool
     is_evening_completed: bool
     generated_note_id: Optional[str] = None
+    ai_summary: Optional[str] = None  # AI-generated summary stored in journal
     created_at: datetime
     updated_at: datetime
 
@@ -1238,9 +1239,10 @@ async def close_day_and_generate_note(
 
         note_id = note_result.data[0]['id']
 
-        # Update journal with the note reference and mark as completed
+        # Update journal with the note reference, AI summary, and mark as completed
         db.table("daily_journal").update({
             "generated_note_id": note_id,
+            "ai_summary": note_content,
             "is_evening_completed": True,
         }).eq("id", journal['id']).execute()
 

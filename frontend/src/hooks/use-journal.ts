@@ -102,6 +102,7 @@ export interface DailyJournal {
     is_day_completed: boolean;
     is_evening_completed: boolean;
     generated_note_id: string | null;
+    ai_summary: string | null;
     // Timestamps
     created_at: string;
     updated_at: string;

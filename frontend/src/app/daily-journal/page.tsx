@@ -313,6 +313,9 @@ export default function DailyJournalPage() {
         noteContent: string;
     } | null>(null);
 
+    // Show AI summary for past journals
+    const [showAiSummary, setShowAiSummary] = useState(false);
+
     // Debounced values
     const debouncedIntention = useDebounce(localIntention, 800);
     const debouncedLearnings = useDebounce(localLearnings, 800);
@@ -1683,22 +1686,79 @@ export default function DailyJournalPage() {
                             </button>
                         )}
 
-                        {/* Day already closed message */}
+                        {/* Day already closed message with AI Summary */}
                         {activeJournal.generated_note_id && (
-                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-6 text-center">
-                                <span className="text-4xl">🎉</span>
-                                <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mt-2">
-                                    ¡Día cerrado!
-                                </h3>
-                                <p className="text-green-700 dark:text-green-400 mt-1">
-                                    Se ha generado la nota de tu diario
-                                </p>
-                                <Link
-                                    href={`/notes/${activeJournal.generated_note_id}/edit`}
-                                    className="inline-block mt-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                                >
-                                    Ver nota generada →
-                                </Link>
+                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-6">
+                                <div className="text-center">
+                                    <span className="text-4xl">🎉</span>
+                                    <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mt-2">
+                                        ¡Día cerrado!
+                                    </h3>
+                                    <p className="text-green-700 dark:text-green-400 mt-1">
+                                        Se ha generado la nota de tu diario
+                                    </p>
+                                    <div className="flex gap-3 justify-center mt-4">
+                                        {activeJournal.ai_summary && (
+                                            <button
+                                                onClick={() => setShowAiSummary(!showAiSummary)}
+                                                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                                            >
+                                                {showAiSummary ? 'Ocultar resumen' : 'Ver resumen IA'}
+                                            </button>
+                                        )}
+                                        <Link
+                                            href={`/notes/${activeJournal.generated_note_id}/edit`}
+                                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                        >
+                                            Editar nota →
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                {/* AI Summary Display */}
+                                {showAiSummary && activeJournal.ai_summary && (
+                                    <div className="mt-6 pt-6 border-t border-green-200 dark:border-green-700">
+                                        <div className="prose prose-sm dark:prose-invert max-w-none
+                                            prose-headings:text-indigo-700 dark:prose-headings:text-indigo-300
+                                            prose-h1:text-2xl prose-h1:font-bold prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-2 prose-h1:mb-4
+                                            prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-6 prose-h2:mb-3 prose-h2:text-purple-600 dark:prose-h2:text-purple-400
+                                            prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:my-2
+                                            prose-ul:my-2 prose-li:my-1
+                                            prose-strong:text-gray-900 dark:prose-strong:text-white
+                                            prose-em:text-gray-600 dark:prose-em:text-gray-400
+                                            prose-hr:my-6 prose-hr:border-gray-200 dark:prose-hr:border-gray-700
+                                        ">
+                                            {activeJournal.ai_summary.split('\n').map((line, idx) => {
+                                                if (line.startsWith('# ')) {
+                                                    return <h1 key={idx}>{line.substring(2)}</h1>;
+                                                }
+                                                if (line.startsWith('## ')) {
+                                                    return <h2 key={idx}>{line.substring(3)}</h2>;
+                                                }
+                                                if (line.startsWith('### ')) {
+                                                    return <h3 key={idx}>{line.substring(4)}</h3>;
+                                                }
+                                                if (line.startsWith('- ')) {
+                                                    return <li key={idx} className="ml-4">{line.substring(2)}</li>;
+                                                }
+                                                if (line.startsWith('* ')) {
+                                                    return <li key={idx} className="ml-4">{line.substring(2)}</li>;
+                                                }
+                                                if (line.startsWith('---')) {
+                                                    return <hr key={idx} />;
+                                                }
+                                                if (line.trim() === '') {
+                                                    return <br key={idx} />;
+                                                }
+                                                const parsedLine = line
+                                                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                                                    .replace(/_(.+?)_/g, '<em>$1</em>');
+                                                return <p key={idx} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
