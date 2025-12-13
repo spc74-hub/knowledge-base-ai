@@ -1,5 +1,5 @@
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["echo NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL && npm run build"]
 
 [phases.install]
 cacheDirectories = []
