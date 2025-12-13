@@ -7,6 +7,13 @@ import { supabase } from '@/lib/supabase';
 const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
 
 // Types
+interface Action {
+    id: string;
+    title: string;
+    is_completed: boolean;
+    position: number;
+}
+
 interface MentalModel {
     id: string;
     name: string;
@@ -17,6 +24,7 @@ interface MentalModel {
     color: string;
     is_favorite?: boolean;
     content_count?: number;
+    mental_model_actions?: Action[];
 }
 
 interface Area {
@@ -32,6 +40,7 @@ interface Area {
         contents: number;
         habits: number;
     };
+    area_actions?: Action[];
 }
 
 interface Objective {
@@ -45,6 +54,7 @@ interface Objective {
     progress: number;
     target_date?: string;
     is_favorite?: boolean;
+    objective_actions?: Action[];
 }
 
 interface Project {
@@ -57,6 +67,7 @@ interface Project {
     deadline?: string;
     is_favorite?: boolean;
     content_count?: number;
+    project_actions?: Action[];
 }
 
 type TabType = 'mental_models' | 'areas' | 'objectives' | 'projects';
@@ -117,6 +128,9 @@ export default function MobileDashboardPage() {
         notes: '',
     });
 
+    // Action state
+    const [newActionText, setNewActionText] = useState('');
+
     // Check dark mode
     useEffect(() => {
         const checkDark = () => {
@@ -142,16 +156,16 @@ export default function MobileDashboardPage() {
             let endpoint = '';
             switch (activeTab) {
                 case 'mental_models':
-                    endpoint = '/api/v1/mental-models';
+                    endpoint = '/api/v1/mental-models/';
                     break;
                 case 'areas':
                     endpoint = '/api/v1/areas';
                     break;
                 case 'objectives':
-                    endpoint = '/api/v1/objectives';
+                    endpoint = '/api/v1/objectives/';
                     break;
                 case 'projects':
-                    endpoint = '/api/v1/projects';
+                    endpoint = '/api/v1/projects/';
                     break;
             }
 
@@ -210,7 +224,7 @@ export default function MobileDashboardPage() {
 
             switch (activeTab) {
                 case 'mental_models':
-                    endpoint = '/api/v1/mental-models';
+                    endpoint = '/api/v1/mental-models/';
                     body = {
                         name: formData.name,
                         description: formData.description,
@@ -229,7 +243,7 @@ export default function MobileDashboardPage() {
                     };
                     break;
                 case 'objectives':
-                    endpoint = '/api/v1/objectives';
+                    endpoint = '/api/v1/objectives/';
                     body = {
                         title: formData.title || formData.name,
                         description: formData.description,
@@ -241,7 +255,7 @@ export default function MobileDashboardPage() {
                     };
                     break;
                 case 'projects':
-                    endpoint = '/api/v1/projects';
+                    endpoint = '/api/v1/projects/';
                     body = {
                         name: formData.name,
                         description: formData.description,
@@ -441,6 +455,96 @@ export default function MobileDashboardPage() {
         if ('title' in item && item.title) return item.title;
         if ('name' in item) return item.name;
         return '';
+    };
+
+    // Get actions from item based on type
+    const getItemActions = (item: MentalModel | Area | Objective | Project): Action[] => {
+        if ('mental_model_actions' in item) return item.mental_model_actions || [];
+        if ('area_actions' in item) return item.area_actions || [];
+        if ('objective_actions' in item) return item.objective_actions || [];
+        if ('project_actions' in item) return item.project_actions || [];
+        return [];
+    };
+
+    // Get the API endpoint for actions
+    const getActionsEndpoint = (itemId: string): string => {
+        switch (activeTab) {
+            case 'mental_models': return `/api/v1/mental-models/${itemId}/actions`;
+            case 'areas': return `/api/v1/areas/${itemId}/actions`;
+            case 'objectives': return `/api/v1/objectives/${itemId}/actions`;
+            case 'projects': return `/api/v1/projects/${itemId}/actions`;
+            default: return '';
+        }
+    };
+
+    // Create action
+    const handleCreateAction = async (itemId: string, title: string) => {
+        if (!title.trim()) return;
+
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}${getActionsEndpoint(itemId)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({ title: title.trim() }),
+            });
+
+            if (response.ok) {
+                setNewActionText('');
+                fetchData();
+            }
+        } catch (error) {
+            console.error('Error creating action:', error);
+        }
+    };
+
+    // Toggle action completed
+    const handleToggleAction = async (itemId: string, actionId: string, isCompleted: boolean) => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}${getActionsEndpoint(itemId)}/${actionId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({ is_completed: !isCompleted }),
+            });
+
+            if (response.ok) {
+                fetchData();
+            }
+        } catch (error) {
+            console.error('Error toggling action:', error);
+        }
+    };
+
+    // Delete action
+    const handleDeleteAction = async (itemId: string, actionId: string) => {
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}${getActionsEndpoint(itemId)}/${actionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+            });
+
+            if (response.ok) {
+                fetchData();
+            }
+        } catch (error) {
+            console.error('Error deleting action:', error);
+        }
     };
 
     const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
@@ -920,7 +1024,73 @@ export default function MobileDashboardPage() {
                             )}
                         </div>
 
-                        {/* Actions */}
+                        {/* Item Actions (tasks) */}
+                        <div className="mb-6">
+                            <h4 className={`font-medium ${textClass} mb-3 flex items-center gap-2`}>
+                                <span>☑️</span> Acciones
+                            </h4>
+
+                            {/* Action list */}
+                            <div className="space-y-2 mb-3">
+                                {getItemActions(viewingItem).length === 0 ? (
+                                    <p className={`text-sm ${mutedTextClass} text-center py-2`}>Sin acciones</p>
+                                ) : (
+                                    getItemActions(viewingItem)
+                                        .sort((a, b) => a.position - b.position)
+                                        .map((action) => (
+                                            <div
+                                                key={action.id}
+                                                className={`flex items-center gap-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
+                                            >
+                                                <button
+                                                    onClick={() => handleToggleAction(viewingItem.id, action.id, action.is_completed)}
+                                                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                                        action.is_completed
+                                                            ? 'bg-green-500 border-green-500 text-white'
+                                                            : isDark ? 'border-gray-500' : 'border-gray-300'
+                                                    }`}
+                                                >
+                                                    {action.is_completed && '✓'}
+                                                </button>
+                                                <span className={`flex-1 ${action.is_completed ? 'line-through opacity-50' : ''} ${textClass}`}>
+                                                    {action.title}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleDeleteAction(viewingItem.id, action.id)}
+                                                    className="text-red-500 hover:text-red-600 p-1"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))
+                                )}
+                            </div>
+
+                            {/* Add new action */}
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={newActionText}
+                                    onChange={(e) => setNewActionText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && newActionText.trim()) {
+                                            handleCreateAction(viewingItem.id, newActionText);
+                                        }
+                                    }}
+                                    placeholder="Nueva acción..."
+                                    className={`flex-1 px-3 py-2 rounded-lg border ${inputClass}`}
+                                />
+                                <button
+                                    onClick={() => handleCreateAction(viewingItem.id, newActionText)}
+                                    disabled={!newActionText.trim()}
+                                    className="px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Edit/Delete buttons */}
                         <div className="space-y-2">
                             <button
                                 onClick={() => {

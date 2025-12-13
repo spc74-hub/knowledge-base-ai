@@ -79,7 +79,9 @@ async def get_areas(
     try:
         user_id = current_user["id"]
 
-        query = db.table("areas_of_responsibility").select("*").eq("user_id", user_id)
+        query = db.table("areas_of_responsibility").select(
+            "*, area_actions(id, title, is_completed, position)"
+        ).eq("user_id", user_id)
 
         if status_filter:
             query = query.eq("status", status_filter)

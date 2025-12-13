@@ -167,7 +167,9 @@ async def list_mental_models(
     include_inactive: bool = False,
 ):
     """List all mental models for the current user."""
-    query = db.table("mental_models").select("*").eq("user_id", current_user["id"])
+    query = db.table("mental_models").select(
+        "*, mental_model_actions(id, title, is_completed, position)"
+    ).eq("user_id", current_user["id"])
 
     if not include_inactive:
         query = query.eq("is_active", True)

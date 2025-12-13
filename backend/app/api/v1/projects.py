@@ -90,7 +90,9 @@ async def list_projects(
     List all user projects.
     """
     try:
-        query = db.table("projects").select("*").eq("user_id", current_user["id"])
+        query = db.table("projects").select(
+            "*, project_actions(id, title, is_completed, position)"
+        ).eq("user_id", current_user["id"])
 
         if status:
             query = query.eq("status", status)
