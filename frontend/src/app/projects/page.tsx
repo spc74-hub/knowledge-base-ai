@@ -33,10 +33,8 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ICON_CATEGORIES, ICON_CATEGORY_NAMES } from '@/lib/icons';
 
-// Hardcoded API URL - env vars broken in Railway
-const PRODUCTION_API = 'https://knowledge-base-ai-production.up.railway.app';
-const DEV_API = 'http://localhost:8000';
-const API_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? PRODUCTION_API : DEV_API;
+// Hardcoded API URL - always use HTTPS in production
+const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
 
 const STATUS_CONFIG = {
     active: { label: 'Activo', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },

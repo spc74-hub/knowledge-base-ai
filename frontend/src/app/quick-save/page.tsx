@@ -10,10 +10,8 @@ export default function QuickSavePage() {
   const [showBookmarkletInstructions, setShowBookmarkletInstructions] = useState(false)
   const [showShortcutInstructions, setShowShortcutInstructions] = useState(false)
 
-  // Hardcoded API URL - env vars broken in Railway
-  const API_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? 'https://knowledge-base-ai-production.up.railway.app'
-    : 'http://localhost:8000'
+  // Hardcoded API URL - always use HTTPS
+  const API_URL = 'https://knowledge-base-ai-production.up.railway.app'
   const FRONTEND_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
 
   // Bookmarklet code - token is embedded directly (personalized per user)

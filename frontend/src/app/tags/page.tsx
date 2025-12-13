@@ -7,10 +7,8 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 
-// Hardcoded API URL - env vars broken in Railway
-const PRODUCTION_API = 'https://knowledge-base-ai-production.up.railway.app';
-const DEV_API = 'http://localhost:8000';
-const API_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? PRODUCTION_API : DEV_API;
+// Hardcoded API URL - always use HTTPS in production
+const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
 
 interface TaxonomyTag {
     id: string;

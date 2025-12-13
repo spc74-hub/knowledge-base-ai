@@ -3,10 +3,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './use-auth';
 
-// Hardcoded API URL - env vars broken in Railway
-const PRODUCTION_API = 'https://knowledge-base-ai-production.up.railway.app';
-const DEV_API = 'http://localhost:8000';
-const API_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? PRODUCTION_API : DEV_API;
+// Hardcoded API URL - always use HTTPS in production
+const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
 
 // Query keys
 export const TAXONOMY_KEYS = {
