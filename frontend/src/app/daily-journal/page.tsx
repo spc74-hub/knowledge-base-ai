@@ -294,6 +294,10 @@ export default function DailyJournalPage() {
     const [bigRockSelectionMode, setBigRockSelectionMode] = useState<'objective' | 'project' | null>(null);
     const [editingBigRockIndex, setEditingBigRockIndex] = useState<number | null>(null);
 
+    // Capture editing state
+    const [editingCaptureId, setEditingCaptureId] = useState<string | null>(null);
+    const [editingCaptureText, setEditingCaptureText] = useState('');
+
     // Local state for text fields with debounce
     const [localIntention, setLocalIntention] = useState('');
     const [localLearnings, setLocalLearnings] = useState('');
@@ -522,6 +526,37 @@ export default function DailyJournalPage() {
             addCaptureMutation.mutate(newCapture.trim());
         }
         setNewCapture('');
+    };
+
+    const handleEditCapture = (captureId: string) => {
+        if (!activeJournal) return;
+        const capture = (activeJournal.quick_captures || []).find(c => c.id === captureId);
+        if (capture) {
+            setEditingCaptureId(captureId);
+            setEditingCaptureText(capture.text);
+        }
+    };
+
+    const handleSaveCapture = () => {
+        if (!activeJournal || !editingCaptureId || !editingCaptureText.trim()) return;
+
+        const updatedCaptures = (activeJournal.quick_captures || []).map(c =>
+            c.id === editingCaptureId ? { ...c, text: editingCaptureText.trim() } : c
+        );
+        updateJournal({ quick_captures: updatedCaptures });
+        setEditingCaptureId(null);
+        setEditingCaptureText('');
+    };
+
+    const handleCancelEditCapture = () => {
+        setEditingCaptureId(null);
+        setEditingCaptureText('');
+    };
+
+    const handleDeleteCapture = (captureId: string) => {
+        if (!activeJournal) return;
+        const updatedCaptures = (activeJournal.quick_captures || []).filter(c => c.id !== captureId);
+        updateJournal({ quick_captures: updatedCaptures });
     };
 
     const handleSetEnergy = (field: string, level: EnergyLevel) => {
@@ -1312,10 +1347,60 @@ export default function DailyJournalPage() {
                                 ) : (
                                     (activeJournal.quick_captures || []).map((capture) => (
                                         <div key={capture.id} className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border-l-4 border-yellow-400">
-                                            <p className="text-gray-900 dark:text-white">{capture.text}</p>
-                                            <p className="text-xs text-gray-500 mt-2">
-                                                {new Date(capture.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
+                                            {editingCaptureId === capture.id ? (
+                                                // Edit mode
+                                                <div className="space-y-2">
+                                                    <textarea
+                                                        value={editingCaptureText}
+                                                        onChange={(e) => setEditingCaptureText(e.target.value)}
+                                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                                                        rows={2}
+                                                        autoFocus
+                                                    />
+                                                    <div className="flex gap-2 justify-end">
+                                                        <button
+                                                            onClick={handleCancelEditCapture}
+                                                            className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                        <button
+                                                            onClick={handleSaveCapture}
+                                                            className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                                                        >
+                                                            Guardar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                // View mode
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex-1">
+                                                        <p className="text-gray-900 dark:text-white">{capture.text}</p>
+                                                        <p className="text-xs text-gray-500 mt-2">
+                                                            {new Date(capture.timestamp || capture.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                                        </p>
+                                                    </div>
+                                                    {isJournalEditable && (
+                                                        <div className="flex gap-1 flex-shrink-0">
+                                                            <button
+                                                                onClick={() => handleEditCapture(capture.id)}
+                                                                className="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors"
+                                                                title="Editar"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteCapture(capture.id)}
+                                                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                                                title="Eliminar"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     ))
                                 )}
