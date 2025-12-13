@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { API_URL } from '@/lib/config';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -38,8 +39,6 @@ function useDebounce<T>(value: T, delay: number): T {
 
     return debouncedValue;
 }
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Types
 interface HabitWithLog {
