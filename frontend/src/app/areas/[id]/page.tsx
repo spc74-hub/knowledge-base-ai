@@ -373,7 +373,9 @@ export default function AreaDetailPage() {
             if (response.ok) {
                 const data = await response.json();
                 const linkedProjectIds = new Set((area?.projects || []).map((p: any) => p.id));
-                setAvailableProjects((data.data || []).filter((p: AvailableProject) => !linkedProjectIds.has(p.id)));
+                // Projects endpoint returns array directly or {projects: [...]}
+                const projects = Array.isArray(data) ? data : (data.projects || []);
+                setAvailableProjects(projects.filter((p: AvailableProject) => !linkedProjectIds.has(p.id) && p.area_id !== areaId));
             }
         } catch (error) {
             console.error('Error fetching projects:', error);
@@ -419,7 +421,9 @@ export default function AreaDetailPage() {
             if (response.ok) {
                 const data = await response.json();
                 const linkedObjectiveIds = new Set((area?.objectives || []).map((o: any) => o.id));
-                setAvailableObjectives((data.data || []).filter((o: AvailableObjective) => !linkedObjectiveIds.has(o.id)));
+                // Objectives endpoint returns {objectives: [...]}
+                const objectives = data.objectives || [];
+                setAvailableObjectives(objectives.filter((o: AvailableObjective) => !linkedObjectiveIds.has(o.id) && o.area_id !== areaId));
             }
         } catch (error) {
             console.error('Error fetching objectives:', error);

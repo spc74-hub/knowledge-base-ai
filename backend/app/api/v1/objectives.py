@@ -22,6 +22,7 @@ class ObjectiveCreate(BaseModel):
     color: str = "#6366f1"
     icon: str = "🎯"
     parent_id: Optional[str] = None
+    area_id: Optional[str] = None
 
 
 class ObjectiveUpdate(BaseModel):
@@ -202,6 +203,7 @@ async def create_objective(
         "color": data.color,
         "icon": data.icon,
         "parent_id": data.parent_id,
+        "area_id": data.area_id,
     }
 
     result = db.table("objectives").insert(insert_data).execute()

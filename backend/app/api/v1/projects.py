@@ -19,6 +19,7 @@ class ProjectCreate(BaseModel):
     color: str = "#6366f1"
     icon: str = "📁"
     parent_project_id: Optional[str] = None  # For subprojects
+    area_id: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -332,7 +333,8 @@ async def create_project(
             "icon": data.icon,
             "position": next_position,
             "status": "active",
-            "parent_project_id": data.parent_project_id
+            "parent_project_id": data.parent_project_id,
+            "area_id": data.area_id,
         }
 
         response = db.table("projects").insert(project_data).execute()

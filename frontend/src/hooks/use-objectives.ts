@@ -159,6 +159,7 @@ export function useCreateObjective() {
             color?: string;
             icon?: string;
             parent_id?: string | null;
+            area_id?: string | null;
         }) => {
             const response = await fetch(`${API_URL}/api/v1/objectives/`, {
                 method: 'POST',

@@ -218,13 +218,16 @@ export default function ObjectivesPage() {
         }
     }, [user, authLoading, router]);
 
-    // Open create modal if ?create=true
+    // Get area_id from URL if present
+    const areaIdFromUrl = searchParams.get('area_id');
+
+    // Open create modal if ?create=true or if ?area_id is present (coming from area page)
     useEffect(() => {
-        if (searchParams.get('create') === 'true') {
+        if (searchParams.get('create') === 'true' || areaIdFromUrl) {
             resetForm();
             setShowCreateModal(true);
         }
-    }, [searchParams]);
+    }, [searchParams, areaIdFromUrl]);
 
     // Select objective from URL ?id= param
     useEffect(() => {
@@ -637,6 +640,7 @@ export default function ObjectivesPage() {
                 color: formColor,
                 icon: formIcon,
                 parent_id: createParentId,
+                area_id: areaIdFromUrl || undefined,
             },
             {
                 onSuccess: () => {
