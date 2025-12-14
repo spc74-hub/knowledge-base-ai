@@ -21,7 +21,16 @@ const STATUS_CONFIG = {
     archived: { label: 'Archivada', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
 };
 
-const AREA_COLORS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
+const AREA_COLORS = [
+    // Row 1: Primary colors
+    '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
+    // Row 2: Warm colors
+    '#ef4444', '#f97316', '#f59e0b', '#eab308', '#facc15', '#fbbf24',
+    // Row 3: Cool/Nature colors
+    '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+    // Row 4: Blues & Neutrals
+    '#3b82f6', '#2563eb', '#4f46e5', '#6b7280', '#374151', '#1f2937',
+];
 
 export default function AreasPage() {
     const router = useRouter();

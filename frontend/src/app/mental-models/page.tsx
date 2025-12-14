@@ -933,8 +933,13 @@ export default function MentalModelsPage() {
                                         onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                                         className="w-12 h-10 rounded border dark:border-gray-600 cursor-pointer"
                                     />
-                                    <div className="flex gap-2">
-                                        {['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'].map((color) => (
+                                    <div className="grid grid-cols-6 gap-2">
+                                        {[
+                                            '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
+                                            '#ef4444', '#f97316', '#f59e0b', '#eab308', '#facc15', '#fbbf24',
+                                            '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+                                            '#3b82f6', '#2563eb', '#4f46e5', '#6b7280', '#374151', '#1f2937',
+                                        ].map((color) => (
                                             <button
                                                 key={color}
                                                 type="button"
