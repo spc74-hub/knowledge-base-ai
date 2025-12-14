@@ -17,6 +17,7 @@ export default function MobileActionsPage() {
     const [filterType, setFilterType] = useState<string>('all');
     const [isDark, setIsDark] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+    const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set());
 
     // Create action state
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -48,10 +49,13 @@ export default function MobileActionsPage() {
         return () => observer.disconnect();
     }, []);
 
-    // Expand all groups by default
+    // Only expand groups that have actions
     useEffect(() => {
         if (data?.groups) {
-            setExpandedGroups(new Set(data.groups.map(g => `${g.parent_type}:${g.parent_id}`)));
+            const groupsWithActions = data.groups
+                .filter((g) => g.actions.length > 0)
+                .map((g) => `${g.parent_type}:${g.parent_id}`);
+            setExpandedGroups(new Set(groupsWithActions));
         }
     }, [data?.groups]);
 
@@ -130,6 +134,16 @@ export default function MobileActionsPage() {
         setExpandedGroups(newExpanded);
     };
 
+    const toggleTypeSection = (type: string) => {
+        const newCollapsed = new Set(collapsedTypes);
+        if (newCollapsed.has(type)) {
+            newCollapsed.delete(type);
+        } else {
+            newCollapsed.add(type);
+        }
+        setCollapsedTypes(newCollapsed);
+    };
+
     const openCreateModal = (group: GroupedActions) => {
         setCreateForGroup(group);
         setNewActionTitle('');
@@ -141,9 +155,21 @@ export default function MobileActionsPage() {
         setEditTitle(action.title);
     };
 
+    // Sort groups: those with actions first, then by pending count, then alphabetically
+    const sortGroups = (groups: GroupedActions[]) => {
+        return [...groups].sort((a, b) => {
+            const aHasActions = a.actions.length > 0;
+            const bHasActions = b.actions.length > 0;
+            if (aHasActions && !bHasActions) return -1;
+            if (!aHasActions && bHasActions) return 1;
+            if (a.pending_count !== b.pending_count) return b.pending_count - a.pending_count;
+            return a.parent_name.localeCompare(b.parent_name);
+        });
+    };
+
     // Group by parent type for section headers
     const groupedByType = PARENT_TYPE_ORDER.reduce((acc, type) => {
-        const groups = data?.groups.filter(g => g.parent_type === type) || [];
+        const groups = sortGroups(data?.groups.filter(g => g.parent_type === type) || []);
         if (groups.length > 0) {
             acc[type] = groups;
         }
@@ -256,132 +282,185 @@ export default function MobileActionsPage() {
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {Object.entries(groupedByType).map(([type, groups]) => (
-                        <div key={type} className="space-y-3">
-                            {/* Type header */}
-                            <h2 className={`text-sm font-semibold flex items-center gap-2 ${mutedTextClass}`}>
-                                <span>{PARENT_TYPE_LABELS[type].icon}</span>
-                                <span>{PARENT_TYPE_LABELS[type].label}</span>
-                            </h2>
+                    {Object.entries(groupedByType).map(([type, groups]) => {
+                        const isTypeCollapsed = collapsedTypes.has(type);
+                        const typePendingCount = groups.reduce((sum, g) => sum + g.pending_count, 0);
+                        const groupsWithActions = groups.filter((g) => g.actions.length > 0).length;
 
-                            {/* Groups within type */}
-                            {groups.map((group) => {
-                                const groupKey = `${group.parent_type}:${group.parent_id}`;
-                                const isExpanded = expandedGroups.has(groupKey);
+                        return (
+                            <div key={type} className={`rounded-xl shadow-sm border overflow-hidden ${cardClass}`}>
+                                {/* Type header - collapsible */}
+                                <button
+                                    onClick={() => toggleTypeSection(type)}
+                                    className={`w-full p-3 flex items-center gap-2 ${
+                                        isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'
+                                    }`}
+                                >
+                                    <span className="text-lg">{PARENT_TYPE_LABELS[type].icon}</span>
+                                    <span className={`font-semibold ${textClass}`}>
+                                        {PARENT_TYPE_LABELS[type].label}
+                                    </span>
+                                    <span className={`text-xs ${mutedTextClass}`}>
+                                        ({typePendingCount} pend.)
+                                    </span>
+                                    <span className={`text-xs ${mutedTextClass}`}>
+                                        · {groupsWithActions}/{groups.length}
+                                    </span>
+                                    <span className={`ml-auto ${mutedTextClass}`}>
+                                        {isTypeCollapsed ? '▶' : '▼'}
+                                    </span>
+                                </button>
 
-                                return (
-                                    <div
-                                        key={groupKey}
-                                        className={`rounded-xl shadow-sm border overflow-hidden ${cardClass}`}
-                                    >
-                                        {/* Group header */}
-                                        <button
-                                            onClick={() => toggleGroup(groupKey)}
-                                            className={`w-full p-3 flex items-center gap-3 ${
-                                                isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'
-                                            }`}
-                                        >
-                                            <span
-                                                className="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
-                                                style={{ backgroundColor: group.parent_color + '20' }}
-                                            >
-                                                {group.parent_icon}
-                                            </span>
-                                            <div className="flex-1 text-left min-w-0">
-                                                <h3 className={`font-medium truncate ${textClass}`}>
-                                                    {group.parent_name}
-                                                </h3>
-                                                <div className="flex items-center gap-2 text-xs">
-                                                    <span className={mutedTextClass}>
-                                                        {group.pending_count} pendientes
-                                                    </span>
-                                                    {group.completed_count > 0 && (
-                                                        <>
-                                                            <span className={mutedTextClass}>·</span>
-                                                            <span className="text-green-500">
-                                                                {group.completed_count} completadas
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <span className={`transition-transform ${isExpanded ? 'rotate-180' : ''} ${mutedTextClass}`}>
-                                                ▼
-                                            </span>
-                                        </button>
+                                {/* Groups within type */}
+                                {!isTypeCollapsed && (
+                                    <div className="space-y-2 p-3 pt-0">
+                                        {groups.map((group) => {
+                                            const groupKey = `${group.parent_type}:${group.parent_id}`;
+                                            const isExpanded = expandedGroups.has(groupKey);
+                                            const hasActions = group.actions.length > 0;
 
-                                        {/* Actions list */}
-                                        {isExpanded && (
-                                            <div className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-                                                {group.actions.map((action) => (
-                                                    <div
-                                                        key={action.id}
-                                                        className={`flex items-center gap-3 p-3 ${
-                                                            isDark ? 'border-b border-gray-700 last:border-0' : 'border-b border-gray-100 last:border-0'
-                                                        }`}
-                                                    >
-                                                        {/* Checkbox */}
-                                                        <button
-                                                            onClick={() => handleToggle(action)}
-                                                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                                                action.is_completed
-                                                                    ? 'bg-green-500 border-green-500 text-white'
-                                                                    : isDark
-                                                                        ? 'border-gray-500 hover:border-amber-500'
-                                                                        : 'border-gray-300 hover:border-amber-500'
-                                                            }`}
-                                                        >
-                                                            {action.is_completed && '✓'}
-                                                        </button>
-
-                                                        {/* Title */}
-                                                        <span
-                                                            className={`flex-1 ${
-                                                                action.is_completed
-                                                                    ? `line-through ${mutedTextClass}`
-                                                                    : textClass
-                                                            }`}
-                                                        >
-                                                            {action.title}
-                                                        </span>
-
-                                                        {/* Actions */}
-                                                        <div className="flex items-center gap-1">
-                                                            <button
-                                                                onClick={() => startEdit(action)}
-                                                                className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                                                            >
-                                                                <span className="text-xs">✏️</span>
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDelete(action)}
-                                                                className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                                                            >
-                                                                <span className="text-xs">🗑️</span>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-
-                                                {/* Add action button */}
-                                                <button
-                                                    onClick={() => openCreateModal(group)}
-                                                    className={`w-full p-3 flex items-center gap-3 text-amber-500 ${
-                                                        isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'
+                                            return (
+                                                <div
+                                                    key={groupKey}
+                                                    className={`rounded-lg border overflow-hidden ${
+                                                        hasActions
+                                                            ? isDark
+                                                                ? 'border-gray-600 bg-gray-700/50'
+                                                                : 'border-gray-200 bg-gray-50'
+                                                            : isDark
+                                                                ? 'border-gray-700 bg-gray-800/50 opacity-60'
+                                                                : 'border-gray-100 bg-gray-50/50 opacity-60'
                                                     }`}
                                                 >
-                                                    <span className="w-6 h-6 rounded-full border-2 border-dashed border-amber-500 flex items-center justify-center text-sm">
-                                                        +
-                                                    </span>
-                                                    <span className="text-sm font-medium">Añadir acción</span>
-                                                </button>
-                                            </div>
-                                        )}
+                                                    {/* Group header */}
+                                                    <button
+                                                        onClick={() => toggleGroup(groupKey)}
+                                                        className={`w-full p-2.5 flex items-center gap-2 ${
+                                                            isDark ? 'hover:bg-gray-600/50' : 'hover:bg-gray-100'
+                                                        }`}
+                                                    >
+                                                        <span
+                                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                                                            style={{ backgroundColor: group.parent_color + '20' }}
+                                                        >
+                                                            {group.parent_icon}
+                                                        </span>
+                                                        <div className="flex-1 text-left min-w-0">
+                                                            <h3 className={`font-medium truncate text-sm ${textClass}`}>
+                                                                {group.parent_name}
+                                                            </h3>
+                                                            <div className="flex items-center gap-1 text-[10px]">
+                                                                {hasActions ? (
+                                                                    <>
+                                                                        <span className={mutedTextClass}>
+                                                                            {group.pending_count} pend.
+                                                                        </span>
+                                                                        {group.completed_count > 0 && (
+                                                                            <>
+                                                                                <span className={mutedTextClass}>·</span>
+                                                                                <span className="text-green-500">
+                                                                                    {group.completed_count} comp.
+                                                                                </span>
+                                                                            </>
+                                                                        )}
+                                                                    </>
+                                                                ) : (
+                                                                    <span className={mutedTextClass}>Sin acciones</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <span className={`transition-transform text-xs ${isExpanded ? 'rotate-180' : ''} ${mutedTextClass}`}>
+                                                            ▼
+                                                        </span>
+                                                    </button>
+
+                                                    {/* Actions list */}
+                                                    {isExpanded && (
+                                                        <div className={`border-t ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                                                            {group.actions.length === 0 ? (
+                                                                <div className={`p-2 text-center text-xs ${mutedTextClass}`}>
+                                                                    No hay acciones
+                                                                </div>
+                                                            ) : (
+                                                                group.actions.map((action) => (
+                                                                    <div
+                                                                        key={action.id}
+                                                                        className={`flex items-center gap-2 p-2 ${
+                                                                            isDark ? 'border-b border-gray-600 last:border-0' : 'border-b border-gray-100 last:border-0'
+                                                                        }`}
+                                                                    >
+                                                                        {/* Checkbox */}
+                                                                        <button
+                                                                            onClick={() => handleToggle(action)}
+                                                                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                                                                action.is_completed
+                                                                                    ? 'bg-green-500 border-green-500 text-white'
+                                                                                    : isDark
+                                                                                        ? 'border-gray-500 hover:border-amber-500'
+                                                                                        : 'border-gray-300 hover:border-amber-500'
+                                                                            }`}
+                                                                        >
+                                                                            {action.is_completed && <span className="text-xs">✓</span>}
+                                                                        </button>
+
+                                                                        {/* Title */}
+                                                                        <span
+                                                                            className={`flex-1 text-sm ${
+                                                                                action.is_completed
+                                                                                    ? `line-through ${mutedTextClass}`
+                                                                                    : textClass
+                                                                            }`}
+                                                                        >
+                                                                            {action.title}
+                                                                        </span>
+
+                                                                        {/* Actions - always visible */}
+                                                                        <div className="flex items-center gap-0.5">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    startEdit(action);
+                                                                                }}
+                                                                                className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-600 active:bg-gray-500' : 'hover:bg-gray-200 active:bg-gray-300'}`}
+                                                                            >
+                                                                                <span className="text-sm">✏️</span>
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleDelete(action);
+                                                                                }}
+                                                                                className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-600 active:bg-gray-500' : 'hover:bg-gray-200 active:bg-gray-300'}`}
+                                                                            >
+                                                                                <span className="text-sm">🗑️</span>
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ))
+                                                            )}
+
+                                                            {/* Add action button */}
+                                                            <button
+                                                                onClick={() => openCreateModal(group)}
+                                                                className={`w-full p-2 flex items-center gap-2 text-amber-500 ${
+                                                                    isDark ? 'hover:bg-gray-600/50' : 'hover:bg-amber-50'
+                                                                } border-t ${isDark ? 'border-gray-600' : 'border-gray-100'}`}
+                                                            >
+                                                                <span className="w-5 h-5 rounded-full border border-dashed border-amber-500 flex items-center justify-center text-xs">
+                                                                    +
+                                                                </span>
+                                                                <span className="text-xs font-medium">Añadir</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                );
-                            })}
-                        </div>
-                    ))}
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 

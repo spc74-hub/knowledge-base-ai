@@ -31,6 +31,7 @@ export default function ActionsPage() {
     const [filterType, setFilterType] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+    const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set());
 
     // Create action state
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -58,10 +59,13 @@ export default function ActionsPage() {
         }
     }, [user, authLoading, router]);
 
-    // Expand all groups by default
+    // Only expand groups that have actions (pending or completed)
     useEffect(() => {
         if (data?.groups) {
-            setExpandedGroups(new Set(data.groups.map((g) => `${g.parent_type}:${g.parent_id}`)));
+            const groupsWithActions = data.groups
+                .filter((g) => g.actions.length > 0)
+                .map((g) => `${g.parent_type}:${g.parent_id}`);
+            setExpandedGroups(new Set(groupsWithActions));
         }
     }, [data?.groups]);
 
@@ -140,6 +144,16 @@ export default function ActionsPage() {
         setExpandedGroups(newExpanded);
     };
 
+    const toggleTypeSection = (type: string) => {
+        const newCollapsed = new Set(collapsedTypes);
+        if (newCollapsed.has(type)) {
+            newCollapsed.delete(type);
+        } else {
+            newCollapsed.add(type);
+        }
+        setCollapsedTypes(newCollapsed);
+    };
+
     const openCreateModal = (group: GroupedActions) => {
         setCreateForGroup(group);
         setNewActionTitle('');
@@ -164,13 +178,28 @@ export default function ActionsPage() {
                         group.parent_name.toLowerCase().includes(query)
                 ),
             }))
-            .filter((g) => g.actions.length > 0);
+            .filter((g) => g.actions.length > 0 || g.parent_name.toLowerCase().includes(query));
+    };
+
+    // Sort groups: those with actions first, then alphabetically
+    const sortGroups = (groups: GroupedActions[]) => {
+        return [...groups].sort((a, b) => {
+            // First by whether they have actions (more actions first)
+            const aHasActions = a.actions.length > 0;
+            const bHasActions = b.actions.length > 0;
+            if (aHasActions && !bHasActions) return -1;
+            if (!aHasActions && bHasActions) return 1;
+            // Then by pending count (more pending first)
+            if (a.pending_count !== b.pending_count) return b.pending_count - a.pending_count;
+            // Then alphabetically
+            return a.parent_name.localeCompare(b.parent_name);
+        });
     };
 
     // Group by parent type for section headers
     const filteredGroups = filterBySearch(data?.groups || []);
     const groupedByType = PARENT_TYPE_ORDER.reduce((acc, type) => {
-        const groups = filteredGroups.filter((g) => g.parent_type === type);
+        const groups = sortGroups(filteredGroups.filter((g) => g.parent_type === type));
         if (groups.length > 0) {
             acc[type] = groups;
         }
@@ -329,159 +358,195 @@ export default function ActionsPage() {
 
                 {/* Actions grouped by type */}
                 {!isLoading && Object.keys(groupedByType).length > 0 && (
-                    <div className="space-y-8">
-                        {Object.entries(groupedByType).map(([type, groups]) => (
-                            <div key={type}>
-                                {/* Type header */}
-                                <div className="flex items-center gap-3 mb-4">
-                                    <span className="text-2xl">{PARENT_TYPE_LABELS[type].icon}</span>
-                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                        {PARENT_TYPE_LABELS[type].label}
-                                    </h2>
-                                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                                        ({groups.reduce((sum, g) => sum + g.pending_count, 0)} pendientes)
-                                    </span>
-                                </div>
+                    <div className="space-y-6">
+                        {Object.entries(groupedByType).map(([type, groups]) => {
+                            const isTypeCollapsed = collapsedTypes.has(type);
+                            const typePendingCount = groups.reduce((sum, g) => sum + g.pending_count, 0);
+                            const groupsWithActions = groups.filter((g) => g.actions.length > 0).length;
 
-                                {/* Groups grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {groups.map((group) => {
-                                        const groupKey = `${group.parent_type}:${group.parent_id}`;
-                                        const isExpanded = expandedGroups.has(groupKey);
-                                        const parentInfo = PARENT_TYPE_LABELS[group.parent_type];
+                            return (
+                                <div key={type} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                    {/* Type header - collapsible */}
+                                    <button
+                                        onClick={() => toggleTypeSection(type)}
+                                        className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                                    >
+                                        <span className="text-2xl">{PARENT_TYPE_LABELS[type].icon}</span>
+                                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                            {PARENT_TYPE_LABELS[type].label}
+                                        </h2>
+                                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                                            ({typePendingCount} pendientes)
+                                        </span>
+                                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                                            · {groupsWithActions}/{groups.length} con acciones
+                                        </span>
+                                        <span className="ml-auto text-gray-400">
+                                            {isTypeCollapsed ? '▶' : '▼'}
+                                        </span>
+                                    </button>
 
-                                        return (
-                                            <div
-                                                key={groupKey}
-                                                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-                                            >
-                                                {/* Group header */}
-                                                <div
-                                                    className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                                                    onClick={() => toggleGroup(groupKey)}
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <span
-                                                            className="w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0"
-                                                            style={{ backgroundColor: group.parent_color + '20' }}
+                                    {/* Groups grid */}
+                                    {!isTypeCollapsed && (
+                                        <div className="p-4 pt-0">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {groups.map((group) => {
+                                                    const groupKey = `${group.parent_type}:${group.parent_id}`;
+                                                    const isExpanded = expandedGroups.has(groupKey);
+                                                    const parentInfo = PARENT_TYPE_LABELS[group.parent_type];
+                                                    const hasActions = group.actions.length > 0;
+
+                                                    return (
+                                                        <div
+                                                            key={groupKey}
+                                                            className={`rounded-xl border overflow-hidden ${
+                                                                hasActions
+                                                                    ? 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50'
+                                                                    : 'border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 opacity-75'
+                                                            }`}
                                                         >
-                                                            {group.parent_icon}
-                                                        </span>
-                                                        <div className="flex-1 min-w-0">
-                                                            <h3 className="font-medium text-gray-900 dark:text-white truncate">
-                                                                {group.parent_name}
-                                                            </h3>
-                                                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                                                <span>{group.pending_count} pendientes</span>
-                                                                {group.completed_count > 0 && (
-                                                                    <>
-                                                                        <span>·</span>
-                                                                        <span className="text-green-500">
-                                                                            {group.completed_count} completadas
-                                                                        </span>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <Link
-                                                                href={`${parentInfo.href}/${group.parent_id}`}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400"
-                                                                title={`Ir a ${parentInfo.labelSingular}`}
+                                                            {/* Group header */}
+                                                            <div
+                                                                className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                                                onClick={() => toggleGroup(groupKey)}
                                                             >
-                                                                ↗
-                                                            </Link>
-                                                            <span
-                                                                className={`transition-transform ${
-                                                                    isExpanded ? 'rotate-180' : ''
-                                                                } text-gray-400`}
-                                                            >
-                                                                ▼
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Actions list */}
-                                                {isExpanded && (
-                                                    <div className="border-t border-gray-200 dark:border-gray-700">
-                                                        {group.actions.length === 0 ? (
-                                                            <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                                                                No hay acciones
-                                                            </div>
-                                                        ) : (
-                                                            <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-                                                                {group.actions.map((action) => (
-                                                                    <li
-                                                                        key={action.id}
-                                                                        className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                                                <div className="flex items-center gap-3">
+                                                                    <span
+                                                                        className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                                                                        style={{ backgroundColor: group.parent_color + '20' }}
                                                                     >
-                                                                        {/* Checkbox */}
-                                                                        <button
-                                                                            onClick={() => handleToggle(action)}
-                                                                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                                                                action.is_completed
-                                                                                    ? 'bg-green-500 border-green-500 text-white'
-                                                                                    : 'border-gray-300 dark:border-gray-500 hover:border-amber-500'
-                                                                            }`}
-                                                                        >
-                                                                            {action.is_completed && (
-                                                                                <span className="text-xs">✓</span>
+                                                                        {group.parent_icon}
+                                                                    </span>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm">
+                                                                            {group.parent_name}
+                                                                        </h3>
+                                                                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                            {hasActions ? (
+                                                                                <>
+                                                                                    <span>{group.pending_count} pendientes</span>
+                                                                                    {group.completed_count > 0 && (
+                                                                                        <>
+                                                                                            <span>·</span>
+                                                                                            <span className="text-green-500">
+                                                                                                {group.completed_count} completadas
+                                                                                            </span>
+                                                                                        </>
+                                                                                    )}
+                                                                                </>
+                                                                            ) : (
+                                                                                <span className="text-gray-400">Sin acciones</span>
                                                                             )}
-                                                                        </button>
-
-                                                                        {/* Title */}
-                                                                        <span
-                                                                            className={`flex-1 text-sm ${
-                                                                                action.is_completed
-                                                                                    ? 'line-through text-gray-400 dark:text-gray-500'
-                                                                                    : 'text-gray-900 dark:text-white'
-                                                                            }`}
-                                                                        >
-                                                                            {action.title}
-                                                                        </span>
-
-                                                                        {/* Actions */}
-                                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 hover:opacity-100">
-                                                                            <button
-                                                                                onClick={() => startEdit(action)}
-                                                                                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500"
-                                                                                title="Editar"
-                                                                            >
-                                                                                ✏️
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleDelete(action)}
-                                                                                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500"
-                                                                                title="Eliminar"
-                                                                            >
-                                                                                🗑️
-                                                                            </button>
                                                                         </div>
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        )}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Link
+                                                                            href={`${parentInfo.href}/${group.parent_id}`}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 text-xs"
+                                                                            title={`Ir a ${parentInfo.labelSingular}`}
+                                                                        >
+                                                                            ↗
+                                                                        </Link>
+                                                                        <span
+                                                                            className={`transition-transform text-xs ${
+                                                                                isExpanded ? 'rotate-180' : ''
+                                                                            } text-gray-400`}
+                                                                        >
+                                                                            ▼
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
 
-                                                        {/* Add action button */}
-                                                        <button
-                                                            onClick={() => openCreateModal(group)}
-                                                            className="w-full p-3 flex items-center gap-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors border-t border-gray-100 dark:border-gray-700"
-                                                        >
-                                                            <span className="w-5 h-5 rounded-full border-2 border-dashed border-amber-500 flex items-center justify-center text-sm">
-                                                                +
-                                                            </span>
-                                                            <span className="text-sm font-medium">Añadir acción</span>
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                            {/* Actions list */}
+                                                            {isExpanded && (
+                                                                <div className="border-t border-gray-200 dark:border-gray-600">
+                                                                    {group.actions.length === 0 ? (
+                                                                        <div className="p-3 text-center text-gray-400 dark:text-gray-500 text-xs">
+                                                                            No hay acciones
+                                                                        </div>
+                                                                    ) : (
+                                                                        <ul className="divide-y divide-gray-100 dark:divide-gray-600">
+                                                                            {group.actions.map((action) => (
+                                                                                <li
+                                                                                    key={action.id}
+                                                                                    className="group flex items-center gap-2 p-2 px-3 hover:bg-gray-100 dark:hover:bg-gray-600/50"
+                                                                                >
+                                                                                    {/* Checkbox */}
+                                                                                    <button
+                                                                                        onClick={() => handleToggle(action)}
+                                                                                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                                                                            action.is_completed
+                                                                                                ? 'bg-green-500 border-green-500 text-white'
+                                                                                                : 'border-gray-300 dark:border-gray-500 hover:border-amber-500'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {action.is_completed && (
+                                                                                            <span className="text-[10px]">✓</span>
+                                                                                        )}
+                                                                                    </button>
+
+                                                                                    {/* Title */}
+                                                                                    <span
+                                                                                        className={`flex-1 text-xs ${
+                                                                                            action.is_completed
+                                                                                                ? 'line-through text-gray-400 dark:text-gray-500'
+                                                                                                : 'text-gray-900 dark:text-white'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {action.title}
+                                                                                    </span>
+
+                                                                                    {/* Actions - always visible */}
+                                                                                    <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                                                                        <button
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                startEdit(action);
+                                                                                            }}
+                                                                                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-500 dark:text-gray-400"
+                                                                                            title="Editar"
+                                                                                        >
+                                                                                            <span className="text-xs">✏️</span>
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleDelete(action);
+                                                                                            }}
+                                                                                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-500 dark:text-gray-400"
+                                                                                            title="Eliminar"
+                                                                                        >
+                                                                                            <span className="text-xs">🗑️</span>
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    )}
+
+                                                                    {/* Add action button */}
+                                                                    <button
+                                                                        onClick={() => openCreateModal(group)}
+                                                                        className="w-full p-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors border-t border-gray-100 dark:border-gray-600"
+                                                                    >
+                                                                        <span className="w-4 h-4 rounded-full border border-dashed border-amber-500 flex items-center justify-center text-xs">
+                                                                            +
+                                                                        </span>
+                                                                        <span className="text-xs font-medium">Añadir acción</span>
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
-                                        );
-                                    })}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </main>
