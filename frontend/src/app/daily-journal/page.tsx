@@ -1318,24 +1318,26 @@ export default function DailyJournalPage() {
                                 </span>
                             </h3>
 
-                            {/* Add new capture - always available (inbox is always open) */}
-                            <div className="flex gap-2 mb-4">
-                                <input
-                                    type="text"
-                                    value={newCapture}
-                                    onChange={(e) => setNewCapture(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleAddCapture()}
-                                    placeholder="¿Qué tienes en mente? Ideas, tareas, pensamientos..."
-                                    className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
-                                />
-                                <button
-                                    onClick={handleAddCapture}
-                                    disabled={addCaptureMutation.isPending || updateJournalPending}
-                                    className="px-6 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50 font-medium"
-                                >
-                                    {(addCaptureMutation.isPending || updateJournalPending) ? '...' : 'Capturar'}
-                                </button>
-                            </div>
+                            {/* Add new capture - at the top for easy access */}
+                            {isJournalEditable && (
+                                <div className="flex gap-2 mb-4">
+                                    <input
+                                        type="text"
+                                        value={newCapture}
+                                        onChange={(e) => setNewCapture(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleAddCapture()}
+                                        placeholder="¿Qué tienes en mente? Ideas, tareas, pensamientos..."
+                                        className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    />
+                                    <button
+                                        onClick={handleAddCapture}
+                                        disabled={addCaptureMutation.isPending || updateJournalPending}
+                                        className="px-6 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50 font-medium"
+                                    >
+                                        {(addCaptureMutation.isPending || updateJournalPending) ? '...' : 'Capturar'}
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Captures list */}
                             <div className="space-y-2">
