@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useDashboardSummary, useObjectSummary, useJournalInsights, useJournalHistory } from '@/hooks/use-dashboard';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 import { QuickViewPopup } from '@/components/quick-view-popup';
 
@@ -39,7 +38,6 @@ interface SidebarSection {
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
   const { user, loading: authLoading, token } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<SidebarCategory>('overview');
 
@@ -87,7 +85,17 @@ export default function DashboardPage() {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(KPI_ORDER_KEY);
       if (saved) {
-        try { return JSON.parse(saved); } catch { return DEFAULT_KPI_ORDER; }
+        try {
+          const parsed = JSON.parse(saved);
+          // Add any missing KPIs from DEFAULT_KPI_ORDER
+          const missingKpis = DEFAULT_KPI_ORDER.filter(k => !parsed.includes(k));
+          if (missingKpis.length > 0) {
+            const updated = [...parsed, ...missingKpis];
+            localStorage.setItem(KPI_ORDER_KEY, JSON.stringify(updated));
+            return updated;
+          }
+          return parsed;
+        } catch { return DEFAULT_KPI_ORDER; }
       }
     }
     return DEFAULT_KPI_ORDER;
@@ -1885,7 +1893,7 @@ export default function DashboardPage() {
                 onDragOver={(e) => handleKpiDragOver(e, kpi.key)}
                 onDrop={() => handleKpiDrop(kpi.key)}
                 onDragEnd={handleKpiDragEnd}
-                onClick={() => router.push(kpi.href)}
+                onClick={() => window.open(kpi.href, '_blank')}
                 className={`${bgColor} hover:opacity-90 rounded-xl p-4 transition-all cursor-grab active:cursor-grabbing text-left ${
                   draggedKpi === kpi.key ? 'opacity-50 scale-95' : ''
                 } ${dragOverKpi === kpi.key ? 'ring-2 ring-amber-400' : ''}`}
