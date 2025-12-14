@@ -312,6 +312,7 @@ export default function DashboardPage() {
         { key: 'daily-journal', label: 'Mi Diario', icon: '📓', selectable: true },
         { key: 'areas', label: 'Areas de Responsabilidad', icon: '📋', selectable: true },
         { key: 'habits', label: 'Habitos', icon: '✅', selectable: true },
+        { key: 'actions', label: 'Acciones', icon: '⚡', href: '/actions' },
       ],
     },
     {
