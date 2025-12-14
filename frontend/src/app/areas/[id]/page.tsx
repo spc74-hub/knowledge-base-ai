@@ -12,6 +12,14 @@ import {
     useDeleteAreaAction,
     useLinkNotesToArea,
     useUnlinkNoteFromArea,
+    useLinkProjectToArea,
+    useUnlinkProjectFromArea,
+    useLinkObjectiveToArea,
+    useUnlinkObjectiveFromArea,
+    useLinkHabitToArea,
+    useUnlinkHabitFromArea,
+    useLinkMentalModelToArea,
+    useUnlinkMentalModelFromArea,
     type AreaAction,
     type AreaNote,
 } from '@/hooks/use-areas';
@@ -55,6 +63,43 @@ interface StandaloneNote {
     created_at: string;
 }
 
+interface AvailableProject {
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    icon: string;
+    color: string;
+    area_id: string | null;
+}
+
+interface AvailableObjective {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    icon: string;
+    color: string;
+    area_id: string | null;
+}
+
+interface AvailableHabit {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+    is_active: boolean;
+    area_id: string | null;
+}
+
+interface AvailableMentalModel {
+    id: string;
+    name: string;
+    description: string | null;
+    icon: string;
+    color: string;
+}
+
 const STATUS_CONFIG = {
     active: { label: 'Activa', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
     paused: { label: 'Pausada', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
@@ -90,6 +135,34 @@ export default function AreaDetailPage() {
     const [loadingNotes, setLoadingNotes] = useState(false);
     const linkNotesMutation = useLinkNotesToArea();
     const unlinkNoteMutation = useUnlinkNoteFromArea();
+
+    // Projects linking state
+    const [showProjectsSelector, setShowProjectsSelector] = useState(false);
+    const [availableProjects, setAvailableProjects] = useState<AvailableProject[]>([]);
+    const [loadingProjects, setLoadingProjects] = useState(false);
+    const linkProjectMutation = useLinkProjectToArea();
+    const unlinkProjectMutation = useUnlinkProjectFromArea();
+
+    // Objectives linking state
+    const [showObjectivesSelector, setShowObjectivesSelector] = useState(false);
+    const [availableObjectives, setAvailableObjectives] = useState<AvailableObjective[]>([]);
+    const [loadingObjectives, setLoadingObjectives] = useState(false);
+    const linkObjectiveMutation = useLinkObjectiveToArea();
+    const unlinkObjectiveMutation = useUnlinkObjectiveFromArea();
+
+    // Habits linking state
+    const [showHabitsSelector, setShowHabitsSelector] = useState(false);
+    const [availableHabits, setAvailableHabits] = useState<AvailableHabit[]>([]);
+    const [loadingHabits, setLoadingHabits] = useState(false);
+    const linkHabitMutation = useLinkHabitToArea();
+    const unlinkHabitMutation = useUnlinkHabitFromArea();
+
+    // Mental Models linking state
+    const [showMentalModelsSelector, setShowMentalModelsSelector] = useState(false);
+    const [availableMentalModels, setAvailableMentalModels] = useState<AvailableMentalModel[]>([]);
+    const [loadingMentalModels, setLoadingMentalModels] = useState(false);
+    const linkMentalModelMutation = useLinkMentalModelToArea();
+    const unlinkMentalModelMutation = useUnlinkMentalModelFromArea();
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -284,6 +357,190 @@ export default function AreaDetailPage() {
             fetchArea();
         } catch (error) {
             console.error('Error unlinking note:', error);
+        }
+    };
+
+    // Projects handlers
+    const fetchAvailableProjects = async () => {
+        setLoadingProjects(true);
+        try {
+            const response = await fetch(`${API_URL}/api/v1/projects/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const linkedProjectIds = new Set((area?.projects || []).map((p: any) => p.id));
+                setAvailableProjects((data.data || []).filter((p: AvailableProject) => !linkedProjectIds.has(p.id)));
+            }
+        } catch (error) {
+            console.error('Error fetching projects:', error);
+        } finally {
+            setLoadingProjects(false);
+        }
+    };
+
+    const handleOpenProjectsSelector = () => {
+        fetchAvailableProjects();
+        setShowProjectsSelector(true);
+    };
+
+    const handleLinkProject = async (projectId: string) => {
+        try {
+            await linkProjectMutation.mutateAsync({ areaId, projectId });
+            setShowProjectsSelector(false);
+            fetchArea();
+        } catch (error) {
+            console.error('Error linking project:', error);
+        }
+    };
+
+    const handleUnlinkProject = async (projectId: string) => {
+        try {
+            await unlinkProjectMutation.mutateAsync({ areaId, projectId });
+            fetchArea();
+        } catch (error) {
+            console.error('Error unlinking project:', error);
+        }
+    };
+
+    // Objectives handlers
+    const fetchAvailableObjectives = async () => {
+        setLoadingObjectives(true);
+        try {
+            const response = await fetch(`${API_URL}/api/v1/objectives/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const linkedObjectiveIds = new Set((area?.objectives || []).map((o: any) => o.id));
+                setAvailableObjectives((data.data || []).filter((o: AvailableObjective) => !linkedObjectiveIds.has(o.id)));
+            }
+        } catch (error) {
+            console.error('Error fetching objectives:', error);
+        } finally {
+            setLoadingObjectives(false);
+        }
+    };
+
+    const handleOpenObjectivesSelector = () => {
+        fetchAvailableObjectives();
+        setShowObjectivesSelector(true);
+    };
+
+    const handleLinkObjective = async (objectiveId: string) => {
+        try {
+            await linkObjectiveMutation.mutateAsync({ areaId, objectiveId });
+            setShowObjectivesSelector(false);
+            fetchArea();
+        } catch (error) {
+            console.error('Error linking objective:', error);
+        }
+    };
+
+    const handleUnlinkObjective = async (objectiveId: string) => {
+        try {
+            await unlinkObjectiveMutation.mutateAsync({ areaId, objectiveId });
+            fetchArea();
+        } catch (error) {
+            console.error('Error unlinking objective:', error);
+        }
+    };
+
+    // Habits handlers
+    const fetchAvailableHabits = async () => {
+        setLoadingHabits(true);
+        try {
+            const response = await fetch(`${API_URL}/api/v1/habits/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const linkedHabitIds = new Set((area?.habits || []).map((h: any) => h.id));
+                setAvailableHabits((data.habits || []).filter((h: AvailableHabit) => !linkedHabitIds.has(h.id)));
+            }
+        } catch (error) {
+            console.error('Error fetching habits:', error);
+        } finally {
+            setLoadingHabits(false);
+        }
+    };
+
+    const handleOpenHabitsSelector = () => {
+        fetchAvailableHabits();
+        setShowHabitsSelector(true);
+    };
+
+    const handleLinkHabit = async (habitId: string) => {
+        try {
+            await linkHabitMutation.mutateAsync({ areaId, habitId });
+            setShowHabitsSelector(false);
+            fetchArea();
+        } catch (error) {
+            console.error('Error linking habit:', error);
+        }
+    };
+
+    const handleUnlinkHabit = async (habitId: string) => {
+        try {
+            await unlinkHabitMutation.mutateAsync({ areaId, habitId });
+            fetchArea();
+        } catch (error) {
+            console.error('Error unlinking habit:', error);
+        }
+    };
+
+    // Mental Models handlers
+    const fetchAvailableMentalModels = async () => {
+        setLoadingMentalModels(true);
+        try {
+            const response = await fetch(`${API_URL}/api/v1/mental-models/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const linkedMentalModelIds = new Set((area?.mental_models || []).map((mm: any) => mm.id));
+                setAvailableMentalModels((data.data || []).filter((mm: AvailableMentalModel) => !linkedMentalModelIds.has(mm.id)));
+            }
+        } catch (error) {
+            console.error('Error fetching mental models:', error);
+        } finally {
+            setLoadingMentalModels(false);
+        }
+    };
+
+    const handleOpenMentalModelsSelector = () => {
+        fetchAvailableMentalModels();
+        setShowMentalModelsSelector(true);
+    };
+
+    const handleLinkMentalModel = async (mentalModelId: string) => {
+        try {
+            await linkMentalModelMutation.mutateAsync({ areaId, mentalModelId });
+            setShowMentalModelsSelector(false);
+            fetchArea();
+        } catch (error) {
+            console.error('Error linking mental model:', error);
+        }
+    };
+
+    const handleUnlinkMentalModel = async (mentalModelId: string) => {
+        try {
+            await unlinkMentalModelMutation.mutateAsync({ areaId, mentalModelId });
+            fetchArea();
+        } catch (error) {
+            console.error('Error unlinking mental model:', error);
         }
     };
 
@@ -561,7 +818,25 @@ export default function AreaDetailPage() {
                         {/* Mental models sidebar */}
                         <div className="space-y-6">
                             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Modelos Mentales</h3>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-semibold text-gray-900 dark:text-white">Modelos Mentales</h3>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={handleOpenMentalModelsSelector}
+                                            className="px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700"
+                                            title="Vincular modelo mental"
+                                        >
+                                            +
+                                        </button>
+                                        <button
+                                            onClick={() => window.open(`/mental-models?area_id=${areaId}`, '_blank')}
+                                            className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                                            title="Crear nuevo modelo mental"
+                                        >
+                                            Nuevo
+                                        </button>
+                                    </div>
+                                </div>
                                 {area.mental_models.length === 0 ? (
                                     <p className="text-sm text-gray-500 dark:text-gray-400">
                                         No hay modelos mentales vinculados
@@ -569,9 +844,22 @@ export default function AreaDetailPage() {
                                 ) : (
                                     <div className="space-y-2">
                                         {area.mental_models.map((mm: any) => (
-                                            <div key={mm.id} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                            <div key={mm.id} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg group">
                                                 <span>{mm.icon || '🧠'}</span>
-                                                <span className="text-sm text-gray-900 dark:text-white">{mm.name}</span>
+                                                <span
+                                                    className="flex-1 text-sm text-gray-900 dark:text-white cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400"
+                                                    onClick={() => window.open(`/mental-models?id=${mm.id}`, '_blank')}
+                                                    title="Abrir en nueva ventana"
+                                                >
+                                                    {mm.name}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleUnlinkMentalModel(mm.id)}
+                                                    className="p-0.5 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 text-xs"
+                                                    title="Desvincular"
+                                                >
+                                                    ✕
+                                                </button>
                                             </div>
                                         ))}
                                     </div>
@@ -657,8 +945,22 @@ export default function AreaDetailPage() {
                 {/* Objectives Tab */}
                 {activeTab === 'objectives' && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                        <div className="p-6 border-b dark:border-gray-700">
+                        <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center">
                             <h3 className="font-semibold text-gray-900 dark:text-white">Objetivos vinculados</h3>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleOpenObjectivesSelector}
+                                    className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
+                                >
+                                    + Vincular
+                                </button>
+                                <button
+                                    onClick={() => window.open(`/objectives?area_id=${areaId}`, '_blank')}
+                                    className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                                >
+                                    + Crear nuevo
+                                </button>
+                            </div>
                         </div>
                         <div className="divide-y dark:divide-gray-700">
                             {area.objectives.length === 0 ? (
@@ -667,11 +969,15 @@ export default function AreaDetailPage() {
                                 </div>
                             ) : (
                                 area.objectives.map((obj: any) => (
-                                    <div key={obj.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    <div key={obj.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 group">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">🎯</span>
-                                            <div className="flex-1">
-                                                <p className="font-medium text-gray-900 dark:text-white">{obj.title}</p>
+                                            <div
+                                                className="flex-1 cursor-pointer"
+                                                onClick={() => window.open(`/objectives?id=${obj.id}`, '_blank')}
+                                                title="Abrir en nueva ventana"
+                                            >
+                                                <p className="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">{obj.title}</p>
                                                 {obj.description && (
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{obj.description}</p>
                                                 )}
@@ -683,6 +989,13 @@ export default function AreaDetailPage() {
                                             }`}>
                                                 {obj.status}
                                             </span>
+                                            <button
+                                                onClick={() => handleUnlinkObjective(obj.id)}
+                                                className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                title="Desvincular"
+                                            >
+                                                ✕
+                                            </button>
                                         </div>
                                     </div>
                                 ))
@@ -694,8 +1007,22 @@ export default function AreaDetailPage() {
                 {/* Projects Tab */}
                 {activeTab === 'projects' && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                        <div className="p-6 border-b dark:border-gray-700">
+                        <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center">
                             <h3 className="font-semibold text-gray-900 dark:text-white">Proyectos vinculados</h3>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleOpenProjectsSelector}
+                                    className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
+                                >
+                                    + Vincular
+                                </button>
+                                <button
+                                    onClick={() => window.open(`/projects?area_id=${areaId}`, '_blank')}
+                                    className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                                >
+                                    + Crear nuevo
+                                </button>
+                            </div>
                         </div>
                         <div className="divide-y dark:divide-gray-700">
                             {area.projects.length === 0 ? (
@@ -704,11 +1031,15 @@ export default function AreaDetailPage() {
                                 </div>
                             ) : (
                                 area.projects.map((proj: any) => (
-                                    <Link key={proj.id} href={`/projects/${proj.id}`} className="block p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    <div key={proj.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 group">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">📁</span>
-                                            <div className="flex-1">
-                                                <p className="font-medium text-gray-900 dark:text-white">{proj.name}</p>
+                                            <div
+                                                className="flex-1 cursor-pointer"
+                                                onClick={() => window.open(`/projects?id=${proj.id}`, '_blank')}
+                                                title="Abrir en nueva ventana"
+                                            >
+                                                <p className="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">{proj.name}</p>
                                                 {proj.description && (
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{proj.description}</p>
                                                 )}
@@ -720,8 +1051,15 @@ export default function AreaDetailPage() {
                                             }`}>
                                                 {proj.status}
                                             </span>
+                                            <button
+                                                onClick={() => handleUnlinkProject(proj.id)}
+                                                className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                title="Desvincular"
+                                            >
+                                                ✕
+                                            </button>
                                         </div>
-                                    </Link>
+                                    </div>
                                 ))
                             )}
                         </div>
@@ -733,12 +1071,20 @@ export default function AreaDetailPage() {
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                         <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center">
                             <h3 className="font-semibold text-gray-900 dark:text-white">Habitos vinculados</h3>
-                            <Link
-                                href="/habits"
-                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                            >
-                                Gestionar habitos →
-                            </Link>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleOpenHabitsSelector}
+                                    className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
+                                >
+                                    + Vincular
+                                </button>
+                                <button
+                                    onClick={() => window.open(`/habits?area_id=${areaId}`, '_blank')}
+                                    className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                                >
+                                    + Crear nuevo
+                                </button>
+                            </div>
                         </div>
                         <div className="divide-y dark:divide-gray-700">
                             {area.habits.length === 0 ? (
@@ -747,17 +1093,28 @@ export default function AreaDetailPage() {
                                 </div>
                             ) : (
                                 area.habits.map((habit: any) => (
-                                    <div key={habit.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    <div key={habit.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 group">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">{habit.icon || '✅'}</span>
-                                            <div className="flex-1">
-                                                <p className="font-medium text-gray-900 dark:text-white">{habit.name}</p>
+                                            <div
+                                                className="flex-1 cursor-pointer"
+                                                onClick={() => window.open('/habits', '_blank')}
+                                                title="Abrir hábitos en nueva ventana"
+                                            >
+                                                <p className="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">{habit.name}</p>
                                             </div>
                                             <span className={`text-xs px-2 py-0.5 rounded-full ${
                                                 habit.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                                             }`}>
                                                 {habit.is_active ? 'Activo' : 'Inactivo'}
                                             </span>
+                                            <button
+                                                onClick={() => handleUnlinkHabit(habit.id)}
+                                                className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                title="Desvincular"
+                                            >
+                                                ✕
+                                            </button>
                                         </div>
                                     </div>
                                 ))
@@ -806,6 +1163,218 @@ export default function AreaDetailPage() {
                                                     <p className="text-xs text-gray-500 truncate">
                                                         {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
                                                     </p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Projects Selector Modal */}
+            {showProjectsSelector && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Proyecto</h3>
+                            <button
+                                onClick={() => setShowProjectsSelector(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto max-h-[60vh]">
+                            {loadingProjects ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                </div>
+                            ) : availableProjects.length === 0 ? (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No hay proyectos disponibles para vincular
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {availableProjects.map((proj) => (
+                                        <button
+                                            key={proj.id}
+                                            onClick={() => handleLinkProject(proj.id)}
+                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg">{proj.icon || '📁'}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                        {proj.name}
+                                                    </p>
+                                                    {proj.description && (
+                                                        <p className="text-xs text-gray-500 truncate">{proj.description}</p>
+                                                    )}
+                                                </div>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                    proj.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                    {proj.status}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Objectives Selector Modal */}
+            {showObjectivesSelector && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Objetivo</h3>
+                            <button
+                                onClick={() => setShowObjectivesSelector(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto max-h-[60vh]">
+                            {loadingObjectives ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                </div>
+                            ) : availableObjectives.length === 0 ? (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No hay objetivos disponibles para vincular
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {availableObjectives.map((obj) => (
+                                        <button
+                                            key={obj.id}
+                                            onClick={() => handleLinkObjective(obj.id)}
+                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg">{obj.icon || '🎯'}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                        {obj.title}
+                                                    </p>
+                                                    {obj.description && (
+                                                        <p className="text-xs text-gray-500 truncate">{obj.description}</p>
+                                                    )}
+                                                </div>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                    obj.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                    {obj.status}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Habits Selector Modal */}
+            {showHabitsSelector && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Hábito</h3>
+                            <button
+                                onClick={() => setShowHabitsSelector(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto max-h-[60vh]">
+                            {loadingHabits ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                </div>
+                            ) : availableHabits.length === 0 ? (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No hay hábitos disponibles para vincular
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {availableHabits.map((habit) => (
+                                        <button
+                                            key={habit.id}
+                                            onClick={() => handleLinkHabit(habit.id)}
+                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg">{habit.icon || '✅'}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                        {habit.name}
+                                                    </p>
+                                                </div>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                    habit.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                    {habit.is_active ? 'Activo' : 'Inactivo'}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mental Models Selector Modal */}
+            {showMentalModelsSelector && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Modelo Mental</h3>
+                            <button
+                                onClick={() => setShowMentalModelsSelector(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto max-h-[60vh]">
+                            {loadingMentalModels ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                </div>
+                            ) : availableMentalModels.length === 0 ? (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No hay modelos mentales disponibles para vincular
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {availableMentalModels.map((mm) => (
+                                        <button
+                                            key={mm.id}
+                                            onClick={() => handleLinkMentalModel(mm.id)}
+                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-lg">{mm.icon || '🧠'}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                        {mm.name}
+                                                    </p>
+                                                    {mm.description && (
+                                                        <p className="text-xs text-gray-500 truncate">{mm.description}</p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </button>

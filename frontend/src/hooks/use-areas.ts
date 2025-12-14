@@ -424,3 +424,232 @@ export function useUnlinkNoteFromArea() {
         },
     });
 }
+
+// =====================================================
+// Object Linking (Projects, Objectives, Habits, Mental Models)
+// =====================================================
+
+/**
+ * Hook for linking a project to an area.
+ */
+export function useLinkProjectToArea() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ areaId, projectId }: { areaId: string; projectId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/areas/${areaId}/link-project/${projectId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { areaId }) => {
+            queryClient.invalidateQueries({ queryKey: AREAS_KEYS.detail(areaId) });
+            queryClient.invalidateQueries({ queryKey: ['projects'] });
+        },
+    });
+}
+
+/**
+ * Hook for unlinking a project from an area.
+ */
+export function useUnlinkProjectFromArea() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ areaId, projectId }: { areaId: string; projectId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/areas/${areaId}/unlink-project/${projectId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { areaId }) => {
+            queryClient.invalidateQueries({ queryKey: AREAS_KEYS.detail(areaId) });
+            queryClient.invalidateQueries({ queryKey: ['projects'] });
+        },
+    });
+}
+
+/**
+ * Hook for linking an objective to an area.
+ */
+export function useLinkObjectiveToArea() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ areaId, objectiveId }: { areaId: string; objectiveId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/areas/${areaId}/link-objective/${objectiveId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { areaId }) => {
+            queryClient.invalidateQueries({ queryKey: AREAS_KEYS.detail(areaId) });
+            queryClient.invalidateQueries({ queryKey: ['objectives'] });
+        },
+    });
+}
+
+/**
+ * Hook for unlinking an objective from an area.
+ */
+export function useUnlinkObjectiveFromArea() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ areaId, objectiveId }: { areaId: string; objectiveId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/areas/${areaId}/unlink-objective/${objectiveId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { areaId }) => {
+            queryClient.invalidateQueries({ queryKey: AREAS_KEYS.detail(areaId) });
+            queryClient.invalidateQueries({ queryKey: ['objectives'] });
+        },
+    });
+}
+
+/**
+ * Hook for linking a habit to an area.
+ */
+export function useLinkHabitToArea() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ areaId, habitId }: { areaId: string; habitId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/areas/${areaId}/link-habit/${habitId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { areaId }) => {
+            queryClient.invalidateQueries({ queryKey: AREAS_KEYS.detail(areaId) });
+            queryClient.invalidateQueries({ queryKey: ['habits'] });
+        },
+    });
+}
+
+/**
+ * Hook for unlinking a habit from an area.
+ */
+export function useUnlinkHabitFromArea() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ areaId, habitId }: { areaId: string; habitId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/areas/${areaId}/unlink-habit/${habitId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { areaId }) => {
+            queryClient.invalidateQueries({ queryKey: AREAS_KEYS.detail(areaId) });
+            queryClient.invalidateQueries({ queryKey: ['habits'] });
+        },
+    });
+}
+
+/**
+ * Hook for linking a mental model to an area.
+ */
+export function useLinkMentalModelToArea() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ areaId, mentalModelId }: { areaId: string; mentalModelId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/areas/${areaId}/mental-models`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ mental_model_id: mentalModelId }),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { areaId }) => {
+            queryClient.invalidateQueries({ queryKey: AREAS_KEYS.detail(areaId) });
+            queryClient.invalidateQueries({ queryKey: ['mental-models'] });
+        },
+    });
+}
+
+/**
+ * Hook for unlinking a mental model from an area.
+ */
+export function useUnlinkMentalModelFromArea() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ areaId, mentalModelId }: { areaId: string; mentalModelId: string }) => {
+            const response = await fetch(`${API_URL}/api/v1/areas/${areaId}/mental-models/${mentalModelId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: (_, __, { areaId }) => {
+            queryClient.invalidateQueries({ queryKey: AREAS_KEYS.detail(areaId) });
+            queryClient.invalidateQueries({ queryKey: ['mental-models'] });
+        },
+    });
+}

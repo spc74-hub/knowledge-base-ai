@@ -572,6 +572,43 @@ async def unlink_project_from_area(area_id: str, project_id: str, db: Database, 
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{area_id}/link-habit/{habit_id}")
+async def link_habit_to_area(area_id: str, habit_id: str, db: Database, current_user: CurrentUser):
+    """Link a habit to an area."""
+    try:
+        user_id = current_user["id"]
+
+        # Verify area exists
+        area = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        if not area.data:
+            raise HTTPException(status_code=404, detail="Area not found")
+
+        result = db.table("habits").update({"area_id": area_id}).eq("id", habit_id).eq("user_id", user_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Habit not found")
+
+        return {"message": "Habit linked to area successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{area_id}/unlink-habit/{habit_id}")
+async def unlink_habit_from_area(area_id: str, habit_id: str, db: Database, current_user: CurrentUser):
+    """Unlink a habit from an area."""
+    try:
+        user_id = current_user["id"]
+
+        db.table("habits").update({"area_id": None}).eq("id", habit_id).eq("user_id", user_id).eq("area_id", area_id).execute()
+
+        return {"message": "Habit unlinked from area"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =====================================================
 # Actions CRUD
 # =====================================================
