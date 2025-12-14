@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useDashboardSummary, useObjectSummary, useJournalInsights, useJournalHistory } from '@/hooks/use-dashboard';
+import { useUnifiedActions } from '@/hooks/use-actions';
 import Link from 'next/link';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 import { QuickViewPopup } from '@/components/quick-view-popup';
@@ -15,7 +16,7 @@ const KPI_ORDER_KEY = 'dashboard_kpi_order';
 const OVERVIEW_ORDER_KEY = 'dashboard_overview_order';
 
 // Default KPI keys order
-const DEFAULT_KPI_ORDER = ['areas', 'mental_models', 'objectives', 'projects', 'notes', 'journal', 'habits', 'contents'];
+const DEFAULT_KPI_ORDER = ['areas', 'mental_models', 'objectives', 'projects', 'notes', 'journal', 'habits', 'contents', 'actions'];
 
 // Default overview sections order
 const DEFAULT_OVERVIEW_ORDER = ['objectives', 'projects', 'mental_models', 'contents', 'notes', 'habits', 'areas'];
@@ -57,12 +58,14 @@ export default function DashboardPage() {
 
   const { data: journalInsightsData, isLoading: loadingJournalInsights } = useJournalInsights(30);
   const { data: journalHistoryData } = useJournalHistory(7);
+  const { data: actionsData } = useUnifiedActions({ include_completed: false });
 
   // Derive values from React Query
   const lastRefresh = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
   const error = summaryError?.message || null;
   const journalInsights = journalInsightsData || null;
   const journalHistory = journalHistoryData || [];
+  const pendingActions = actionsData?.total_pending || 0;
 
   // URL Modal state
   const [showUrlModal, setShowUrlModal] = useState(false);
@@ -292,6 +295,7 @@ export default function DashboardPage() {
     { key: 'journal', label: 'Mi Diario', value: journalInsights?.total_journals || 0, icon: '📓', href: '/daily-journal' },
     { key: 'habits', label: 'Habitos', value: kpis?.habits?.active || 0, icon: '✅', href: '/habits' },
     { key: 'contents', label: 'Contenidos', value: kpis?.contents.total || 0, icon: '📄', href: '/explore' },
+    { key: 'actions', label: 'Acciones', value: pendingActions, icon: '⚡', href: '/actions' },
   ];
 
   // Sidebar navigation
@@ -1879,12 +1883,12 @@ export default function DashboardPage() {
 
       {/* KPI Bar - Drag & Drop enabled with dynamic gradient based on position */}
       <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="grid grid-cols-8 gap-2">
+        <div className="grid grid-cols-9 gap-2">
           {kpiOrder.map((key, index) => {
             const kpi = kpiCards.find(k => k.key === key);
             if (!kpi) return null;
-            // Dynamic color based on position (0=darkest, 6=lightest)
-            const positionColors = ['bg-blue-900', 'bg-blue-800', 'bg-blue-700', 'bg-blue-600', 'bg-blue-500', 'bg-blue-400', 'bg-blue-300', 'bg-blue-200'];
+            // Dynamic color based on position (0=darkest, 8=lightest)
+            const positionColors = ['bg-blue-900', 'bg-blue-800', 'bg-blue-700', 'bg-blue-600', 'bg-blue-500', 'bg-blue-400', 'bg-blue-300', 'bg-blue-200', 'bg-blue-100'];
             const bgColor = positionColors[index] || 'bg-blue-500';
             return (
               <button
