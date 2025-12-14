@@ -193,6 +193,8 @@ export default function ProjectsPage() {
 
     // Actions state
     const [newActionTitle, setNewActionTitle] = useState('');
+    const [editingActionId, setEditingActionId] = useState<string | null>(null);
+    const [editingActionTitle, setEditingActionTitle] = useState('');
 
     // Mental Models and Objectives linking modals
     const [showMentalModelSelector, setShowMentalModelSelector] = useState(false);
@@ -456,6 +458,29 @@ export default function ProjectsPage() {
     const handleDeleteAction = async (actionId: string) => {
         if (!selectedProjectId) return;
         deleteActionMutation.mutate({ projectId: selectedProjectId, actionId });
+    };
+
+    const handleStartEditAction = (actionId: string, currentTitle: string) => {
+        setEditingActionId(actionId);
+        setEditingActionTitle(currentTitle);
+    };
+
+    const handleSaveEditAction = async (actionId: string) => {
+        if (!selectedProjectId || !editingActionTitle.trim()) return;
+        updateActionMutation.mutate(
+            { projectId: selectedProjectId, actionId, title: editingActionTitle.trim() },
+            {
+                onSuccess: () => {
+                    setEditingActionId(null);
+                    setEditingActionTitle('');
+                }
+            }
+        );
+    };
+
+    const handleCancelEditAction = () => {
+        setEditingActionId(null);
+        setEditingActionTitle('');
     };
 
     // =====================================================
@@ -1064,16 +1089,59 @@ export default function ProjectsPage() {
                                                                     onChange={() => handleToggleAction(action.id, action.is_completed)}
                                                                     className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                                                                 />
-                                                                <span className={`flex-1 ${action.is_completed ? 'line-through text-gray-400' : 'dark:text-white'}`}>
-                                                                    {action.title}
-                                                                </span>
-                                                                <button
-                                                                    onClick={() => handleDeleteAction(action.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
-                                                                    title="Eliminar acción"
-                                                                >
-                                                                    ✕
-                                                                </button>
+                                                                {editingActionId === action.id ? (
+                                                                    <div className="flex-1 flex gap-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={editingActionTitle}
+                                                                            onChange={(e) => setEditingActionTitle(e.target.value)}
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') handleSaveEditAction(action.id);
+                                                                                if (e.key === 'Escape') handleCancelEditAction();
+                                                                            }}
+                                                                            className="flex-1 px-2 py-1 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                            autoFocus
+                                                                        />
+                                                                        <button
+                                                                            onClick={() => handleSaveEditAction(action.id)}
+                                                                            className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                                                                        >
+                                                                            ✓
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={handleCancelEditAction}
+                                                                            className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+                                                                        >
+                                                                            ✕
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span
+                                                                        className={`flex-1 cursor-pointer ${action.is_completed ? 'line-through text-gray-400' : 'dark:text-white'}`}
+                                                                        onDoubleClick={() => handleStartEditAction(action.id, action.title)}
+                                                                        title="Doble clic para editar"
+                                                                    >
+                                                                        {action.title}
+                                                                    </span>
+                                                                )}
+                                                                {editingActionId !== action.id && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => handleStartEditAction(action.id, action.title)}
+                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-indigo-500 transition-opacity"
+                                                                            title="Editar acción"
+                                                                        >
+                                                                            ✎
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDeleteAction(action.id)}
+                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                            title="Eliminar acción"
+                                                                        >
+                                                                            ✕
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         ))}
                                                 </div>

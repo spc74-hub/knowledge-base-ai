@@ -130,6 +130,8 @@ export default function MobileDashboardPage() {
 
     // Action state
     const [newActionText, setNewActionText] = useState('');
+    const [editingActionId, setEditingActionId] = useState<string | null>(null);
+    const [editingActionTitle, setEditingActionTitle] = useState('');
 
     // Check dark mode
     useEffect(() => {
@@ -545,6 +547,42 @@ export default function MobileDashboardPage() {
         } catch (error) {
             console.error('Error deleting action:', error);
         }
+    };
+
+    // Edit action handlers
+    const handleStartEditAction = (actionId: string, currentTitle: string) => {
+        setEditingActionId(actionId);
+        setEditingActionTitle(currentTitle);
+    };
+
+    const handleSaveEditAction = async (itemId: string, actionId: string) => {
+        if (!editingActionTitle.trim()) return;
+        try {
+            const session = await supabase.auth.getSession();
+            if (!session.data.session) return;
+
+            const response = await fetch(`${API_URL}${getActionsEndpoint(itemId)}/${actionId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session.access_token}`,
+                },
+                body: JSON.stringify({ title: editingActionTitle.trim() }),
+            });
+
+            if (response.ok) {
+                setEditingActionId(null);
+                setEditingActionTitle('');
+                fetchData();
+            }
+        } catch (error) {
+            console.error('Error editing action:', error);
+        }
+    };
+
+    const handleCancelEditAction = () => {
+        setEditingActionId(null);
+        setEditingActionTitle('');
     };
 
     const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
@@ -1052,15 +1090,48 @@ export default function MobileDashboardPage() {
                                                 >
                                                     {action.is_completed && '✓'}
                                                 </button>
-                                                <span className={`flex-1 ${action.is_completed ? 'line-through opacity-50' : ''} ${textClass}`}>
-                                                    {action.title}
-                                                </span>
-                                                <button
-                                                    onClick={() => handleDeleteAction(viewingItem.id, action.id)}
-                                                    className="text-red-500 hover:text-red-600 p-1"
-                                                >
-                                                    ✕
-                                                </button>
+                                                {editingActionId === action.id ? (
+                                                    <div className="flex-1 flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={editingActionTitle}
+                                                            onChange={(e) => setEditingActionTitle(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleSaveEditAction(viewingItem.id, action.id);
+                                                                if (e.key === 'Escape') handleCancelEditAction();
+                                                            }}
+                                                            className={`flex-1 px-2 py-1 text-sm rounded border ${inputClass}`}
+                                                            autoFocus
+                                                        />
+                                                        <button
+                                                            onClick={() => handleSaveEditAction(viewingItem.id, action.id)}
+                                                            className="px-2 py-1 text-xs bg-blue-500 text-white rounded"
+                                                        >
+                                                            ✓
+                                                        </button>
+                                                        <button
+                                                            onClick={handleCancelEditAction}
+                                                            className={`px-2 py-1 text-xs rounded ${isDark ? 'bg-gray-600 text-gray-200' : 'bg-gray-300 text-gray-700'}`}
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span
+                                                        className={`flex-1 ${action.is_completed ? 'line-through opacity-50' : ''} ${textClass}`}
+                                                        onClick={() => handleStartEditAction(action.id, action.title)}
+                                                    >
+                                                        {action.title}
+                                                    </span>
+                                                )}
+                                                {editingActionId !== action.id && (
+                                                    <button
+                                                        onClick={() => handleDeleteAction(viewingItem.id, action.id)}
+                                                        className="text-red-500 hover:text-red-600 p-1"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                )}
                                             </div>
                                         ))
                                 )}

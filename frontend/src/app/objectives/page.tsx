@@ -14,6 +14,7 @@ import {
     useMoveObjective,
     useCreateObjectiveAction,
     useToggleObjectiveAction,
+    useUpdateObjectiveAction,
     useDeleteObjectiveAction,
     OBJECTIVES_KEYS,
     type ObjectiveTree,
@@ -163,6 +164,7 @@ export default function ObjectivesPage() {
     const moveObjectiveMutation = useMoveObjective();
     const createActionMutation = useCreateObjectiveAction();
     const toggleActionMutation = useToggleObjectiveAction();
+    const updateActionMutation = useUpdateObjectiveAction();
     const deleteActionMutation = useDeleteObjectiveAction();
 
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -201,6 +203,8 @@ export default function ObjectivesPage() {
 
     // Action form
     const [newActionTitle, setNewActionTitle] = useState('');
+    const [editingActionId, setEditingActionId] = useState<string | null>(null);
+    const [editingActionTitle, setEditingActionTitle] = useState('');
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -712,6 +716,29 @@ export default function ObjectivesPage() {
         });
     };
 
+    const handleStartEditAction = (actionId: string, currentTitle: string) => {
+        setEditingActionId(actionId);
+        setEditingActionTitle(currentTitle);
+    };
+
+    const handleSaveEditAction = async (actionId: string) => {
+        if (!selectedObjective || !editingActionTitle.trim()) return;
+        updateActionMutation.mutate(
+            { objectiveId: selectedObjective.id, actionId, title: editingActionTitle.trim() },
+            {
+                onSuccess: () => {
+                    setEditingActionId(null);
+                    setEditingActionTitle('');
+                }
+            }
+        );
+    };
+
+    const handleCancelEditAction = () => {
+        setEditingActionId(null);
+        setEditingActionTitle('');
+    };
+
     const handleToggleFavorite = async () => {
         if (!selectedObjective || toggleFavoriteMutation.isPending) return;
 
@@ -1066,22 +1093,66 @@ export default function ObjectivesPage() {
                                         <h3 className="font-semibold mb-3 dark:text-white">Acciones</h3>
                                         <div className="space-y-2">
                                             {selectedObjective.objective_actions?.map(action => (
-                                                <div key={action.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                <div key={action.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 group">
                                                     <input
                                                         type="checkbox"
                                                         checked={action.is_completed}
                                                         onChange={() => handleToggleAction(action.id, action.is_completed)}
                                                         className="rounded border-gray-300 text-indigo-600"
                                                     />
-                                                    <span className={`flex-1 ${action.is_completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>
-                                                        {action.title}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => handleDeleteAction(action.id)}
-                                                        className="text-red-500 hover:text-red-700 text-sm opacity-0 hover:opacity-100"
-                                                    >
-                                                        ✕
-                                                    </button>
+                                                    {editingActionId === action.id ? (
+                                                        <div className="flex-1 flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={editingActionTitle}
+                                                                onChange={(e) => setEditingActionTitle(e.target.value)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') handleSaveEditAction(action.id);
+                                                                    if (e.key === 'Escape') handleCancelEditAction();
+                                                                }}
+                                                                className="flex-1 px-2 py-1 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                autoFocus
+                                                            />
+                                                            <button
+                                                                onClick={() => handleSaveEditAction(action.id)}
+                                                                className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                                                            >
+                                                                ✓
+                                                            </button>
+                                                            <button
+                                                                onClick={handleCancelEditAction}
+                                                                className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span
+                                                            className={`flex-1 cursor-pointer ${action.is_completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}
+                                                            onDoubleClick={() => handleStartEditAction(action.id, action.title)}
+                                                            title="Doble clic para editar"
+                                                        >
+                                                            {action.title}
+                                                        </span>
+                                                    )}
+                                                    {editingActionId !== action.id && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleStartEditAction(action.id, action.title)}
+                                                                className="text-gray-400 hover:text-indigo-600 text-sm opacity-0 group-hover:opacity-100"
+                                                                title="Editar acción"
+                                                            >
+                                                                ✎
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteAction(action.id)}
+                                                                className="text-red-500 hover:text-red-700 text-sm opacity-0 group-hover:opacity-100"
+                                                                title="Eliminar acción"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

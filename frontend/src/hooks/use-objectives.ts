@@ -358,6 +358,35 @@ export function useToggleObjectiveAction() {
     });
 }
 
+export function useUpdateObjectiveAction() {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ objectiveId, actionId, title, is_completed }: { objectiveId: string; actionId: string; title?: string; is_completed?: boolean }) => {
+            const body: Record<string, unknown> = {};
+            if (title !== undefined) body.title = title;
+            if (is_completed !== undefined) body.is_completed = is_completed;
+
+            const response = await fetch(`${API_URL}/api/v1/objectives/${objectiveId}/actions/${actionId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+            return response.json();
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: OBJECTIVES_KEYS.all });
+        },
+    });
+}
+
 export function useDeleteObjectiveAction() {
     const { token } = useAuth();
     const queryClient = useQueryClient();
