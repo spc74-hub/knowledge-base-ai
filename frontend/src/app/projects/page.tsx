@@ -241,13 +241,16 @@ export default function ProjectsPage() {
         }
     }, [searchParams]);
 
-    // Select project from URL ?id= param
+    // Select project from URL ?id= param, or select first project by default
     useEffect(() => {
         const idParam = searchParams.get('id');
         if (idParam && projectTree.length > 0) {
             setSelectedProjectId(idParam);
+        } else if (!selectedProjectId && projectTree.length > 0) {
+            // Select first project by default
+            setSelectedProjectId(projectTree[0].id);
         }
-    }, [searchParams, projectTree]);
+    }, [searchParams, projectTree, selectedProjectId]);
 
     // Update form when project detail loads
     useEffect(() => {
@@ -980,14 +983,14 @@ export default function ProjectsPage() {
                                             <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
                                                 <span className="text-gray-500 dark:text-gray-400 block">Fecha límite</span>
                                                 <span className="font-medium dark:text-white">
-                                                    {new Date(selectedProject.deadline).toLocaleDateString()}
+                                                    {new Date(selectedProject.deadline).toLocaleDateString('es-ES')}
                                                 </span>
                                             </div>
                                         )}
                                         <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
                                             <span className="text-gray-500 dark:text-gray-400 block">Creado</span>
                                             <span className="font-medium dark:text-white">
-                                                {new Date(selectedProject.created_at).toLocaleDateString()}
+                                                {new Date(selectedProject.created_at).toLocaleDateString('es-ES')}
                                             </span>
                                         </div>
                                         <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
