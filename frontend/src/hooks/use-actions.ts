@@ -45,6 +45,7 @@ export interface AllActionsResponse {
 export interface UnifiedActionsParams {
     include_completed?: boolean;
     parent_type?: 'area' | 'objective' | 'project' | 'mental_model';
+    include_empty?: boolean;
 }
 
 /**
@@ -62,6 +63,9 @@ export function useUnifiedActions(params: UnifiedActionsParams = {}) {
             }
             if (params.parent_type) {
                 urlParams.set('parent_type', params.parent_type);
+            }
+            if (params.include_empty !== undefined) {
+                urlParams.set('include_empty', String(params.include_empty));
             }
 
             const response = await fetch(`${API_URL}/api/v1/actions/all?${urlParams}`, {

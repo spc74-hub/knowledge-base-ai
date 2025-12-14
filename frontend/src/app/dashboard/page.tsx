@@ -1890,6 +1890,10 @@ export default function DashboardPage() {
             // Dynamic color based on position (0=darkest, 8=lightest)
             const positionColors = ['bg-blue-900', 'bg-blue-800', 'bg-blue-700', 'bg-blue-600', 'bg-blue-500', 'bg-blue-400', 'bg-blue-300', 'bg-blue-200', 'bg-blue-100'];
             const bgColor = positionColors[index] || 'bg-blue-500';
+            // Use dark text for light backgrounds (index >= 6)
+            const isLightBg = index >= 6;
+            const textColor = isLightBg ? 'text-gray-900' : 'text-white';
+            const textMutedColor = isLightBg ? 'text-gray-700' : 'text-white/80';
             return (
               <button
                 key={kpi.key}
@@ -1904,8 +1908,8 @@ export default function DashboardPage() {
                 } ${dragOverKpi === kpi.key ? 'ring-2 ring-amber-400' : ''}`}
               >
                 <div className="text-2xl mb-1">{kpi.icon}</div>
-                <div className="text-2xl font-bold text-white">{kpi.value}</div>
-                <div className="text-xs text-white/80">{kpi.label}</div>
+                <div className={`text-2xl font-bold ${textColor}`}>{kpi.value}</div>
+                <div className={`text-xs ${textMutedColor}`}>{kpi.label}</div>
               </button>
             );
           })}
