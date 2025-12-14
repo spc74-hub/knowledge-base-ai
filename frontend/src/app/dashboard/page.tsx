@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useDashboardSummary, useObjectSummary, useJournalInsights, useJournalHistory } from '@/hooks/use-dashboard';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 import { QuickViewPopup } from '@/components/quick-view-popup';
 
@@ -15,7 +16,7 @@ const KPI_ORDER_KEY = 'dashboard_kpi_order';
 const OVERVIEW_ORDER_KEY = 'dashboard_overview_order';
 
 // Default KPI keys order
-const DEFAULT_KPI_ORDER = ['contents', 'objectives', 'projects', 'mental_models', 'notes', 'areas', 'habits'];
+const DEFAULT_KPI_ORDER = ['areas', 'mental_models', 'objectives', 'projects', 'notes', 'journal', 'habits', 'contents'];
 
 // Default overview sections order
 const DEFAULT_OVERVIEW_ORDER = ['objectives', 'projects', 'mental_models', 'contents', 'notes', 'habits', 'areas'];
@@ -38,6 +39,7 @@ interface SidebarSection {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { user, loading: authLoading, token } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<SidebarCategory>('overview');
 
@@ -274,13 +276,14 @@ export default function DashboardPage() {
 
   // KPI Cards data - professional blue gradient
   const kpiCards = [
-    { key: 'contents', label: 'Contenidos', value: kpis?.contents.total || 0, icon: '📄', href: '/explore', color: 'bg-blue-900' },
-    { key: 'objectives', label: 'Objetivos', value: kpis?.objectives.active || 0, icon: '🎯', href: '/objectives', color: 'bg-blue-800' },
-    { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects', color: 'bg-blue-700' },
-    { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models', color: 'bg-blue-600' },
-    { key: 'notes', label: 'Notas', value: (kpis?.notes.total || 0) + (kpis?.full_notes?.total || 0), icon: '📝', href: '/notes', color: 'bg-blue-500' },
-    { key: 'areas', label: 'Areas', value: kpis?.areas?.active || 0, icon: '📋', href: '/areas', color: 'bg-blue-400' },
-    { key: 'habits', label: 'Habitos', value: kpis?.habits?.active || 0, icon: '✅', href: '/habits', color: 'bg-blue-300' },
+    { key: 'areas', label: 'Areas', value: kpis?.areas?.active || 0, icon: '📋', href: '/areas' },
+    { key: 'mental_models', label: 'M. Mentales', value: kpis?.mental_models.active || 0, icon: '🧠', href: '/mental-models' },
+    { key: 'objectives', label: 'Objetivos', value: kpis?.objectives.active || 0, icon: '🎯', href: '/objectives' },
+    { key: 'projects', label: 'Proyectos', value: kpis?.projects.active || 0, icon: '📁', href: '/projects' },
+    { key: 'notes', label: 'Notas', value: (kpis?.notes.total || 0) + (kpis?.full_notes?.total || 0), icon: '📝', href: '/notes' },
+    { key: 'journal', label: 'Mi Diario', value: journalInsights?.total_journals || 0, icon: '📓', href: '/daily-journal' },
+    { key: 'habits', label: 'Habitos', value: kpis?.habits?.active || 0, icon: '✅', href: '/habits' },
+    { key: 'contents', label: 'Contenidos', value: kpis?.contents.total || 0, icon: '📄', href: '/explore' },
   ];
 
   // Sidebar navigation
@@ -1867,12 +1870,12 @@ export default function DashboardPage() {
 
       {/* KPI Bar - Drag & Drop enabled with dynamic gradient based on position */}
       <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-8 gap-2">
           {kpiOrder.map((key, index) => {
             const kpi = kpiCards.find(k => k.key === key);
             if (!kpi) return null;
             // Dynamic color based on position (0=darkest, 6=lightest)
-            const positionColors = ['bg-blue-900', 'bg-blue-800', 'bg-blue-700', 'bg-blue-600', 'bg-blue-500', 'bg-blue-400', 'bg-blue-300'];
+            const positionColors = ['bg-blue-900', 'bg-blue-800', 'bg-blue-700', 'bg-blue-600', 'bg-blue-500', 'bg-blue-400', 'bg-blue-300', 'bg-blue-200'];
             const bgColor = positionColors[index] || 'bg-blue-500';
             return (
               <button
@@ -1882,10 +1885,10 @@ export default function DashboardPage() {
                 onDragOver={(e) => handleKpiDragOver(e, kpi.key)}
                 onDrop={() => handleKpiDrop(kpi.key)}
                 onDragEnd={handleKpiDragEnd}
-                onClick={() => setSelectedCategory(kpi.key as SidebarCategory)}
+                onClick={() => router.push(kpi.href)}
                 className={`${bgColor} hover:opacity-90 rounded-xl p-4 transition-all cursor-grab active:cursor-grabbing text-left ${
-                  selectedCategory === kpi.key ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-950' : ''
-                } ${draggedKpi === kpi.key ? 'opacity-50 scale-95' : ''} ${dragOverKpi === kpi.key ? 'ring-2 ring-amber-400' : ''}`}
+                  draggedKpi === kpi.key ? 'opacity-50 scale-95' : ''
+                } ${dragOverKpi === kpi.key ? 'ring-2 ring-amber-400' : ''}`}
               >
                 <div className="text-2xl mb-1">{kpi.icon}</div>
                 <div className="text-2xl font-bold text-white">{kpi.value}</div>
