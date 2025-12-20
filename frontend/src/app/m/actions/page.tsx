@@ -49,13 +49,19 @@ export default function MobileActionsPage() {
         return () => observer.disconnect();
     }, []);
 
-    // Only expand groups that have actions
+    // Mobile: All groups collapsed by default
     useEffect(() => {
         if (data?.groups) {
-            const groupsWithActions = data.groups
-                .filter((g) => g.actions.length > 0)
-                .map((g) => `${g.parent_type}:${g.parent_id}`);
-            setExpandedGroups(new Set(groupsWithActions));
+            // All groups start collapsed on mobile
+            setExpandedGroups(new Set());
+        }
+    }, [data?.groups]);
+
+    // Mobile: All type sections collapsed by default
+    useEffect(() => {
+        if (data?.groups) {
+            const allTypes = [...new Set(data.groups.map((g) => g.parent_type))];
+            setCollapsedTypes(new Set(allTypes));
         }
     }, [data?.groups]);
 
