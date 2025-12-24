@@ -4,6 +4,115 @@ Cleans and normalizes URLs to prevent duplicates from tracking parameters and UR
 """
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 import re
+import httpx
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def is_tiktok_short_url(url: str) -> bool:
+    """
+    Check if a URL is a TikTok short/redirect URL that needs resolution.
+    Short URLs look like:
+      - tiktok.com/ZNR2ux1GR (direct short code)
+      - tiktok.com/t/ZTFabcd/ (short code with /t/ prefix)
+    Full URLs look like:
+      - tiktok.com/@user/video/123456
+      - tiktok.com/share/video/123456
+    """
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower().replace('www.', '')
+        path = parsed.path.strip('/')
+
+        # Check if it's a TikTok domain
+        if 'tiktok' not in domain:
+            return False
+
+        # If path contains /video/ or /@, it's already a full URL
+        if '/video/' in parsed.path or '/@' in parsed.path:
+            return False
+
+        # Check for /t/ short URL format (e.g., /t/ZTFabcd)
+        if path.startswith('t/'):
+            return True
+
+        # If path is a short code (alphanumeric, typically 8-12 chars)
+        # Short codes don't have slashes and are relatively short
+        if path and '/' not in path and len(path) <= 20:
+            return True
+
+        return False
+    except Exception:
+        return False
+
+
+async def resolve_tiktok_short_url(url: str) -> str:
+    """
+    Resolve a TikTok short URL to its full URL by following redirects.
+    Returns the resolved URL or the original if resolution fails.
+    """
+    if not is_tiktok_short_url(url):
+        return url
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            # Use HEAD request to follow redirects without downloading content
+            response = await client.head(url)
+
+            # Get the final URL after redirects
+            final_url = str(response.url)
+
+            # Verify we got a proper TikTok video URL
+            if '/video/' in final_url or '/@' in final_url:
+                logger.info(f"Resolved TikTok short URL: {url} -> {final_url}")
+                return final_url
+
+            # If still not a video URL, try GET request (some redirects need it)
+            response = await client.get(url)
+            final_url = str(response.url)
+
+            if '/video/' in final_url or '/@' in final_url:
+                logger.info(f"Resolved TikTok short URL (GET): {url} -> {final_url}")
+                return final_url
+
+            logger.warning(f"TikTok short URL resolution didn't yield video URL: {url} -> {final_url}")
+            return final_url
+
+    except Exception as e:
+        logger.error(f"Failed to resolve TikTok short URL {url}: {e}")
+        return url
+
+
+def resolve_tiktok_short_url_sync(url: str) -> str:
+    """
+    Synchronous version of resolve_tiktok_short_url.
+    For use in non-async contexts.
+    """
+    if not is_tiktok_short_url(url):
+        return url
+
+    try:
+        with httpx.Client(follow_redirects=True, timeout=10.0) as client:
+            response = client.head(url)
+            final_url = str(response.url)
+
+            if '/video/' in final_url or '/@' in final_url:
+                logger.info(f"Resolved TikTok short URL (sync): {url} -> {final_url}")
+                return final_url
+
+            response = client.get(url)
+            final_url = str(response.url)
+
+            if '/video/' in final_url or '/@' in final_url:
+                logger.info(f"Resolved TikTok short URL (sync GET): {url} -> {final_url}")
+                return final_url
+
+            return final_url
+
+    except Exception as e:
+        logger.error(f"Failed to resolve TikTok short URL (sync) {url}: {e}")
+        return url
 
 
 # Common tracking parameters to remove
@@ -241,4 +350,7 @@ url_normalizer = type('URLNormalizer', (), {
     'normalize': staticmethod(normalize_url),
     'extract_id': staticmethod(extract_content_id),
     'same_content': staticmethod(urls_are_same_content),
+    'is_tiktok_short': staticmethod(is_tiktok_short_url),
+    'resolve_tiktok_short': staticmethod(resolve_tiktok_short_url),
+    'resolve_tiktok_short_sync': staticmethod(resolve_tiktok_short_url_sync),
 })()

@@ -13,7 +13,7 @@ from app.services.classifier import classifier_service
 from app.services.summarizer import summarizer_service
 from app.services.embeddings import embeddings_service
 from app.services.usage_tracker import usage_tracker
-from app.services.url_normalizer import normalize_url
+from app.services.url_normalizer import normalize_url, resolve_tiktok_short_url
 
 router = APIRouter()
 
@@ -66,10 +66,12 @@ async def quick_save_url(
                 error="missing_url"
             )
 
-        url_str = normalize_url(original_url)
+        # Resolve TikTok short URLs before normalizing
+        resolved_url = await resolve_tiktok_short_url(original_url)
+        url_str = normalize_url(resolved_url)
         user_id = current_user["id"]
 
-        logger.info(f"Quick save request: {original_url} -> normalized: {url_str}")
+        logger.info(f"Quick save request: {original_url} -> resolved: {resolved_url} -> normalized: {url_str}")
 
         # Check if normalized URL already exists
         existing = db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
@@ -228,12 +230,13 @@ async def quick_save_shortcut(
     logger = logging.getLogger(__name__)
 
     try:
-        # Normalize URL
+        # Resolve TikTok short URLs before normalizing
         original_url = url
-        url_str = normalize_url(original_url)
+        resolved_url = await resolve_tiktok_short_url(original_url)
+        url_str = normalize_url(resolved_url)
         user_id = current_user["id"]
 
-        logger.info(f"Shortcut quick save: {original_url} -> normalized: {url_str}")
+        logger.info(f"Shortcut quick save: {original_url} -> resolved: {resolved_url} -> normalized: {url_str}")
 
         # Check if URL already exists
         existing = db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
