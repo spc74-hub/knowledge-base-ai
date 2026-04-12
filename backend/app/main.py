@@ -10,7 +10,7 @@ from app.api.v1 import (
     auth, content, chat, search, usage, folders, apple_notes, quick_save,
     process, taxonomy, tags, system_notes, projects, standalone_notes,
     mental_models, objectives, dashboard, files, google_drive, user_experts,
-    podcasts, api_keys, areas, habits, daily_journal, actions,
+    podcasts, api_keys, areas, habits, daily_journal, actions, rest_compat,
 )
 from app.services.batch_processor import batch_processor
 
@@ -115,6 +115,7 @@ app.include_router(areas.router, prefix="/api/v1", tags=["areas"])
 app.include_router(habits.router, prefix="/api/v1", tags=["habits"])
 app.include_router(daily_journal.router, prefix="/api/v1", tags=["daily-journal"])
 app.include_router(actions.router, prefix="/api/v1", tags=["actions"])
+app.include_router(rest_compat.router, prefix="/rest/v1", tags=["rest-compat"])
 
 
 @app.get("/")
