@@ -1,17 +1,19 @@
-// Centralized API configuration - v4
-// Hardcoded because Railway/Next.js env var injection is broken
-const PRODUCTION_API = 'https://knowledge-base-ai-production.up.railway.app';
-const DEV_API = 'http://localhost:8000';
+// Centralized API configuration
+// Uses NEXT_PUBLIC_API_URL environment variable for Docker deployment
 
-// MUST be called at runtime (inside component/hook), NOT at module level
-export const getApiUrl = (): string => {
-    if (typeof window !== 'undefined') {
-        return window.location.hostname === 'localhost' ? DEV_API : PRODUCTION_API;
+const getApiUrl = (): string => {
+    // Check for environment variable first (Docker/production)
+    if (process.env.NEXT_PUBLIC_API_URL) {
+        return process.env.NEXT_PUBLIC_API_URL;
     }
-    // SSR fallback - always use production for safety
-    return PRODUCTION_API;
+    // Development fallback
+    if (typeof window !== 'undefined') {
+        return window.location.hostname === 'localhost'
+            ? 'http://localhost:8000'
+            : `${window.location.protocol}//${window.location.hostname}:8000`;
+    }
+    return 'http://localhost:8000';
 };
 
-// For backwards compatibility - but this gets evaluated at build time on server
-// so it may not work correctly. Prefer getApiUrl() instead.
-export const API_URL = PRODUCTION_API; // Always default to production
+export { getApiUrl };
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';

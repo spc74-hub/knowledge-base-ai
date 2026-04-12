@@ -156,14 +156,14 @@ class DailyJournalResponse(BaseModel):
 # Helper Functions
 # =====================================================
 
-def get_random_inspirational_content(db: Database) -> dict:
+async def get_random_inspirational_content(db: Database) -> dict:
     """Get random inspirational content for each type."""
     content = {}
 
     types = ['quote', 'refran', 'challenge', 'question', 'word']
 
     for content_type in types:
-        result = db.table("inspirational_content").select("*").eq(
+        result = await db.table("inspirational_content").select("*").eq(
             "content_type", content_type
         ).eq("is_active", True).execute()
 
@@ -192,7 +192,7 @@ async def get_today_journal(db: Database, current_user: CurrentUser):
     today = date.today()
 
     # Try to get existing journal
-    result = db.table("daily_journal").select("*").eq(
+    result = await db.table("daily_journal").select("*").eq(
         "user_id", user_id
     ).eq("date", today.isoformat()).execute()
 
@@ -200,7 +200,7 @@ async def get_today_journal(db: Database, current_user: CurrentUser):
         return result.data[0]
 
     # Create new journal for today
-    inspirational = get_random_inspirational_content(db)
+    inspirational = await get_random_inspirational_content(db)
 
     new_journal = {
         "user_id": user_id,
@@ -220,7 +220,7 @@ async def get_today_journal(db: Database, current_user: CurrentUser):
         "is_evening_completed": False,
     }
 
-    insert_result = db.table("daily_journal").insert(new_journal).execute()
+    insert_result = await db.table("daily_journal").insert(new_journal).execute()
 
     if not insert_result.data:
         raise HTTPException(status_code=500, detail="Failed to create journal")
@@ -237,7 +237,7 @@ async def get_journal_by_date(
     """Get journal entry for a specific date."""
     user_id = current_user["id"]
 
-    result = db.table("daily_journal").select("*").eq(
+    result = await db.table("daily_journal").select("*").eq(
         "user_id", user_id
     ).eq("date", journal_date.isoformat()).execute()
 
@@ -275,7 +275,7 @@ async def create_journal_for_date(
         raise HTTPException(status_code=400, detail="Cannot create journal for future dates")
 
     # Check if journal already exists
-    existing = db.table("daily_journal").select("*").eq(
+    existing = await db.table("daily_journal").select("*").eq(
         "user_id", user_id
     ).eq("date", journal_date.isoformat()).execute()
 
@@ -283,7 +283,7 @@ async def create_journal_for_date(
         return existing.data[0]
 
     # Create new journal for the specified date with inspirational content
-    inspirational = get_random_inspirational_content(db)
+    inspirational = await get_random_inspirational_content(db)
 
     new_journal = {
         "user_id": user_id,
@@ -303,7 +303,7 @@ async def create_journal_for_date(
         "is_evening_completed": False,
     }
 
-    insert_result = db.table("daily_journal").insert(new_journal).execute()
+    insert_result = await db.table("daily_journal").insert(new_journal).execute()
 
     if not insert_result.data:
         raise HTTPException(status_code=500, detail="Failed to create journal")
@@ -321,7 +321,7 @@ async def get_journal_history(
     """Get journal history with pagination."""
     user_id = current_user["id"]
 
-    result = db.table("daily_journal").select(
+    result = await db.table("daily_journal").select(
         "id, date, day_rating, day_word, is_morning_completed, is_evening_completed"
     ).eq("user_id", user_id).order(
         "date", desc=True
@@ -344,7 +344,7 @@ async def update_today_journal(
     today = date.today()
 
     # Ensure journal exists
-    existing = db.table("daily_journal").select("id").eq(
+    existing = await db.table("daily_journal").select("id").eq(
         "user_id", user_id
     ).eq("date", today.isoformat()).execute()
 
@@ -366,7 +366,7 @@ async def update_today_journal(
         update_data['big_rocks'] = [b.model_dump() if hasattr(b, 'model_dump') else b for b in update_data['big_rocks']]
 
     # Update
-    result = db.table("daily_journal").update(update_data).eq(
+    result = await db.table("daily_journal").update(update_data).eq(
         "user_id", user_id
     ).eq("date", today.isoformat()).execute()
 
@@ -387,7 +387,7 @@ async def update_journal(
     user_id = current_user["id"]
 
     # Verify ownership
-    existing = db.table("daily_journal").select("id").eq(
+    existing = await db.table("daily_journal").select("id").eq(
         "id", journal_id
     ).eq("user_id", user_id).execute()
 
@@ -407,7 +407,7 @@ async def update_journal(
     if 'big_rocks' in update_data and update_data['big_rocks']:
         update_data['big_rocks'] = [b.model_dump() if hasattr(b, 'model_dump') else b for b in update_data['big_rocks']]
 
-    result = db.table("daily_journal").update(update_data).eq(
+    result = await db.table("daily_journal").update(update_data).eq(
         "id", journal_id
     ).eq("user_id", user_id).execute()
 
@@ -435,7 +435,7 @@ async def add_task(
     tasks.append(task.model_dump())
 
     # Update
-    result = db.table("daily_journal").update({
+    result = await db.table("daily_journal").update({
         "daily_tasks": tasks
     }).eq("user_id", user_id).eq("date", today.isoformat()).execute()
 
@@ -460,7 +460,7 @@ async def add_quick_capture(
     captures.append(capture.model_dump())
 
     # Update
-    result = db.table("daily_journal").update({
+    result = await db.table("daily_journal").update({
         "quick_captures": captures
     }).eq("user_id", user_id).eq("date", today.isoformat()).execute()
 
@@ -473,7 +473,7 @@ async def refresh_inspirational_content(
     current_user: CurrentUser
 ):
     """Get new random inspirational content (without saving)."""
-    return get_random_inspirational_content(db)
+    return await get_random_inspirational_content(db)
 
 
 @router.get("/inspirational/all")
@@ -488,7 +488,7 @@ async def get_all_inspirational(
     if content_type:
         query = query.eq("content_type", content_type)
 
-    result = query.order("content_type").execute()
+    result = await query.order("content_type").execute()
 
     return result.data or []
 
@@ -502,7 +502,7 @@ async def get_journal_streak(
     user_id = current_user["id"]
 
     # Get all journals ordered by date desc
-    result = db.table("daily_journal").select(
+    result = await db.table("daily_journal").select(
         "date, is_morning_completed, is_evening_completed, day_rating"
     ).eq("user_id", user_id).order("date", desc=True).limit(60).execute()
 
@@ -565,7 +565,7 @@ async def get_week_summary(
     # Get start of week (Monday)
     start_of_week = today - __import__('datetime').timedelta(days=today.weekday())
 
-    result = db.table("daily_journal").select("*").eq(
+    result = await db.table("daily_journal").select("*").eq(
         "user_id", user_id
     ).gte("date", start_of_week.isoformat()).lte(
         "date", today.isoformat()
@@ -618,7 +618,7 @@ async def get_journal_insights(
     start_date = today - __import__('datetime').timedelta(days=days)
 
     # Fetch all journals in the date range
-    result = db.table("daily_journal").select("*").eq(
+    result = await db.table("daily_journal").select("*").eq(
         "user_id", user_id
     ).gte("date", start_date.isoformat()).lte(
         "date", today.isoformat()
@@ -846,7 +846,7 @@ async def generate_ai_summary(
     start_date = today - __import__('datetime').timedelta(days=days)
 
     # Fetch all journals in the date range
-    result = db.table("daily_journal").select("*").eq(
+    result = await db.table("daily_journal").select("*").eq(
         "user_id", user_id
     ).gte("date", start_date.isoformat()).lte(
         "date", today.isoformat()
@@ -1134,7 +1134,7 @@ async def close_day_and_generate_note(
     today = date.today()
 
     # Get today's journal
-    result = db.table("daily_journal").select("*").eq(
+    result = await db.table("daily_journal").select("*").eq(
         "user_id", user_id
     ).eq("date", today.isoformat()).execute()
 
@@ -1232,7 +1232,7 @@ async def close_day_and_generate_note(
             "is_archived": False,
         }
 
-        note_result = db.table("contents").insert(new_note).execute()
+        note_result = await db.table("contents").insert(new_note).execute()
 
         if not note_result.data:
             raise HTTPException(status_code=500, detail="Failed to create note")
@@ -1240,7 +1240,7 @@ async def close_day_and_generate_note(
         note_id = note_result.data[0]['id']
 
         # Update journal with the note reference, AI summary, and mark as completed
-        db.table("daily_journal").update({
+        await db.table("daily_journal").update({
             "generated_note_id": note_id,
             "ai_summary": note_content,
             "is_evening_completed": True,

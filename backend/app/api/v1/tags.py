@@ -51,7 +51,7 @@ async def list_taxonomy_tags(
     if taxonomy_value:
         query = query.eq("taxonomy_value", taxonomy_value)
 
-    result = query.order("created_at", desc=True).execute()
+    result = await query.order("created_at", desc=True).execute()
 
     tags = []
     for row in result.data:
@@ -83,7 +83,7 @@ async def create_taxonomy_tag(
         )
 
     # Check if already exists
-    existing = db.table("taxonomy_tags").select("id").eq(
+    existing = await db.table("taxonomy_tags").select("id").eq(
         "user_id", current_user["id"]
     ).eq(
         "taxonomy_type", data.taxonomy_type
@@ -100,7 +100,7 @@ async def create_taxonomy_tag(
         )
 
     # Create the tag rule
-    result = db.table("taxonomy_tags").insert({
+    result = await db.table("taxonomy_tags").insert({
         "user_id": current_user["id"],
         "taxonomy_type": data.taxonomy_type,
         "taxonomy_value": data.taxonomy_value,
@@ -128,7 +128,7 @@ async def update_taxonomy_tag(
 ):
     """Update a taxonomy tag rule."""
     # Check ownership
-    existing = db.table("taxonomy_tags").select("*").eq(
+    existing = await db.table("taxonomy_tags").select("*").eq(
         "id", tag_id
     ).eq(
         "user_id", current_user["id"]
@@ -157,7 +157,7 @@ async def update_taxonomy_tag(
             created_at=str(existing.data[0]["created_at"]),
         )
 
-    result = db.table("taxonomy_tags").update(update_data).eq("id", tag_id).execute()
+    result = await db.table("taxonomy_tags").update(update_data).eq("id", tag_id).execute()
     row = result.data[0]
 
     return TaxonomyTagResponse(
@@ -178,7 +178,7 @@ async def delete_taxonomy_tag(
 ):
     """Delete a taxonomy tag rule."""
     # Check ownership
-    existing = db.table("taxonomy_tags").select("id").eq(
+    existing = await db.table("taxonomy_tags").select("id").eq(
         "id", tag_id
     ).eq(
         "user_id", current_user["id"]
@@ -190,7 +190,7 @@ async def delete_taxonomy_tag(
             detail="Tag rule not found"
         )
 
-    db.table("taxonomy_tags").delete().eq("id", tag_id).execute()
+    await db.table("taxonomy_tags").delete().eq("id", tag_id).execute()
 
 
 @router.get("/inherited/{content_id}")
@@ -201,7 +201,7 @@ async def get_inherited_tags_for_content(
 ):
     """Get all inherited tags for a specific content based on its taxonomy."""
     # Get content
-    content_result = db.table("contents").select(
+    content_result = await db.table("contents").select(
         "iab_tier1, iab_tier2, iab_tier3, concepts, entities"
     ).eq("id", content_id).eq("user_id", current_user["id"]).execute()
 
@@ -216,7 +216,7 @@ async def get_inherited_tags_for_content(
     tag_sources = []  # Track where each tag comes from
 
     # Get all taxonomy tags for this user
-    tags_result = db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).execute()
+    tags_result = await db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).execute()
     taxonomy_tags = tags_result.data
 
     for tt in taxonomy_tags:
@@ -271,7 +271,7 @@ async def get_available_tags(
 ):
     """Get all available tags: user_tags + taxonomy_tags (inherited)."""
     # 1. Get unique user_tags from all contents
-    contents_result = db.table("contents").select("user_tags").eq("user_id", current_user["id"]).execute()
+    contents_result = await db.table("contents").select("user_tags").eq("user_id", current_user["id"]).execute()
     user_tags = set()
     for c in contents_result.data:
         for tag in (c.get("user_tags") or []):
@@ -279,7 +279,7 @@ async def get_available_tags(
                 user_tags.add(tag)
 
     # 2. Get taxonomy_tags (rules for inherited tags)
-    taxonomy_result = db.table("taxonomy_tags").select("tag, color").eq("user_id", current_user["id"]).execute()
+    taxonomy_result = await db.table("taxonomy_tags").select("tag, color").eq("user_id", current_user["id"]).execute()
     inherited_tags_dict = {}
     for t in taxonomy_result.data:
         tag_name = t.get("tag")
@@ -311,7 +311,7 @@ async def get_taxonomy_values(
 
     if taxonomy_type == "category":
         # Get unique IAB categories
-        result = db.table("contents").select(
+        result = await db.table("contents").select(
             "iab_tier1, iab_tier2, iab_tier3"
         ).eq("user_id", current_user["id"]).execute()
 
@@ -325,7 +325,7 @@ async def get_taxonomy_values(
 
     elif taxonomy_type == "concept":
         # Get unique concepts
-        result = db.table("contents").select("concepts").eq("user_id", current_user["id"]).execute()
+        result = await db.table("contents").select("concepts").eq("user_id", current_user["id"]).execute()
         for row in result.data:
             concepts = row.get("concepts") or []
             for c in concepts:
@@ -334,7 +334,7 @@ async def get_taxonomy_values(
     else:
         # Get entities (person, organization, product)
         entity_key = taxonomy_type + "s"  # person -> persons
-        result = db.table("contents").select("entities").eq("user_id", current_user["id"]).execute()
+        result = await db.table("contents").select("entities").eq("user_id", current_user["id"]).execute()
         for row in result.data:
             entities = row.get("entities") or {}
             entity_list = entities.get(entity_key) or []

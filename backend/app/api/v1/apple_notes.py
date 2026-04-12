@@ -195,7 +195,7 @@ async def _import_single_note(
 
         # Check for duplicate by title + folder combination
         # This allows same title in different folders
-        existing = db.table("contents").select("id").eq(
+        existing = await db.table("contents").select("id").eq(
             "user_id", user_id
         ).eq("type", "note").eq("title", note.name).execute()
 
@@ -203,7 +203,7 @@ async def _import_single_note(
         if existing.data:
             for ex in existing.data:
                 # Get the existing note's metadata to check folder
-                ex_full = db.table("contents").select("metadata").eq("id", ex["id"]).single().execute()
+                ex_full = await db.table("contents").select("metadata").eq("id", ex["id"]).single().execute()
                 if ex_full.data:
                     ex_folder = ex_full.data.get("metadata", {}).get("apple_notes_folder")
                     if ex_folder == note.folder:
@@ -254,7 +254,7 @@ async def _import_single_note(
         }
 
         print(f"[IMPORT] Inserting note: {note.name} from folder {note.folder}")
-        response = db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
         print(f"[IMPORT] Response data: {response.data}")
         print(f"[IMPORT] Response count: {getattr(response, 'count', 'N/A')}")
 

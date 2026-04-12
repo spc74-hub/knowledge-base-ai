@@ -234,13 +234,13 @@ async def list_contents(
         query = query.range(offset, offset + per_page - 1)
 
         # Execute
-        response = query.execute()
+        response = await query.execute()
 
         # Get total count
         count_query = db.table("contents").select("id", count="exact").eq("user_id", current_user["id"])
         if not archived:
             count_query = count_query.eq("is_archived", False)
-        count_response = count_query.execute()
+        count_response = await count_query.execute()
         total = count_response.count or 0
 
         return {
@@ -269,17 +269,17 @@ async def get_stats(current_user: CurrentUser, db: Database):
         user_id = current_user["id"]
 
         # Total contents
-        total = db.table("contents").select("id", count="exact").eq("user_id", user_id).execute()
+        total = await db.table("contents").select("id", count="exact").eq("user_id", user_id).execute()
 
         # By type
         type_stats = {}
         for content_type in ["web", "youtube", "tiktok", "twitter"]:
-            count = db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("type", content_type).execute()
+            count = await db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("type", content_type).execute()
             type_stats[content_type] = count.count or 0
 
         # Favorites and archived
-        favorites = db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("is_favorite", True).execute()
-        archived = db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("is_archived", True).execute()
+        favorites = await db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("is_favorite", True).execute()
+        archived = await db.table("contents").select("id", count="exact").eq("user_id", user_id).eq("is_archived", True).execute()
 
         return {
             "total_contents": total.count or 0,
@@ -304,7 +304,7 @@ async def get_content(content_id: str, current_user: CurrentUser, db: Database):
     Get a specific content by ID.
     """
     try:
-        response = db.table("contents").select("*").eq("id", content_id).eq("user_id", current_user["id"]).single().execute()
+        response = await db.table("contents").select("*").eq("id", content_id).eq("user_id", current_user["id"]).single().execute()
 
         if not response.data:
             raise HTTPException(
@@ -337,7 +337,7 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
         user_id = current_user["id"]
 
         # Check if normalized URL already exists for user
-        existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
+        existing = await db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
 
         if existing.data:
             raise HTTPException(
@@ -450,7 +450,7 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
                 "description": fetch_result.description
             }
 
-        response = db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
 
         if not response.data:
             raise HTTPException(
@@ -481,7 +481,7 @@ async def update_content(
     """
     try:
         # Check ownership
-        existing = db.table("contents").select("id").eq("id", content_id).eq("user_id", current_user["id"]).execute()
+        existing = await db.table("contents").select("id").eq("id", content_id).eq("user_id", current_user["id"]).execute()
 
         if not existing.data:
             raise HTTPException(
@@ -498,7 +498,7 @@ async def update_content(
                 detail="No fields to update"
             )
 
-        response = db.table("contents").update(update_data).eq("id", content_id).execute()
+        response = await db.table("contents").update(update_data).eq("id", content_id).execute()
 
         return response.data[0]
 
@@ -518,7 +518,7 @@ async def delete_content(content_id: str, current_user: CurrentUser, db: Databas
     """
     try:
         # Check ownership
-        existing = db.table("contents").select("id").eq("id", content_id).eq("user_id", current_user["id"]).execute()
+        existing = await db.table("contents").select("id").eq("id", content_id).eq("user_id", current_user["id"]).execute()
 
         if not existing.data:
             raise HTTPException(
@@ -526,7 +526,7 @@ async def delete_content(content_id: str, current_user: CurrentUser, db: Databas
                 detail="Content not found"
             )
 
-        db.table("contents").delete().eq("id", content_id).execute()
+        await db.table("contents").delete().eq("id", content_id).execute()
 
         return {"message": "Content deleted successfully"}
 
@@ -550,7 +550,7 @@ async def toggle_content_favorite(
     """
     try:
         # Check ownership and get current status
-        existing = db.table("contents").select("id, is_favorite").eq(
+        existing = await db.table("contents").select("id, is_favorite").eq(
             "id", content_id
         ).eq("user_id", current_user["id"]).execute()
 
@@ -563,7 +563,7 @@ async def toggle_content_favorite(
         current_favorite = existing.data[0].get("is_favorite", False)
         new_favorite = not current_favorite
 
-        db.table("contents").update({
+        await db.table("contents").update({
             "is_favorite": new_favorite
         }).eq("id", content_id).execute()
 
@@ -608,7 +608,7 @@ async def bulk_archive_contents(
             )
 
         # Update all contents that belong to the user
-        response = db.table("contents")\
+        response = await db.table("contents")\
             .update({"is_archived": True})\
             .eq("user_id", current_user["id"])\
             .in_("id", data.content_ids)\
@@ -648,7 +648,7 @@ async def bulk_unarchive_contents(
             )
 
         # Update all contents that belong to the user
-        response = db.table("contents")\
+        response = await db.table("contents")\
             .update({"is_archived": False})\
             .eq("user_id", current_user["id"])\
             .in_("id", data.content_ids)\
@@ -688,7 +688,7 @@ async def bulk_delete_contents(
             )
 
         # First count how many will be deleted (for accurate count)
-        count_response = db.table("contents")\
+        count_response = await db.table("contents")\
             .select("id", count="exact")\
             .eq("user_id", current_user["id"])\
             .in_("id", data.content_ids)\
@@ -697,7 +697,7 @@ async def bulk_delete_contents(
         affected_count = count_response.count or 0
 
         # Delete all contents that belong to the user
-        db.table("contents")\
+        await db.table("contents")\
             .delete()\
             .eq("user_id", current_user["id"])\
             .in_("id", data.content_ids)\
@@ -733,7 +733,7 @@ async def reprocess_content(
 
     try:
         # Check ownership
-        existing = db.table("contents").select("id, processing_status").eq("id", content_id).eq("user_id", current_user["id"]).execute()
+        existing = await db.table("contents").select("id, processing_status").eq("id", content_id).eq("user_id", current_user["id"]).execute()
 
         if not existing.data:
             raise HTTPException(
@@ -762,7 +762,7 @@ async def reprocess_content(
             }
         else:
             # Just queue for later processing
-            db.table("contents").update({"processing_status": "pending"}).eq("id", content_id).execute()
+            await db.table("contents").update({"processing_status": "pending"}).eq("id", content_id).execute()
             return {
                 "message": "Content queued for reprocessing",
                 "success": True
@@ -818,7 +818,7 @@ async def bulk_import_urls(
         async with semaphore:
             try:
                 # Check if normalized URL already exists
-                existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
+                existing = await db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
 
                 if existing.data:
                     return BulkImportResult(
@@ -879,7 +879,7 @@ async def bulk_import_urls(
                     "description": fetch_result.description
                 }
 
-                response = db.table("contents").insert(content_data).execute()
+                response = await db.table("contents").insert(content_data).execute()
 
                 if response.data:
                     return BulkImportResult(
@@ -983,7 +983,7 @@ async def queue_urls_for_import(
 
         try:
             # Check if already exists by normalized URL
-            existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
+            existing = await db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
 
             if existing.data:
                 details.append({"url": raw_url, "status": "duplicate"})
@@ -993,7 +993,7 @@ async def queue_urls_for_import(
             # Also check by content_id if available (e.g., TikTok video ID)
             if content_info.get("content_id"):
                 # Search for same content ID in URL (covers different URL formats for same video)
-                existing_by_id = db.table("contents").select("id, url").eq("user_id", user_id).like("url", f"%{content_info['content_id']}%").execute()
+                existing_by_id = await db.table("contents").select("id, url").eq("user_id", user_id).like("url", f"%{content_info['content_id']}%").execute()
                 if existing_by_id.data:
                     details.append({"url": raw_url, "status": "duplicate", "existing_url": existing_by_id.data[0]["url"]})
                     duplicates += 1
@@ -1015,7 +1015,7 @@ async def queue_urls_for_import(
                 "metadata": {"original_url": raw_url}
             }
 
-            response = db.table("contents").insert(content_data).execute()
+            response = await db.table("contents").insert(content_data).execute()
 
             if response.data:
                 details.append({"url": raw_url, "status": "queued", "content_id": response.data[0]["id"]})
@@ -1165,7 +1165,7 @@ async def import_from_csv(
 
         try:
             # Check duplicate
-            existing = db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
+            existing = await db.table("contents").select("id").eq("user_id", user_id).eq("url", url_str).execute()
 
             if existing.data:
                 results["duplicates"] += 1
@@ -1187,7 +1187,7 @@ async def import_from_csv(
                 "metadata": {"original_url": raw_url, "source": "csv_import"}
             }
 
-            db.table("contents").insert(content_data).execute()
+            await db.table("contents").insert(content_data).execute()
             results["queued"] += 1
 
         except Exception:
@@ -1241,7 +1241,7 @@ async def create_note(data: NoteCreate, current_user: CurrentUser, db: Database)
             "embedding": None
         }
 
-        response = db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
 
         if not response.data:
             raise HTTPException(
@@ -1274,7 +1274,7 @@ async def update_note(
         user_id = current_user["id"]
 
         # Check ownership and get existing note
-        existing = db.table("contents").select("*").eq("id", content_id).eq("user_id", user_id).eq("type", "note").single().execute()
+        existing = await db.table("contents").select("*").eq("id", content_id).eq("user_id", user_id).eq("type", "note").single().execute()
 
         if not existing.data:
             raise HTTPException(
@@ -1329,7 +1329,7 @@ async def update_note(
             # Only tags/priority changed, no AI reprocessing needed
             update_data = {"user_tags": new_tags, "priority": new_priority}
 
-        response = db.table("contents").update(update_data).eq("id", content_id).execute()
+        response = await db.table("contents").update(update_data).eq("id", content_id).execute()
 
         return response.data[0]
 
@@ -1376,7 +1376,7 @@ async def update_maturity_level(
             )
 
         # Check ownership
-        existing = db.table("contents").select("id, maturity_level").eq(
+        existing = await db.table("contents").select("id, maturity_level").eq(
             "id", content_id
         ).eq(
             "user_id", current_user["id"]
@@ -1391,7 +1391,7 @@ async def update_maturity_level(
         from datetime import datetime, timezone
 
         # Update maturity level and last_reviewed_at
-        response = db.table("contents").update({
+        response = await db.table("contents").update({
             "maturity_level": data.maturity_level,
             "last_reviewed_at": datetime.now(timezone.utc).isoformat()
         }).eq("id", content_id).execute()
@@ -1424,7 +1424,7 @@ async def get_maturity_stats(
         user_id = current_user["id"]
 
         # Get all non-archived contents with their maturity level
-        response = db.table("contents").select(
+        response = await db.table("contents").select(
             "maturity_level"
         ).eq("user_id", user_id).eq("is_archived", False).execute()
 
@@ -1484,7 +1484,7 @@ async def bulk_update_maturity(
         updated = 0
         for content_id in content_ids:
             try:
-                result = db.table("contents").update({
+                result = await db.table("contents").update({
                     "maturity_level": maturity_level,
                     "last_reviewed_at": datetime.now(timezone.utc).isoformat()
                 }).eq("id", content_id).eq("user_id", current_user["id"]).execute()
@@ -1534,7 +1534,7 @@ async def get_facets(
 
     try:
         # Get all non-archived contents with minimal fields for counting
-        response = db.table("contents").select(
+        response = await db.table("contents").select(
             "type, iab_tier1, iab_tier2, schema_type, maturity_level, "
             "processing_status, is_favorite, is_archived, project_id"
         ).eq("user_id", user_id).execute()

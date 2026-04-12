@@ -121,7 +121,7 @@ async def upload_files(
 
             # Insert into database
             try:
-                response = db.table("contents").insert(content_data).execute()
+                response = await db.table("contents").insert(content_data).execute()
 
                 if response.data:
                     results.append(FileUploadResult(

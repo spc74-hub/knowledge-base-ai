@@ -3,8 +3,7 @@ API Usage tracking service.
 Tracks token consumption and costs for OpenAI and Anthropic APIs.
 """
 from typing import Optional
-from datetime import datetime
-from supabase import Client
+from datetime import datetime, timezone
 
 # Pricing per 1M tokens (as of 2024-2025)
 PRICING = {
@@ -40,10 +39,10 @@ class UsageTracker:
     """Service for tracking API usage and costs."""
 
     def __init__(self):
-        self._db: Optional[Client] = None
+        self._db = None
 
-    def set_db(self, db: Client):
-        """Set database client."""
+    def set_db(self, db):
+        """Set database client (CompatDB instance)."""
         self._db = db
 
     async def track_usage(
@@ -76,7 +75,7 @@ class UsageTracker:
             total_tokens = input_tokens + output_tokens
             cost_usd = calculate_cost(provider, model, input_tokens, output_tokens)
 
-            self._db.table("api_usage").insert({
+            await self._db.table("api_usage").insert({
                 "user_id": user_id,
                 "provider": provider,
                 "model": model,
@@ -86,12 +85,12 @@ class UsageTracker:
                 "total_tokens": total_tokens,
                 "cost_usd": cost_usd,
                 "metadata": metadata or {}
-            }).execute()
+            }).execute()  # noqa: await in insert
         except Exception as e:
             # Don't fail the main operation if tracking fails
             print(f"Error tracking API usage: {e}")
 
-    async def get_usage_stats(self, user_id: str, db: Client, days: int = 30) -> dict:
+    async def get_usage_stats(self, user_id: str, db, days: int = 30) -> dict:
         """
         Get usage statistics for a user.
 
@@ -105,10 +104,10 @@ class UsageTracker:
         """
         try:
             from datetime import timedelta
-            cutoff_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
+            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
             # Get all usage records
-            response = db.table("api_usage").select("*").eq(
+            response = await db.table("api_usage").select("*").eq(
                 "user_id", user_id
             ).gte("created_at", cutoff_date).execute()
 

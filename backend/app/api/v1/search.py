@@ -96,7 +96,7 @@ async def search_text(
 
         query = query.limit(limit)
 
-        response = query.execute()
+        response = await query.execute()
 
         # Calculate relevance scores (simple implementation)
         results = []
@@ -252,7 +252,7 @@ async def get_suggestions(
     """
     try:
         # Search in titles for suggestions
-        response = db.table("contents").select("title").eq("user_id", current_user["id"]).neq("is_archived", True).ilike("title", f"%{q}%").limit(limit).execute()
+        response = await db.table("contents").select("title").eq("user_id", current_user["id"]).neq("is_archived", True).ilike("title", f"%{q}%").limit(limit).execute()
 
         suggestions = [item["title"] for item in response.data if item.get("title")]
 
@@ -261,7 +261,7 @@ async def get_suggestions(
         offset = 0
         batch_size = 1000
         while True:
-            tag_response = db.table("contents").select("user_tags, concepts").eq("user_id", current_user["id"]).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
+            tag_response = await db.table("contents").select("user_tags, concepts").eq("user_id", current_user["id"]).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
             if not tag_response.data:
                 break
             for item in tag_response.data:
@@ -342,7 +342,7 @@ async def search_global(
             return phrase in text.lower()
 
         # Get all user contents with searchable fields (include raw_content for deeper search)
-        response = db.table("contents").select(
+        response = await db.table("contents").select(
             "id, title, summary, raw_content, url, type, iab_tier1, iab_tier2, iab_tier3, concepts, entities, "
             "schema_type, content_format, technical_level, language, sentiment, "
             "reading_time_minutes, processing_status, is_favorite, metadata, user_tags, created_at"
@@ -675,7 +675,7 @@ async def get_facets(
         offset = 0
         batch_size = 1000
         while True:
-            batch_response = db.table("contents").select(
+            batch_response = await db.table("contents").select(
                 "type, metadata, iab_tier1, user_category, concepts, entities, user_tags"
             ).eq("user_id", user_id).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
 
@@ -847,7 +847,7 @@ async def get_dynamic_facets(
                         q = q.overlaps("concepts", data.concepts)
                     pattern = json_module.dumps([{"name": org}])
                     q = q.filter("entities->organizations", "cs", pattern)
-                    resp = q.execute()
+                    resp = await q.execute()
                     all_ids.update(item["id"] for item in resp.data or [])
 
             if data.products:
@@ -861,7 +861,7 @@ async def get_dynamic_facets(
                         q = q.overlaps("concepts", data.concepts)
                     pattern = json_module.dumps([{"name": prod}])
                     q = q.filter("entities->products", "cs", pattern)
-                    resp = q.execute()
+                    resp = await q.execute()
                     all_ids.update(item["id"] for item in resp.data or [])
 
             if data.persons:
@@ -875,11 +875,11 @@ async def get_dynamic_facets(
                         q = q.overlaps("concepts", data.concepts)
                     pattern = json_module.dumps([{"name": person}])
                     q = q.filter("entities->persons", "cs", pattern)
-                    resp = q.execute()
+                    resp = await q.execute()
                     all_ids.update(item["id"] for item in resp.data or [])
 
             if all_ids:
-                response = db.table("contents").select(
+                response = await db.table("contents").select(
                     "type, iab_tier1, concepts, entities, metadata"
                 ).in_("id", list(all_ids)).neq("is_archived", True).execute()
                 items = response.data or []
@@ -900,7 +900,7 @@ async def get_dynamic_facets(
             if data.concepts:
                 query = query.overlaps("concepts", data.concepts)
 
-            response = query.execute()
+            response = await query.execute()
             items = response.data or []
 
         return _aggregate_facets(items)
@@ -1102,8 +1102,8 @@ async def search_faceted(
         logger.info(f"Faceted search request: user={current_user['id']}, data={data}")
 
         # Quick test: count all contents for this user
-        test_count_all = db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).execute()
-        test_count_false = db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).neq("is_archived", True).execute()
+        test_count_all = await db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).execute()
+        test_count_false = await db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).neq("is_archived", True).execute()
         logger.info(f"Total contents: {test_count_all.count if test_count_all else 'N/A'}, non-archived (is_archived=false): {test_count_false.count if test_count_false else 'N/A'}")
 
         # Check if we need entity filtering (requires separate queries for OR logic)
@@ -1162,7 +1162,7 @@ async def search_faceted(
                     # Use filter with 'cs' (contains) for JSONB array matching
                     pattern = json_module.dumps([{"name": org}])
                     q = q.filter("entities->organizations", "cs", pattern)
-                    resp = q.execute()
+                    resp = await q.execute()
                     all_ids.update(item["id"] for item in resp.data or [])
 
             if data.products:
@@ -1178,7 +1178,7 @@ async def search_faceted(
                     q, _ = apply_sql_filters(q, data)
                     pattern = json_module.dumps([{"name": prod}])
                     q = q.filter("entities->products", "cs", pattern)
-                    resp = q.execute()
+                    resp = await q.execute()
                     all_ids.update(item["id"] for item in resp.data or [])
 
             if data.persons:
@@ -1195,7 +1195,7 @@ async def search_faceted(
                     q1, _ = apply_sql_filters(q1, data)
                     pattern = json_module.dumps([{"name": person}])
                     q1 = q1.filter("entities->persons", "cs", pattern)
-                    resp1 = q1.execute()
+                    resp1 = await q1.execute()
                     all_ids.update(item["id"] for item in resp1.data or [])
 
                     # Also search in user entities (user_entities->persons)
@@ -1210,14 +1210,14 @@ async def search_faceted(
                     q2, _ = apply_sql_filters(q2, data)
                     # user_entities stores persons as simple strings array
                     q2 = q2.contains("user_entities", {"persons": [person]})
-                    resp2 = q2.execute()
+                    resp2 = await q2.execute()
                     all_ids.update(item["id"] for item in resp2.data or [])
 
             # If we have matching IDs, fetch full content
             if all_ids:
                 query = db.table("contents").select(FACETED_SEARCH_FIELDS).in_("id", list(all_ids)).neq("is_archived", True)
                 query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                response = query.range(data.offset, data.offset + data.limit - 1).execute()
+                response = await query.range(data.offset, data.offset + data.limit - 1).execute()
                 results = response.data or []
             else:
                 results = []
@@ -1258,8 +1258,8 @@ async def search_faceted(
 
                     query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
                     query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
-                    resp1 = query1.execute()
-                    resp2 = query2.execute()
+                    resp1 = await query1.execute()
+                    resp2 = await query2.execute()
 
                     # Combine and dedupe
                     seen_ids = set()
@@ -1283,7 +1283,7 @@ async def search_faceted(
                     # Apply SQL filters for maturity_level, processing_status, etc.
                     query, _ = apply_sql_filters(query, data)
                     query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                    response = query.range(data.offset, data.offset + data.limit - 1).execute()
+                    response = await query.range(data.offset, data.offset + data.limit - 1).execute()
                     results = response.data or []
                 else:
                     # No apple_notes in filter - need to handle "note" type specially
@@ -1313,8 +1313,8 @@ async def search_faceted(
 
                         query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
                         query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
-                        resp1 = query1.execute()
-                        resp2 = query2.execute()
+                        resp1 = await query1.execute()
+                        resp2 = await query2.execute()
 
                         # Combine and dedupe
                         seen_ids = set()
@@ -1338,7 +1338,7 @@ async def search_faceted(
                         # Apply SQL filters for maturity_level, processing_status, etc.
                         query, _ = apply_sql_filters(query, data)
                         query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                        response = query.range(data.offset, data.offset + data.limit - 1).execute()
+                        response = await query.range(data.offset, data.offset + data.limit - 1).execute()
                         results = response.data or []
                     else:
                         # No note type, use standard in_ filter
@@ -1350,7 +1350,7 @@ async def search_faceted(
                         # Apply SQL filters for maturity_level, processing_status, etc.
                         query, _ = apply_sql_filters(query, data)
                         query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                        response = query.range(data.offset, data.offset + data.limit - 1).execute()
+                        response = await query.range(data.offset, data.offset + data.limit - 1).execute()
                         results = response.data or []
             else:
                 # CORRECTED OPTION A: user_category REPLACES iab_tier1 for filtering
@@ -1380,8 +1380,8 @@ async def search_faceted(
 
                     query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
                     query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
-                    resp1 = query1.execute()
-                    resp2 = query2.execute()
+                    resp1 = await query1.execute()
+                    resp2 = await query2.execute()
 
                     # Merge and deduplicate
                     seen_ids = set()
@@ -1413,7 +1413,7 @@ async def search_faceted(
 
                     # Apply inherited_tags filter
                     if data.inherited_tags:
-                        taxonomy_result = db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
+                        taxonomy_result = await db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
                         taxonomy_rules = taxonomy_result.data or []
 
                         def content_matches_inherited_tag(content: dict) -> bool:
@@ -1496,7 +1496,7 @@ async def search_faceted(
                 logger.info(f"Executing standard query: offset={data.offset}, limit={data.limit}, sort_by={data.sort_by}, sort_order={data.sort_order}")
                 try:
                     query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                    response = query.range(data.offset, data.offset + data.limit - 1).execute()
+                    response = await query.range(data.offset, data.offset + data.limit - 1).execute()
                     results = response.data or []
                     logger.info(f"Standard query returned {len(results)} results")
                     if hasattr(response, 'error') and response.error:
@@ -1526,7 +1526,7 @@ async def search_faceted(
         # Filter by inherited_tags (requires checking taxonomy rules - complex logic)
         if data.inherited_tags:
             # Get taxonomy_tags rules for current user
-            taxonomy_result = db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
+            taxonomy_result = await db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
             taxonomy_rules = taxonomy_result.data or []
 
             def content_matches_inherited_tag(content: dict) -> bool:
@@ -1632,7 +1632,7 @@ async def get_knowledge_graph(
     """
     try:
         # Get all contents with entities
-        response = db.table("contents").select(
+        response = await db.table("contents").select(
             "id, title, entities, concepts, user_tags, iab_tier1, iab_tier2, iab_tier3"
         ).eq("user_id", current_user["id"]).neq("is_archived", True).execute()
 
@@ -1647,7 +1647,7 @@ async def get_knowledge_graph(
 
         # Filter by inherited_tags if provided
         if data.inherited_tags:
-            taxonomy_result = db.table("taxonomy_tags").select("*").eq(
+            taxonomy_result = await db.table("taxonomy_tags").select("*").eq(
                 "user_id", current_user["id"]
             ).in_("tag", data.inherited_tags).execute()
             taxonomy_rules = taxonomy_result.data or []

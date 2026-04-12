@@ -1,52 +1,84 @@
 """
 FastAPI main application entry point.
+Migrated from Supabase to self-hosted PostgreSQL with SQLAlchemy.
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import content, chat, search, usage, folders, apple_notes, quick_save, process, taxonomy, tags, system_notes, projects, standalone_notes, mental_models, objectives, dashboard, files, google_drive, user_experts, podcasts, api_keys, areas, habits, daily_journal, actions
+from app.api.v1 import (
+    auth, content, chat, search, usage, folders, apple_notes, quick_save,
+    process, taxonomy, tags, system_notes, projects, standalone_notes,
+    mental_models, objectives, dashboard, files, google_drive, user_experts,
+    podcasts, api_keys, areas, habits, daily_journal, actions,
+)
 from app.services.batch_processor import batch_processor
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle events."""
-    # Startup: Start the batch processor in background (non-blocking)
     import asyncio
+    from app.db.session import engine
+    from app.models.base import Base
 
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Seed default user if none exists
+    await _seed_default_user()
+
+    # Start batch processor after a delay
     async def delayed_start():
-        """Start batch processor after a delay to not block startup."""
-        await asyncio.sleep(5)  # Wait 5 seconds after app is ready
+        await asyncio.sleep(5)
         try:
             await batch_processor.start(interval_seconds=900)
         except Exception as e:
             print(f"Warning: Failed to start batch processor: {e}")
 
-    # Start in background - don't await
     asyncio.create_task(delayed_start())
     print("Application startup complete")
 
     yield
 
-    # Shutdown: Stop the batch processor
+    # Shutdown
     try:
         await batch_processor.stop()
     except Exception as e:
         print(f"Warning: Error stopping batch processor: {e}")
 
+    await engine.dispose()
+
+
+async def _seed_default_user():
+    """Create default user if the users table is empty."""
+    from app.db.session import AsyncSessionLocal
+    from app.db.compat import CompatDB
+
+    async with AsyncSessionLocal() as session:
+        db = CompatDB(session)
+        result = await db.table("users").select("id").limit(1).execute()
+        if not result.data:
+            import bcrypt
+            password_hash = bcrypt.hashpw("changeme".encode(), bcrypt.gensalt()).decode()
+            await db.table("users").insert({
+                "email": "sergio.porcar@gmail.com",
+                "password_hash": password_hash,
+                "name": "Sergio",
+            }).execute()
+            print("Default user created: sergio.porcar@gmail.com / changeme")
+
 
 app = FastAPI(
     title="Knowledge Base AI API",
     description="Personal knowledge base with AI-powered classification",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
-    # Disable automatic redirects for trailing slashes to avoid HTTP redirect issues
-    redirect_slashes=False
+    redirect_slashes=False,
 )
 
-# CORS - allow all origins for bookmarklet support
-# Note: allow_credentials must be False when using "*" for origins
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -57,6 +89,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(content.router, prefix="/api/v1/content", tags=["content"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
@@ -88,8 +121,9 @@ app.include_router(actions.router, prefix="/api/v1", tags=["actions"])
 async def root():
     return {
         "message": "Knowledge Base AI API",
-        "version": "0.1.0",
-        "status": "running"
+        "version": "0.2.0",
+        "status": "running",
+        "database": "self-hosted PostgreSQL",
     }
 
 

@@ -1,6 +1,6 @@
 """
 Database module.
 """
-from app.db.session import get_supabase_client
+from app.db.session import get_db, engine, AsyncSessionLocal
 
-__all__ = ["get_supabase_client"]
+__all__ = ["get_db", "engine", "AsyncSessionLocal"]

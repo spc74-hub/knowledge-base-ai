@@ -40,10 +40,19 @@ def invalidate_dashboard_cache(user_id: str):
         del _dashboard_cache[user_id]
 
 
-def safe_query(func):
-    """Execute a query safely, returning default on error."""
+async def safe_query(coro_or_func):
+    """Execute a query safely, returning default on error.
+    Accepts either a coroutine or a callable that returns a coroutine."""
     try:
-        result = func()
+        import asyncio
+        if asyncio.iscoroutine(coro_or_func):
+            result = await coro_or_func
+        elif callable(coro_or_func):
+            result = coro_or_func()
+            if asyncio.iscoroutine(result):
+                result = await result
+        else:
+            result = coro_or_func
         return result
     except Exception as e:
         logger.error(f"Dashboard query error: {e}", exc_info=True)
@@ -84,68 +93,68 @@ async def get_dashboard_summary(
 
     # Safe queries for all counts
     # Contents
-    contents_result = safe_query(lambda: db.table("contents").select(
+    contents_result = await safe_query(lambda: db.table("contents").select(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
 
-    pending_result = safe_query(lambda: db.table("contents").select(
+    pending_result = await safe_query(lambda: db.table("contents").select(
         "id", count="exact"
     ).eq("user_id", user_id).eq("processing_status", "pending").execute())
 
-    failed_result = safe_query(lambda: db.table("contents").select(
+    failed_result = await safe_query(lambda: db.table("contents").select(
         "id", count="exact"
     ).eq("user_id", user_id).eq("processing_status", "failed").execute())
 
     # Objectives
-    objectives_result = safe_query(lambda: db.table("objectives").select(
+    objectives_result = await safe_query(lambda: db.table("objectives").select(
         "id", count="exact"
     ).eq("user_id", user_id).eq("status", "active").execute())
 
-    objectives_total = safe_query(lambda: db.table("objectives").select(
+    objectives_total = await safe_query(lambda: db.table("objectives").select(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
 
     # Projects
-    projects_result = safe_query(lambda: db.table("projects").select(
+    projects_result = await safe_query(lambda: db.table("projects").select(
         "id", count="exact"
     ).eq("user_id", user_id).eq("status", "active").execute())
 
-    projects_total = safe_query(lambda: db.table("projects").select(
+    projects_total = await safe_query(lambda: db.table("projects").select(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
 
     # Mental Models
-    mental_models_result = safe_query(lambda: db.table("mental_models").select(
+    mental_models_result = await safe_query(lambda: db.table("mental_models").select(
         "id", count="exact"
     ).eq("user_id", user_id).eq("is_active", True).execute())
 
     # Notes (standalone/quick notes)
-    notes_result = safe_query(lambda: db.table("standalone_notes").select(
+    notes_result = await safe_query(lambda: db.table("standalone_notes").select(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
 
     # Full Notes (contents with type='note', excluding apple_notes)
-    full_notes_result = safe_query(lambda: db.table("contents").select(
+    full_notes_result = await safe_query(lambda: db.table("contents").select(
         "id", count="exact"
     ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").execute())
 
     # Tags
-    tags_result = safe_query(lambda: db.table("taxonomy_tags").select(
+    tags_result = await safe_query(lambda: db.table("taxonomy_tags").select(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
 
     # Folders
-    folders_result = safe_query(lambda: db.table("folders").select(
+    folders_result = await safe_query(lambda: db.table("folders").select(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
 
     # Areas of Responsibility
-    areas_result = safe_query(lambda: db.table("areas_of_responsibility").select(
+    areas_result = await safe_query(lambda: db.table("areas_of_responsibility").select(
         "id", count="exact"
     ).eq("user_id", user_id).eq("status", "active").execute())
 
     # Habits (active)
-    habits_result = safe_query(lambda: db.table("habits").select(
+    habits_result = await safe_query(lambda: db.table("habits").select(
         "id", count="exact"
     ).eq("user_id", user_id).eq("is_active", True).execute())
 
@@ -153,42 +162,42 @@ async def get_dashboard_summary(
     from datetime import datetime, timedelta
     thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
 
-    usage_result = safe_query(lambda: db.table("api_usage").select(
+    usage_result = await safe_query(lambda: db.table("api_usage").select(
         "total_cost"
     ).eq("user_id", user_id).gte("created_at", thirty_days_ago).execute())
 
     total_cost = sum(u.get("total_cost", 0) or 0 for u in safe_data(usage_result))
 
     # Recent items for default view (last 5 of each)
-    recent_contents = safe_query(lambda: db.table("contents").select(
+    recent_contents = await safe_query(lambda: db.table("contents").select(
         "id, title, type, url, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
-    recent_objectives = safe_query(lambda: db.table("objectives").select(
+    recent_objectives = await safe_query(lambda: db.table("objectives").select(
         "id, title, status, progress, icon, color, horizon"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
-    recent_projects = safe_query(lambda: db.table("projects").select(
+    recent_projects = await safe_query(lambda: db.table("projects").select(
         "id, name, status, color, icon"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
-    recent_mental_models = safe_query(lambda: db.table("mental_models").select(
+    recent_mental_models = await safe_query(lambda: db.table("mental_models").select(
         "id, name, slug, icon, color, is_active"
     ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(5).execute())
 
     # Simple notes (standalone_notes)
-    recent_standalone_notes = safe_query(lambda: db.table("standalone_notes").select(
+    recent_standalone_notes = await safe_query(lambda: db.table("standalone_notes").select(
         "id, title, note_type, is_pinned, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
     # System notes (quick notes from system_notes table)
-    recent_system_notes = safe_query(lambda: db.table("system_notes").select(
+    recent_system_notes = await safe_query(lambda: db.table("system_notes").select(
         "id, title, category, position, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(5).execute())
 
     # Full notes (contents with type='note')
     # Get all notes, then filter apple_notes in Python to avoid Supabase or_() issues
-    recent_full_notes_summary = safe_query(lambda: db.table("contents").select(
+    recent_full_notes_summary = await safe_query(lambda: db.table("contents").select(
         "id, title, is_favorite, created_at, metadata"
     ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).order("created_at", desc=True).limit(10).execute())
 
@@ -228,18 +237,18 @@ async def get_dashboard_summary(
     simple_notes_data = all_simple_notes[:5]
 
     # Areas of Responsibility (recent active)
-    recent_areas = safe_query(lambda: db.table("areas_of_responsibility").select(
+    recent_areas = await safe_query(lambda: db.table("areas_of_responsibility").select(
         "id, name, icon, color, status"
     ).eq("user_id", user_id).eq("status", "active").order("display_order").limit(5).execute())
 
     # Habits (active)
-    recent_habits = safe_query(lambda: db.table("habits").select(
+    recent_habits = await safe_query(lambda: db.table("habits").select(
         "id, name, icon, color, frequency_type, is_active"
     ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(5).execute())
 
     # Today's habit completions
     today = datetime.utcnow().date().isoformat()
-    today_logs = safe_query(lambda: db.table("habit_logs").select(
+    today_logs = await safe_query(lambda: db.table("habit_logs").select(
         "habit_id, status"
     ).eq("user_id", user_id).eq("date", today).execute())
 
@@ -322,12 +331,12 @@ async def get_object_summary(
 
     if object_type == "contents":
         logger.info(f"Fetching contents for user {user_id} with limit {limit}")
-        recent = safe_query(lambda: db.table("contents").select(
+        recent = await safe_query(lambda: db.table("contents").select(
             "id, title, type, url, is_favorite, created_at"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
         logger.info(f"Recent contents result: {recent is not None}, data count: {len(recent.data) if recent and recent.data else 0}")
 
-        favorites = safe_query(lambda: db.table("contents").select(
+        favorites = await safe_query(lambda: db.table("contents").select(
             "id, title, type, url, created_at"
         ).eq("user_id", user_id).eq("is_favorite", True).order("created_at", desc=True).limit(limit).execute())
 
@@ -340,15 +349,15 @@ async def get_object_summary(
         return result
 
     elif object_type == "objectives":
-        recent = safe_query(lambda: db.table("objectives").select(
+        recent = await safe_query(lambda: db.table("objectives").select(
             "id, title, status, progress, icon, color, horizon, target_date, is_favorite"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
-        active = safe_query(lambda: db.table("objectives").select(
+        active = await safe_query(lambda: db.table("objectives").select(
             "id, title, status, progress, icon, color, horizon, target_date, is_favorite"
         ).eq("user_id", user_id).eq("status", "active").order("position").limit(limit).execute())
 
-        favorites = safe_query(lambda: db.table("objectives").select(
+        favorites = await safe_query(lambda: db.table("objectives").select(
             "id, title, status, progress, icon, color, horizon, target_date, is_favorite"
         ).eq("user_id", user_id).eq("is_favorite", True).eq("status", "active").order("position").limit(limit).execute())
 
@@ -360,22 +369,22 @@ async def get_object_summary(
         }
 
     elif object_type == "projects":
-        recent = safe_query(lambda: db.table("projects").select(
+        recent = await safe_query(lambda: db.table("projects").select(
             "id, name, status, color, icon, description, is_favorite"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
-        active = safe_query(lambda: db.table("projects").select(
+        active = await safe_query(lambda: db.table("projects").select(
             "id, name, status, color, icon, description, is_favorite"
         ).eq("user_id", user_id).eq("status", "active").order("created_at", desc=True).limit(limit).execute())
 
-        favorites_query = safe_query(lambda: db.table("projects").select(
+        favorites_query = await safe_query(lambda: db.table("projects").select(
             "id, name, status, color, icon, description, is_favorite"
         ).eq("user_id", user_id).eq("is_favorite", True).eq("status", "active").order("created_at", desc=True).limit(limit).execute())
 
         # Get linked contents for each active project
         projects_with_contents = []
         for project in safe_data(active):
-            linked_contents = safe_query(lambda pid=project["id"]: db.table("contents").select(
+            linked_contents = await safe_query(lambda pid=project["id"]: db.table("contents").select(
                 "id, title, type, maturity_level"
             ).eq("project_id", pid).eq("is_archived", False).limit(5).execute())
             project["linked_contents"] = safe_data(linked_contents)
@@ -384,7 +393,7 @@ async def get_object_summary(
         # Get linked contents for favorite projects
         favorites_with_contents = []
         for project in safe_data(favorites_query):
-            linked_contents = safe_query(lambda pid=project["id"]: db.table("contents").select(
+            linked_contents = await safe_query(lambda pid=project["id"]: db.table("contents").select(
                 "id, title, type, maturity_level"
             ).eq("project_id", pid).eq("is_archived", False).limit(5).execute())
             project["linked_contents"] = safe_data(linked_contents)
@@ -398,24 +407,24 @@ async def get_object_summary(
         }
 
     elif object_type == "mental_models":
-        recent = safe_query(lambda: db.table("mental_models").select(
+        recent = await safe_query(lambda: db.table("mental_models").select(
             "id, name, slug, icon, color, description, is_active, is_favorite"
         ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(limit).execute())
 
-        favorites_query = safe_query(lambda: db.table("mental_models").select(
+        favorites_query = await safe_query(lambda: db.table("mental_models").select(
             "id, name, slug, icon, color, description, is_active, is_favorite"
         ).eq("user_id", user_id).eq("is_favorite", True).eq("is_active", True).order("created_at", desc=True).limit(limit).execute())
 
         # Helper function to get linked contents for a model
-        def get_model_with_contents(model):
-            associations = safe_query(lambda mid=model["id"]: db.table("content_mental_models").select(
+        async def get_model_with_contents(model):
+            associations = await safe_query(lambda mid=model["id"]: db.table("content_mental_models").select(
                 "content_id"
             ).eq("mental_model_id", mid).limit(5).execute())
 
             content_ids = [a["content_id"] for a in safe_data(associations)]
             linked_contents = []
             if content_ids:
-                contents_result = safe_query(lambda cids=content_ids: db.table("contents").select(
+                contents_result = await safe_query(lambda cids=content_ids: db.table("contents").select(
                     "id, title, type, maturity_level"
                 ).in_("id", cids).execute())
                 linked_contents = safe_data(contents_result)
@@ -424,10 +433,10 @@ async def get_object_summary(
             return model
 
         # Get linked contents for each active model
-        models_with_contents = [get_model_with_contents(model) for model in safe_data(recent)]
+        models_with_contents = [await get_model_with_contents(model) for model in safe_data(recent)]
 
         # Get linked contents for favorite models
-        favorites_with_contents = [get_model_with_contents(model) for model in safe_data(favorites_query)]
+        favorites_with_contents = [await get_model_with_contents(model) for model in safe_data(favorites_query)]
 
         return {
             "type": "mental_models",
@@ -438,27 +447,27 @@ async def get_object_summary(
 
     elif object_type == "notes":
         # Standalone notes (journal/reflections)
-        recent_standalone = safe_query(lambda: db.table("standalone_notes").select(
+        recent_standalone = await safe_query(lambda: db.table("standalone_notes").select(
             "id, title, note_type, is_pinned, created_at, updated_at"
         ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
 
-        pinned = safe_query(lambda: db.table("standalone_notes").select(
+        pinned = await safe_query(lambda: db.table("standalone_notes").select(
             "id, title, note_type, is_pinned, created_at, updated_at"
         ).eq("user_id", user_id).eq("is_pinned", True).order("created_at", desc=True).limit(limit).execute())
 
         # Full notes (contents with type='note' but NOT apple_notes)
         # Apple Notes have type='note' AND metadata.source='apple_notes'
         # Manual full notes have type='note' AND metadata.source != 'apple_notes' (or no source)
-        recent_full_notes = safe_query(lambda: db.table("contents").select(
+        recent_full_notes = await safe_query(lambda: db.table("contents").select(
             "id, title, is_favorite, created_at, updated_at"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").order("created_at", desc=True).limit(limit).execute())
 
-        full_notes_count = safe_query(lambda: db.table("contents").select(
+        full_notes_count = await safe_query(lambda: db.table("contents").select(
             "id", count="exact"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").execute())
 
         # Apple Notes count (contents with type='note' AND metadata.source='apple_notes')
-        apple_notes_count = safe_query(lambda: db.table("contents").select(
+        apple_notes_count = await safe_query(lambda: db.table("contents").select(
             "id", count="exact"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).filter("metadata->>source", "eq", "apple_notes").execute())
 
@@ -479,7 +488,7 @@ async def get_object_summary(
         note_types = ["reflection", "idea", "question", "connection", "journal", "action", "shopping"]
         by_type = {}
         for note_type in note_types:
-            count_result = safe_query(lambda nt=note_type: db.table("standalone_notes").select(
+            count_result = await safe_query(lambda nt=note_type: db.table("standalone_notes").select(
                 "id", count="exact"
             ).eq("user_id", user_id).eq("note_type", nt).execute())
             by_type[note_type] = safe_count(count_result)
@@ -489,7 +498,7 @@ async def get_object_summary(
         by_type["apple_notes"] = safe_count(apple_notes_count)
 
         # Total count (standalone + full notes, excluding apple notes for main total)
-        standalone_total = safe_query(lambda: db.table("standalone_notes").select(
+        standalone_total = await safe_query(lambda: db.table("standalone_notes").select(
             "id", count="exact"
         ).eq("user_id", user_id).execute())
 
@@ -522,11 +531,11 @@ async def get_object_summary(
 
     elif object_type == "full_notes":
         # Full notes (contents with type='note', excluding apple_notes)
-        recent = safe_query(lambda: db.table("contents").select(
+        recent = await safe_query(lambda: db.table("contents").select(
             "id, title, type, is_favorite, created_at, maturity_level"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").order("created_at", desc=True).limit(limit).execute())
 
-        favorites = safe_query(lambda: db.table("contents").select(
+        favorites = await safe_query(lambda: db.table("contents").select(
             "id, title, type, is_favorite, created_at, maturity_level"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).eq("is_favorite", True).neq("metadata->>source", "apple_notes").order("created_at", desc=True).limit(limit).execute())
 
@@ -537,7 +546,7 @@ async def get_object_summary(
         }
 
     elif object_type == "tags":
-        tags = safe_query(lambda: db.table("taxonomy_tags").select(
+        tags = await safe_query(lambda: db.table("taxonomy_tags").select(
             "id, tag, color, match_type, category, concept"
         ).eq("user_id", user_id).order("tag").limit(limit).execute())
 
@@ -548,11 +557,11 @@ async def get_object_summary(
 
     elif object_type == "areas":
         # Areas of Responsibility
-        active = safe_query(lambda: db.table("areas_of_responsibility").select(
+        active = await safe_query(lambda: db.table("areas_of_responsibility").select(
             "id, name, description, icon, color, status, display_order"
         ).eq("user_id", user_id).eq("status", "active").order("display_order").limit(limit).execute())
 
-        all_areas = safe_query(lambda: db.table("areas_of_responsibility").select(
+        all_areas = await safe_query(lambda: db.table("areas_of_responsibility").select(
             "id, name, description, icon, color, status, display_order"
         ).eq("user_id", user_id).order("display_order").limit(limit).execute())
 
@@ -560,17 +569,17 @@ async def get_object_summary(
         areas_with_counts = []
         for area in safe_data(active):
             # Count habits linked to this area
-            habits_count = safe_query(lambda aid=area["id"]: db.table("habits").select(
+            habits_count = await safe_query(lambda aid=area["id"]: db.table("habits").select(
                 "id", count="exact"
             ).eq("area_id", aid).eq("is_active", True).execute())
 
             # Count objectives linked to this area
-            objectives_count = safe_query(lambda aid=area["id"]: db.table("objectives").select(
+            objectives_count = await safe_query(lambda aid=area["id"]: db.table("objectives").select(
                 "id", count="exact"
             ).eq("area_id", aid).execute())
 
             # Count projects linked to this area
-            projects_count = safe_query(lambda aid=area["id"]: db.table("projects").select(
+            projects_count = await safe_query(lambda aid=area["id"]: db.table("projects").select(
                 "id", count="exact"
             ).eq("area_id", aid).execute())
 
@@ -589,13 +598,13 @@ async def get_object_summary(
         from datetime import datetime
 
         # Active habits
-        active = safe_query(lambda: db.table("habits").select(
+        active = await safe_query(lambda: db.table("habits").select(
             "id, name, description, icon, color, frequency_type, frequency_days, target_count, is_active, area_id"
         ).eq("user_id", user_id).eq("is_active", True).order("created_at", desc=True).limit(limit).execute())
 
         # Today's logs
         today = datetime.utcnow().date().isoformat()
-        today_logs = safe_query(lambda: db.table("habit_logs").select(
+        today_logs = await safe_query(lambda: db.table("habit_logs").select(
             "habit_id, status, value, notes"
         ).eq("user_id", user_id).eq("date", today).execute())
 

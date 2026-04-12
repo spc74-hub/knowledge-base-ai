@@ -105,7 +105,7 @@ class ChatService:
             print(f"[Entity Search] Looking for terms {query_terms} in entities...")
 
             # Fetch all user contents with entities
-            entity_response = db.table("contents").select(
+            entity_response = await db.table("contents").select(
                 "id, title, summary, url, type, iab_tier1, concepts, entities"
             ).eq("user_id", user_id).execute()
 

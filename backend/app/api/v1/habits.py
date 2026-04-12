@@ -237,13 +237,13 @@ async def get_habits(
 
         query = query.order("created_at", desc=False)
 
-        result = query.execute()
+        result = await query.execute()
         habits = result.data or []
 
         # Get today's logs for each habit
         today = date.today().isoformat()
         for habit in habits:
-            log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today).execute()
+            log = await db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today).execute()
             habit["today_log"] = log.data[0] if log.data else None
 
         return {"data": habits}
@@ -261,7 +261,7 @@ async def get_today_habits(db: Database, current_user: CurrentUser):
         today_str = today.isoformat()
 
         # Get active habits
-        habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
+        habits_result = await db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
 
         habits = []
         for habit_data in (habits_result.data or []):
@@ -270,7 +270,7 @@ async def get_today_habits(db: Database, current_user: CurrentUser):
                 # Create a copy to avoid modifying the original
                 habit = dict(habit_data)
                 # Get today's log
-                log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today_str).execute()
+                log = await db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today_str).execute()
                 habit["today_log"] = log.data[0] if log.data else None
                 habit["is_completed"] = bool(habit["today_log"] and habit["today_log"].get("status") == "completed")
                 habit["is_scheduled"] = True
@@ -298,7 +298,7 @@ async def get_all_habits_for_today(db: Database, current_user: CurrentUser):
         today_str = today.isoformat()
 
         # Get all active habits
-        habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
+        habits_result = await db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
 
         habits = []
         for habit_data in (habits_result.data or []):
@@ -309,7 +309,7 @@ async def get_all_habits_for_today(db: Database, current_user: CurrentUser):
             is_scheduled = is_habit_scheduled_for_date(habit, today)
 
             # Get today's log
-            log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today_str).execute()
+            log = await db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", today_str).execute()
             habit["today_log"] = log.data[0] if log.data else None
             habit["is_completed"] = bool(habit["today_log"] and habit["today_log"].get("status") == "completed")
             habit["is_scheduled"] = is_scheduled
@@ -354,7 +354,7 @@ async def get_habits_for_date(target_date: str, db: Database, current_user: Curr
         date_str = check_date.isoformat()
 
         # Get all active habits
-        habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
+        habits_result = await db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
 
         habits = []
         for habit_data in (habits_result.data or []):
@@ -365,7 +365,7 @@ async def get_habits_for_date(target_date: str, db: Database, current_user: Curr
             is_scheduled = is_habit_scheduled_for_date(habit, check_date)
 
             # Get log for the date
-            log = db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", date_str).execute()
+            log = await db.table("habit_logs").select("*").eq("habit_id", habit["id"]).eq("date", date_str).execute()
             habit["today_log"] = log.data[0] if log.data else None
             habit["is_completed"] = bool(habit["today_log"] and habit["today_log"].get("status") == "completed")
             habit["is_scheduled"] = is_scheduled
@@ -406,7 +406,7 @@ async def get_habit(habit_id: str, db: Database, current_user: CurrentUser):
         user_id = current_user["id"]
 
         # Get habit
-        result = db.table("habits").select("*").eq("id", habit_id).eq("user_id", user_id).single().execute()
+        result = await db.table("habits").select("*").eq("id", habit_id).eq("user_id", user_id).single().execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail="Habit not found")
@@ -414,7 +414,7 @@ async def get_habit(habit_id: str, db: Database, current_user: CurrentUser):
         habit = result.data
 
         # Get all logs for this habit
-        logs = db.table("habit_logs").select("*").eq("habit_id", habit_id).order("date", desc=True).execute()
+        logs = await db.table("habit_logs").select("*").eq("habit_id", habit_id).order("date", desc=True).execute()
         all_logs = logs.data or []
 
         # Calculate statistics
@@ -472,7 +472,7 @@ async def create_habit(habit: HabitCreate, db: Database, current_user: CurrentUs
             "objective_id": habit.objective_id,
         }
 
-        result = db.table("habits").insert(habit_data).execute()
+        result = await db.table("habits").insert(habit_data).execute()
 
         return {"data": result.data[0], "message": "Habit created successfully"}
 
@@ -487,7 +487,7 @@ async def update_habit(habit_id: str, habit: HabitUpdate, db: Database, current_
         user_id = current_user["id"]
 
         # Verify ownership
-        existing = db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
+        existing = await db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
         if not existing.data:
             raise HTTPException(status_code=404, detail="Habit not found")
 
@@ -496,7 +496,7 @@ async def update_habit(habit_id: str, habit: HabitUpdate, db: Database, current_
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
 
-        result = db.table("habits").update(update_data).eq("id", habit_id).execute()
+        result = await db.table("habits").update(update_data).eq("id", habit_id).execute()
 
         return {"data": result.data[0], "message": "Habit updated successfully"}
 
@@ -512,11 +512,11 @@ async def delete_habit(habit_id: str, db: Database, current_user: CurrentUser):
     try:
         user_id = current_user["id"]
 
-        existing = db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
+        existing = await db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
         if not existing.data:
             raise HTTPException(status_code=404, detail="Habit not found")
 
-        db.table("habits").delete().eq("id", habit_id).execute()
+        await db.table("habits").delete().eq("id", habit_id).execute()
 
         return {"message": "Habit deleted successfully"}
 
@@ -532,11 +532,11 @@ async def archive_habit(habit_id: str, db: Database, current_user: CurrentUser):
     try:
         user_id = current_user["id"]
 
-        existing = db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
+        existing = await db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
         if not existing.data:
             raise HTTPException(status_code=404, detail="Habit not found")
 
-        db.table("habits").update({
+        await db.table("habits").update({
             "is_active": False,
             "archived_at": datetime.now().isoformat()
         }).eq("id", habit_id).execute()
@@ -555,11 +555,11 @@ async def restore_habit(habit_id: str, db: Database, current_user: CurrentUser):
     try:
         user_id = current_user["id"]
 
-        existing = db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
+        existing = await db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
         if not existing.data:
             raise HTTPException(status_code=404, detail="Habit not found")
 
-        db.table("habits").update({
+        await db.table("habits").update({
             "is_active": True,
             "archived_at": None
         }).eq("id", habit_id).execute()
@@ -583,7 +583,7 @@ async def log_habit(habit_id: str, log: HabitLogCreate, db: Database, current_us
         user_id = current_user["id"]
 
         # Verify habit ownership and get habit data
-        habit = db.table("habits").select("*").eq("id", habit_id).eq("user_id", user_id).execute()
+        habit = await db.table("habits").select("*").eq("id", habit_id).eq("user_id", user_id).execute()
         if not habit.data:
             raise HTTPException(status_code=404, detail="Habit not found")
 
@@ -594,7 +594,7 @@ async def log_habit(habit_id: str, log: HabitLogCreate, db: Database, current_us
         is_scheduled = log.is_scheduled if log.is_scheduled is not None else is_habit_scheduled_for_date(habit_data, log_date)
 
         # Check if log exists for this date
-        existing = db.table("habit_logs").select("id").eq("habit_id", habit_id).eq("date", log.date).execute()
+        existing = await db.table("habit_logs").select("id").eq("habit_id", habit_id).eq("date", log.date).execute()
 
         log_data = {
             "habit_id": habit_id,
@@ -609,10 +609,10 @@ async def log_habit(habit_id: str, log: HabitLogCreate, db: Database, current_us
 
         if existing.data:
             # Update existing log
-            result = db.table("habit_logs").update(log_data).eq("id", existing.data[0]["id"]).execute()
+            result = await db.table("habit_logs").update(log_data).eq("id", existing.data[0]["id"]).execute()
         else:
             # Create new log
-            result = db.table("habit_logs").insert(log_data).execute()
+            result = await db.table("habit_logs").insert(log_data).execute()
 
         return {"data": result.data[0], "message": "Habit logged successfully"}
 
@@ -637,7 +637,7 @@ async def bulk_log_habits(request: BulkLogRequest, db: Database, current_user: C
             explicit_is_scheduled = log_item.get("is_scheduled")
 
             # Verify ownership and get habit data
-            habit = db.table("habits").select("*").eq("id", habit_id).eq("user_id", user_id).execute()
+            habit = await db.table("habits").select("*").eq("id", habit_id).eq("user_id", user_id).execute()
             if not habit.data:
                 continue
 
@@ -647,7 +647,7 @@ async def bulk_log_habits(request: BulkLogRequest, db: Database, current_user: C
             is_scheduled = explicit_is_scheduled if explicit_is_scheduled is not None else is_habit_scheduled_for_date(habit_data, log_date)
 
             # Check existing
-            existing = db.table("habit_logs").select("id").eq("habit_id", habit_id).eq("date", request.date).execute()
+            existing = await db.table("habit_logs").select("id").eq("habit_id", habit_id).eq("date", request.date).execute()
 
             log_data = {
                 "habit_id": habit_id,
@@ -660,9 +660,9 @@ async def bulk_log_habits(request: BulkLogRequest, db: Database, current_user: C
             }
 
             if existing.data:
-                result = db.table("habit_logs").update(log_data).eq("id", existing.data[0]["id"]).execute()
+                result = await db.table("habit_logs").update(log_data).eq("id", existing.data[0]["id"]).execute()
             else:
-                result = db.table("habit_logs").insert(log_data).execute()
+                result = await db.table("habit_logs").insert(log_data).execute()
 
             results.append(result.data[0])
 
@@ -690,11 +690,11 @@ async def close_day_habits(db: Database, current_user: CurrentUser, target_date:
         close_date_str = close_date.isoformat()
 
         # Get all active habits
-        habits_result = db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
+        habits_result = await db.table("habits").select("*").eq("user_id", user_id).eq("is_active", True).execute()
         all_habits = habits_result.data or []
 
         # Get existing logs for this date
-        existing_logs = db.table("habit_logs").select("habit_id").eq("user_id", user_id).eq("date", close_date_str).execute()
+        existing_logs = await db.table("habit_logs").select("habit_id").eq("user_id", user_id).eq("date", close_date_str).execute()
         logged_habit_ids = set(log["habit_id"] for log in (existing_logs.data or []))
 
         missed_count = 0
@@ -714,7 +714,7 @@ async def close_day_habits(db: Database, current_user: CurrentUser, target_date:
                     "notes": "Auto-marcado como perdido al cerrar el día",
                 }
 
-                db.table("habit_logs").insert(log_data).execute()
+                await db.table("habit_logs").insert(log_data).execute()
                 missed_count += 1
                 missed_habits.append({
                     "id": habit["id"],
@@ -741,11 +741,11 @@ async def delete_log(habit_id: str, log_date: str, db: Database, current_user: C
         user_id = current_user["id"]
 
         # Verify ownership
-        habit = db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
+        habit = await db.table("habits").select("id").eq("id", habit_id).eq("user_id", user_id).execute()
         if not habit.data:
             raise HTTPException(status_code=404, detail="Habit not found")
 
-        db.table("habit_logs").delete().eq("habit_id", habit_id).eq("date", log_date).execute()
+        await db.table("habit_logs").delete().eq("habit_id", habit_id).eq("date", log_date).execute()
 
         return {"message": "Log deleted successfully"}
 
@@ -768,7 +768,7 @@ async def get_habits_overview(db: Database, current_user: CurrentUser):
         today_str = today.isoformat()
 
         # Get active habits count
-        habits = db.table("habits").select("id, frequency_type, frequency_days").eq("user_id", user_id).eq("is_active", True).execute()
+        habits = await db.table("habits").select("id, frequency_type, frequency_days").eq("user_id", user_id).eq("is_active", True).execute()
         total_habits = len(habits.data or [])
 
         # Count habits for today
@@ -780,12 +780,12 @@ async def get_habits_overview(db: Database, current_user: CurrentUser):
                 habits_for_today += 1
 
         # Get today's completed count
-        today_logs = db.table("habit_logs").select("id").eq("user_id", user_id).eq("date", today_str).eq("status", "completed").execute()
+        today_logs = await db.table("habit_logs").select("id").eq("user_id", user_id).eq("date", today_str).eq("status", "completed").execute()
         completed_today = len(today_logs.data or [])
 
         # Get this week's stats
         week_start = (today - timedelta(days=today.weekday())).isoformat()
-        week_logs = db.table("habit_logs").select("id, status").eq("user_id", user_id).gte("date", week_start).execute()
+        week_logs = await db.table("habit_logs").select("id, status").eq("user_id", user_id).gte("date", week_start).execute()
         completed_this_week = len([l for l in (week_logs.data or []) if l["status"] == "completed"])
 
         return {
@@ -817,7 +817,7 @@ async def get_heatmap_data(
         end_date = f"{year}-12-31"
 
         # Get all logs for the year
-        logs = db.table("habit_logs").select("date, status").eq("user_id", user_id).gte("date", start_date).lte("date", end_date).execute()
+        logs = await db.table("habit_logs").select("date, status").eq("user_id", user_id).gte("date", start_date).lte("date", end_date).execute()
 
         # Count completions per day
         day_counts = defaultdict(int)
@@ -876,10 +876,10 @@ async def get_calendar_data(year: int, month: int, db: Database, current_user: C
             end_date = f"{year}-{month + 1:02d}-01"
 
         # Get all active habits
-        habits = db.table("habits").select("id, name, icon, color, frequency_type, frequency_days, area_id").eq("user_id", user_id).eq("is_active", True).execute()
+        habits = await db.table("habits").select("id, name, icon, color, frequency_type, frequency_days, area_id").eq("user_id", user_id).eq("is_active", True).execute()
 
         # Get logs for the month
-        logs = db.table("habit_logs").select("*").eq("user_id", user_id).gte("date", start_date).lt("date", end_date).execute()
+        logs = await db.table("habit_logs").select("*").eq("user_id", user_id).gte("date", start_date).lt("date", end_date).execute()
 
         # Organize logs by date
         logs_by_date = defaultdict(list)
@@ -943,7 +943,7 @@ async def get_trends(db: Database, current_user: CurrentUser, days: int = 30):
         start_date = (today - timedelta(days=days)).isoformat()
 
         # Get logs for the period
-        logs = db.table("habit_logs").select("date, status").eq("user_id", user_id).gte("date", start_date).execute()
+        logs = await db.table("habit_logs").select("date, status").eq("user_id", user_id).gte("date", start_date).execute()
 
         # Count by date
         by_date = defaultdict(lambda: {"completed": 0, "total": 0})
@@ -997,7 +997,7 @@ async def get_stats_summary(db: Database, current_user: CurrentUser):
         year_start = today.replace(month=1, day=1)
 
         # Get all habits with area info
-        habits = db.table("habits").select("id, name, icon, color, area_id, frequency_type, frequency_days").eq("user_id", user_id).eq("is_active", True).execute()
+        habits = await db.table("habits").select("id, name, icon, color, area_id, frequency_type, frequency_days").eq("user_id", user_id).eq("is_active", True).execute()
         habits_data = habits.data or []
         habit_ids = [h["id"] for h in habits_data]
         habit_map = {h["id"]: h for h in habits_data}
@@ -1015,11 +1015,11 @@ async def get_stats_summary(db: Database, current_user: CurrentUser):
             }
 
         # Get all logs from year start
-        logs = db.table("habit_logs").select("habit_id, date, status").eq("user_id", user_id).gte("date", year_start.isoformat()).execute()
+        logs = await db.table("habit_logs").select("habit_id, date, status").eq("user_id", user_id).gte("date", year_start.isoformat()).execute()
         all_logs = logs.data or []
 
         # Get areas
-        areas = db.table("areas_of_responsibility").select("id, name, icon").eq("user_id", user_id).execute()
+        areas = await db.table("areas_of_responsibility").select("id, name, icon").eq("user_id", user_id).execute()
         area_map = {a["id"]: a for a in (areas.data or [])}
 
         # Calculate stats by period

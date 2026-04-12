@@ -10,13 +10,13 @@ from app.api.deps import Database, CurrentUser
 router = APIRouter()
 
 
-def get_expert_content_categories(db, user_id: str, person_name: str) -> list[str]:
+async def get_expert_content_categories(db, user_id: str, person_name: str) -> list[str]:
     """
     Get effective categories (user_category > iab_tier1) from contents
     where this person appears.
     """
     # Get contents from AI entities (entities.persons)
-    ai_contents = db.table("contents").select(
+    ai_contents = await db.table("contents").select(
         "iab_tier1, user_category"
     ).eq(
         "user_id", user_id
@@ -25,7 +25,7 @@ def get_expert_content_categories(db, user_id: str, person_name: str) -> list[st
     ).execute()
 
     # Get contents from user entities (user_entities.persons)
-    user_contents = db.table("contents").select(
+    user_contents = await db.table("contents").select(
         "iab_tier1, user_category"
     ).eq(
         "user_id", user_id
@@ -91,7 +91,7 @@ async def list_experts(
     if not include_inactive:
         query = query.eq("is_active", True)
 
-    result = query.order("person_name").execute()
+    result = await query.order("person_name").execute()
     experts = result.data or []
 
     # Calculate categories and counts for each expert from their associated contents
@@ -99,12 +99,12 @@ async def list_experts(
         person_name = expert["person_name"]
 
         # Get effective categories from contents (user_category > iab_tier1)
-        expert["expert_categories"] = get_expert_content_categories(
+        expert["expert_categories"] = await get_expert_content_categories(
             db, current_user["id"], person_name
         )
 
         # Count from AI entities (entities.persons)
-        ai_result = db.table("contents").select(
+        ai_result = await db.table("contents").select(
             "id", count="exact"
         ).eq(
             "user_id", current_user["id"]
@@ -113,7 +113,7 @@ async def list_experts(
         ).execute()
 
         # Count from user entities (user_entities.persons)
-        user_result = db.table("contents").select(
+        user_result = await db.table("contents").select(
             "id", count="exact"
         ).eq(
             "user_id", current_user["id"]
@@ -146,7 +146,7 @@ async def get_all_expert_categories(
     Categories are derived from user_category (priority) or iab_tier1.
     """
     # Get all active experts
-    experts_result = db.table("user_experts").select("person_name").eq(
+    experts_result = await db.table("user_experts").select("person_name").eq(
         "user_id", current_user["id"]
     ).eq("is_active", True).execute()
 
@@ -154,7 +154,7 @@ async def get_all_expert_categories(
     for expert in (experts_result.data or []):
         person_name = expert["person_name"]
         # Get effective categories for this expert
-        categories = get_expert_content_categories(db, current_user["id"], person_name)
+        categories = await get_expert_content_categories(db, current_user["id"], person_name)
         all_categories.update(categories)
 
     return {
@@ -174,7 +174,7 @@ async def get_available_persons(
     This helps autocomplete when adding a new expert.
     """
     # Get all contents with entities.persons
-    contents = db.table("contents").select("entities").eq(
+    contents = await db.table("contents").select("entities").eq(
         "user_id", current_user["id"]
     ).not_.is_("entities", "null").execute()
 
@@ -211,7 +211,7 @@ async def create_expert(
 ):
     """Create a new expert."""
     # Check if expert already exists
-    existing = db.table("user_experts").select("*").eq(
+    existing = await db.table("user_experts").select("*").eq(
         "user_id", current_user["id"]
     ).eq("person_name", data.person_name).execute()
 
@@ -219,7 +219,7 @@ async def create_expert(
         expert = existing.data[0]
         if not expert["is_active"]:
             # Reactivate
-            result = db.table("user_experts").update({
+            result = await db.table("user_experts").update({
                 "is_active": True,
                 "expert_categories": data.expert_categories,
                 "description": data.description,
@@ -233,7 +233,7 @@ async def create_expert(
         )
 
     # Create new expert
-    result = db.table("user_experts").insert({
+    result = await db.table("user_experts").insert({
         "user_id": current_user["id"],
         "person_name": data.person_name,
         "expert_categories": data.expert_categories,
@@ -256,7 +256,7 @@ async def get_expert(
 ):
     """Get a specific expert with their associated contents (preview)."""
     # Get the expert
-    expert_result = db.table("user_experts").select("*").eq(
+    expert_result = await db.table("user_experts").select("*").eq(
         "id", expert_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -272,7 +272,7 @@ async def get_expert(
     # Search both AI entities and user entities
     # Get contents from AI entities (entities.persons)
     # Include user_category to show effective category
-    ai_contents = db.table("contents").select(
+    ai_contents = await db.table("contents").select(
         "id, title, url, type, summary, iab_tier1, user_category, created_at"
     ).eq(
         "user_id", current_user["id"]
@@ -281,7 +281,7 @@ async def get_expert(
     ).order("created_at", desc=True).limit(preview_limit + 10).execute()
 
     # Get contents from user entities (user_entities.persons)
-    user_contents = db.table("contents").select(
+    user_contents = await db.table("contents").select(
         "id, title, url, type, summary, iab_tier1, user_category, created_at"
     ).eq(
         "user_id", current_user["id"]
@@ -304,7 +304,7 @@ async def get_expert(
     )[:preview_limit]
 
     # Get total counts for "Ver todos" indicator
-    ai_count_result = db.table("contents").select(
+    ai_count_result = await db.table("contents").select(
         "id", count="exact"
     ).eq(
         "user_id", current_user["id"]
@@ -312,7 +312,7 @@ async def get_expert(
         "entities", {"persons": [person_name]}
     ).execute()
 
-    user_count_result = db.table("contents").select(
+    user_count_result = await db.table("contents").select(
         "id", count="exact"
     ).eq(
         "user_id", current_user["id"]
@@ -326,7 +326,7 @@ async def get_expert(
     has_more = len(all_contents) > preview_limit
 
     # Calculate effective categories from contents (user_category > iab_tier1)
-    expert["expert_categories"] = get_expert_content_categories(
+    expert["expert_categories"] = await get_expert_content_categories(
         db, current_user["id"], person_name
     )
 
@@ -348,7 +348,7 @@ async def update_expert(
 ):
     """Update an expert."""
     # Check ownership
-    existing = db.table("user_experts").select("id").eq(
+    existing = await db.table("user_experts").select("id").eq(
         "id", expert_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -376,7 +376,7 @@ async def update_expert(
     if not update_data:
         return existing.data[0]
 
-    result = db.table("user_experts").update(update_data).eq("id", expert_id).execute()
+    result = await db.table("user_experts").update(update_data).eq("id", expert_id).execute()
     return result.data[0]
 
 
@@ -387,7 +387,7 @@ async def toggle_expert_favorite(
     db: Database,
 ):
     """Toggle favorite status for an expert."""
-    existing = db.table("user_experts").select("id, is_favorite").eq(
+    existing = await db.table("user_experts").select("id, is_favorite").eq(
         "id", expert_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -400,7 +400,7 @@ async def toggle_expert_favorite(
     current_favorite = existing.data[0].get("is_favorite", False)
     new_favorite = not current_favorite
 
-    db.table("user_experts").update({"is_favorite": new_favorite}).eq("id", expert_id).execute()
+    await db.table("user_experts").update({"is_favorite": new_favorite}).eq("id", expert_id).execute()
 
     return {"success": True, "is_favorite": new_favorite}
 
@@ -412,7 +412,7 @@ async def delete_expert(
     db: Database,
 ):
     """Delete (deactivate) an expert."""
-    existing = db.table("user_experts").select("id").eq(
+    existing = await db.table("user_experts").select("id").eq(
         "id", expert_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -423,7 +423,7 @@ async def delete_expert(
         )
 
     # Soft delete
-    db.table("user_experts").update({"is_active": False}).eq("id", expert_id).execute()
+    await db.table("user_experts").update({"is_active": False}).eq("id", expert_id).execute()
 
 
 @router.post("/{expert_id}/add-category")
@@ -434,7 +434,7 @@ async def add_category_to_expert(
     db: Database,
 ):
     """Add a category to an expert's expertise areas."""
-    existing = db.table("user_experts").select("id, expert_categories").eq(
+    existing = await db.table("user_experts").select("id, expert_categories").eq(
         "id", expert_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -447,7 +447,7 @@ async def add_category_to_expert(
     current_categories = existing.data[0].get("expert_categories") or []
     if category not in current_categories:
         current_categories.append(category)
-        db.table("user_experts").update({
+        await db.table("user_experts").update({
             "expert_categories": current_categories
         }).eq("id", expert_id).execute()
 
@@ -462,7 +462,7 @@ async def remove_category_from_expert(
     db: Database,
 ):
     """Remove a category from an expert's expertise areas."""
-    existing = db.table("user_experts").select("id, expert_categories").eq(
+    existing = await db.table("user_experts").select("id, expert_categories").eq(
         "id", expert_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -475,7 +475,7 @@ async def remove_category_from_expert(
     current_categories = existing.data[0].get("expert_categories") or []
     if category in current_categories:
         current_categories.remove(category)
-        db.table("user_experts").update({
+        await db.table("user_experts").update({
             "expert_categories": current_categories
         }).eq("id", expert_id).execute()
 

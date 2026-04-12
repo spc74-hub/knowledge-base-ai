@@ -51,12 +51,12 @@ async def list_sessions(current_user: CurrentUser, db: Database):
     List user's chat sessions.
     """
     try:
-        response = db.table("chat_sessions").select("*").eq("user_id", current_user["id"]).order("updated_at", desc=True).execute()
+        response = await db.table("chat_sessions").select("*").eq("user_id", current_user["id"]).order("updated_at", desc=True).execute()
 
         sessions = []
         for session in response.data:
             # Get message count
-            messages = db.table("chat_messages").select("id", count="exact").eq("session_id", session["id"]).execute()
+            messages = await db.table("chat_messages").select("id", count="exact").eq("session_id", session["id"]).execute()
 
             sessions.append({
                 **session,
@@ -87,7 +87,7 @@ async def create_session(
             "title": data.title or "New conversation"
         }
 
-        response = db.table("chat_sessions").insert(session_data).execute()
+        response = await db.table("chat_sessions").insert(session_data).execute()
 
         if not response.data:
             raise HTTPException(
@@ -115,7 +115,7 @@ async def get_session(session_id: str, current_user: CurrentUser, db: Database):
     Get a specific chat session.
     """
     try:
-        response = db.table("chat_sessions").select("*").eq("id", session_id).eq("user_id", current_user["id"]).single().execute()
+        response = await db.table("chat_sessions").select("*").eq("id", session_id).eq("user_id", current_user["id"]).single().execute()
 
         if not response.data:
             raise HTTPException(
@@ -124,7 +124,7 @@ async def get_session(session_id: str, current_user: CurrentUser, db: Database):
             )
 
         # Get message count
-        messages = db.table("chat_messages").select("id", count="exact").eq("session_id", session_id).execute()
+        messages = await db.table("chat_messages").select("id", count="exact").eq("session_id", session_id).execute()
 
         return {
             **response.data,
@@ -147,7 +147,7 @@ async def delete_session(session_id: str, current_user: CurrentUser, db: Databas
     """
     try:
         # Check ownership
-        existing = db.table("chat_sessions").select("id").eq("id", session_id).eq("user_id", current_user["id"]).execute()
+        existing = await db.table("chat_sessions").select("id").eq("id", session_id).eq("user_id", current_user["id"]).execute()
 
         if not existing.data:
             raise HTTPException(
@@ -156,7 +156,7 @@ async def delete_session(session_id: str, current_user: CurrentUser, db: Databas
             )
 
         # Messages will be deleted automatically via CASCADE
-        db.table("chat_sessions").delete().eq("id", session_id).execute()
+        await db.table("chat_sessions").delete().eq("id", session_id).execute()
 
         return {"message": "Session deleted successfully"}
 
@@ -176,7 +176,7 @@ async def list_messages(session_id: str, current_user: CurrentUser, db: Database
     """
     try:
         # Verify session ownership
-        session = db.table("chat_sessions").select("id").eq("id", session_id).eq("user_id", current_user["id"]).execute()
+        session = await db.table("chat_sessions").select("id").eq("id", session_id).eq("user_id", current_user["id"]).execute()
 
         if not session.data:
             raise HTTPException(
@@ -184,7 +184,7 @@ async def list_messages(session_id: str, current_user: CurrentUser, db: Database
                 detail="Session not found"
             )
 
-        response = db.table("chat_messages").select("*").eq("session_id", session_id).order("created_at").execute()
+        response = await db.table("chat_messages").select("*").eq("session_id", session_id).order("created_at").execute()
 
         return response.data
 
@@ -209,7 +209,7 @@ async def send_message(
     """
     try:
         # Verify session ownership
-        session = db.table("chat_sessions").select("id, title").eq("id", session_id).eq("user_id", current_user["id"]).execute()
+        session = await db.table("chat_sessions").select("id, title").eq("id", session_id).eq("user_id", current_user["id"]).execute()
 
         if not session.data:
             raise HTTPException(
@@ -224,10 +224,10 @@ async def send_message(
             "content": data.content
         }
 
-        db.table("chat_messages").insert(user_message).execute()
+        await db.table("chat_messages").insert(user_message).execute()
 
         # Get conversation history
-        history_response = db.table("chat_messages").select("role, content").eq("session_id", session_id).order("created_at").limit(20).execute()
+        history_response = await db.table("chat_messages").select("role, content").eq("session_id", session_id).order("created_at").limit(20).execute()
 
         conversation_history = history_response.data or []
 
@@ -261,15 +261,15 @@ async def send_message(
             "sources": sources_data
         }
 
-        response = db.table("chat_messages").insert(assistant_response).execute()
+        response = await db.table("chat_messages").insert(assistant_response).execute()
 
         # Update session title if it's the first message
         if session.data[0].get("title") == "New conversation":
             new_title = await chat_service.generate_session_title(data.content)
-            db.table("chat_sessions").update({"title": new_title, "updated_at": "now()"}).eq("id", session_id).execute()
+            await db.table("chat_sessions").update({"title": new_title, "updated_at": "now()"}).eq("id", session_id).execute()
         else:
             # Just update timestamp
-            db.table("chat_sessions").update({"updated_at": "now()"}).eq("id", session_id).execute()
+            await db.table("chat_sessions").update({"updated_at": "now()"}).eq("id", session_id).execute()
 
         return response.data[0]
 

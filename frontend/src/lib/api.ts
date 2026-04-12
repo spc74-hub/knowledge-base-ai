@@ -1,10 +1,10 @@
 /**
  * API client for backend communication.
+ * Uses JWT tokens stored in localStorage (replaces Supabase auth).
  */
-import { supabase } from './supabase';
+import { getAccessToken } from './supabase';
 
-// Hardcoded API URL - always use HTTPS in production
-const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface RequestOptions {
     method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -26,14 +26,14 @@ class ApiClient {
     }
 
     private async getAuthHeaders(): Promise<Record<string, string>> {
-        const { data: { session } } = await supabase.auth.getSession();
+        const token = getAccessToken();
 
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
         };
 
-        if (session?.access_token) {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
         }
 
         return headers;

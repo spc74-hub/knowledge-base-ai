@@ -88,19 +88,19 @@ async def get_areas(
 
         query = query.order("display_order", desc=False).order("created_at", desc=False)
 
-        result = query.execute()
+        result = await query.execute()
         areas = result.data or []
 
         if include_stats:
             for area in areas:
                 # Get counts for linked items
-                objectives_count = db.table("objectives").select("id", count="exact").eq("area_id", area["id"]).execute()
-                projects_count = db.table("projects").select("id", count="exact").eq("area_id", area["id"]).execute()
-                contents_count = db.table("contents").select("id", count="exact").eq("area_id", area["id"]).execute()
-                notes_count = db.table("standalone_notes").select("id", count="exact").eq("area_id", area["id"]).execute()
-                sub_areas_count = db.table("sub_areas").select("id", count="exact").eq("area_id", area["id"]).execute()
-                mental_models_count = db.table("area_mental_models").select("id", count="exact").eq("area_id", area["id"]).execute()
-                habits_count = db.table("habits").select("id", count="exact").eq("area_id", area["id"]).eq("is_active", True).execute()
+                objectives_count = await db.table("objectives").select("id", count="exact").eq("area_id", area["id"]).execute()
+                projects_count = await db.table("projects").select("id", count="exact").eq("area_id", area["id"]).execute()
+                contents_count = await db.table("contents").select("id", count="exact").eq("area_id", area["id"]).execute()
+                notes_count = await db.table("standalone_notes").select("id", count="exact").eq("area_id", area["id"]).execute()
+                sub_areas_count = await db.table("sub_areas").select("id", count="exact").eq("area_id", area["id"]).execute()
+                mental_models_count = await db.table("area_mental_models").select("id", count="exact").eq("area_id", area["id"]).execute()
+                habits_count = await db.table("habits").select("id", count="exact").eq("area_id", area["id"]).eq("is_active", True).execute()
 
                 area["stats"] = {
                     "objectives": objectives_count.count or 0,
@@ -128,7 +128,7 @@ async def get_area(area_id: str, db: Database, current_user: CurrentUser):
         user_id = current_user["id"]
 
         # Get area with actions
-        result = db.table("areas_of_responsibility").select(
+        result = await db.table("areas_of_responsibility").select(
             "*, area_actions(id, title, is_completed, position, created_at)"
         ).eq("id", area_id).eq("user_id", user_id).single().execute()
 
@@ -138,37 +138,37 @@ async def get_area(area_id: str, db: Database, current_user: CurrentUser):
         area = dict(result.data)
 
         # Get sub-areas
-        sub_areas = db.table("sub_areas").select("*").eq("area_id", area_id).order("display_order").execute()
+        sub_areas = await db.table("sub_areas").select("*").eq("area_id", area_id).order("display_order").execute()
         area["sub_areas"] = sub_areas.data or []
 
         # Get linked mental models
-        mm_links = db.table("area_mental_models").select("mental_model_id").eq("area_id", area_id).execute()
+        mm_links = await db.table("area_mental_models").select("mental_model_id").eq("area_id", area_id).execute()
         if mm_links.data:
             mm_ids = [link["mental_model_id"] for link in mm_links.data]
-            mental_models = db.table("mental_models").select("id, name, description, icon, color").in_("id", mm_ids).execute()
+            mental_models = await db.table("mental_models").select("id, name, description, icon, color").in_("id", mm_ids).execute()
             area["mental_models"] = mental_models.data or []
         else:
             area["mental_models"] = []
 
         # Get linked objectives
-        objectives = db.table("objectives").select("id, title, description, status, progress, icon, color, horizon, target_date").eq("area_id", area_id).order("created_at", desc=True).execute()
+        objectives = await db.table("objectives").select("id, title, description, status, progress, icon, color, horizon, target_date").eq("area_id", area_id).order("created_at", desc=True).execute()
         area["objectives"] = objectives.data or []
 
         # Get linked projects
-        projects = db.table("projects").select("id, name, description, status, icon, color").eq("area_id", area_id).order("updated_at", desc=True).execute()
+        projects = await db.table("projects").select("id, name, description, status, icon, color").eq("area_id", area_id).order("updated_at", desc=True).execute()
         area["projects"] = projects.data or []
 
         # Get linked habits
-        habits = db.table("habits").select("id, name, icon, color, is_active").eq("area_id", area_id).order("created_at", desc=True).execute()
+        habits = await db.table("habits").select("id, name, icon, color, is_active").eq("area_id", area_id).order("created_at", desc=True).execute()
         area["habits"] = habits.data or []
 
         # Get linked contents (limit to recent 10)
-        contents = db.table("contents").select("id, title, type, schema_type, created_at, is_favorite").eq("area_id", area_id).order("created_at", desc=True).limit(10).execute()
+        contents = await db.table("contents").select("id, title, type, schema_type, created_at, is_favorite").eq("area_id", area_id).order("created_at", desc=True).limit(10).execute()
         area["recent_contents"] = contents.data or []
 
         # Get linked notes (via junction table)
         try:
-            notes_result = db.table("area_notes").select(
+            notes_result = await db.table("area_notes").select(
                 "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
             ).eq("area_id", area_id).execute()
             area["notes"] = [r["standalone_notes"] for r in notes_result.data if r.get("standalone_notes")]
@@ -194,7 +194,7 @@ async def create_area(area: AreaCreate, db: Database, current_user: CurrentUser)
         user_id = current_user["id"]
 
         # Get max display_order
-        max_order = db.table("areas_of_responsibility").select("display_order").eq("user_id", user_id).order("display_order", desc=True).limit(1).execute()
+        max_order = await db.table("areas_of_responsibility").select("display_order").eq("user_id", user_id).order("display_order", desc=True).limit(1).execute()
 
         next_order = 0
         if max_order.data and max_order.data[0].get("display_order") is not None:
@@ -210,7 +210,7 @@ async def create_area(area: AreaCreate, db: Database, current_user: CurrentUser)
             "display_order": next_order,
         }
 
-        result = db.table("areas_of_responsibility").insert(area_data).execute()
+        result = await db.table("areas_of_responsibility").insert(area_data).execute()
 
         return {"data": result.data[0], "message": "Area created successfully"}
 
@@ -229,7 +229,7 @@ async def update_area(area_id: str, area: AreaUpdate, db: Database, current_user
         user_id = current_user["id"]
 
         # Verify ownership
-        existing = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        existing = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
 
         if not existing.data:
             raise HTTPException(status_code=404, detail="Area not found")
@@ -239,7 +239,7 @@ async def update_area(area_id: str, area: AreaUpdate, db: Database, current_user
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
 
-        result = db.table("areas_of_responsibility").update(update_data).eq("id", area_id).execute()
+        result = await db.table("areas_of_responsibility").update(update_data).eq("id", area_id).execute()
 
         return {"data": result.data[0], "message": "Area updated successfully"}
 
@@ -259,13 +259,13 @@ async def delete_area(area_id: str, db: Database, current_user: CurrentUser):
         user_id = current_user["id"]
 
         # Verify ownership
-        existing = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        existing = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
 
         if not existing.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
         # Delete area (cascade will handle sub_areas and area_mental_models)
-        db.table("areas_of_responsibility").delete().eq("id", area_id).execute()
+        await db.table("areas_of_responsibility").delete().eq("id", area_id).execute()
 
         return {"message": "Area deleted successfully"}
 
@@ -285,7 +285,7 @@ async def reorder_areas(request: ReorderRequest, db: Database, current_user: Cur
         user_id = current_user["id"]
 
         for index, area_id in enumerate(request.ordered_ids):
-            db.table("areas_of_responsibility").update({"display_order": index}).eq("id", area_id).eq("user_id", user_id).execute()
+            await db.table("areas_of_responsibility").update({"display_order": index}).eq("id", area_id).eq("user_id", user_id).execute()
 
         return {"message": "Areas reordered successfully"}
 
@@ -307,12 +307,12 @@ async def get_sub_areas(area_id: str, db: Database, current_user: CurrentUser):
         user_id = current_user["id"]
 
         # Verify area ownership
-        area = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        area = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
 
         if not area.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
-        result = db.table("sub_areas").select("*").eq("area_id", area_id).order("display_order").execute()
+        result = await db.table("sub_areas").select("*").eq("area_id", area_id).order("display_order").execute()
 
         return {"data": result.data or []}
 
@@ -332,13 +332,13 @@ async def create_sub_area(area_id: str, sub_area: SubAreaCreate, db: Database, c
         user_id = current_user["id"]
 
         # Verify area ownership
-        area = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        area = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
 
         if not area.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
         # Get max display_order
-        max_order = db.table("sub_areas").select("display_order").eq("area_id", area_id).order("display_order", desc=True).limit(1).execute()
+        max_order = await db.table("sub_areas").select("display_order").eq("area_id", area_id).order("display_order", desc=True).limit(1).execute()
 
         next_order = 0
         if max_order.data and max_order.data[0].get("display_order") is not None:
@@ -353,7 +353,7 @@ async def create_sub_area(area_id: str, sub_area: SubAreaCreate, db: Database, c
             "display_order": next_order,
         }
 
-        result = db.table("sub_areas").insert(sub_area_data).execute()
+        result = await db.table("sub_areas").insert(sub_area_data).execute()
 
         return {"data": result.data[0], "message": "Sub-area created successfully"}
 
@@ -373,7 +373,7 @@ async def update_sub_area(area_id: str, sub_area_id: str, sub_area: SubAreaUpdat
         user_id = current_user["id"]
 
         # Verify ownership
-        existing = db.table("sub_areas").select("id").eq("id", sub_area_id).eq("area_id", area_id).eq("user_id", user_id).execute()
+        existing = await db.table("sub_areas").select("id").eq("id", sub_area_id).eq("area_id", area_id).eq("user_id", user_id).execute()
 
         if not existing.data:
             raise HTTPException(status_code=404, detail="Sub-area not found")
@@ -383,7 +383,7 @@ async def update_sub_area(area_id: str, sub_area_id: str, sub_area: SubAreaUpdat
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
 
-        result = db.table("sub_areas").update(update_data).eq("id", sub_area_id).execute()
+        result = await db.table("sub_areas").update(update_data).eq("id", sub_area_id).execute()
 
         return {"data": result.data[0], "message": "Sub-area updated successfully"}
 
@@ -403,12 +403,12 @@ async def delete_sub_area(area_id: str, sub_area_id: str, db: Database, current_
         user_id = current_user["id"]
 
         # Verify ownership
-        existing = db.table("sub_areas").select("id").eq("id", sub_area_id).eq("area_id", area_id).eq("user_id", user_id).execute()
+        existing = await db.table("sub_areas").select("id").eq("id", sub_area_id).eq("area_id", area_id).eq("user_id", user_id).execute()
 
         if not existing.data:
             raise HTTPException(status_code=404, detail="Sub-area not found")
 
-        db.table("sub_areas").delete().eq("id", sub_area_id).execute()
+        await db.table("sub_areas").delete().eq("id", sub_area_id).execute()
 
         return {"message": "Sub-area deleted successfully"}
 
@@ -432,24 +432,24 @@ async def link_mental_model(area_id: str, link: AreaMentalModelLink, db: Databas
         user_id = current_user["id"]
 
         # Verify area ownership
-        area = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        area = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
 
         if not area.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
         # Verify mental model ownership
-        mm = db.table("mental_models").select("id").eq("id", link.mental_model_id).eq("user_id", user_id).execute()
+        mm = await db.table("mental_models").select("id").eq("id", link.mental_model_id).eq("user_id", user_id).execute()
 
         if not mm.data:
             raise HTTPException(status_code=404, detail="Mental model not found")
 
         # Check if already linked
-        existing = db.table("area_mental_models").select("id").eq("area_id", area_id).eq("mental_model_id", link.mental_model_id).execute()
+        existing = await db.table("area_mental_models").select("id").eq("area_id", area_id).eq("mental_model_id", link.mental_model_id).execute()
 
         if existing.data:
             raise HTTPException(status_code=400, detail="Mental model already linked to this area")
 
-        result = db.table("area_mental_models").insert({
+        result = await db.table("area_mental_models").insert({
             "area_id": area_id,
             "mental_model_id": link.mental_model_id,
         }).execute()
@@ -472,12 +472,12 @@ async def unlink_mental_model(area_id: str, mental_model_id: str, db: Database, 
         user_id = current_user["id"]
 
         # Verify area ownership
-        area = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        area = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
 
         if not area.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
-        db.table("area_mental_models").delete().eq("area_id", area_id).eq("mental_model_id", mental_model_id).execute()
+        await db.table("area_mental_models").delete().eq("area_id", area_id).eq("mental_model_id", mental_model_id).execute()
 
         return {"message": "Mental model unlinked successfully"}
 
@@ -501,12 +501,12 @@ async def link_objective_to_area(area_id: str, objective_id: str, db: Database, 
         user_id = current_user["id"]
 
         # Verify area ownership
-        area = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        area = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
         if not area.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
         # Update objective
-        result = db.table("objectives").update({"area_id": area_id}).eq("id", objective_id).eq("user_id", user_id).execute()
+        result = await db.table("objectives").update({"area_id": area_id}).eq("id", objective_id).eq("user_id", user_id).execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail="Objective not found")
@@ -526,12 +526,12 @@ async def link_project_to_area(area_id: str, project_id: str, db: Database, curr
         user_id = current_user["id"]
 
         # Verify area ownership
-        area = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        area = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
         if not area.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
         # Update project
-        result = db.table("projects").update({"area_id": area_id}).eq("id", project_id).eq("user_id", user_id).execute()
+        result = await db.table("projects").update({"area_id": area_id}).eq("id", project_id).eq("user_id", user_id).execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail="Project not found")
@@ -550,7 +550,7 @@ async def unlink_objective_from_area(area_id: str, objective_id: str, db: Databa
     try:
         user_id = current_user["id"]
 
-        db.table("objectives").update({"area_id": None}).eq("id", objective_id).eq("user_id", user_id).eq("area_id", area_id).execute()
+        await db.table("objectives").update({"area_id": None}).eq("id", objective_id).eq("user_id", user_id).eq("area_id", area_id).execute()
 
         return {"message": "Objective unlinked from area"}
 
@@ -564,7 +564,7 @@ async def unlink_project_from_area(area_id: str, project_id: str, db: Database, 
     try:
         user_id = current_user["id"]
 
-        db.table("projects").update({"area_id": None}).eq("id", project_id).eq("user_id", user_id).eq("area_id", area_id).execute()
+        await db.table("projects").update({"area_id": None}).eq("id", project_id).eq("user_id", user_id).eq("area_id", area_id).execute()
 
         return {"message": "Project unlinked from area"}
 
@@ -579,11 +579,11 @@ async def link_habit_to_area(area_id: str, habit_id: str, db: Database, current_
         user_id = current_user["id"]
 
         # Verify area exists
-        area = db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
+        area = await db.table("areas_of_responsibility").select("id").eq("id", area_id).eq("user_id", user_id).execute()
         if not area.data:
             raise HTTPException(status_code=404, detail="Area not found")
 
-        result = db.table("habits").update({"area_id": area_id}).eq("id", habit_id).eq("user_id", user_id).execute()
+        result = await db.table("habits").update({"area_id": area_id}).eq("id", habit_id).eq("user_id", user_id).execute()
         if not result.data:
             raise HTTPException(status_code=404, detail="Habit not found")
 
@@ -601,7 +601,7 @@ async def unlink_habit_from_area(area_id: str, habit_id: str, db: Database, curr
     try:
         user_id = current_user["id"]
 
-        db.table("habits").update({"area_id": None}).eq("id", habit_id).eq("user_id", user_id).eq("area_id", area_id).execute()
+        await db.table("habits").update({"area_id": None}).eq("id", habit_id).eq("user_id", user_id).eq("area_id", area_id).execute()
 
         return {"message": "Habit unlinked from area"}
 
@@ -624,7 +624,7 @@ async def create_action(
     user_id = current_user["id"]
 
     # Verify area exists and belongs to user
-    area_check = db.table("areas_of_responsibility").select("id").eq(
+    area_check = await db.table("areas_of_responsibility").select("id").eq(
         "id", area_id
     ).eq("user_id", user_id).execute()
 
@@ -632,13 +632,13 @@ async def create_action(
         raise HTTPException(status_code=404, detail="Area not found")
 
     # Get next position
-    pos_result = db.table("area_actions").select("position").eq(
+    pos_result = await db.table("area_actions").select("position").eq(
         "area_id", area_id
     ).order("position", desc=True).limit(1).execute()
 
     next_pos = (pos_result.data[0]["position"] + 1) if pos_result.data else 0
 
-    result = db.table("area_actions").insert({
+    result = await db.table("area_actions").insert({
         "area_id": area_id,
         "user_id": user_id,
         "title": data.title,
@@ -663,7 +663,7 @@ async def update_action(
     if "is_completed" in update_data and update_data["is_completed"]:
         update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
 
-    result = db.table("area_actions").update(update_data).eq(
+    result = await db.table("area_actions").update(update_data).eq(
         "id", action_id
     ).eq("area_id", area_id).eq("user_id", user_id).execute()
 
@@ -683,7 +683,7 @@ async def delete_action(
     """Delete an action."""
     user_id = current_user["id"]
 
-    result = db.table("area_actions").delete().eq(
+    result = await db.table("area_actions").delete().eq(
         "id", action_id
     ).eq("area_id", area_id).eq("user_id", user_id).execute()
 
@@ -708,7 +708,7 @@ async def link_notes_to_area(
     user_id = current_user["id"]
 
     # Verify area belongs to user
-    area_check = db.table("areas_of_responsibility").select("id").eq(
+    area_check = await db.table("areas_of_responsibility").select("id").eq(
         "id", area_id
     ).eq("user_id", user_id).execute()
 
@@ -718,7 +718,7 @@ async def link_notes_to_area(
     linked = 0
     for note_id in note_ids:
         try:
-            db.table("area_notes").insert({
+            await db.table("area_notes").insert({
                 "area_id": area_id,
                 "note_id": note_id,
                 "user_id": user_id,
@@ -741,7 +741,7 @@ async def unlink_note_from_area(
     """Unlink a note from an area."""
     user_id = current_user["id"]
 
-    db.table("area_notes").delete().eq(
+    await db.table("area_notes").delete().eq(
         "area_id", area_id
     ).eq("note_id", note_id).eq("user_id", user_id).execute()
 

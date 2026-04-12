@@ -140,7 +140,7 @@ async def capture_podcast(
         logger.info(f"Podcast capture request: {url_str[:50]}...")
 
         # Check if URL already exists
-        existing = db.table("contents").select("id, title").eq(
+        existing = await db.table("contents").select("id, title").eq(
             "user_id", user_id
         ).eq("url", url_str).execute()
 
@@ -260,7 +260,7 @@ async def capture_podcast(
                 content_data["metadata"]["ai_error"] = str(e)
 
         # Save to database
-        response = db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
 
         if not response.data:
             return PodcastCaptureResponse(
@@ -350,7 +350,7 @@ async def bookmark_podcast(
         logger.info(f"Podcast bookmark request: {url_str[:50]}...")
 
         # Check if URL already exists
-        existing = db.table("contents").select("id, title").eq(
+        existing = await db.table("contents").select("id, title").eq(
             "user_id", user_id
         ).eq("url", url_str).execute()
 
@@ -406,7 +406,7 @@ async def bookmark_podcast(
         }
 
         # Save to database
-        response = db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
 
         if not response.data:
             return PodcastCaptureResponse(

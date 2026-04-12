@@ -174,7 +174,7 @@ async def list_mental_models(
     if not include_inactive:
         query = query.eq("is_active", True)
 
-    result = query.order("name").execute()
+    result = await query.order("name").execute()
 
     return {
         "models": result.data or [],
@@ -190,7 +190,7 @@ async def create_mental_model(
 ):
     """Create or activate a mental model."""
     # Check if model already exists for user
-    existing = db.table("mental_models").select("*").eq(
+    existing = await db.table("mental_models").select("*").eq(
         "user_id", current_user["id"]
     ).eq("slug", data.slug).execute()
 
@@ -198,7 +198,7 @@ async def create_mental_model(
         # Reactivate if inactive
         model = existing.data[0]
         if not model["is_active"]:
-            result = db.table("mental_models").update({
+            result = await db.table("mental_models").update({
                 "is_active": True
             }).eq("id", model["id"]).execute()
             return result.data[0]
@@ -208,7 +208,7 @@ async def create_mental_model(
         )
 
     # Create new model
-    result = db.table("mental_models").insert({
+    result = await db.table("mental_models").insert({
         "user_id": current_user["id"],
         "slug": data.slug,
         "name": data.name,
@@ -231,7 +231,7 @@ async def get_mental_model(
 ):
     """Get a specific mental model with all related data."""
     # Get the model with actions
-    model_result = db.table("mental_models").select(
+    model_result = await db.table("mental_models").select(
         "*, mental_model_actions(id, title, is_completed, position, created_at)"
     ).eq("id", model_id).eq("user_id", current_user["id"]).execute()
 
@@ -244,7 +244,7 @@ async def get_mental_model(
     model = dict(model_result.data[0])
 
     # Get associated contents
-    associations = db.table("content_mental_models").select(
+    associations = await db.table("content_mental_models").select(
         "content_id, application_notes, created_at"
     ).eq("mental_model_id", model_id).execute()
 
@@ -252,7 +252,7 @@ async def get_mental_model(
 
     contents = []
     if content_ids:
-        contents_result = db.table("contents").select(
+        contents_result = await db.table("contents").select(
             "id, title, url, type, summary, iab_tier1, created_at, is_favorite"
         ).in_("id", content_ids).execute()
         contents = contents_result.data or []
@@ -267,7 +267,7 @@ async def get_mental_model(
 
     # Get linked notes
     try:
-        notes_result = db.table("mental_model_notes").select(
+        notes_result = await db.table("mental_model_notes").select(
             "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
         ).eq("mental_model_id", model_id).execute()
         model["notes"] = [r["standalone_notes"] for r in notes_result.data if r.get("standalone_notes")]
@@ -277,7 +277,7 @@ async def get_mental_model(
 
     # Get linked projects (via project_mental_models)
     try:
-        projects_result = db.table("project_mental_models").select(
+        projects_result = await db.table("project_mental_models").select(
             "project_id, projects(id, name, description, status, icon, color)"
         ).eq("mental_model_id", model_id).execute()
         model["projects"] = [r["projects"] for r in projects_result.data if r.get("projects")]
@@ -287,7 +287,7 @@ async def get_mental_model(
 
     # Get linked objectives (via objective_mental_models)
     try:
-        objectives_result = db.table("objective_mental_models").select(
+        objectives_result = await db.table("objective_mental_models").select(
             "objective_id, objectives(id, title, status, progress, icon, color, horizon)"
         ).eq("mental_model_id", model_id).execute()
         model["objectives"] = [r["objectives"] for r in objectives_result.data if r.get("objectives")]
@@ -297,7 +297,7 @@ async def get_mental_model(
 
     # Get linked areas (via area_mental_models)
     try:
-        areas_result = db.table("area_mental_models").select(
+        areas_result = await db.table("area_mental_models").select(
             "area_id, areas_of_responsibility(id, name, icon, color)"
         ).eq("mental_model_id", model_id).execute()
         model["areas"] = [r["areas_of_responsibility"] for r in areas_result.data if r.get("areas_of_responsibility")]
@@ -317,7 +317,7 @@ async def update_mental_model(
 ):
     """Update a mental model."""
     # Check ownership
-    existing = db.table("mental_models").select("id").eq(
+    existing = await db.table("mental_models").select("id").eq(
         "id", model_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -345,7 +345,7 @@ async def update_mental_model(
     if not update_data:
         return existing.data[0]
 
-    result = db.table("mental_models").update(update_data).eq("id", model_id).execute()
+    result = await db.table("mental_models").update(update_data).eq("id", model_id).execute()
     return result.data[0]
 
 
@@ -356,7 +356,7 @@ async def toggle_mental_model_favorite(
     db: Database,
 ):
     """Toggle favorite status for a mental model."""
-    existing = db.table("mental_models").select("id, is_favorite").eq(
+    existing = await db.table("mental_models").select("id, is_favorite").eq(
         "id", model_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -369,7 +369,7 @@ async def toggle_mental_model_favorite(
     current_favorite = existing.data[0].get("is_favorite", False)
     new_favorite = not current_favorite
 
-    db.table("mental_models").update({"is_favorite": new_favorite}).eq("id", model_id).execute()
+    await db.table("mental_models").update({"is_favorite": new_favorite}).eq("id", model_id).execute()
 
     return {"success": True, "is_favorite": new_favorite}
 
@@ -382,7 +382,7 @@ async def delete_mental_model(
 ):
     """Delete (or deactivate) a mental model."""
     # Check ownership
-    existing = db.table("mental_models").select("id").eq(
+    existing = await db.table("mental_models").select("id").eq(
         "id", model_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -393,7 +393,7 @@ async def delete_mental_model(
         )
 
     # Soft delete - just deactivate
-    db.table("mental_models").update({"is_active": False}).eq("id", model_id).execute()
+    await db.table("mental_models").update({"is_active": False}).eq("id", model_id).execute()
 
 
 # ===== Content associations =====
@@ -406,7 +406,7 @@ async def assign_model_to_content(
 ):
     """Assign a mental model to a content."""
     # Verify content ownership
-    content = db.table("contents").select("id").eq(
+    content = await db.table("contents").select("id").eq(
         "id", data.content_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -417,7 +417,7 @@ async def assign_model_to_content(
         )
 
     # Verify model ownership
-    model = db.table("mental_models").select("id").eq(
+    model = await db.table("mental_models").select("id").eq(
         "id", data.mental_model_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -428,7 +428,7 @@ async def assign_model_to_content(
         )
 
     # Check if already assigned
-    existing = db.table("content_mental_models").select("id").eq(
+    existing = await db.table("content_mental_models").select("id").eq(
         "content_id", data.content_id
     ).eq("mental_model_id", data.mental_model_id).execute()
 
@@ -439,7 +439,7 @@ async def assign_model_to_content(
         )
 
     # Create association
-    result = db.table("content_mental_models").insert({
+    result = await db.table("content_mental_models").insert({
         "content_id": data.content_id,
         "mental_model_id": data.mental_model_id,
         "user_id": current_user["id"],
@@ -458,7 +458,7 @@ async def remove_model_from_content(
 ):
     """Remove a mental model assignment from a content."""
     # Check ownership via user_id on association
-    existing = db.table("content_mental_models").select("id").eq(
+    existing = await db.table("content_mental_models").select("id").eq(
         "content_id", content_id
     ).eq("mental_model_id", model_id).eq("user_id", current_user["id"]).execute()
 
@@ -468,7 +468,7 @@ async def remove_model_from_content(
             detail="Asignacion no encontrada"
         )
 
-    db.table("content_mental_models").delete().eq("id", existing.data[0]["id"]).execute()
+    await db.table("content_mental_models").delete().eq("id", existing.data[0]["id"]).execute()
 
 
 @router.get("/contents/{content_id}")
@@ -479,7 +479,7 @@ async def get_models_for_content(
 ):
     """Get all mental models assigned to a content."""
     # Verify content ownership
-    content = db.table("contents").select("id").eq(
+    content = await db.table("contents").select("id").eq(
         "id", content_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -490,7 +490,7 @@ async def get_models_for_content(
         )
 
     # Get associations
-    associations = db.table("content_mental_models").select(
+    associations = await db.table("content_mental_models").select(
         "mental_model_id, application_notes, created_at"
     ).eq("content_id", content_id).execute()
 
@@ -500,7 +500,7 @@ async def get_models_for_content(
     model_ids = [a["mental_model_id"] for a in associations.data]
 
     # Get model details
-    models = db.table("mental_models").select(
+    models = await db.table("mental_models").select(
         "id, slug, name, description, color, icon"
     ).in_("id", model_ids).execute()
 
@@ -527,7 +527,7 @@ async def create_action(
     user_id = current_user["id"]
 
     # Verify model exists and belongs to user
-    model_check = db.table("mental_models").select("id").eq(
+    model_check = await db.table("mental_models").select("id").eq(
         "id", model_id
     ).eq("user_id", user_id).execute()
 
@@ -535,13 +535,13 @@ async def create_action(
         raise HTTPException(status_code=404, detail="Mental model not found")
 
     # Get next position
-    pos_result = db.table("mental_model_actions").select("position").eq(
+    pos_result = await db.table("mental_model_actions").select("position").eq(
         "mental_model_id", model_id
     ).order("position", desc=True).limit(1).execute()
 
     next_pos = (pos_result.data[0]["position"] + 1) if pos_result.data else 0
 
-    result = db.table("mental_model_actions").insert({
+    result = await db.table("mental_model_actions").insert({
         "mental_model_id": model_id,
         "user_id": user_id,
         "title": data.title,
@@ -566,7 +566,7 @@ async def update_action(
     if "is_completed" in update_data and update_data["is_completed"]:
         update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
 
-    result = db.table("mental_model_actions").update(update_data).eq(
+    result = await db.table("mental_model_actions").update(update_data).eq(
         "id", action_id
     ).eq("mental_model_id", model_id).eq("user_id", user_id).execute()
 
@@ -586,7 +586,7 @@ async def delete_action(
     """Delete an action."""
     user_id = current_user["id"]
 
-    result = db.table("mental_model_actions").delete().eq(
+    result = await db.table("mental_model_actions").delete().eq(
         "id", action_id
     ).eq("mental_model_id", model_id).eq("user_id", user_id).execute()
 
@@ -611,7 +611,7 @@ async def link_notes_to_mental_model(
     user_id = current_user["id"]
 
     # Verify model belongs to user
-    model_check = db.table("mental_models").select("id").eq(
+    model_check = await db.table("mental_models").select("id").eq(
         "id", model_id
     ).eq("user_id", user_id).execute()
 
@@ -621,7 +621,7 @@ async def link_notes_to_mental_model(
     linked = 0
     for note_id in note_ids:
         try:
-            db.table("mental_model_notes").insert({
+            await db.table("mental_model_notes").insert({
                 "mental_model_id": model_id,
                 "note_id": note_id,
                 "user_id": user_id,
@@ -644,7 +644,7 @@ async def unlink_note_from_mental_model(
     """Unlink a note from a mental model."""
     user_id = current_user["id"]
 
-    db.table("mental_model_notes").delete().eq(
+    await db.table("mental_model_notes").delete().eq(
         "mental_model_id", model_id
     ).eq("note_id", note_id).eq("user_id", user_id).execute()
 

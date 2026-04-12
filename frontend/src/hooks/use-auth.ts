@@ -1,11 +1,13 @@
 /**
  * Authentication hook.
+ * Uses JWT tokens with the self-hosted backend (replaces Supabase auth).
  */
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { getAccessToken, setTokens, clearTokens } from '@/lib/supabase';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface User {
     id: string;
@@ -27,47 +29,52 @@ export function useAuth(): UseAuthReturn {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                setUser({
-                    id: session.user.id,
-                    email: session.user.email || '',
-                });
-                setToken(session.access_token);
-            }
+        // Check for existing token on mount
+        const existingToken = getAccessToken();
+        if (existingToken) {
+            setToken(existingToken);
+            // Validate token by calling /auth/me
+            fetch(`${API_URL}/api/v1/auth/me`, {
+                headers: { 'Authorization': `Bearer ${existingToken}` },
+            })
+                .then(res => {
+                    if (res.ok) return res.json();
+                    throw new Error('Invalid token');
+                })
+                .then(data => {
+                    setUser({ id: data.id, email: data.email || '' });
+                })
+                .catch(() => {
+                    clearTokens();
+                    setToken(null);
+                    setUser(null);
+                })
+                .finally(() => setLoading(false));
+        } else {
             setLoading(false);
-        });
-
-        // Listen for auth changes
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session?.user) {
-                setUser({
-                    id: session.user.id,
-                    email: session.user.email || '',
-                });
-                setToken(session.access_token);
-            } else {
-                setUser(null);
-                setToken(null);
-            }
-        });
-
-        return () => subscription.unsubscribe();
+        }
     }, []);
 
     const signIn = useCallback(async (email: string, password: string) => {
         try {
-            const { error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
+            const res = await fetch(`${API_URL}/api/v1/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
             });
 
-            if (error) {
-                return { error: error.message };
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                return { error: data.detail || 'Invalid credentials' };
             }
+
+            const data = await res.json();
+            const accessToken = data.session.access_token;
+            const refreshToken = data.session.refresh_token;
+
+            setTokens(accessToken, refreshToken);
+            setToken(accessToken);
+            setUser({ id: data.user.id, email: data.user.email || '' });
 
             return {};
         } catch (err) {
@@ -77,17 +84,24 @@ export function useAuth(): UseAuthReturn {
 
     const signUp = useCallback(async (email: string, password: string, name?: string) => {
         try {
-            const { error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: { name },
-                },
+            const res = await fetch(`${API_URL}/api/v1/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, name }),
             });
 
-            if (error) {
-                return { error: error.message };
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                return { error: data.detail || 'Registration failed' };
             }
+
+            const data = await res.json();
+            const accessToken = data.session.access_token;
+            const refreshToken = data.session.refresh_token;
+
+            setTokens(accessToken, refreshToken);
+            setToken(accessToken);
+            setUser({ id: data.user.id, email: data.user.email || '' });
 
             return {};
         } catch (err) {
@@ -96,7 +110,9 @@ export function useAuth(): UseAuthReturn {
     }, []);
 
     const signOut = useCallback(async () => {
-        await supabase.auth.signOut();
+        clearTokens();
+        setToken(null);
+        setUser(null);
     }, []);
 
     return {
