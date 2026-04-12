@@ -64,7 +64,7 @@ class Content(Base):
     embedding = Column(Vector(1536))
 
     # Metadata and relations
-    metadata = Column(JSONB, default={})
+    content_metadata = Column("metadata", JSONB, default={})
     source_metadata = Column(JSONB, default={})
     processing_status = Column(String(20), default="pending")
     processing_error = Column(Text)

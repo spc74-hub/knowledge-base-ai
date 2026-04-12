@@ -18,5 +18,5 @@ class ApiUsage(Base):
     total_tokens = Column(Integer, default=0)
     cost_usd = Column(Float, default=0.0)
     total_cost = Column(Float, default=0.0)
-    metadata = Column(JSONB, default={})
+    usage_metadata = Column("metadata", JSONB, default={})
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
