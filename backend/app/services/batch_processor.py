@@ -7,7 +7,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.db.session import get_supabase_admin_client
+from app.db.session import AsyncSessionLocal
+from app.db.compat import CompatDB
 from app.services.processor import processor_service
 from app.services.fetcher import fetcher_service
 from app.services.url_normalizer import normalize_url
@@ -74,13 +75,14 @@ class BatchProcessorService:
     async def _process_all_users(self):
         """Process queued (unfetched) and pending content for all users."""
         try:
-            db = get_supabase_admin_client()
+            async with AsyncSessionLocal() as session:
+                db = CompatDB(session)
 
-            # PHASE 1: Fetch queued URLs (no content yet)
-            await self._fetch_queued_urls(db)
+                # PHASE 1: Fetch queued URLs (no content yet)
+                await self._fetch_queued_urls(db)
 
-            # PHASE 2: Process pending content (AI enrichment)
-            await self._process_pending_content(db)
+                # PHASE 2: Process pending content (AI enrichment)
+                await self._process_pending_content(db)
 
         except Exception as e:
             logger.error(f"Error in _process_all_users: {e}")
@@ -90,7 +92,7 @@ class BatchProcessorService:
         try:
             # Get queued URLs that don't have content yet (limit to batch size)
             # Only fetch URLs that are pending AND don't have raw_content
-            queued = db.table("contents").select(
+            queued = await db.table("contents").select(
                 "id, url, user_id, metadata"
             ).eq(
                 "processing_status", "pending"
@@ -119,7 +121,7 @@ class BatchProcessorService:
                             timeout=30.0
                         )
                     except asyncio.TimeoutError:
-                        db.table("contents").update({
+                        await db.table("contents").update({
                             "processing_status": "failed",
                             "processing_error": "Timeout al obtener contenido"
                         }).eq("id", item["id"]).execute()
@@ -127,7 +129,7 @@ class BatchProcessorService:
                         continue
 
                     if not fetch_result.success:
-                        db.table("contents").update({
+                        await db.table("contents").update({
                             "processing_status": "failed",
                             "processing_error": f"Fetch error: {fetch_result.error}"
                         }).eq("id", item["id"]).execute()
@@ -138,7 +140,7 @@ class BatchProcessorService:
                     word_count = len(fetch_result.content.split())
                     reading_time = max(1, word_count // 200)
 
-                    db.table("contents").update({
+                    await db.table("contents").update({
                         "type": fetch_result.type,
                         "title": fetch_result.title,
                         "raw_content": fetch_result.content[:50000],
@@ -150,7 +152,7 @@ class BatchProcessorService:
 
                 except Exception as e:
                     logger.error(f"Error fetching URL {item['url']}: {e}")
-                    db.table("contents").update({
+                    await db.table("contents").update({
                         "processing_status": "failed",
                         "processing_error": str(e)[:100]
                     }).eq("id", item["id"]).execute()

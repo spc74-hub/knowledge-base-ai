@@ -67,7 +67,7 @@ async def list_objectives(
     if not include_children:
         query = query.is_("parent_id", "null")
 
-    result = query.execute()
+    result = await query.execute()
     return {"objectives": result.data}
 
 
@@ -77,7 +77,7 @@ async def get_active_objectives(
     db: Database,
 ):
     """Get only active objectives (for dashboard)."""
-    result = db.table("objectives").select(
+    result = await db.table("objectives").select(
         "*, objective_actions(id, title, is_completed, position)"
     ).eq("user_id", current_user["id"]).eq("status", "active").order("position").execute()
 
@@ -90,7 +90,7 @@ async def get_objectives_stats(
     db: Database,
 ):
     """Get statistics about objectives."""
-    result = db.table("objectives").select("status, progress").eq(
+    result = await db.table("objectives").select("status, progress").eq(
         "user_id", current_user["id"]
     ).execute()
 
@@ -129,7 +129,7 @@ async def get_objectives_tree(
     db: Database,
 ):
     """Get objectives as a tree structure."""
-    result = db.table("objectives").select(
+    result = await db.table("objectives").select(
         "id, title, icon, color, status, progress, parent_id, position, horizon"
     ).eq("user_id", current_user["id"]).order("position").execute()
 
@@ -157,7 +157,7 @@ async def reorder_objective(
 ):
     """Reorder an objective (change parent and/or position)."""
     # Verify objective belongs to user
-    check = db.table("objectives").select("id").eq(
+    check = await db.table("objectives").select("id").eq(
         "id", data.objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -166,7 +166,7 @@ async def reorder_objective(
 
     # If new_parent_id is provided, verify it belongs to user
     if data.new_parent_id:
-        parent_check = db.table("objectives").select("id").eq(
+        parent_check = await db.table("objectives").select("id").eq(
             "id", data.new_parent_id
         ).eq("user_id", current_user["id"]).execute()
 
@@ -174,7 +174,7 @@ async def reorder_objective(
             raise HTTPException(status_code=404, detail="Parent objective not found")
 
     # Update the objective
-    db.table("objectives").update({
+    await db.table("objectives").update({
         "parent_id": data.new_parent_id,
         "position": data.new_position,
     }).eq("id", data.objective_id).eq("user_id", current_user["id"]).execute()
@@ -206,7 +206,7 @@ async def create_objective(
         "area_id": data.area_id,
     }
 
-    result = db.table("objectives").insert(insert_data).execute()
+    result = await db.table("objectives").insert(insert_data).execute()
 
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create objective")
@@ -222,7 +222,7 @@ async def get_objective(
 ):
     """Get a specific objective with all related data."""
     # Get objective with actions
-    result = db.table("objectives").select(
+    result = await db.table("objectives").select(
         "*, objective_actions(id, title, is_completed, position, created_at)"
     ).eq("id", objective_id).eq("user_id", current_user["id"]).single().execute()
 
@@ -233,7 +233,7 @@ async def get_objective(
 
     # Get linked mental models (with error handling for missing tables)
     try:
-        mm_result = db.table("objective_mental_models").select(
+        mm_result = await db.table("objective_mental_models").select(
             "mental_model_id, mental_models(id, name, slug, icon, color)"
         ).eq("objective_id", objective_id).execute()
         objective["mental_models"] = [r["mental_models"] for r in mm_result.data if r.get("mental_models")]
@@ -243,7 +243,7 @@ async def get_objective(
 
     # Get linked projects
     try:
-        proj_result = db.table("objective_projects").select(
+        proj_result = await db.table("objective_projects").select(
             "project_id, projects(id, name, status, color, icon)"
         ).eq("objective_id", objective_id).execute()
         objective["projects"] = [r["projects"] for r in proj_result.data if r.get("projects")]
@@ -253,7 +253,7 @@ async def get_objective(
 
     # Get linked contents
     try:
-        content_result = db.table("objective_contents").select(
+        content_result = await db.table("objective_contents").select(
             "content_id, contents(id, title, type, is_favorite, created_at)"
         ).eq("objective_id", objective_id).execute()
         objective["contents"] = [r["contents"] for r in content_result.data if r.get("contents")]
@@ -265,7 +265,7 @@ async def get_objective(
 
     # Get linked notes
     try:
-        notes_result = db.table("objective_notes").select(
+        notes_result = await db.table("objective_notes").select(
             "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
         ).eq("objective_id", objective_id).execute()
         objective["notes"] = [r["standalone_notes"] for r in notes_result.data if r.get("standalone_notes")]
@@ -275,7 +275,7 @@ async def get_objective(
 
     # Get sub-objectives
     try:
-        children_result = db.table("objectives").select(
+        children_result = await db.table("objectives").select(
             "id, title, status, progress, icon, color, horizon"
         ).eq("parent_id", objective_id).order("position").execute()
         objective["children"] = children_result.data
@@ -302,7 +302,7 @@ async def update_objective(
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    result = db.table("objectives").update(update_data).eq(
+    result = await db.table("objectives").update(update_data).eq(
         "id", objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -319,7 +319,7 @@ async def delete_objective(
     db: Database,
 ):
     """Delete an objective."""
-    result = db.table("objectives").delete().eq(
+    result = await db.table("objectives").delete().eq(
         "id", objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -337,7 +337,7 @@ async def toggle_objective_favorite(
 ):
     """Toggle favorite status for an objective."""
     # Get current status
-    existing = db.table("objectives").select("id, is_favorite").eq(
+    existing = await db.table("objectives").select("id, is_favorite").eq(
         "id", objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -347,7 +347,7 @@ async def toggle_objective_favorite(
     current_favorite = existing.data[0].get("is_favorite", False)
     new_favorite = not current_favorite
 
-    db.table("objectives").update({
+    await db.table("objectives").update({
         "is_favorite": new_favorite
     }).eq("id", objective_id).execute()
 
@@ -370,7 +370,7 @@ async def create_action(
 ):
     """Add an action to an objective."""
     # Verify objective exists and belongs to user
-    obj_check = db.table("objectives").select("id").eq(
+    obj_check = await db.table("objectives").select("id").eq(
         "id", objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -378,13 +378,13 @@ async def create_action(
         raise HTTPException(status_code=404, detail="Objective not found")
 
     # Get next position
-    pos_result = db.table("objective_actions").select("position").eq(
+    pos_result = await db.table("objective_actions").select("position").eq(
         "objective_id", objective_id
     ).order("position", desc=True).limit(1).execute()
 
     next_pos = (pos_result.data[0]["position"] + 1) if pos_result.data else 0
 
-    result = db.table("objective_actions").insert({
+    result = await db.table("objective_actions").insert({
         "objective_id": objective_id,
         "user_id": current_user["id"],
         "title": data.title,
@@ -409,7 +409,7 @@ async def update_action(
         from datetime import datetime
         update_data["completed_at"] = datetime.utcnow().isoformat()
 
-    result = db.table("objective_actions").update(update_data).eq(
+    result = await db.table("objective_actions").update(update_data).eq(
         "id", action_id
     ).eq("objective_id", objective_id).eq("user_id", current_user["id"]).execute()
 
@@ -427,7 +427,7 @@ async def delete_action(
     db: Database,
 ):
     """Delete an action."""
-    result = db.table("objective_actions").delete().eq(
+    result = await db.table("objective_actions").delete().eq(
         "id", action_id
     ).eq("objective_id", objective_id).eq("user_id", current_user["id"]).execute()
 
@@ -450,7 +450,7 @@ async def link_mental_model(
 ):
     """Link a mental model to an objective."""
     try:
-        db.table("objective_mental_models").insert({
+        await db.table("objective_mental_models").insert({
             "objective_id": objective_id,
             "mental_model_id": model_id,
             "user_id": current_user["id"],
@@ -470,7 +470,7 @@ async def unlink_mental_model(
     db: Database,
 ):
     """Unlink a mental model from an objective."""
-    db.table("objective_mental_models").delete().eq(
+    await db.table("objective_mental_models").delete().eq(
         "objective_id", objective_id
     ).eq("mental_model_id", model_id).eq("user_id", current_user["id"]).execute()
     return {"success": True}
@@ -485,7 +485,7 @@ async def link_project(
 ):
     """Link a project to an objective."""
     try:
-        db.table("objective_projects").insert({
+        await db.table("objective_projects").insert({
             "objective_id": objective_id,
             "project_id": project_id,
             "user_id": current_user["id"],
@@ -505,7 +505,7 @@ async def unlink_project(
     db: Database,
 ):
     """Unlink a project from an objective."""
-    db.table("objective_projects").delete().eq(
+    await db.table("objective_projects").delete().eq(
         "objective_id", objective_id
     ).eq("project_id", project_id).eq("user_id", current_user["id"]).execute()
     return {"success": True}
@@ -520,7 +520,7 @@ async def link_content(
 ):
     """Link a content to an objective."""
     try:
-        db.table("objective_contents").insert({
+        await db.table("objective_contents").insert({
             "objective_id": objective_id,
             "content_id": content_id,
             "user_id": current_user["id"],
@@ -540,7 +540,7 @@ async def unlink_content(
     db: Database,
 ):
     """Unlink a content from an objective."""
-    db.table("objective_contents").delete().eq(
+    await db.table("objective_contents").delete().eq(
         "objective_id", objective_id
     ).eq("content_id", content_id).eq("user_id", current_user["id"]).execute()
     return {"success": True}
@@ -555,7 +555,7 @@ async def link_contents_to_objective(
 ):
     """Link multiple contents to an objective."""
     # Verify objective belongs to user
-    obj_check = db.table("objectives").select("id").eq(
+    obj_check = await db.table("objectives").select("id").eq(
         "id", objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -565,7 +565,7 @@ async def link_contents_to_objective(
     linked = 0
     for content_id in content_ids:
         try:
-            db.table("objective_contents").insert({
+            await db.table("objective_contents").insert({
                 "objective_id": objective_id,
                 "content_id": content_id,
                 "user_id": current_user["id"],
@@ -587,7 +587,7 @@ async def unlink_contents_from_objective(
 ):
     """Unlink multiple contents from an objective."""
     for content_id in content_ids:
-        db.table("objective_contents").delete().eq(
+        await db.table("objective_contents").delete().eq(
             "objective_id", objective_id
         ).eq("content_id", content_id).eq("user_id", current_user["id"]).execute()
 
@@ -603,7 +603,7 @@ async def link_projects_to_objective(
 ):
     """Link multiple projects to an objective."""
     # Verify objective belongs to user
-    obj_check = db.table("objectives").select("id").eq(
+    obj_check = await db.table("objectives").select("id").eq(
         "id", objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -613,7 +613,7 @@ async def link_projects_to_objective(
     linked = 0
     for project_id in project_ids:
         try:
-            db.table("objective_projects").insert({
+            await db.table("objective_projects").insert({
                 "objective_id": objective_id,
                 "project_id": project_id,
                 "user_id": current_user["id"],
@@ -635,7 +635,7 @@ async def unlink_projects_from_objective(
 ):
     """Unlink multiple projects from an objective."""
     for project_id in project_ids:
-        db.table("objective_projects").delete().eq(
+        await db.table("objective_projects").delete().eq(
             "objective_id", objective_id
         ).eq("project_id", project_id).eq("user_id", current_user["id"]).execute()
 
@@ -651,7 +651,7 @@ async def link_mental_models_to_objective(
 ):
     """Link multiple mental models to an objective."""
     # Verify objective belongs to user
-    obj_check = db.table("objectives").select("id").eq(
+    obj_check = await db.table("objectives").select("id").eq(
         "id", objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -661,7 +661,7 @@ async def link_mental_models_to_objective(
     linked = 0
     for model_id in model_ids:
         try:
-            db.table("objective_mental_models").insert({
+            await db.table("objective_mental_models").insert({
                 "objective_id": objective_id,
                 "mental_model_id": model_id,
                 "user_id": current_user["id"],
@@ -683,7 +683,7 @@ async def unlink_mental_models_from_objective(
 ):
     """Unlink multiple mental models from an objective."""
     for model_id in model_ids:
-        db.table("objective_mental_models").delete().eq(
+        await db.table("objective_mental_models").delete().eq(
             "objective_id", objective_id
         ).eq("mental_model_id", model_id).eq("user_id", current_user["id"]).execute()
 
@@ -699,7 +699,7 @@ async def get_objective_contents(
     offset: int = 0,
 ):
     """Get contents linked to an objective."""
-    result = db.table("objective_contents").select(
+    result = await db.table("objective_contents").select(
         "content_id, contents(id, title, summary, content_type, source_url, created_at)"
     ).eq("objective_id", objective_id).eq(
         "user_id", current_user["id"]
@@ -722,7 +722,7 @@ async def link_notes_to_objective(
 ):
     """Link multiple standalone notes to an objective."""
     # Verify objective belongs to user
-    obj_check = db.table("objectives").select("id").eq(
+    obj_check = await db.table("objectives").select("id").eq(
         "id", objective_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -732,7 +732,7 @@ async def link_notes_to_objective(
     linked = 0
     for note_id in note_ids:
         try:
-            db.table("objective_notes").insert({
+            await db.table("objective_notes").insert({
                 "objective_id": objective_id,
                 "note_id": note_id,
                 "user_id": current_user["id"],
@@ -754,7 +754,7 @@ async def unlink_notes_from_objective(
 ):
     """Unlink multiple standalone notes from an objective."""
     for note_id in note_ids:
-        db.table("objective_notes").delete().eq(
+        await db.table("objective_notes").delete().eq(
             "objective_id", objective_id
         ).eq("note_id", note_id).eq("user_id", current_user["id"]).execute()
 
@@ -768,7 +768,7 @@ async def get_objective_notes(
     db: Database,
 ):
     """Get standalone notes linked to an objective."""
-    result = db.table("objective_notes").select(
+    result = await db.table("objective_notes").select(
         "note_id, standalone_notes(id, title, content, note_type, tags, is_pinned, created_at)"
     ).eq("objective_id", objective_id).eq(
         "user_id", current_user["id"]

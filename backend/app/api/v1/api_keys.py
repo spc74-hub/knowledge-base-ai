@@ -10,7 +10,8 @@ from fastapi import APIRouter, HTTPException, status, Header, Depends
 from pydantic import BaseModel
 
 from app.api.deps import Database, CurrentUser
-from app.db.session import get_supabase_admin_client
+from app.db.session import AsyncSessionLocal
+from app.db.compat import CompatDB
 
 router = APIRouter()
 
@@ -72,7 +73,7 @@ async def create_api_key(
         logger.info(f"Creating API key for user: {user_id}")
 
         # Check existing active keys (limit to 5 per user)
-        existing = db.table("user_api_keys").select("id").eq(
+        existing = await db.table("user_api_keys").select("id").eq(
             "user_id", user_id
         ).eq("is_active", True).execute()
 
@@ -87,7 +88,7 @@ async def create_api_key(
         logger.info(f"Generated key with prefix: {key_prefix}")
 
         # Save to database
-        result = db.table("user_api_keys").insert({
+        result = await db.table("user_api_keys").insert({
             "user_id": user_id,
             "name": data.name,
             "key_hash": key_hash,
@@ -125,7 +126,7 @@ async def list_api_keys(
     db: Database
 ):
     """List all API keys for the current user."""
-    result = db.table("user_api_keys").select(
+    result = await db.table("user_api_keys").select(
         "id, name, key_prefix, created_at, last_used_at, is_active"
     ).eq("user_id", current_user["id"]).order("created_at", desc=True).execute()
 
@@ -149,7 +150,7 @@ async def revoke_api_key(
     db: Database
 ):
     """Revoke an API key."""
-    result = db.table("user_api_keys").update({
+    result = await db.table("user_api_keys").update({
         "is_active": False,
         "revoked_at": datetime.utcnow().isoformat()
     }).eq("id", key_id).eq("user_id", current_user["id"]).execute()
@@ -172,9 +173,9 @@ async def validate_api_key(api_key: str) -> Optional[dict]:
         return None
 
     key_hash = hash_api_key(api_key)
-    admin_db = get_supabase_admin_client()
+    # Use the injected db dependency instead
 
-    result = admin_db.table("user_api_keys").select(
+    result = await admin_db.table("user_api_keys").select(
         "id, user_id, is_active"
     ).eq("key_hash", key_hash).eq("is_active", True).execute()
 
@@ -184,7 +185,7 @@ async def validate_api_key(api_key: str) -> Optional[dict]:
     key_data = result.data[0]
 
     # Update last_used_at
-    admin_db.table("user_api_keys").update({
+    await admin_db.table("user_api_keys").update({
         "last_used_at": datetime.utcnow().isoformat()
     }).eq("id", key_data["id"]).execute()
 

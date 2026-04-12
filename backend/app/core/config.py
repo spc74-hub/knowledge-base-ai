@@ -1,8 +1,10 @@
 """
 Application configuration using Pydantic Settings.
+Migrated from Supabase to self-hosted PostgreSQL.
 """
 from pydantic_settings import BaseSettings
 from typing import List
+
 
 class Settings(BaseSettings):
     # Application
@@ -14,19 +16,19 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = "dev-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_HOURS: int = 24 * 7  # 7 days
     # Use "*" to allow bookmarklet from any origin
     ALLOWED_ORIGINS: List[str] = ["*"]
 
-    # Supabase
-    SUPABASE_URL: str
-    SUPABASE_KEY: str
-    SUPABASE_SERVICE_KEY: str
+    # Database (PostgreSQL with asyncpg)
+    DATABASE_URL: str = "postgresql+asyncpg://spcadmin:PASSWORD@spcapps-postgres:5432/kbia"
 
     # Claude API
-    ANTHROPIC_API_KEY: str
+    ANTHROPIC_API_KEY: str = ""
 
     # OpenAI API
-    OPENAI_API_KEY: str
+    OPENAI_API_KEY: str = ""
 
     # Redis (optional)
     REDIS_URL: str = "redis://localhost:6379"
@@ -38,5 +40,6 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+
 
 settings = Settings()

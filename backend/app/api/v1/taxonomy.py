@@ -173,7 +173,7 @@ async def _get_category_nodes_optimized(
         if has_comment is not None:
             params["p_has_comment"] = has_comment
 
-        result = db.rpc("get_category_counts", params).execute()
+        result = await db.rpc("get_category_counts", params).execute()
         if result.data:
             nodes = []
             total = 0
@@ -202,7 +202,7 @@ async def _get_category_nodes_optimized(
     if processing_status and len(processing_status) == 1:
         cat_query = cat_query.eq("processing_status", processing_status[0])
 
-    cat_response = cat_query.execute()
+    cat_response = await cat_query.execute()
     categories = set()
     for item in cat_response.data or []:
         categories.add(item.get("iab_tier1") or "Sin categoria")
@@ -231,7 +231,7 @@ async def _get_category_nodes_optimized(
         if maturity_level and len(maturity_level) == 1:
             count_query = count_query.eq("maturity_level", maturity_level[0])
 
-        count_result = count_query.execute()
+        count_result = await count_query.execute()
         count = count_result.count or 0
 
         if count > 0:
@@ -288,7 +288,7 @@ async def _get_nodes_batched(
             query = query.eq("maturity_level", maturity_level[0])
 
         # Fetch batch
-        response = query.range(offset, offset + BATCH_SIZE - 1).execute()
+        response = await query.range(offset, offset + BATCH_SIZE - 1).execute()
         items = response.data or []
 
         if not items:
@@ -449,7 +449,7 @@ async def get_taxonomy_contents(
             # Use DB pagination directly - most efficient
             # First get total count
             count_query = build_base_query("id")
-            count_response = count_query.execute()
+            count_response = await count_query.execute()
             total = len(count_response.data or [])
 
             # Then get paginated results
@@ -457,7 +457,7 @@ async def get_taxonomy_contents(
                 "id, title, type, url, iab_tier1, summary, created_at, metadata"
             ).order("created_at", desc=True).range(data.offset, data.offset + data.limit - 1)
 
-            response = data_query.execute()
+            response = await data_query.execute()
 
             return {
                 "contents": response.data or [],
@@ -519,7 +519,7 @@ async def get_taxonomy_contents(
                 "id, title, type, url, iab_tier1, summary, created_at, metadata, processing_status, maturity_level, user_note, is_favorite"
             ).order("created_at", desc=True).range(offset, offset + BATCH_SIZE - 1)
 
-            response = query.execute()
+            response = await query.execute()
             items = response.data or []
 
             if not items:
@@ -609,7 +609,7 @@ async def _get_type_counts(user_id: str, db, filters: Optional[TypeCountsRequest
         if not has_filters:
             # Use optimized RPC for unfiltered counts
             try:
-                result = db.rpc("get_content_type_counts", {"p_user_id": user_id}).execute()
+                result = await db.rpc("get_content_type_counts", {"p_user_id": user_id}).execute()
                 if result.data:
                     types = [
                         {"value": row["type_value"], "label": _get_type_label(row["type_value"]), "count": row["count"]}
@@ -639,7 +639,7 @@ async def _get_type_counts(user_id: str, db, filters: Optional[TypeCountsRequest
                 if filters.is_favorite is True:
                     query = query.eq("is_favorite", True)
 
-            response = query.range(offset, offset + BATCH_SIZE - 1).execute()
+            response = await query.range(offset, offset + BATCH_SIZE - 1).execute()
             items = response.data or []
 
             if not items:

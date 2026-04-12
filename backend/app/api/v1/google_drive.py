@@ -234,7 +234,7 @@ async def _import_single_file(
             )
 
         # Check for duplicate by URL
-        existing = db.table("contents").select("id").eq(
+        existing = await db.table("contents").select("id").eq(
             "user_id", user_id
         ).eq("url", web_link).execute()
 
@@ -299,7 +299,7 @@ async def _import_single_file(
             "embedding": None
         }
 
-        response = db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
 
         if response.data:
             return ImportResult(

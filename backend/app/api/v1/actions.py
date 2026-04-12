@@ -93,7 +93,7 @@ async def get_all_actions(
         # Process areas
         if not parent_type or parent_type == "area":
             # Get all areas first
-            all_areas = db.table("areas_of_responsibility").select(
+            all_areas = await db.table("areas_of_responsibility").select(
                 "id, name, icon, color"
             ).eq("user_id", user_id).execute()
 
@@ -105,7 +105,7 @@ async def get_all_actions(
                     add_group("area", area["id"], area["name"], area["icon"], area["color"])
 
             # Get actions and add them
-            area_actions = db.table("area_actions").select(
+            area_actions = await db.table("area_actions").select(
                 "id, title, is_completed, position, completed_at, created_at, area_id"
             ).eq("user_id", user_id).execute()
 
@@ -138,7 +138,7 @@ async def get_all_actions(
 
         # Process objectives
         if not parent_type or parent_type == "objective":
-            all_objectives = db.table("objectives").select(
+            all_objectives = await db.table("objectives").select(
                 "id, title, icon, color"
             ).eq("user_id", user_id).execute()
 
@@ -148,7 +148,7 @@ async def get_all_actions(
                 for obj in (all_objectives.data or []):
                     add_group("objective", obj["id"], obj["title"], obj["icon"], obj["color"])
 
-            objective_actions = db.table("objective_actions").select(
+            objective_actions = await db.table("objective_actions").select(
                 "id, title, is_completed, position, completed_at, created_at, objective_id"
             ).eq("user_id", user_id).execute()
 
@@ -180,7 +180,7 @@ async def get_all_actions(
 
         # Process projects
         if not parent_type or parent_type == "project":
-            all_projects = db.table("projects").select(
+            all_projects = await db.table("projects").select(
                 "id, name, icon, color"
             ).eq("user_id", user_id).execute()
 
@@ -190,7 +190,7 @@ async def get_all_actions(
                 for proj in (all_projects.data or []):
                     add_group("project", proj["id"], proj["name"], proj["icon"], proj["color"])
 
-            project_actions = db.table("project_actions").select(
+            project_actions = await db.table("project_actions").select(
                 "id, title, is_completed, position, completed_at, created_at, project_id"
             ).eq("user_id", user_id).execute()
 
@@ -222,7 +222,7 @@ async def get_all_actions(
 
         # Process mental models
         if not parent_type or parent_type == "mental_model":
-            all_mm = db.table("mental_models").select(
+            all_mm = await db.table("mental_models").select(
                 "id, name, icon, color"
             ).eq("user_id", user_id).execute()
 
@@ -232,7 +232,7 @@ async def get_all_actions(
                 for mm in (all_mm.data or []):
                     add_group("mental_model", mm["id"], mm["name"], mm["icon"], mm["color"])
 
-            mm_actions = db.table("mental_model_actions").select(
+            mm_actions = await db.table("mental_model_actions").select(
                 "id, title, is_completed, position, completed_at, created_at, mental_model_id"
             ).eq("user_id", user_id).execute()
 

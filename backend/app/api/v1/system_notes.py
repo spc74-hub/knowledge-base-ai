@@ -50,7 +50,7 @@ async def list_system_notes(
     if category:
         query = query.eq("category", category)
 
-    result = query.order("position", desc=False).order("created_at", desc=True).execute()
+    result = await query.order("position", desc=False).order("created_at", desc=True).execute()
 
     notes = []
     for row in result.data:
@@ -74,7 +74,7 @@ async def get_system_note(
     db: Database,
 ):
     """Get a specific system note."""
-    result = db.table("system_notes").select("*").eq(
+    result = await db.table("system_notes").select("*").eq(
         "id", note_id
     ).eq(
         "user_id", current_user["id"]
@@ -106,7 +106,7 @@ async def create_system_note(
 ):
     """Create a new system note."""
     # Get the highest position
-    max_pos_result = db.table("system_notes").select("position").eq(
+    max_pos_result = await db.table("system_notes").select("position").eq(
         "user_id", current_user["id"]
     ).order("position", desc=True).limit(1).execute()
 
@@ -114,7 +114,7 @@ async def create_system_note(
     if max_pos_result.data:
         next_position = (max_pos_result.data[0].get("position") or 0) + 1
 
-    result = db.table("system_notes").insert({
+    result = await db.table("system_notes").insert({
         "user_id": current_user["id"],
         "title": data.title,
         "content": data.content,
@@ -143,7 +143,7 @@ async def update_system_note(
 ):
     """Update a system note."""
     # Check ownership
-    existing = db.table("system_notes").select("*").eq(
+    existing = await db.table("system_notes").select("*").eq(
         "id", note_id
     ).eq(
         "user_id", current_user["id"]
@@ -178,7 +178,7 @@ async def update_system_note(
             updated_at=str(row.get("updated_at", row["created_at"])),
         )
 
-    result = db.table("system_notes").update(update_data).eq("id", note_id).execute()
+    result = await db.table("system_notes").update(update_data).eq("id", note_id).execute()
     row = result.data[0]
 
     return SystemNoteResponse(
@@ -200,7 +200,7 @@ async def delete_system_note(
 ):
     """Delete a system note."""
     # Check ownership
-    existing = db.table("system_notes").select("id").eq(
+    existing = await db.table("system_notes").select("id").eq(
         "id", note_id
     ).eq(
         "user_id", current_user["id"]
@@ -212,7 +212,7 @@ async def delete_system_note(
             detail="Note not found"
         )
 
-    db.table("system_notes").delete().eq("id", note_id).execute()
+    await db.table("system_notes").delete().eq("id", note_id).execute()
 
 
 CATEGORY_LABELS = {

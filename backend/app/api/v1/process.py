@@ -73,7 +73,7 @@ async def get_processing_errors(
     """
     try:
         # Get failed content with errors
-        response = db.table("contents").select(
+        response = await db.table("contents").select(
             "id, title, url, processing_error, created_at"
         ).eq(
             "user_id", current_user["id"]
@@ -157,7 +157,7 @@ async def retry_failed_content(
     """
     try:
         # Get failed content
-        response = db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).eq("processing_status", "failed").execute()
+        response = await db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).eq("processing_status", "failed").execute()
 
         count = response.count or 0
 
@@ -169,7 +169,7 @@ async def retry_failed_content(
             )
 
         # Reset to pending
-        db.table("contents").update({
+        await db.table("contents").update({
             "processing_status": "pending",
             "processing_error": None
         }).eq("user_id", current_user["id"]).eq("processing_status", "failed").execute()
@@ -199,7 +199,7 @@ async def retry_errored_content(
     """
     try:
         # Get completed content where summary contains error indicators
-        response = db.table("contents").select(
+        response = await db.table("contents").select(
             "id, summary"
         ).eq(
             "user_id", current_user["id"]
@@ -233,7 +233,7 @@ async def retry_errored_content(
 
         # Reset these to pending and clear the error summary
         for content_id in errored_ids:
-            db.table("contents").update({
+            await db.table("contents").update({
                 "processing_status": "pending",
                 "summary": None,
                 "processing_error": None

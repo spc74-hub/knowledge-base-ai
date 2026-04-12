@@ -74,7 +74,7 @@ async def quick_save_url(
         logger.info(f"Quick save request: {original_url} -> resolved: {resolved_url} -> normalized: {url_str}")
 
         # Check if normalized URL already exists
-        existing = db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
+        existing = await db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
 
         if existing.data:
             logger.info(f"URL already exists: {url_str}")
@@ -184,7 +184,7 @@ async def quick_save_url(
                 "processing_status": "completed"
             })
 
-        response = db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
 
         if not response.data:
             return QuickSaveResponse(
@@ -239,7 +239,7 @@ async def quick_save_shortcut(
         logger.info(f"Shortcut quick save: {original_url} -> resolved: {resolved_url} -> normalized: {url_str}")
 
         # Check if URL already exists
-        existing = db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
+        existing = await db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url_str).execute()
 
         if existing.data:
             return JSONResponse(content={
@@ -291,7 +291,7 @@ async def quick_save_shortcut(
             "description": fetch_result.description
         }
 
-        response = db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
 
         if not response.data:
             return JSONResponse(content={
@@ -373,24 +373,25 @@ async def quick_save_callback(
     Returns HTML with result that the Shortcut can parse.
     """
     try:
-        # Verify token and get user
-        from app.db.session import get_supabase_client
-        auth_client = get_supabase_client()
-        user_response = auth_client.auth.get_user(token)
+        # Verify JWT token and get user
+        import jwt as pyjwt
+        from app.core.config import settings
 
-        if not user_response or not user_response.user:
+        try:
+            payload = pyjwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+            user_id = payload.get("sub")
+            if not user_id:
+                return HTMLResponse(
+                    content="<html><body><h1>Error</h1><p>Invalid token. Please login again.</p></body></html>",
+                    status_code=401
+                )
+        except Exception:
             return HTMLResponse(
                 content="<html><body><h1>Error</h1><p>Invalid token. Please login again.</p></body></html>",
                 status_code=401
             )
 
-        user_id = user_response.user.id
-
-        # Check duplicate
-        from app.db.session import get_supabase_admin_client
-        admin_db = get_supabase_admin_client()
-
-        existing = admin_db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url).execute()
+        existing = await db.table("contents").select("id, title").eq("user_id", user_id).eq("url", url).execute()
 
         if existing.data:
             return HTMLResponse(content=f"""
@@ -406,7 +407,7 @@ async def quick_save_callback(
             """)
 
         # Process URL
-        usage_tracker.set_db(admin_db)
+        usage_tracker.set_db(db)
 
         fetch_result = await fetcher_service.fetch(url)
 
@@ -484,7 +485,7 @@ async def quick_save_callback(
             "description": fetch_result.description
         }
 
-        response = admin_db.table("contents").insert(content_data).execute()
+        response = await db.table("contents").insert(content_data).execute()
 
         if response.data:
             return HTMLResponse(content=f"""

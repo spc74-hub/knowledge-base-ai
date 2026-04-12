@@ -109,7 +109,7 @@ async def list_notes(
         query = query.order("is_pinned", desc=True).order("created_at", desc=True)
         query = query.range(offset, offset + limit - 1)
 
-        response = query.execute()
+        response = await query.execute()
 
         return response.data or []
 
@@ -132,20 +132,20 @@ async def get_notes_stats(
         user_id = current_user["id"]
 
         # Total notes
-        total = db.table("standalone_notes").select("id", count="exact").eq(
+        total = await db.table("standalone_notes").select("id", count="exact").eq(
             "user_id", user_id
         ).execute()
 
         # By type
         stats = {note_type: 0 for note_type in VALID_NOTE_TYPES}
         for note_type in VALID_NOTE_TYPES:
-            count = db.table("standalone_notes").select("id", count="exact").eq(
+            count = await db.table("standalone_notes").select("id", count="exact").eq(
                 "user_id", user_id
             ).eq("note_type", note_type).execute()
             stats[note_type] = count.count or 0
 
         # Pinned
-        pinned = db.table("standalone_notes").select("id", count="exact").eq(
+        pinned = await db.table("standalone_notes").select("id", count="exact").eq(
             "user_id", user_id
         ).eq("is_pinned", True).execute()
 
@@ -180,7 +180,7 @@ async def get_note(
     Get a specific note with its linked items.
     """
     try:
-        response = db.table("standalone_notes").select("*").eq(
+        response = await db.table("standalone_notes").select("*").eq(
             "id", note_id
         ).eq(
             "user_id", current_user["id"]
@@ -199,7 +199,7 @@ async def get_note(
         if note.get("linked_content_ids"):
             for content_id in note["linked_content_ids"]:
                 try:
-                    content = db.table("contents").select(
+                    content = await db.table("contents").select(
                         "id, title, type, url"
                     ).eq("id", content_id).eq("user_id", current_user["id"]).single().execute()
                     if content.data:
@@ -212,7 +212,7 @@ async def get_note(
         if note.get("linked_note_ids"):
             for ln_id in note["linked_note_ids"]:
                 try:
-                    ln = db.table("standalone_notes").select(
+                    ln = await db.table("standalone_notes").select(
                         "id, title, note_type"
                     ).eq("id", ln_id).eq("user_id", current_user["id"]).single().execute()
                     if ln.data:
@@ -227,7 +227,7 @@ async def get_note(
         note["linked_project"] = None
         if note.get("linked_project_id"):
             try:
-                project = db.table("projects").select(
+                project = await db.table("projects").select(
                     "id, name, icon, color, status"
                 ).eq("id", note["linked_project_id"]).eq("user_id", current_user["id"]).single().execute()
                 if project.data:
@@ -239,7 +239,7 @@ async def get_note(
         note["linked_model"] = None
         if note.get("linked_model_id"):
             try:
-                model = db.table("taxonomy_tags").select(
+                model = await db.table("taxonomy_tags").select(
                     "id, tag, taxonomy_value, description"
                 ).eq("id", note["linked_model_id"]).eq("user_id", current_user["id"]).single().execute()
                 if model.data:
@@ -297,7 +297,7 @@ async def create_note(
             "priority": data.priority
         }
 
-        response = db.table("standalone_notes").insert(note_data).execute()
+        response = await db.table("standalone_notes").insert(note_data).execute()
 
         if not response.data:
             raise HTTPException(
@@ -328,7 +328,7 @@ async def update_note(
     """
     try:
         # Check ownership
-        existing = db.table("standalone_notes").select("id").eq(
+        existing = await db.table("standalone_notes").select("id").eq(
             "id", note_id
         ).eq(
             "user_id", current_user["id"]
@@ -362,7 +362,7 @@ async def update_note(
                 detail=f"Invalid priority. Must be one of: {', '.join(VALID_PRIORITIES)}"
             )
 
-        response = db.table("standalone_notes").update(update_data).eq("id", note_id).execute()
+        response = await db.table("standalone_notes").update(update_data).eq("id", note_id).execute()
 
         return response.data[0]
 
@@ -386,7 +386,7 @@ async def delete_note(
     """
     try:
         # Check ownership
-        existing = db.table("standalone_notes").select("id").eq(
+        existing = await db.table("standalone_notes").select("id").eq(
             "id", note_id
         ).eq(
             "user_id", current_user["id"]
@@ -398,7 +398,7 @@ async def delete_note(
                 detail="Note not found"
             )
 
-        db.table("standalone_notes").delete().eq("id", note_id).execute()
+        await db.table("standalone_notes").delete().eq("id", note_id).execute()
 
         return {"message": "Note deleted successfully"}
 
@@ -422,7 +422,7 @@ async def toggle_pin_note(
     """
     try:
         # Get current status
-        existing = db.table("standalone_notes").select("id, is_pinned").eq(
+        existing = await db.table("standalone_notes").select("id, is_pinned").eq(
             "id", note_id
         ).eq(
             "user_id", current_user["id"]
@@ -436,7 +436,7 @@ async def toggle_pin_note(
 
         new_pinned = not existing.data[0].get("is_pinned", False)
 
-        db.table("standalone_notes").update({
+        await db.table("standalone_notes").update({
             "is_pinned": new_pinned
         }).eq("id", note_id).execute()
 
@@ -466,7 +466,7 @@ async def toggle_complete_note(
     """
     try:
         # Get current status
-        existing = db.table("standalone_notes").select("id, is_completed, note_type").eq(
+        existing = await db.table("standalone_notes").select("id, is_completed, note_type").eq(
             "id", note_id
         ).eq(
             "user_id", current_user["id"]
@@ -480,7 +480,7 @@ async def toggle_complete_note(
 
         new_completed = not existing.data[0].get("is_completed", False)
 
-        db.table("standalone_notes").update({
+        await db.table("standalone_notes").update({
             "is_completed": new_completed
         }).eq("id", note_id).execute()
 
@@ -514,7 +514,7 @@ async def set_note_priority(
         priority = data.priority
 
         # Check ownership
-        existing = db.table("standalone_notes").select("id").eq(
+        existing = await db.table("standalone_notes").select("id").eq(
             "id", note_id
         ).eq(
             "user_id", current_user["id"]
@@ -533,7 +533,7 @@ async def set_note_priority(
                 detail=f"Invalid priority. Must be one of: {', '.join(VALID_PRIORITIES)}"
             )
 
-        db.table("standalone_notes").update({
+        await db.table("standalone_notes").update({
             "priority": priority
         }).eq("id", note_id).execute()
 
@@ -569,14 +569,14 @@ async def bulk_delete_notes(
             )
 
         # Count before delete
-        count_response = db.table("standalone_notes").select("id", count="exact").eq(
+        count_response = await db.table("standalone_notes").select("id", count="exact").eq(
             "user_id", current_user["id"]
         ).in_("id", note_ids).execute()
 
         affected_count = count_response.count or 0
 
         # Delete
-        db.table("standalone_notes").delete().eq(
+        await db.table("standalone_notes").delete().eq(
             "user_id", current_user["id"]
         ).in_("id", note_ids).execute()
 
@@ -650,7 +650,7 @@ async def search_notes_with_facets(
 
         # Get objective-linked note IDs for filtering
         objective_linked_note_ids = set()
-        obj_notes_response = db.table("objective_notes").select("note_id").eq("user_id", user_id).execute()
+        obj_notes_response = await db.table("objective_notes").select("note_id").eq("user_id", user_id).execute()
         objective_linked_note_ids = set(on["note_id"] for on in (obj_notes_response.data or []))
 
         # Handle linkage filters (both include and exclude)
@@ -715,7 +715,7 @@ async def search_notes_with_facets(
 
         query = query.range(data.offset, data.offset + data.limit - 1)
 
-        response = query.execute()
+        response = await query.execute()
         notes = response.data or []
 
         # Custom priority sorting: urgent, important, A, B, C, null
@@ -767,7 +767,7 @@ async def search_notes_with_facets(
 
         source_contents_map = {}
         if source_content_ids:
-            contents_response = db.table("contents").select(
+            contents_response = await db.table("contents").select(
                 "id, title, type, url"
             ).in_("id", source_content_ids).execute()
 
@@ -781,7 +781,7 @@ async def search_notes_with_facets(
 
         projects_map = {}
         if project_ids:
-            projects_response = db.table("projects").select(
+            projects_response = await db.table("projects").select(
                 "id, name, icon, color"
             ).in_("id", project_ids).execute()
 
@@ -795,7 +795,7 @@ async def search_notes_with_facets(
 
         models_map = {}
         if model_ids:
-            models_response = db.table("taxonomy_tags").select(
+            models_response = await db.table("taxonomy_tags").select(
                 "id, tag, taxonomy_value"
             ).in_("id", model_ids).execute()
 
@@ -806,7 +806,7 @@ async def search_notes_with_facets(
         note_ids = [n["id"] for n in notes]
         objectives_map = {}  # note_id -> list of objectives
         if note_ids:
-            obj_notes_response = db.table("objective_notes").select(
+            obj_notes_response = await db.table("objective_notes").select(
                 "note_id, objective_id"
             ).eq("user_id", user_id).in_("note_id", note_ids).execute()
 
@@ -816,7 +816,7 @@ async def search_notes_with_facets(
             ))
 
             if objective_ids:
-                objectives_response = db.table("objectives").select(
+                objectives_response = await db.table("objectives").select(
                     "id, title, icon, color, status"
                 ).in_("id", objective_ids).execute()
 
@@ -897,7 +897,7 @@ async def search_notes_with_facets(
                     full_notes_query = full_notes_query.neq("priority", excl_priority)
 
             full_notes_query = full_notes_query.order("created_at", desc=True)
-            full_notes_response = full_notes_query.execute()
+            full_notes_response = await full_notes_query.execute()
 
             # Transform full notes to match standalone_notes format
             for fn in (full_notes_response.data or []):
@@ -939,7 +939,7 @@ async def search_notes_with_facets(
             "id, note_type, source_content_id, linked_project_id, linked_model_id, is_pinned, priority"
         ).eq("user_id", user_id)
 
-        all_notes_response = all_notes_query.execute()
+        all_notes_response = await all_notes_query.execute()
         all_notes = all_notes_response.data or []
 
         # Get objective-linked notes count for facets
@@ -947,7 +947,7 @@ async def search_notes_with_facets(
         all_note_ids = [n["id"] for n in all_notes if isinstance(n, dict) and "id" in n]
         objective_linked_count = 0
         if all_note_ids:
-            obj_notes_facet_response = db.table("objective_notes").select(
+            obj_notes_facet_response = await db.table("objective_notes").select(
                 "note_id", count="exact"
             ).eq("user_id", user_id).execute()
             # Count unique note_ids that have objective links
@@ -955,7 +955,7 @@ async def search_notes_with_facets(
             objective_linked_count = len(objective_note_ids_set)
 
         # Get full notes for facets (excluding Apple Notes)
-        full_notes_facet_response = db.table("contents").select(
+        full_notes_facet_response = await db.table("contents").select(
             "id, project_id, priority"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").execute()
         full_notes_facet_data = full_notes_facet_response.data or []
@@ -1070,7 +1070,7 @@ async def cleanup_orphan_links(
         user_id = current_user["id"]
 
         # Get all notes with linked_content_ids or linked_note_ids
-        notes_response = db.table("standalone_notes").select(
+        notes_response = await db.table("standalone_notes").select(
             "id, linked_content_ids, linked_note_ids"
         ).eq("user_id", user_id).execute()
 
@@ -1078,11 +1078,11 @@ async def cleanup_orphan_links(
             return {"cleaned": 0, "message": "No hay notas que limpiar"}
 
         # Get all existing content IDs for this user
-        contents_response = db.table("contents").select("id").eq("user_id", user_id).execute()
+        contents_response = await db.table("contents").select("id").eq("user_id", user_id).execute()
         existing_content_ids = set(c["id"] for c in (contents_response.data or []))
 
         # Get all existing note IDs for this user
-        notes_ids_response = db.table("standalone_notes").select("id").eq("user_id", user_id).execute()
+        notes_ids_response = await db.table("standalone_notes").select("id").eq("user_id", user_id).execute()
         existing_note_ids = set(n["id"] for n in (notes_ids_response.data or []))
 
         cleaned_count = 0
@@ -1099,7 +1099,7 @@ async def cleanup_orphan_links(
 
             # Check if anything changed
             if len(valid_content_ids) != len(linked_content_ids) or len(valid_note_ids) != len(linked_note_ids):
-                db.table("standalone_notes").update({
+                await db.table("standalone_notes").update({
                     "linked_content_ids": valid_content_ids,
                     "linked_note_ids": valid_note_ids
                 }).eq("id", note_id).execute()

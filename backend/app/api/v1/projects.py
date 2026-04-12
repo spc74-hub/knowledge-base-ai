@@ -108,17 +108,17 @@ async def list_projects(
 
         query = query.order("position", desc=False).order("created_at", desc=True)
 
-        response = query.execute()
+        response = await query.execute()
 
         # Get content counts and children counts for each project
         projects = []
         for project in response.data or []:
-            content_response = db.table("contents").select("id", count="exact").eq(
+            content_response = await db.table("contents").select("id", count="exact").eq(
                 "project_id", project["id"]
             ).eq("is_archived", False).execute()
             project["content_count"] = content_response.count or 0
 
-            children_response = db.table("projects").select("id", count="exact").eq(
+            children_response = await db.table("projects").select("id", count="exact").eq(
                 "parent_project_id", project["id"]
             ).execute()
             project["children_count"] = children_response.count or 0
@@ -150,14 +150,14 @@ async def get_projects_tree(
             query = query.neq("status", "archived")
 
         query = query.order("position", desc=False).order("created_at", desc=True)
-        response = query.execute()
+        response = await query.execute()
 
         all_projects = response.data or []
 
         # Get content counts for all projects
         project_content_counts = {}
         for project in all_projects:
-            count_response = db.table("contents").select("id", count="exact").eq(
+            count_response = await db.table("contents").select("id", count="exact").eq(
                 "project_id", project["id"]
             ).eq("is_archived", False).execute()
             project_content_counts[project["id"]] = count_response.count or 0
@@ -201,7 +201,7 @@ async def get_project(
     """
     try:
         # Get project with actions
-        response = db.table("projects").select(
+        response = await db.table("projects").select(
             "*, project_actions(id, title, is_completed, position, created_at)"
         ).eq(
             "id", project_id
@@ -218,7 +218,7 @@ async def get_project(
         project = dict(response.data)
 
         # Get linked contents
-        contents_response = db.table("contents").select(
+        contents_response = await db.table("contents").select(
             "id, title, type, is_favorite, maturity_level, created_at"
         ).eq("project_id", project_id).eq("is_archived", False).order(
             "created_at", desc=True
@@ -229,7 +229,7 @@ async def get_project(
 
         # Get linked mental models
         try:
-            mm_result = db.table("project_mental_models").select(
+            mm_result = await db.table("project_mental_models").select(
                 "mental_model_id, mental_models(id, name, slug, icon, color)"
             ).eq("project_id", project_id).execute()
             project["mental_models"] = [r["mental_models"] for r in mm_result.data if r.get("mental_models")]
@@ -239,7 +239,7 @@ async def get_project(
 
         # Get linked objectives (using objective_projects table)
         try:
-            obj_result = db.table("objective_projects").select(
+            obj_result = await db.table("objective_projects").select(
                 "objective_id, objectives(id, title, status, progress, icon, color, horizon)"
             ).eq("project_id", project_id).execute()
             project["objectives"] = [r["objectives"] for r in obj_result.data if r.get("objectives")]
@@ -249,7 +249,7 @@ async def get_project(
 
         # Get linked notes
         try:
-            notes_response = db.table("standalone_notes").select(
+            notes_response = await db.table("standalone_notes").select(
                 "id, title, content, note_type, tags, is_pinned, created_at"
             ).eq("linked_project_id", project_id).eq(
                 "user_id", current_user["id"]
@@ -260,14 +260,14 @@ async def get_project(
             project["notes"] = []
 
         # Get children (subprojects)
-        children_response = db.table("projects").select("*").eq(
+        children_response = await db.table("projects").select("*").eq(
             "parent_project_id", project_id
         ).order("position", desc=False).execute()
 
         children = []
         for child in children_response.data or []:
             child_data = dict(child)
-            child_content_response = db.table("contents").select("id", count="exact").eq(
+            child_content_response = await db.table("contents").select("id", count="exact").eq(
                 "project_id", child["id"]
             ).eq("is_archived", False).execute()
             child_data["content_count"] = child_content_response.count or 0
@@ -300,7 +300,7 @@ async def create_project(
     try:
         # If parent_project_id provided, verify it exists and belongs to user
         if data.parent_project_id:
-            parent_check = db.table("projects").select("id").eq(
+            parent_check = await db.table("projects").select("id").eq(
                 "id", data.parent_project_id
             ).eq("user_id", current_user["id"]).execute()
             if not parent_check.data:
@@ -318,7 +318,7 @@ async def create_project(
         else:
             pos_query = pos_query.is_("parent_project_id", "null")
 
-        pos_response = pos_query.order("position", desc=True).limit(1).execute()
+        pos_response = await pos_query.order("position", desc=True).limit(1).execute()
 
         next_position = 0
         if pos_response.data:
@@ -337,7 +337,7 @@ async def create_project(
             "area_id": data.area_id,
         }
 
-        response = db.table("projects").insert(project_data).execute()
+        response = await db.table("projects").insert(project_data).execute()
 
         if not response.data:
             raise HTTPException(
@@ -372,7 +372,7 @@ async def update_project(
     """
     try:
         # Check ownership
-        existing = db.table("projects").select("id, status").eq(
+        existing = await db.table("projects").select("id, status").eq(
             "id", project_id
         ).eq(
             "user_id", current_user["id"]
@@ -410,7 +410,7 @@ async def update_project(
                 )
             # If not null, verify parent exists
             if new_parent:
-                parent_check = db.table("projects").select("id").eq(
+                parent_check = await db.table("projects").select("id").eq(
                     "id", new_parent
                 ).eq("user_id", current_user["id"]).execute()
                 if not parent_check.data:
@@ -425,18 +425,18 @@ async def update_project(
         elif update_data.get("status") and update_data["status"] != "completed":
             update_data["completed_at"] = None
 
-        response = db.table("projects").update(update_data).eq("id", project_id).execute()
+        response = await db.table("projects").update(update_data).eq("id", project_id).execute()
 
         project = response.data[0]
 
         # Get content count
-        count_response = db.table("contents").select("id", count="exact").eq(
+        count_response = await db.table("contents").select("id", count="exact").eq(
             "project_id", project_id
         ).eq("is_archived", False).execute()
         project["content_count"] = count_response.count or 0
 
         # Get children count
-        children_response = db.table("projects").select("id", count="exact").eq(
+        children_response = await db.table("projects").select("id", count="exact").eq(
             "parent_project_id", project_id
         ).execute()
         project["children_count"] = children_response.count or 0
@@ -469,7 +469,7 @@ async def reorder_project(
     """
     try:
         # Verify project exists and belongs to user
-        project_check = db.table("projects").select("id, parent_project_id, position").eq(
+        project_check = await db.table("projects").select("id, parent_project_id, position").eq(
             "id", data.project_id
         ).eq("user_id", current_user["id"]).execute()
 
@@ -484,7 +484,7 @@ async def reorder_project(
         if data.new_parent_id:
             if data.new_parent_id == data.project_id:
                 raise HTTPException(status_code=400, detail="Cannot set project as its own parent")
-            parent_check = db.table("projects").select("id").eq(
+            parent_check = await db.table("projects").select("id").eq(
                 "id", data.new_parent_id
             ).eq("user_id", current_user["id"]).execute()
             if not parent_check.data:
@@ -500,16 +500,16 @@ async def reorder_project(
         else:
             siblings_query = siblings_query.is_("parent_project_id", "null")
 
-        siblings = siblings_query.order("position", desc=False).execute()
+        siblings = await siblings_query.order("position", desc=False).execute()
 
         # Reorder siblings to make room
         for i, sibling in enumerate(siblings.data or []):
             new_pos = i if i < data.new_position else i + 1
             if sibling["position"] != new_pos:
-                db.table("projects").update({"position": new_pos}).eq("id", sibling["id"]).execute()
+                await db.table("projects").update({"position": new_pos}).eq("id", sibling["id"]).execute()
 
         # Update the moved project
-        db.table("projects").update({
+        await db.table("projects").update({
             "parent_project_id": data.new_parent_id,
             "position": data.new_position
         }).eq("id", data.project_id).execute()
@@ -532,7 +532,7 @@ async def toggle_project_favorite(
     Toggle favorite status for a project.
     """
     try:
-        existing = db.table("projects").select("id, is_favorite").eq(
+        existing = await db.table("projects").select("id, is_favorite").eq(
             "id", project_id
         ).eq("user_id", current_user["id"]).execute()
 
@@ -545,7 +545,7 @@ async def toggle_project_favorite(
         current_favorite = existing.data[0].get("is_favorite", False)
         new_favorite = not current_favorite
 
-        db.table("projects").update({"is_favorite": new_favorite}).eq("id", project_id).execute()
+        await db.table("projects").update({"is_favorite": new_favorite}).eq("id", project_id).execute()
 
         return {"success": True, "is_favorite": new_favorite}
 
@@ -569,7 +569,7 @@ async def delete_project(
     """
     try:
         # Check ownership
-        existing = db.table("projects").select("id").eq(
+        existing = await db.table("projects").select("id").eq(
             "id", project_id
         ).eq(
             "user_id", current_user["id"]
@@ -582,7 +582,7 @@ async def delete_project(
             )
 
         # Delete project (contents will have project_id set to null via ON DELETE SET NULL)
-        db.table("projects").delete().eq("id", project_id).execute()
+        await db.table("projects").delete().eq("id", project_id).execute()
 
         return {"message": "Project deleted successfully"}
 
@@ -607,7 +607,7 @@ async def link_contents_to_project(
     """
     try:
         # Check project ownership
-        existing = db.table("projects").select("id").eq(
+        existing = await db.table("projects").select("id").eq(
             "id", project_id
         ).eq(
             "user_id", current_user["id"]
@@ -623,7 +623,7 @@ async def link_contents_to_project(
         linked = 0
         for content_id in content_ids:
             try:
-                result = db.table("contents").update({
+                result = await db.table("contents").update({
                     "project_id": project_id
                 }).eq("id", content_id).eq("user_id", current_user["id"]).execute()
 
@@ -662,7 +662,7 @@ async def unlink_contents_from_project(
         unlinked = 0
         for content_id in content_ids:
             try:
-                result = db.table("contents").update({
+                result = await db.table("contents").update({
                     "project_id": None
                 }).eq("id", content_id).eq(
                     "user_id", current_user["id"]
@@ -699,7 +699,7 @@ async def link_notes_to_project(
     """
     try:
         # Check project ownership
-        existing = db.table("projects").select("id").eq(
+        existing = await db.table("projects").select("id").eq(
             "id", project_id
         ).eq(
             "user_id", current_user["id"]
@@ -715,7 +715,7 @@ async def link_notes_to_project(
         linked = 0
         for note_id in note_ids:
             try:
-                result = db.table("standalone_notes").update({
+                result = await db.table("standalone_notes").update({
                     "linked_project_id": project_id
                 }).eq("id", note_id).eq("user_id", current_user["id"]).execute()
 
@@ -754,7 +754,7 @@ async def unlink_notes_from_project(
         unlinked = 0
         for note_id in note_ids:
             try:
-                result = db.table("standalone_notes").update({
+                result = await db.table("standalone_notes").update({
                     "linked_project_id": None
                 }).eq("id", note_id).eq(
                     "user_id", current_user["id"]
@@ -790,7 +790,7 @@ async def get_project_notes(
     """
     try:
         # Verify project exists and belongs to user
-        project_check = db.table("projects").select("id").eq(
+        project_check = await db.table("projects").select("id").eq(
             "id", project_id
         ).eq("user_id", current_user["id"]).execute()
 
@@ -801,7 +801,7 @@ async def get_project_notes(
             )
 
         # Get linked notes
-        notes_response = db.table("standalone_notes").select(
+        notes_response = await db.table("standalone_notes").select(
             "id, title, content, note_type, tags, is_pinned, created_at, updated_at"
         ).eq("linked_project_id", project_id).eq(
             "user_id", current_user["id"]
@@ -831,7 +831,7 @@ async def create_action(
 ):
     """Add an action to a project."""
     # Verify project exists and belongs to user
-    proj_check = db.table("projects").select("id").eq(
+    proj_check = await db.table("projects").select("id").eq(
         "id", project_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -839,13 +839,13 @@ async def create_action(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get next position
-    pos_result = db.table("project_actions").select("position").eq(
+    pos_result = await db.table("project_actions").select("position").eq(
         "project_id", project_id
     ).order("position", desc=True).limit(1).execute()
 
     next_pos = (pos_result.data[0]["position"] + 1) if pos_result.data else 0
 
-    result = db.table("project_actions").insert({
+    result = await db.table("project_actions").insert({
         "project_id": project_id,
         "user_id": current_user["id"],
         "title": data.title,
@@ -869,7 +869,7 @@ async def update_action(
     if "is_completed" in update_data and update_data["is_completed"]:
         update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
 
-    result = db.table("project_actions").update(update_data).eq(
+    result = await db.table("project_actions").update(update_data).eq(
         "id", action_id
     ).eq("project_id", project_id).eq("user_id", current_user["id"]).execute()
 
@@ -887,7 +887,7 @@ async def delete_action(
     db: Database,
 ):
     """Delete an action."""
-    result = db.table("project_actions").delete().eq(
+    result = await db.table("project_actions").delete().eq(
         "id", action_id
     ).eq("project_id", project_id).eq("user_id", current_user["id"]).execute()
 
@@ -910,7 +910,7 @@ async def link_mental_model(
 ):
     """Link a mental model to a project."""
     try:
-        db.table("project_mental_models").insert({
+        await db.table("project_mental_models").insert({
             "project_id": project_id,
             "mental_model_id": model_id,
             "user_id": current_user["id"],
@@ -930,7 +930,7 @@ async def unlink_mental_model(
     db: Database,
 ):
     """Unlink a mental model from a project."""
-    db.table("project_mental_models").delete().eq(
+    await db.table("project_mental_models").delete().eq(
         "project_id", project_id
     ).eq("mental_model_id", model_id).eq("user_id", current_user["id"]).execute()
     return {"success": True}
@@ -945,7 +945,7 @@ async def link_mental_models_to_project(
 ):
     """Link multiple mental models to a project."""
     # Verify project belongs to user
-    proj_check = db.table("projects").select("id").eq(
+    proj_check = await db.table("projects").select("id").eq(
         "id", project_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -955,7 +955,7 @@ async def link_mental_models_to_project(
     linked = 0
     for model_id in model_ids:
         try:
-            db.table("project_mental_models").insert({
+            await db.table("project_mental_models").insert({
                 "project_id": project_id,
                 "mental_model_id": model_id,
                 "user_id": current_user["id"],
@@ -977,7 +977,7 @@ async def unlink_mental_models_from_project(
 ):
     """Unlink multiple mental models from a project."""
     for model_id in model_ids:
-        db.table("project_mental_models").delete().eq(
+        await db.table("project_mental_models").delete().eq(
             "project_id", project_id
         ).eq("mental_model_id", model_id).eq("user_id", current_user["id"]).execute()
 
@@ -997,7 +997,7 @@ async def link_objective(
 ):
     """Link an objective to a project."""
     try:
-        db.table("objective_projects").insert({
+        await db.table("objective_projects").insert({
             "objective_id": objective_id,
             "project_id": project_id,
             "user_id": current_user["id"],
@@ -1017,7 +1017,7 @@ async def unlink_objective(
     db: Database,
 ):
     """Unlink an objective from a project."""
-    db.table("objective_projects").delete().eq(
+    await db.table("objective_projects").delete().eq(
         "project_id", project_id
     ).eq("objective_id", objective_id).eq("user_id", current_user["id"]).execute()
     return {"success": True}
@@ -1032,7 +1032,7 @@ async def link_objectives_to_project(
 ):
     """Link multiple objectives to a project."""
     # Verify project belongs to user
-    proj_check = db.table("projects").select("id").eq(
+    proj_check = await db.table("projects").select("id").eq(
         "id", project_id
     ).eq("user_id", current_user["id"]).execute()
 
@@ -1042,7 +1042,7 @@ async def link_objectives_to_project(
     linked = 0
     for objective_id in objective_ids:
         try:
-            db.table("objective_projects").insert({
+            await db.table("objective_projects").insert({
                 "objective_id": objective_id,
                 "project_id": project_id,
                 "user_id": current_user["id"],
@@ -1064,7 +1064,7 @@ async def unlink_objectives_from_project(
 ):
     """Unlink multiple objectives from a project."""
     for objective_id in objective_ids:
-        db.table("objective_projects").delete().eq(
+        await db.table("objective_projects").delete().eq(
             "project_id", project_id
         ).eq("objective_id", objective_id).eq("user_id", current_user["id"]).execute()
 

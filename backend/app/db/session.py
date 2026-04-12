@@ -1,33 +1,29 @@
 """
 Database session configuration.
+SQLAlchemy async engine and session factory for self-hosted PostgreSQL.
 """
-from supabase import create_client, Client
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.core.config import settings
 
-_supabase_client: Client | None = None
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DEBUG and settings.ENVIRONMENT == "development",
+    pool_size=20,
+    max_overflow=10,
+    pool_pre_ping=True,
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
 
-def get_supabase_client() -> Client:
-    """
-    Get Supabase client instance (singleton).
-    """
-    global _supabase_client
-
-    if _supabase_client is None:
-        _supabase_client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_KEY
-        )
-
-    return _supabase_client
-
-
-def get_supabase_admin_client() -> Client:
-    """
-    Get Supabase client with service role (admin) permissions.
-    Use only for operations that require bypassing RLS.
-    """
-    return create_client(
-        settings.SUPABASE_URL,
-        settings.SUPABASE_SERVICE_KEY
-    )
+async def get_db():
+    """Yield an async database session."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

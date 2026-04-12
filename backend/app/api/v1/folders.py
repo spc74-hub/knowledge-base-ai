@@ -59,7 +59,7 @@ async def list_folders(current_user: CurrentUser, db: Database):
     List all folders for the current user.
     """
     try:
-        response = db.table("folders").select("*").eq(
+        response = await db.table("folders").select("*").eq(
             "user_id", current_user["id"]
         ).order("position").order("name").execute()
 
@@ -67,7 +67,7 @@ async def list_folders(current_user: CurrentUser, db: Database):
 
         # Get content counts for each folder
         for folder in folders:
-            count_response = db.table("contents").select(
+            count_response = await db.table("contents").select(
                 "id", count="exact"
             ).eq("folder_id", folder["id"]).execute()
             folder["content_count"] = count_response.count or 0
@@ -87,7 +87,7 @@ async def get_folder_tree(current_user: CurrentUser, db: Database):
     Get folders as a nested tree structure.
     """
     try:
-        response = db.table("folders").select("*").eq(
+        response = await db.table("folders").select("*").eq(
             "user_id", current_user["id"]
         ).order("position").order("name").execute()
 
@@ -96,7 +96,7 @@ async def get_folder_tree(current_user: CurrentUser, db: Database):
         # Get content counts
         folder_counts = {}
         for folder in folders:
-            count_response = db.table("contents").select(
+            count_response = await db.table("contents").select(
                 "id", count="exact"
             ).eq("folder_id", folder["id"]).execute()
             folder_counts[folder["id"]] = count_response.count or 0
@@ -131,7 +131,7 @@ async def create_folder(data: FolderCreate, current_user: CurrentUser, db: Datab
     try:
         # Validate parent folder exists and belongs to user
         if data.parent_id:
-            parent = db.table("folders").select("id").eq(
+            parent = await db.table("folders").select("id").eq(
                 "id", data.parent_id
             ).eq("user_id", current_user["id"]).execute()
 
@@ -142,7 +142,7 @@ async def create_folder(data: FolderCreate, current_user: CurrentUser, db: Datab
                 )
 
         # Get max position for ordering
-        max_pos = db.table("folders").select("position").eq(
+        max_pos = await db.table("folders").select("position").eq(
             "user_id", current_user["id"]
         ).order("position", desc=True).limit(1).execute()
 
@@ -157,7 +157,7 @@ async def create_folder(data: FolderCreate, current_user: CurrentUser, db: Datab
             "position": next_position
         }
 
-        response = db.table("folders").insert(folder_data).execute()
+        response = await db.table("folders").insert(folder_data).execute()
 
         if not response.data:
             raise HTTPException(
@@ -184,7 +184,7 @@ async def get_folder(folder_id: str, current_user: CurrentUser, db: Database):
     Get a specific folder.
     """
     try:
-        response = db.table("folders").select("*").eq(
+        response = await db.table("folders").select("*").eq(
             "id", folder_id
         ).eq("user_id", current_user["id"]).single().execute()
 
@@ -195,7 +195,7 @@ async def get_folder(folder_id: str, current_user: CurrentUser, db: Database):
             )
 
         folder = response.data
-        count_response = db.table("contents").select(
+        count_response = await db.table("contents").select(
             "id", count="exact"
         ).eq("folder_id", folder_id).execute()
         folder["content_count"] = count_response.count or 0
@@ -223,7 +223,7 @@ async def update_folder(
     """
     try:
         # Check ownership
-        existing = db.table("folders").select("id").eq(
+        existing = await db.table("folders").select("id").eq(
             "id", folder_id
         ).eq("user_id", current_user["id"]).execute()
 
@@ -243,7 +243,7 @@ async def update_folder(
                 )
 
             if data.parent_id:
-                parent = db.table("folders").select("id").eq(
+                parent = await db.table("folders").select("id").eq(
                     "id", data.parent_id
                 ).eq("user_id", current_user["id"]).execute()
 
@@ -261,12 +261,12 @@ async def update_folder(
                 detail="No fields to update"
             )
 
-        response = db.table("folders").update(update_data).eq(
+        response = await db.table("folders").update(update_data).eq(
             "id", folder_id
         ).execute()
 
         folder = response.data[0]
-        count_response = db.table("contents").select(
+        count_response = await db.table("contents").select(
             "id", count="exact"
         ).eq("folder_id", folder_id).execute()
         folder["content_count"] = count_response.count or 0
@@ -294,7 +294,7 @@ async def delete_folder(
     """
     try:
         # Check ownership
-        existing = db.table("folders").select("id").eq(
+        existing = await db.table("folders").select("id").eq(
             "id", folder_id
         ).eq("user_id", current_user["id"]).execute()
 
@@ -315,7 +315,7 @@ async def delete_folder(
         ).eq("parent_id", folder_id).execute()
 
         # Delete the folder
-        db.table("folders").delete().eq("id", folder_id).execute()
+        await db.table("folders").delete().eq("id", folder_id).execute()
 
         return {"message": "Folder deleted successfully"}
 
@@ -340,7 +340,7 @@ async def move_contents_to_folder(
     try:
         # Validate folder exists if specified
         if data.folder_id:
-            folder = db.table("folders").select("id").eq(
+            folder = await db.table("folders").select("id").eq(
                 "id", data.folder_id
             ).eq("user_id", current_user["id"]).execute()
 
@@ -386,7 +386,7 @@ async def get_folder_contents(
     """
     try:
         # Verify folder ownership
-        folder = db.table("folders").select("id").eq(
+        folder = await db.table("folders").select("id").eq(
             "id", folder_id
         ).eq("user_id", current_user["id"]).execute()
 
@@ -396,7 +396,7 @@ async def get_folder_contents(
                 detail="Folder not found"
             )
 
-        response = db.table("contents").select("*").eq(
+        response = await db.table("contents").select("*").eq(
             "folder_id", folder_id
         ).eq("user_id", current_user["id"]).order(
             "created_at", desc=True
