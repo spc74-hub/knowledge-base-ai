@@ -367,12 +367,17 @@ class QueryBuilder:
 
     def _row_to_dict(self, row) -> dict:
         """Convert a SQLAlchemy model instance to dict."""
+        from sqlalchemy import inspect as sa_inspect
+        # Build a map from DB column name to Python attribute name
+        mapper = sa_inspect(type(row))
+        col_to_attr = {}
+        for prop in mapper.column_attrs:
+            col = prop.columns[0]
+            col_to_attr[col.name] = prop.key
+
         d = {}
         for c in row.__table__.columns:
-            # Use the column key (Python attribute name) to get the value,
-            # but use the column name (DB name) as the dict key.
-            # This handles cases like content_metadata = Column("metadata", ...)
-            attr_name = c.key if c.key else c.name
+            attr_name = col_to_attr.get(c.name, c.name)
             val = getattr(row, attr_name, None)
             if isinstance(val, uuid.UUID):
                 val = str(val)
@@ -477,10 +482,16 @@ class QueryBuilder:
 
             # Group by parent FK
             children_by_parent = {}
+            child_col_to_attr = {}
+            if child_rows:
+                from sqlalchemy import inspect as sa_inspect
+                child_mapper = sa_inspect(type(child_rows[0]))
+                for prop in child_mapper.column_attrs:
+                    child_col_to_attr[prop.columns[0].name] = prop.key
             for child in child_rows:
                 child_dict = {}
                 for c in child.__table__.columns:
-                    attr_name = c.key if c.key else c.name
+                    attr_name = child_col_to_attr.get(c.name, c.name)
                     val = getattr(child, attr_name, None)
                     if isinstance(val, uuid.UUID):
                         val = str(val)
