@@ -394,15 +394,20 @@ class QueryBuilder:
 
     async def execute(self) -> QueryResult:
         """Execute the query and return results."""
-        if self._op == "select":
-            return await self._exec_select()
-        elif self._op == "insert":
-            return await self._exec_insert()
-        elif self._op == "update":
-            return await self._exec_update()
-        elif self._op == "delete":
-            return await self._exec_delete()
-        return QueryResult()
+        try:
+            if self._op == "select":
+                return await self._exec_select()
+            elif self._op == "insert":
+                return await self._exec_insert()
+            elif self._op == "update":
+                return await self._exec_update()
+            elif self._op == "delete":
+                return await self._exec_delete()
+            return QueryResult()
+        except Exception:
+            # Rollback the session to clear any failed transaction state
+            await self._session.rollback()
+            raise
 
     async def _exec_select(self) -> QueryResult:
         model = self._model
