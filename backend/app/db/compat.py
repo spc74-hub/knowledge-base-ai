@@ -246,24 +246,26 @@ class QueryBuilder:
         # Handle jsonb path operators like "metadata->>source"
         if "->>" in col_name:
             parts = col_name.split("->>")
-            base_col = getattr(self._model, parts[0].strip(), None)
+            base_col = self._resolve_column(parts[0].strip())
             if base_col is not None:
                 return base_col[parts[1].strip()].astext
             return None
         if "->" in col_name:
             parts = col_name.split("->")
-            base_col = getattr(self._model, parts[0].strip(), None)
+            base_col = self._resolve_column(parts[0].strip())
             if base_col is not None:
                 return base_col[parts[1].strip()]
             return None
-        # Try attribute name first, then fall back to column name lookup
-        col = getattr(self._model, col_name, None)
-        if col is not None:
-            return col
-        # Search by DB column name (handles cases like content_metadata -> "metadata")
-        for c in self._model.__table__.columns:
-            if c.name == col_name:
-                return getattr(self._model, c.key, None)
+        return self._resolve_column(col_name)
+
+    def _resolve_column(self, col_name: str):
+        """Resolve a column name to a SQLAlchemy column attribute."""
+        from sqlalchemy import inspect as sa_inspect
+        # Use mapper to find the correct Python attribute for a DB column name
+        mapper = sa_inspect(self._model)
+        for prop in mapper.column_attrs:
+            if prop.columns[0].name == col_name or prop.key == col_name:
+                return getattr(self._model, prop.key, None)
         return None
 
     def _build_where(self):
