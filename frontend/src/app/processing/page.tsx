@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 
 // Hardcoded API URL - always use HTTPS in production
-const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Content {
   id: string;

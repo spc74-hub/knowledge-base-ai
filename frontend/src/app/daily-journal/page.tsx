@@ -25,7 +25,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 
 // Hardcoded API URL - bypass broken env var system
-const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Debounce hook for text inputs
 function useDebounce<T>(value: T, delay: number): T {

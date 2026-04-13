@@ -9,7 +9,7 @@ import { ContentDetailModal, ContentDetail } from '@/components/content-detail-m
 import { QuickViewPopup } from '@/components/quick-view-popup';
 
 // Hardcoded API URL - always use HTTPS in production
-const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Local storage keys
 const KPI_ORDER_KEY = 'dashboard_kpi_order';

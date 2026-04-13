@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './use-auth';
 
 // Hardcoded API URL - always use HTTPS in production
-const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Query keys
 export const TAXONOMY_KEYS = {

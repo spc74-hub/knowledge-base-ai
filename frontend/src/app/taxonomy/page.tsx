@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
 
 // Hardcoded API URL - always use HTTPS in production
-const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface TaxonomyNode {
     id: string;

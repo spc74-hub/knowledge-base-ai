@@ -41,7 +41,7 @@ export default function UsagePage() {
   const [days, setDays] = useState(30)
 
   // Hardcoded API URL - always use HTTPS
-  const API_URL = 'https://knowledge-base-ai-production.up.railway.app/api/v1'
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + '/api/v1'
 
   useEffect(() => {
     if (!authLoading && !user) {

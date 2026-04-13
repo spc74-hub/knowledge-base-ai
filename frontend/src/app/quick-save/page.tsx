@@ -11,7 +11,7 @@ export default function QuickSavePage() {
   const [showShortcutInstructions, setShowShortcutInstructions] = useState(false)
 
   // Hardcoded API URL - always use HTTPS
-  const API_URL = 'https://knowledge-base-ai-production.up.railway.app'
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
   const FRONTEND_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
 
   // Bookmarklet code - token is embedded directly (personalized per user)

@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { ICON_CATEGORIES, ICON_CATEGORY_NAMES } from '@/lib/icons';
 
 // Hardcoded API URL - always use HTTPS in production
-const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface HabitLog {
     id: string;

@@ -71,7 +71,7 @@ const NODE_TYPE_LABELS: Record<string, string> = {
 };
 
 // Hardcoded API URL - always use HTTPS in production
-const API_URL = 'https://knowledge-base-ai-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function KnowledgeGraphPage() {
     const router = useRouter();
