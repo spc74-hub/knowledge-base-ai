@@ -256,7 +256,15 @@ class QueryBuilder:
             if base_col is not None:
                 return base_col[parts[1].strip()]
             return None
-        return getattr(self._model, col_name, None)
+        # Try attribute name first, then fall back to column name lookup
+        col = getattr(self._model, col_name, None)
+        if col is not None:
+            return col
+        # Search by DB column name (handles cases like content_metadata -> "metadata")
+        for c in self._model.__table__.columns:
+            if c.name == col_name:
+                return getattr(self._model, c.key, None)
+        return None
 
     def _build_where(self):
         """Build WHERE clause from accumulated filters."""
@@ -361,7 +369,11 @@ class QueryBuilder:
         """Convert a SQLAlchemy model instance to dict."""
         d = {}
         for c in row.__table__.columns:
-            val = getattr(row, c.name)
+            # Use the column key (Python attribute name) to get the value,
+            # but use the column name (DB name) as the dict key.
+            # This handles cases like content_metadata = Column("metadata", ...)
+            attr_name = c.key if c.key else c.name
+            val = getattr(row, attr_name, None)
             if isinstance(val, uuid.UUID):
                 val = str(val)
             elif isinstance(val, datetime):
@@ -468,7 +480,8 @@ class QueryBuilder:
             for child in child_rows:
                 child_dict = {}
                 for c in child.__table__.columns:
-                    val = getattr(child, c.name)
+                    attr_name = c.key if c.key else c.name
+                    val = getattr(child, attr_name, None)
                     if isinstance(val, uuid.UUID):
                         val = str(val)
                     elif isinstance(val, datetime):
