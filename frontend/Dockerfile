@@ -14,7 +14,7 @@ COPY . .
 
 # Set build-time env vars
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=http://kbia-backend:8000
+ENV NEXT_PUBLIC_API_URL=https://kbia.spcapps.com
 
 RUN npm run build
 
