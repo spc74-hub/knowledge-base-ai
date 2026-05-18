@@ -77,6 +77,14 @@ export interface ContentDetail {
     } | null;
     user_concepts?: string[] | null;
     user_category?: string | null;
+    // Back-pointer from external bridges (ContentHub, Apple Notes)
+    source_metadata?: {
+        origin?: 'contenthub_bridge' | 'apple_notes' | string;
+        contenthub_id?: number;
+        contenthub_url?: string;
+        [key: string]: unknown;
+    } | null;
+    is_triaged?: boolean;
 }
 
 interface ContentDetailModalProps {
