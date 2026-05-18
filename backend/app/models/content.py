@@ -40,6 +40,7 @@ class Content(Base):
     is_favorite = Column(Boolean, default=False)
     is_archived = Column(Boolean, default=False)
     is_asset = Column(Boolean, default=False)
+    is_triaged = Column(Boolean, default=False, nullable=False, index=True)
 
     # View count (kept — used for sorting in explorer)
     view_count = Column(Integer)

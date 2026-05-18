@@ -11,6 +11,7 @@ from app.api.v1 import (
     taxonomy, tags, system_notes, projects, standalone_notes,
     mental_models, objectives, dashboard, files, google_drive, user_experts,
     api_keys, areas, habits, daily_journal, actions, rest_compat,
+    captures, home,
 )
 
 
@@ -91,6 +92,8 @@ app.include_router(files.router, prefix="/api/v1/files", tags=["files"])
 app.include_router(google_drive.router, prefix="/api/v1/google-drive", tags=["google-drive"])
 app.include_router(user_experts.router, prefix="/api/v1/experts", tags=["experts"])
 app.include_router(api_keys.router, prefix="/api/v1/api-keys", tags=["api-keys"])
+app.include_router(captures.router, prefix="/api/v1/captures", tags=["captures"])
+app.include_router(home.router, prefix="/api/v1/home", tags=["home"])
 app.include_router(areas.router, prefix="/api/v1", tags=["areas"])
 app.include_router(habits.router, prefix="/api/v1", tags=["habits"])
 app.include_router(daily_journal.router, prefix="/api/v1", tags=["daily-journal"])
