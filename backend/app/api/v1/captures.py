@@ -42,7 +42,7 @@ SELECT_FIELDS = (
 async def list_inbox(
     current_user: CurrentUser,
     db: Database,
-    status_filter: str = Query("untriaged", regex="^(untriaged|triaged|all)$", alias="status"),
+    status_filter: str = Query("untriaged", pattern="^(untriaged|triaged|all)$", alias="status"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):

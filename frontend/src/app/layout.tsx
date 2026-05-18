@@ -1,16 +1,27 @@
 /**
- * Root layout for the application.
+ * Root layout — Strategic palette (navy + cream), Crimson Pro + Inter.
  */
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Crimson_Pro } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+    subsets: ['latin'],
+    variable: '--font-inter',
+    display: 'swap',
+});
+
+const crimsonPro = Crimson_Pro({
+    subsets: ['latin'],
+    weight: ['400', '500', '600'],
+    variable: '--font-crimson-pro',
+    display: 'swap',
+});
 
 export const metadata: Metadata = {
-    title: 'Knowledge Base AI',
-    description: 'Personal knowledge base with AI-powered classification and search',
+    title: 'Kbia',
+    description: 'Tu capa estratégica: areas, proyectos, objetivos y captures.',
     manifest: '/manifest.json',
     icons: {
         icon: '/icons/icon-192.png',
@@ -19,12 +30,12 @@ export const metadata: Metadata = {
     appleWebApp: {
         capable: true,
         statusBarStyle: 'default',
-        title: 'KBAI',
+        title: 'Kbia',
     },
     formatDetection: {
         telephone: false,
     },
-    themeColor: '#2563EB',
+    themeColor: '#1e3a5f',
     viewport: {
         width: 'device-width',
         initialScale: 1,
@@ -39,8 +50,8 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="es" suppressHydrationWarning>
-            <body className={inter.className}>
+        <html lang="es" suppressHydrationWarning className={`${inter.variable} ${crimsonPro.variable}`}>
+            <body>
                 <Providers>{children}</Providers>
             </body>
         </html>
