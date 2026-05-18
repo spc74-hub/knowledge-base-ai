@@ -21,6 +21,11 @@ export interface CaptureItem {
     is_triaged?: boolean;
 }
 
+export interface AssignmentLabels {
+    area?: { name: string; icon?: string | null; color?: string | null } | null;
+    project?: { name: string; icon?: string | null; color?: string | null } | null;
+}
+
 const TYPE_ICON: Record<string, string> = {
     web: '🌐',
     youtube: '🎥',
@@ -54,7 +59,15 @@ function relativeTime(iso: string): string {
     return new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 
-export default function CaptureRow({ capture, compact = false }: { capture: CaptureItem; compact?: boolean }) {
+export default function CaptureRow({
+    capture,
+    compact = false,
+    assignments,
+}: {
+    capture: CaptureItem;
+    compact?: boolean;
+    assignments?: AssignmentLabels;
+}) {
     const fromBridge = capture.source_metadata?.origin === 'contenthub_bridge';
     const contenthubUrl = capture.source_metadata?.contenthub_url as string | undefined;
     const typeLabel = TYPE_LABEL[capture.type] || capture.type;
@@ -94,11 +107,37 @@ export default function CaptureRow({ capture, compact = false }: { capture: Capt
                     </a>
                 )}
             </div>
-            <div className="text-xs whitespace-nowrap shrink-0 self-center">
+            <div className="text-xs whitespace-nowrap shrink-0 self-center flex flex-col items-end gap-1 max-w-[180px]">
                 {linked ? (
-                    <span className="px-2 py-1 rounded-md bg-primary-soft text-primary font-medium">
-                        ✓ asignado
-                    </span>
+                    <>
+                        {assignments?.area && (
+                            <span
+                                className="px-2 py-1 rounded-md font-medium truncate max-w-full"
+                                style={{
+                                    background: assignments.area.color ? `${assignments.area.color}22` : 'hsl(var(--primary-soft))',
+                                    color: assignments.area.color || 'hsl(var(--primary))',
+                                }}
+                                title={`Área: ${assignments.area.name}`}
+                            >
+                                {assignments.area.icon ? `${assignments.area.icon} ` : ''}
+                                {assignments.area.name}
+                            </span>
+                        )}
+                        {assignments?.project && (
+                            <span
+                                className="px-2 py-1 rounded-md font-medium bg-surface-muted text-foreground truncate max-w-full"
+                                title={`Proyecto: ${assignments.project.name}`}
+                            >
+                                {assignments.project.icon ? `${assignments.project.icon} ` : '📁 '}
+                                {assignments.project.name}
+                            </span>
+                        )}
+                        {!assignments?.area && !assignments?.project && (
+                            <span className="px-2 py-1 rounded-md bg-primary-soft text-primary font-medium">
+                                ✓ asignado
+                            </span>
+                        )}
+                    </>
                 ) : (
                     <span className="px-2 py-1 rounded-md border border-warning/30 text-warning-foreground bg-warning/10 font-medium">
                         sin triage

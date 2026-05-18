@@ -14,12 +14,14 @@ import AreaTile from '@/components/AreaTile';
 import CaptureRow, { CaptureItem } from '@/components/CaptureRow';
 import BridgeBanner from '@/components/BridgeBanner';
 import TriagePopover from '@/components/TriagePopover';
+import { useAssignmentResolver } from '@/hooks/use-assignment-resolver';
 
 export default function HomePage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { data, isLoading } = useHome();
     const [triagingId, setTriagingId] = useState<string | null>(null);
+    const resolveLabels = useAssignmentResolver();
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -65,6 +67,7 @@ export default function HomePage() {
                                 <HomeCaptureRow
                                     key={c.id}
                                     capture={c}
+                                    assignments={resolveLabels(c)}
                                     isOpen={triagingId === c.id}
                                     onOpen={() => setTriagingId(c.id)}
                                     onClose={() => setTriagingId(null)}
@@ -94,11 +97,13 @@ export default function HomePage() {
 
 function HomeCaptureRow({
     capture,
+    assignments,
     isOpen,
     onOpen,
     onClose,
 }: {
     capture: CaptureItem;
+    assignments?: ReturnType<ReturnType<typeof useAssignmentResolver>>;
     isOpen: boolean;
     onOpen: () => void;
     onClose: () => void;
@@ -107,7 +112,7 @@ function HomeCaptureRow({
         <div>
             <div className="flex items-start">
                 <div className="flex-1 min-w-0">
-                    <CaptureRow capture={capture} compact />
+                    <CaptureRow capture={capture} compact assignments={assignments} />
                 </div>
                 <div className="flex-shrink-0 self-center pl-3">
                     <button

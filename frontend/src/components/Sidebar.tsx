@@ -1,6 +1,6 @@
 /**
  * Sidebar — Strategic palette, PARA-first navigation.
- * See plan: ~/.claude/plans/fizzy-bouncing-tiger.md
+ * Permanent on md+; drawer overlay on mobile (controlled by AppShell).
  */
 'use client';
 
@@ -45,15 +45,18 @@ function NavLink({
     label,
     badge,
     active,
+    onClick,
 }: {
     href: string;
     label: string;
     badge?: number;
     active: boolean;
+    onClick?: () => void;
 }) {
     return (
         <Link
             href={href}
+            onClick={onClick}
             className={
                 'flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors ' +
                 (active
@@ -79,7 +82,14 @@ function NavSection({ label }: { label: string }) {
     );
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+    /** When true, the sidebar renders as a full-width overlay. */
+    asDrawer?: boolean;
+    /** Called when the user navigates inside (used to close the drawer). */
+    onNavigate?: () => void;
+}
+
+export default function Sidebar({ asDrawer = false, onNavigate }: SidebarProps = {}) {
     const pathname = usePathname() || '/';
 
     const { data: inboxCount } = useQuery<InboxCountResponse>({
@@ -98,9 +108,17 @@ export default function Sidebar() {
         return pathname === href || pathname.startsWith(href + '/');
     };
 
+    const baseClasses = asDrawer
+        ? 'w-[260px] bg-surface-muted px-4 py-6 h-full overflow-y-auto'
+        : 'w-[220px] shrink-0 bg-surface-muted border-r border-border px-4 py-6 hidden md:flex md:flex-col';
+
     return (
-        <aside className="w-[220px] shrink-0 bg-surface-muted border-r border-border px-4 py-6 hidden md:flex md:flex-col">
-            <Link href="/dashboard" className="font-serif text-2xl font-medium text-primary mb-6 tracking-tight">
+        <aside className={baseClasses}>
+            <Link
+                href="/dashboard"
+                onClick={onNavigate}
+                className="font-serif text-2xl font-medium text-primary mb-6 tracking-tight"
+            >
                 Kbia
             </Link>
 
@@ -112,6 +130,7 @@ export default function Sidebar() {
                         label={item.label}
                         badge={item.badgeKey ? badges[item.badgeKey] : undefined}
                         active={isActive(item.href)}
+                        onClick={onNavigate}
                     />
                 ))}
 
@@ -122,6 +141,7 @@ export default function Sidebar() {
                         href={item.href}
                         label={item.label}
                         active={isActive(item.href)}
+                        onClick={onNavigate}
                     />
                 ))}
 
@@ -132,6 +152,7 @@ export default function Sidebar() {
                         href={item.href}
                         label={item.label}
                         active={isActive(item.href)}
+                        onClick={onNavigate}
                     />
                 ))}
             </nav>

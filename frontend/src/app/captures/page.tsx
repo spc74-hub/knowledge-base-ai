@@ -10,6 +10,8 @@ import { useCapturesInbox, InboxStatus, useUntriageCapture } from '@/hooks/use-c
 import AppShell from '@/components/AppShell';
 import CaptureRow, { CaptureItem } from '@/components/CaptureRow';
 import TriagePopover from '@/components/TriagePopover';
+import BulkTriageBar from '@/components/BulkTriageBar';
+import { useAssignmentResolver } from '@/hooks/use-assignment-resolver';
 
 export default function CapturesPage() {
     const { user, loading: authLoading } = useAuth();
@@ -17,11 +19,18 @@ export default function CapturesPage() {
     const [status, setStatus] = useState<InboxStatus>('untriaged');
     const { data, isLoading } = useCapturesInbox(status);
     const [triagingId, setTriagingId] = useState<string | null>(null);
+    const [selected, setSelected] = useState<Set<string>>(new Set());
     const untriage = useUntriageCapture();
+    const resolveLabels = useAssignmentResolver();
 
     useEffect(() => {
         if (!authLoading && !user) router.replace('/login');
     }, [authLoading, user, router]);
+
+    // Reset selection on tab change
+    useEffect(() => {
+        setSelected(new Set());
+    }, [status]);
 
     if (authLoading || !user) {
         return (
@@ -30,6 +39,21 @@ export default function CapturesPage() {
             </div>
         );
     }
+
+    const toggle = (id: string) => {
+        const next = new Set(selected);
+        next.has(id) ? next.delete(id) : next.add(id);
+        setSelected(next);
+    };
+
+    const toggleAll = () => {
+        if (!data?.data?.length) return;
+        if (selected.size === data.data.length) setSelected(new Set());
+        else setSelected(new Set(data.data.map((c) => c.id)));
+    };
+
+    const selectedIds = Array.from(selected);
+    const allSelected = data?.data?.length ? selected.size === data.data.length : false;
 
     return (
         <AppShell>
@@ -46,12 +70,25 @@ export default function CapturesPage() {
                     </p>
                 </header>
 
-                <div className="flex gap-1 mb-6 border-b border-border">
+                <BulkTriageBar
+                    selectedIds={selectedIds}
+                    onClear={() => setSelected(new Set())}
+                />
+
+                <div className="flex gap-1 mb-6 border-b border-border items-end">
                     <FilterTab label="Sin triage" active={status === 'untriaged'} onClick={() => setStatus('untriaged')} />
                     <FilterTab label="Asignados" active={status === 'triaged'} onClick={() => setStatus('triaged')} />
                     <FilterTab label="Todos" active={status === 'all'} onClick={() => setStatus('all')} />
+                    {data && data.data.length > 0 && (
+                        <button
+                            onClick={toggleAll}
+                            className="ml-auto pb-2 text-xs text-muted hover:text-primary"
+                        >
+                            {allSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                        </button>
+                    )}
                     {data && (
-                        <span className="ml-auto self-end pb-2 text-xs text-muted">
+                        <span className="self-end pb-2 ml-3 text-xs text-muted">
                             {data.meta.total} resultado{data.meta.total === 1 ? '' : 's'}
                         </span>
                     )}
@@ -66,11 +103,14 @@ export default function CapturesPage() {
                 ) : !data?.data?.length ? (
                     <Empty status={status} />
                 ) : (
-                    <div className="rounded-xl border border-border bg-surface px-6 divide-y divide-border">
+                    <div className="rounded-xl border border-border bg-surface px-3 sm:px-6 divide-y divide-border">
                         {data.data.map((c) => (
                             <CaptureRowWithActions
                                 key={c.id}
                                 capture={c}
+                                assignments={resolveLabels(c)}
+                                checked={selected.has(c.id)}
+                                onToggleCheck={() => toggle(c.id)}
                                 isOpen={triagingId === c.id}
                                 onOpenTriage={() => setTriagingId(c.id)}
                                 onCloseTriage={() => setTriagingId(null)}
@@ -87,6 +127,9 @@ export default function CapturesPage() {
 
 function CaptureRowWithActions({
     capture,
+    assignments,
+    checked,
+    onToggleCheck,
     isOpen,
     onOpenTriage,
     onCloseTriage,
@@ -94,6 +137,9 @@ function CaptureRowWithActions({
     isUntriaging,
 }: {
     capture: CaptureItem;
+    assignments?: ReturnType<ReturnType<typeof useAssignmentResolver>>;
+    checked: boolean;
+    onToggleCheck: () => void;
     isOpen: boolean;
     onOpenTriage: () => void;
     onCloseTriage: () => void;
@@ -102,9 +148,16 @@ function CaptureRowWithActions({
 }) {
     return (
         <div>
-            <div className="flex items-start">
+            <div className="flex items-start gap-2">
+                <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={onToggleCheck}
+                    className="mt-5 ml-1 w-4 h-4 rounded border-border text-primary focus:ring-primary/30"
+                    aria-label="Seleccionar capture"
+                />
                 <div className="flex-1 min-w-0">
-                    <CaptureRow capture={capture} />
+                    <CaptureRow capture={capture} assignments={assignments} />
                 </div>
                 <div className="flex-shrink-0 self-center pl-3 flex gap-1.5">
                     {!capture.is_triaged ? (
