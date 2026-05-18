@@ -29,7 +29,7 @@ def _ensure_registry():
     if _TABLE_MAP:
         return
     from app.models import (
-        Content, ChatSession, ChatMessage, Folder,
+        Content, Folder,
         Project, ProjectAction, ProjectMentalModel, ObjectiveProject,
         Objective, ObjectiveAction, ObjectiveContent, ObjectiveMentalModel, ObjectiveNote,
         MentalModel, ContentMentalModel, MentalModelAction, MentalModelNote,
@@ -42,8 +42,6 @@ def _ensure_registry():
     mapping = {
         "users": User,
         "contents": Content,
-        "chat_sessions": ChatSession,
-        "chat_messages": ChatMessage,
         "folders": Folder,
         "projects": Project,
         "project_actions": ProjectAction,
