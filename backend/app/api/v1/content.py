@@ -10,10 +10,6 @@ import io
 
 from app.api.deps import Database, CurrentUser
 from app.services.fetcher import fetcher_service
-from app.services.classifier import classifier_service
-from app.services.summarizer import summarizer_service
-from app.services.embeddings import embeddings_service
-from app.services.usage_tracker import usage_tracker
 from app.services.url_normalizer import normalize_url, extract_content_id
 
 router = APIRouter()
@@ -358,97 +354,20 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
         word_count = len(fetch_result.content.split())
         reading_time = max(1, word_count // 200)
 
-        # If process_async is True, process immediately
-        if data.process_async:
-            # Set up usage tracker with database
-            usage_tracker.set_db(db)
-
-            # Step 2: Classify content using Claude (with usage tracking)
-            classification = await classifier_service.classify(
-                title=fetch_result.title,
-                content=fetch_result.content,
-                url=url_str,
-                user_id=user_id
-            )
-
-            # Step 3: Generate summary using Claude (with usage tracking)
-            summary = await summarizer_service.summarize(
-                title=fetch_result.title,
-                content=fetch_result.content,
-                language=classification.language,
-                user_id=user_id
-            )
-
-            # Step 4: Generate embedding for semantic search (with usage tracking)
-            embedding_text = embeddings_service.prepare_content_for_embedding(
-                title=fetch_result.title,
-                summary=summary,
-                content=fetch_result.content,
-                concepts=classification.concepts,
-                entities=classification.entities.model_dump() if classification.entities else None,
-                metadata=fetch_result.metadata
-            )
-            embedding = await embeddings_service.generate_embedding(
-                embedding_text,
-                user_id=user_id,
-                operation="content_embedding"
-            )
-
-            # Create content record with all processed data
-            content_data = {
-                "user_id": user_id,
-                "url": url_str,
-                "type": fetch_result.type,
-                "title": fetch_result.title,
-                "raw_content": fetch_result.content[:50000],
-                "summary": summary,
-                "schema_type": classification.schema_type,
-                "schema_subtype": classification.schema_subtype,
-                "iab_tier1": classification.iab_tier1,
-                "iab_tier2": classification.iab_tier2,
-                "iab_tier3": classification.iab_tier3,
-                "concepts": classification.concepts,
-                "entities": classification.entities.model_dump() if classification.entities else {},
-                "language": classification.language,
-                "sentiment": classification.sentiment,
-                "technical_level": classification.technical_level,
-                "content_format": classification.content_format,
-                "reading_time_minutes": reading_time,
-                "metadata": fetch_result.metadata,
-                "user_tags": data.tags,
-                "processing_status": "completed",
-                "embedding": embedding,
-                "view_count": fetch_result.view_count,
-                "description": fetch_result.description
-            }
-        else:
-            # Save as pending - only fetch was done
-            content_data = {
-                "user_id": user_id,
-                "url": url_str,
-                "type": fetch_result.type,
-                "title": fetch_result.title,
-                "raw_content": fetch_result.content[:50000],
-                "summary": None,
-                "schema_type": None,
-                "schema_subtype": None,
-                "iab_tier1": None,
-                "iab_tier2": None,
-                "iab_tier3": None,
-                "concepts": [],
-                "entities": {},
-                "language": None,
-                "sentiment": None,
-                "technical_level": None,
-                "content_format": None,
-                "reading_time_minutes": reading_time,
-                "metadata": fetch_result.metadata,
-                "user_tags": data.tags,
-                "processing_status": "pending",
-                "embedding": None,
-                "view_count": fetch_result.view_count,
-                "description": fetch_result.description
-            }
+        # AI processing pipeline removed (see CHANGELOG 2026-05-18) — always save as pending.
+        content_data = {
+            "user_id": user_id,
+            "url": url_str,
+            "type": fetch_result.type,
+            "title": fetch_result.title,
+            "raw_content": fetch_result.content[:50000],
+            "reading_time_minutes": reading_time,
+            "metadata": fetch_result.metadata,
+            "user_tags": data.tags,
+            "processing_status": "pending",
+            "view_count": fetch_result.view_count,
+            "description": fetch_result.description,
+        }
 
         response = await db.table("contents").insert(content_data).execute()
 
@@ -723,57 +642,34 @@ async def reprocess_content(
     content_id: str,
     current_user: CurrentUser,
     db: Database,
-    process_now: bool = Query(default=True, description="Process immediately (True) or just queue (False)")
+    process_now: bool = Query(default=False, description="Deprecated: AI pipeline removed; param ignored"),
 ):
     """
-    Reprocess content (regenerate summary, classification, embedding).
-    By default processes immediately. Set process_now=False to just queue.
+    Mark content as pending. The AI processing pipeline has been removed
+    (see CHANGELOG 2026-05-18); this endpoint now only resets the
+    processing_status flag.
     """
-    from app.services.processor import processor_service
-
     try:
-        # Check ownership
-        existing = await db.table("contents").select("id, processing_status").eq("id", content_id).eq("user_id", current_user["id"]).execute()
+        existing = await db.table("contents").select("id").eq("id", content_id).eq("user_id", current_user["id"]).execute()
 
         if not existing.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Content not found"
+                detail="Content not found",
             )
 
-        if process_now:
-            # Process immediately
-            result = await processor_service.process_content(
-                db=db,
-                content_id=content_id,
-                user_id=current_user["id"]
-            )
-
-            if not result["success"]:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=result.get("error", "Processing failed")
-                )
-
-            return {
-                "message": "Content processed successfully",
-                "success": True,
-                "title": result.get("title")
-            }
-        else:
-            # Just queue for later processing
-            await db.table("contents").update({"processing_status": "pending"}).eq("id", content_id).execute()
-            return {
-                "message": "Content queued for reprocessing",
-                "success": True
-            }
+        await db.table("contents").update({"processing_status": "pending"}).eq("id", content_id).execute()
+        return {
+            "message": "Content marked as pending (AI pipeline removed)",
+            "success": True,
+        }
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=str(e),
         )
 
 

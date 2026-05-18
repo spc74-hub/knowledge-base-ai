@@ -4,7 +4,6 @@ SQLAlchemy models for all tables.
 from app.models.base import Base
 from app.models.user import User
 from app.models.content import Content
-from app.models.chat import ChatSession, ChatMessage
 from app.models.folder import Folder
 from app.models.project import Project, ProjectAction, ProjectMentalModel, ObjectiveProject
 from app.models.objective import Objective, ObjectiveAction, ObjectiveContent, ObjectiveMentalModel, ObjectiveNote
@@ -23,7 +22,6 @@ __all__ = [
     "Base",
     "User",
     "Content",
-    "ChatSession", "ChatMessage",
     "Folder",
     "Project", "ProjectAction", "ProjectMentalModel", "ObjectiveProject",
     "Objective", "ObjectiveAction", "ObjectiveContent", "ObjectiveMentalModel", "ObjectiveNote",

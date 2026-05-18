@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.api.deps import Database, CurrentUser
-from app.services.embeddings import embeddings_service
 
 router = APIRouter()
 
@@ -145,99 +144,22 @@ async def search_text(
         )
 
 
-@router.post("/semantic", response_model=SearchResponse)
-async def search_semantic(
-    data: SemanticSearchRequest,
-    current_user: CurrentUser,
-    db: Database
-):
-    """
-    Semantic search using embeddings.
-    """
-    try:
-        import time
-        start_time = time.time()
-
-        # Generate embedding for the query
-        query_embedding = await embeddings_service.generate_embedding(data.query)
-
-        # Call Supabase RPC function for vector search
-        response = db.rpc(
-            'match_contents',
-            {
-                'query_embedding': query_embedding,
-                'match_threshold': data.threshold,
-                'match_count': data.limit,
-                'p_user_id': current_user["id"]
-            }
-        ).execute()
-
-        results = []
-        for item in response.data or []:
-            results.append({
-                "id": item["id"],
-                "title": item["title"],
-                "summary": item.get("summary"),
-                "type": item["type"],
-                "url": item["url"],
-                "relevance_score": item.get("similarity", 0),
-                "highlight": None
-            })
-
-        search_time = int((time.time() - start_time) * 1000)
-
-        return {
-            "data": results,
-            "meta": {
-                "query": data.query,
-                "embedding_generated": True,
-                "search_time_ms": search_time,
-                "total_results": len(results)
-            }
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+@router.post("/semantic")
+async def search_semantic(data: SemanticSearchRequest):
+    """Semantic search disabled — AI embedding pipeline removed."""
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Semantic search has been removed. Use /api/v1/search/global instead.",
+    )
 
 
-@router.post("/hybrid", response_model=SearchResponse)
-async def search_hybrid(
-    data: HybridSearchRequest,
-    current_user: CurrentUser,
-    db: Database
-):
-    """
-    Hybrid search combining text and semantic search.
-    """
-    try:
-        import time
-        start_time = time.time()
-
-        # TODO: Implement hybrid search
-        # 1. Run text search
-        # 2. Run semantic search
-        # 3. Combine scores with weights
-
-        search_time = int((time.time() - start_time) * 1000)
-
-        return {
-            "data": [],
-            "meta": {
-                "query": data.query,
-                "semantic_weight": data.semantic_weight,
-                "search_time_ms": search_time,
-                "message": "Hybrid search not yet implemented."
-            }
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+@router.post("/hybrid")
+async def search_hybrid(data: HybridSearchRequest):
+    """Hybrid search disabled — AI embedding pipeline removed."""
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Hybrid search has been removed. Use /api/v1/search/global instead.",
+    )
 
 
 @router.get("/suggestions")

@@ -19,9 +19,6 @@ from app.services.apple_notes import (
     AppleNotesNotAvailableError,
     is_macos_with_osascript
 )
-from app.services.classifier import classifier_service
-from app.services.summarizer import summarizer_service
-from app.services.embeddings import embeddings_service
 from app.services.usage_tracker import usage_tracker
 
 router = APIRouter()

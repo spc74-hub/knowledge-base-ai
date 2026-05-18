@@ -9,10 +9,6 @@ from pydantic import BaseModel, HttpUrl
 
 from app.api.deps import Database, CurrentUser
 from app.services.fetcher import fetcher_service
-from app.services.classifier import classifier_service
-from app.services.summarizer import summarizer_service
-from app.services.embeddings import embeddings_service
-from app.services.usage_tracker import usage_tracker
 from app.services.url_normalizer import normalize_url, resolve_tiktok_short_url
 
 router = APIRouter()
@@ -21,7 +17,7 @@ router = APIRouter()
 class QuickSaveRequest(BaseModel):
     url: HttpUrl
     tags: list[str] = []
-    process_now: bool = False  # If True, process immediately; if False, just save for later
+    process_now: bool = False  # Deprecated: AI processing pipeline removed. Kept for API compat; ignored.
     source_metadata: Optional[dict] = None  # Back-pointer from external sources (e.g. ContentHub bridge)
 
 
@@ -133,59 +129,6 @@ async def quick_save_url(
             "source_metadata": (data.source_metadata if data and data.source_metadata else {}),
         }
 
-        # If process_now is True, do full AI processing
-        if data and data.process_now:
-            usage_tracker.set_db(db)
-
-            # Classify content
-            classification = await classifier_service.classify(
-                title=fetch_result.title,
-                content=fetch_result.content,
-                url=url_str,
-                user_id=user_id
-            )
-
-            # Generate summary
-            summary = await summarizer_service.summarize(
-                title=fetch_result.title,
-                content=fetch_result.content,
-                language=classification.language,
-                user_id=user_id
-            )
-
-            # Generate embedding
-            embedding_text = embeddings_service.prepare_content_for_embedding(
-                title=fetch_result.title,
-                summary=summary,
-                content=fetch_result.content,
-                concepts=classification.concepts,
-                entities=classification.entities.model_dump() if classification.entities else None,
-                metadata=fetch_result.metadata
-            )
-            embedding = await embeddings_service.generate_embedding(
-                embedding_text,
-                user_id=user_id,
-                operation="content_embedding"
-            )
-
-            # Add AI-processed fields
-            content_data.update({
-                "summary": summary,
-                "schema_type": classification.schema_type,
-                "schema_subtype": classification.schema_subtype,
-                "iab_tier1": classification.iab_tier1,
-                "iab_tier2": classification.iab_tier2,
-                "iab_tier3": classification.iab_tier3,
-                "concepts": classification.concepts,
-                "entities": classification.entities.model_dump() if classification.entities else {},
-                "language": classification.language,
-                "sentiment": classification.sentiment,
-                "technical_level": classification.technical_level,
-                "content_format": classification.content_format,
-                "embedding": embedding,
-                "processing_status": "completed"
-            })
-
         response = await db.table("contents").insert(content_data).execute()
 
         if not response.data:
@@ -195,7 +138,7 @@ async def quick_save_url(
                 error="database_error"
             )
 
-        status_msg = "saved and processed" if (data and data.process_now) else "saved (pending processing)"
+        status_msg = "saved"
 
         return QuickSaveResponse(
             success=True,
@@ -408,9 +351,7 @@ async def quick_save_callback(
 </html>
             """)
 
-        # Process URL
-        usage_tracker.set_db(db)
-
+        # Fetch and save (AI pipeline removed — see CHANGELOG 2026-05-18)
         fetch_result = await fetcher_service.fetch(url)
 
         if not fetch_result.success:
@@ -425,37 +366,8 @@ async def quick_save_callback(
 </html>
             """)
 
-        # Full processing pipeline
-        classification = await classifier_service.classify(
-            title=fetch_result.title,
-            content=fetch_result.content,
-            url=url,
-            user_id=user_id
-        )
-
-        summary = await summarizer_service.summarize(
-            title=fetch_result.title,
-            content=fetch_result.content,
-            language=classification.language,
-            user_id=user_id
-        )
-
         word_count = len(fetch_result.content.split())
         reading_time = max(1, word_count // 200)
-
-        embedding_text = embeddings_service.prepare_content_for_embedding(
-            title=fetch_result.title,
-            summary=summary,
-            content=fetch_result.content,
-            concepts=classification.concepts,
-            entities=classification.entities.model_dump() if classification.entities else None,
-            metadata=fetch_result.metadata
-        )
-        embedding = await embeddings_service.generate_embedding(
-            embedding_text,
-            user_id=user_id,
-            operation="content_embedding"
-        )
 
         content_data = {
             "user_id": user_id,
@@ -463,28 +375,15 @@ async def quick_save_callback(
             "type": fetch_result.type,
             "title": fetch_result.title,
             "raw_content": fetch_result.content[:50000],
-            "summary": summary,
-            "schema_type": classification.schema_type,
-            "schema_subtype": classification.schema_subtype,
-            "iab_tier1": classification.iab_tier1,
-            "iab_tier2": classification.iab_tier2,
-            "iab_tier3": classification.iab_tier3,
-            "concepts": classification.concepts,
-            "entities": classification.entities.model_dump() if classification.entities else {},
-            "language": classification.language,
-            "sentiment": classification.sentiment,
-            "technical_level": classification.technical_level,
-            "content_format": classification.content_format,
             "reading_time_minutes": reading_time,
             "metadata": {
                 **fetch_result.metadata,
                 "saved_via": "ios_shortcut"
             },
             "user_tags": [],
-            "processing_status": "completed",
-            "embedding": embedding,
+            "processing_status": "pending",
             "view_count": fetch_result.view_count,
-            "description": fetch_result.description
+            "description": fetch_result.description,
         }
 
         response = await db.table("contents").insert(content_data).execute()
@@ -497,7 +396,6 @@ async def quick_save_callback(
 <body>
 <h1>Saved Successfully!</h1>
 <p><strong>{fetch_result.title}</strong></p>
-<p>Category: {classification.iab_tier1 or 'Uncategorized'}</p>
 </body>
 </html>
             """)

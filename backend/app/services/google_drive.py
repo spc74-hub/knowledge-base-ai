@@ -322,29 +322,8 @@ class GoogleDriveService:
                     content = f"[Error extracting email: {str(e)}]"
 
             elif mime_type in AUDIO_MIME_TYPES:
-                # Audio files - download and transcribe with Whisper
-                try:
-                    from app.services.audio_transcriber import audio_transcriber
-                    if not audio_transcriber.is_available():
-                        content = "[Audio transcription not available - OPENAI_API_KEY not configured]"
-                    else:
-                        response = service.files().get_media(fileId=file_id).execute()
-                        if response:
-                            # Check file size
-                            if len(response) > audio_transcriber.MAX_FILE_SIZE:
-                                content = f"[Audio file too large for transcription - max {audio_transcriber.MAX_FILE_SIZE // (1024*1024)}MB]"
-                            else:
-                                transcription, detected_lang = audio_transcriber.transcribe(
-                                    response,
-                                    file_metadata['name']
-                                )
-                                content = transcription
-                                # Remove null characters that cause database issues
-                                content = content.replace('\x00', '').replace('\u0000', '')
-                        else:
-                            content = "[Error downloading audio file]"
-                except Exception as e:
-                    content = f"[Error transcribing audio: {str(e)}]"
+                # Audio transcription was removed with the AI pipeline (CHANGELOG 2026-05-18).
+                content = "[Audio transcription disabled - AI pipeline removed]"
 
             else:
                 # Other files - get metadata only
