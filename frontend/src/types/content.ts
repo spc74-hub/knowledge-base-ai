@@ -82,6 +82,14 @@ export interface ContentDetail extends Content {
     content_format?: ContentFormat;
     reading_time_minutes?: number;
     metadata?: Record<string, unknown>;
+    source_metadata?: SourceMetadata;
+}
+
+export interface SourceMetadata {
+    origin?: 'contenthub_bridge' | 'apple_notes' | string;
+    contenthub_id?: number;
+    contenthub_url?: string;
+    [key: string]: unknown;
 }
 
 export interface ContentCreateInput {

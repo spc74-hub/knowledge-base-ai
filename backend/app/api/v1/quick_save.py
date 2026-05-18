@@ -22,6 +22,7 @@ class QuickSaveRequest(BaseModel):
     url: HttpUrl
     tags: list[str] = []
     process_now: bool = False  # If True, process immediately; if False, just save for later
+    source_metadata: Optional[dict] = None  # Back-pointer from external sources (e.g. ContentHub bridge)
 
 
 class QuickSaveResponse(BaseModel):
@@ -128,7 +129,8 @@ async def quick_save_url(
             "user_tags": data.tags if data else [],
             "processing_status": "pending",  # Mark as pending for later processing
             "view_count": fetch_result.view_count,
-            "description": fetch_result.description
+            "description": fetch_result.description,
+            "source_metadata": (data.source_metadata if data and data.source_metadata else {}),
         }
 
         # If process_now is True, do full AI processing

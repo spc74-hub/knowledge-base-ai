@@ -791,6 +791,16 @@ export function ContentDetailModal({
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-2 line-clamp-2">
                                 {content.title || 'Sin titulo'}
                             </h2>
+                            {content.source_metadata?.origin === 'contenthub_bridge' && (
+                                <span className="inline-block text-xs px-2 py-0.5 mt-1 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                                    🔗 from ContentHub
+                                </span>
+                            )}
+                            {content.source_metadata?.origin === 'apple_notes' && (
+                                <span className="inline-block text-xs px-2 py-0.5 mt-1 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300">
+                                    🍎 Apple Notes
+                                </span>
+                            )}
                             {content.url.startsWith('apple-notes://') ? (
                                 <span className="text-sm text-gray-500 dark:text-gray-400 truncate block mt-1">
                                     🍎 Importado desde Apple Notes · {content.metadata?.apple_notes_folder || 'Sin carpeta'}
@@ -1779,6 +1789,16 @@ export function ContentDetailModal({
                                 className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                             >
                                 🔗 Abrir original
+                            </a>
+                        )}
+                        {content.source_metadata?.origin === 'contenthub_bridge' && content.source_metadata?.contenthub_url && (
+                            <a
+                                href={content.source_metadata.contenthub_url as string}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-4 py-2 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                            >
+                                ↗ Open in ContentHub
                             </a>
                         )}
                         <button
