@@ -124,7 +124,8 @@ async def get_home(current_user: CurrentUser, db: Database):
     # -----------------------------------------------------------------
     # 3. Today: habits + actions due today + journal big rocks
     # -----------------------------------------------------------------
-    today = date.today().isoformat()
+    today_str = date.today().isoformat()
+    today_obj = date.today()
 
     habits_today_resp = await (
         db.table("habits")
@@ -133,11 +134,14 @@ async def get_home(current_user: CurrentUser, db: Database):
         .eq("is_active", True)
         .execute()
     )
+    # habit_logs.date is stored as String("YYYY-MM-DD") in this app, so compare
+    # against a string; daily_journal.date is DATE in postgres, so compare
+    # against a date object to avoid the implicit cast that asyncpg rejects.
     habit_logs_today_resp = await (
         db.table("habit_logs")
         .select("habit_id, status")
         .eq("user_id", user_id)
-        .eq("date", today)
+        .eq("date", today_str)
         .execute()
     )
     logs_by_habit = {l["habit_id"]: l.get("status") for l in (habit_logs_today_resp.data or [])}
@@ -148,16 +152,19 @@ async def get_home(current_user: CurrentUser, db: Database):
             "status_today": logs_by_habit.get(h["id"]),
         })
 
-    # Big rocks from today's journal (if it exists)
-    journal_resp = await (
-        db.table("daily_journal")
-        .select("big_rocks, morning_intention, day_word")
-        .eq("user_id", user_id)
-        .eq("date", today)
-        .limit(1)
-        .execute()
-    )
-    journal_today = journal_resp.data[0] if journal_resp.data else None
+    journal_today = None
+    try:
+        journal_resp = await (
+            db.table("daily_journal")
+            .select("big_rocks, morning_intention, day_word")
+            .eq("user_id", user_id)
+            .eq("date", today_obj)
+            .limit(1)
+            .execute()
+        )
+        journal_today = journal_resp.data[0] if journal_resp.data else None
+    except Exception as e:
+        logger.warning(f"home: could not fetch today's journal: {e}")
 
     # -----------------------------------------------------------------
     # 4. Recent items (compact strip)
