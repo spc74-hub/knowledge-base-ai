@@ -4,20 +4,22 @@
  */
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useHome } from '@/hooks/use-home';
 import AppShell from '@/components/AppShell';
 import AreaTile from '@/components/AreaTile';
-import CaptureRow from '@/components/CaptureRow';
+import CaptureRow, { CaptureItem } from '@/components/CaptureRow';
 import BridgeBanner from '@/components/BridgeBanner';
+import TriagePopover from '@/components/TriagePopover';
 
 export default function HomePage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { data, isLoading } = useHome();
+    const [triagingId, setTriagingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -58,9 +60,15 @@ export default function HomePage() {
                 {data?.captures_recent_untriaged && data.captures_recent_untriaged.length > 0 && (
                     <section className="mb-12">
                         <BandHeader title="Captures pendientes" link="/captures" />
-                        <div className="divide-y divide-border">
+                        <div className="rounded-xl border border-border bg-surface px-6 divide-y divide-border">
                             {data.captures_recent_untriaged.slice(0, 5).map((c) => (
-                                <CaptureRow key={c.id} capture={c} />
+                                <HomeCaptureRow
+                                    key={c.id}
+                                    capture={c}
+                                    isOpen={triagingId === c.id}
+                                    onOpen={() => setTriagingId(c.id)}
+                                    onClose={() => setTriagingId(null)}
+                                />
                             ))}
                         </div>
                     </section>
@@ -81,6 +89,46 @@ export default function HomePage() {
                 )}
             </div>
         </AppShell>
+    );
+}
+
+function HomeCaptureRow({
+    capture,
+    isOpen,
+    onOpen,
+    onClose,
+}: {
+    capture: CaptureItem;
+    isOpen: boolean;
+    onOpen: () => void;
+    onClose: () => void;
+}) {
+    return (
+        <div>
+            <div className="flex items-start">
+                <div className="flex-1 min-w-0">
+                    <CaptureRow capture={capture} compact />
+                </div>
+                <div className="flex-shrink-0 self-center pl-3">
+                    <button
+                        onClick={onOpen}
+                        className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary-hover text-xs font-medium"
+                    >
+                        Asignar →
+                    </button>
+                </div>
+            </div>
+            {isOpen && (
+                <div className="pl-12 pb-4 pt-1">
+                    <TriagePopover
+                        captureId={capture.id}
+                        initial={{ area_id: capture.area_id, project_id: capture.project_id }}
+                        onDone={onClose}
+                        onCancel={onClose}
+                    />
+                </div>
+            )}
+        </div>
     );
 }
 

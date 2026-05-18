@@ -6,15 +6,18 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { useCapturesInbox, InboxStatus } from '@/hooks/use-captures';
+import { useCapturesInbox, InboxStatus, useUntriageCapture } from '@/hooks/use-captures';
 import AppShell from '@/components/AppShell';
-import CaptureRow from '@/components/CaptureRow';
+import CaptureRow, { CaptureItem } from '@/components/CaptureRow';
+import TriagePopover from '@/components/TriagePopover';
 
 export default function CapturesPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const [status, setStatus] = useState<InboxStatus>('untriaged');
     const { data, isLoading } = useCapturesInbox(status);
+    const [triagingId, setTriagingId] = useState<string | null>(null);
+    const untriage = useUntriageCapture();
 
     useEffect(() => {
         if (!authLoading && !user) router.replace('/login');
@@ -39,7 +42,7 @@ export default function CapturesPage() {
                         <span className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 rounded bg-primary-soft text-primary text-xs font-medium">
                             🔗 ContentHub
                         </span>
-                        para que sepas de dónde viene.
+                        para que sepas de dónde viene. Asigna a PARA y sale del inbox.
                     </p>
                 </header>
 
@@ -65,12 +68,86 @@ export default function CapturesPage() {
                 ) : (
                     <div className="rounded-xl border border-border bg-surface px-6 divide-y divide-border">
                         {data.data.map((c) => (
-                            <CaptureRow key={c.id} capture={c} />
+                            <CaptureRowWithActions
+                                key={c.id}
+                                capture={c}
+                                isOpen={triagingId === c.id}
+                                onOpenTriage={() => setTriagingId(c.id)}
+                                onCloseTriage={() => setTriagingId(null)}
+                                onUntriage={() => untriage.mutate(c.id)}
+                                isUntriaging={untriage.isPending}
+                            />
                         ))}
                     </div>
                 )}
             </div>
         </AppShell>
+    );
+}
+
+function CaptureRowWithActions({
+    capture,
+    isOpen,
+    onOpenTriage,
+    onCloseTriage,
+    onUntriage,
+    isUntriaging,
+}: {
+    capture: CaptureItem;
+    isOpen: boolean;
+    onOpenTriage: () => void;
+    onCloseTriage: () => void;
+    onUntriage: () => void;
+    isUntriaging: boolean;
+}) {
+    return (
+        <div>
+            <div className="flex items-start">
+                <div className="flex-1 min-w-0">
+                    <CaptureRow capture={capture} />
+                </div>
+                <div className="flex-shrink-0 self-center pl-3 flex gap-1.5">
+                    {!capture.is_triaged ? (
+                        <button
+                            onClick={onOpenTriage}
+                            className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary-hover text-xs font-medium"
+                        >
+                            Asignar →
+                        </button>
+                    ) : (
+                        <>
+                            <button
+                                onClick={onOpenTriage}
+                                className="px-3 py-1.5 rounded-md border border-border text-muted hover:text-foreground hover:bg-surface-muted text-xs"
+                            >
+                                Editar
+                            </button>
+                            <button
+                                onClick={onUntriage}
+                                disabled={isUntriaging}
+                                className="px-3 py-1.5 rounded-md border border-warning/30 text-warning-foreground hover:bg-warning/10 text-xs disabled:opacity-50"
+                                title="Devolver al inbox"
+                            >
+                                ↩
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+            {isOpen && (
+                <div className="pl-12 pb-4 pt-1">
+                    <TriagePopover
+                        captureId={capture.id}
+                        initial={{
+                            area_id: capture.area_id,
+                            project_id: capture.project_id,
+                        }}
+                        onDone={onCloseTriage}
+                        onCancel={onCloseTriage}
+                    />
+                </div>
+            )}
+        </div>
     );
 }
 
