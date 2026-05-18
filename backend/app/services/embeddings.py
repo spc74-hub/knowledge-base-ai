@@ -16,9 +16,20 @@ class EmbeddingsService:
     """
 
     def __init__(self):
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self._client: Optional[OpenAI] = None
         self.model = "text-embedding-3-small"
         self.dimensions = 1536
+
+    @property
+    def client(self) -> OpenAI:
+        if self._client is None:
+            key = settings.OPENAI_API_KEY
+            if not key or key.startswith("sk-dummy"):
+                raise RuntimeError(
+                    "OPENAI_API_KEY not configured — embeddings are disabled"
+                )
+            self._client = OpenAI(api_key=key)
+        return self._client
 
     async def generate_embedding(
         self,

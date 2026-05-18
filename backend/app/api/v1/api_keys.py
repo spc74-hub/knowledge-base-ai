@@ -186,7 +186,7 @@ async def validate_api_key(api_key: str) -> Optional[dict]:
 
     # Update last_used_at
     await admin_db.table("user_api_keys").update({
-        "last_used_at": datetime.utcnow().isoformat()
+        "last_used_at": datetime.utcnow()
     }).eq("id", key_data["id"]).execute()
 
     return {"id": key_data["user_id"]}

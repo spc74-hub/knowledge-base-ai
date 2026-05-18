@@ -44,7 +44,7 @@ async def _validate_api_key(api_key: str, db: CompatDB) -> dict | None:
 
     # Update last_used_at
     await db.table("user_api_keys").update({
-        "last_used_at": datetime.now(timezone.utc).isoformat()
+        "last_used_at": datetime.now(timezone.utc)
     }).eq("id", key_data["id"]).execute()
 
     return {"id": key_data["user_id"], "email": None, "via_api_key": True}

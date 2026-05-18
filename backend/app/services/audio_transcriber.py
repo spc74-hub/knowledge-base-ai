@@ -32,9 +32,16 @@ class AudioTranscriber:
     MAX_FILE_SIZE = 25 * 1024 * 1024
 
     def __init__(self):
-        self.client = None
-        if settings.OPENAI_API_KEY:
-            self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self._client: Optional[OpenAI] = None
+
+    @property
+    def client(self) -> Optional[OpenAI]:
+        if self._client is None:
+            key = settings.OPENAI_API_KEY
+            if not key or key.startswith("sk-dummy"):
+                return None
+            self._client = OpenAI(api_key=key)
+        return self._client
 
     def is_available(self) -> bool:
         """Check if transcription service is available."""

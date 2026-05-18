@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-05-18
+- **fix:** `api_keys.py:189` pasa `datetime` (no string ISO) a la columna TIMESTAMP `last_used_at` (asyncpg rechazaba el string)
+- **fix:** `deps.py:47` mismo fix en el middleware de validacion de API keys — antes cualquier request con `kb_...` devolvia 500
+- **refactor:** Cliente OpenAI ahora es lazy (property) en `embeddings.py`, `embedder.py` y `audio_transcriber.py`. Permite arrancar la app sin `OPENAI_API_KEY` configurada (necesario tras subida de version a SDK >=2.0). Las features que necesiten OpenAI lanzan `RuntimeError` solo al usarse, no al importar
+
 ## 2026-04-14
 - **docs:** Documentacion completa del proyecto (CLAUDE.md, USER_GUIDE, PROCESSES, CHANGELOG, BACKLOG)
 

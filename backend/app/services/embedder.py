@@ -3,7 +3,7 @@ Embedding service.
 Uses OpenAI API to generate embeddings for semantic search.
 """
 from openai import OpenAI
-from typing import List
+from typing import List, Optional
 from app.core.config import settings
 
 
@@ -14,10 +14,21 @@ class EmbedderService:
     """
 
     def __init__(self):
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self._client: Optional[OpenAI] = None
         self.model = "text-embedding-3-small"
         self.dimensions = 1536
         self.max_tokens = 8191  # Max input tokens for this model
+
+    @property
+    def client(self) -> OpenAI:
+        if self._client is None:
+            key = settings.OPENAI_API_KEY
+            if not key or key.startswith("sk-dummy"):
+                raise RuntimeError(
+                    "OPENAI_API_KEY not configured — embeddings are disabled"
+                )
+            self._client = OpenAI(api_key=key)
+        return self._client
 
     async def embed(self, text: str) -> List[float]:
         """
