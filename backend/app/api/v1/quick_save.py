@@ -19,6 +19,8 @@ class QuickSaveRequest(BaseModel):
     tags: list[str] = []
     process_now: bool = False  # Deprecated: AI processing pipeline removed. Kept for API compat; ignored.
     source_metadata: Optional[dict] = None  # Back-pointer from external sources (e.g. ContentHub bridge)
+    title: Optional[str] = None  # If provided, skip external fetch (caller already has metadata)
+    summary: Optional[str] = None  # Optional summary when caller provides title
 
 
 class QuickSaveResponse(BaseModel):
@@ -27,6 +29,20 @@ class QuickSaveResponse(BaseModel):
     content_id: Optional[str] = None
     title: Optional[str] = None
     error: Optional[str] = None
+
+
+def _infer_type_from_url(url: str) -> str:
+    """Best-effort type inference when caller provides title and we skip the fetch."""
+    u = url.lower()
+    if "youtube.com" in u or "youtu.be" in u:
+        return "youtube"
+    if "tiktok" in u:
+        return "tiktok"
+    if "twitter.com" in u or "x.com" in u:
+        return "twitter"
+    if "substack" in u:
+        return "substack"
+    return "web"
 
 
 @router.post("/", response_model=QuickSaveResponse)
@@ -83,51 +99,78 @@ async def quick_save_url(
                 error="duplicate"
             )
 
+        # === Branch A: caller provided title (e.g. ContentHub bridge) — skip external fetch ===
+        if data and data.title:
+            content_data = {
+                "user_id": user_id,
+                "url": url_str,
+                "type": _infer_type_from_url(url_str),
+                "title": data.title,
+                "summary": data.summary,
+                "user_tags": data.tags,
+                "source_metadata": data.source_metadata or {},
+                "metadata": {"saved_via": "quick_save_no_fetch"},
+            }
+            response = await db.table("contents").insert(content_data).execute()
+            if not response.data:
+                return QuickSaveResponse(
+                    success=False,
+                    message="Failed to save content",
+                    error="database_error"
+                )
+            return QuickSaveResponse(
+                success=True,
+                message="URL saved!",
+                content_id=response.data[0]["id"],
+                title=data.title,
+            )
+
+        # === Branch B: legacy fetch path (bookmarklet, iOS Shortcut, manual UI) ===
         # Fetch content using ORIGINAL URL (yt-dlp needs full URL)
         # Apply timeout to prevent hanging on slow fetches
+        fetch_result = None
         try:
             fetch_result = await asyncio.wait_for(
                 fetcher_service.fetch(original_url),
                 timeout=60.0  # 60 second timeout for video platforms
             )
         except asyncio.TimeoutError:
-            logger.error(f"Timeout fetching URL: {original_url}")
-            return QuickSaveResponse(
-                success=False,
-                message="Timeout fetching content (try again later)",
-                error="timeout"
-            )
+            logger.warning(f"Timeout fetching {original_url} — falling back to URL-only save")
 
-        if not fetch_result.success:
-            logger.error(f"Fetch failed for {original_url}: {fetch_result.error}")
-            return QuickSaveResponse(
-                success=False,
-                message=f"Failed to fetch content",
-                error=fetch_result.error
-            )
-
-        # Calculate reading time
-        word_count = len(fetch_result.content.split())
-        reading_time = max(1, word_count // 200)
-
-        # Base content data (without AI processing)
-        content_data = {
-            "user_id": user_id,
-            "url": url_str,
-            "type": fetch_result.type,
-            "title": fetch_result.title,
-            "raw_content": fetch_result.content[:50000],
-            "reading_time_minutes": reading_time,
-            "metadata": {
-                **fetch_result.metadata,
-                "saved_via": "quick_save"
-            },
-            "user_tags": data.tags if data else [],
-            "processing_status": "pending",  # Mark as pending for later processing
-            "view_count": fetch_result.view_count,
-            "description": fetch_result.description,
-            "source_metadata": (data.source_metadata if data and data.source_metadata else {}),
-        }
+        if fetch_result and fetch_result.success:
+            word_count = len(fetch_result.content.split())
+            reading_time = max(1, word_count // 200)
+            content_data = {
+                "user_id": user_id,
+                "url": url_str,
+                "type": fetch_result.type,
+                "title": fetch_result.title,
+                "raw_content": fetch_result.content[:50000],
+                "reading_time_minutes": reading_time,
+                "metadata": {
+                    **fetch_result.metadata,
+                    "saved_via": "quick_save"
+                },
+                "user_tags": data.tags if data else [],
+                "view_count": fetch_result.view_count,
+                "description": fetch_result.description,
+                "source_metadata": (data.source_metadata if data and data.source_metadata else {}),
+            }
+            inserted_title = fetch_result.title
+        else:
+            # Fetch failed (timeout or fetcher error) — save URL-only fallback so we don't drop the capture
+            if fetch_result:
+                logger.warning(f"Fetch failed for {original_url}: {fetch_result.error} — saving URL-only")
+            content_data = {
+                "user_id": user_id,
+                "url": url_str,
+                "type": _infer_type_from_url(url_str),
+                "title": original_url,
+                "user_tags": data.tags if data else [],
+                "metadata": {"saved_via": "quick_save", "fetch_failed": True},
+                "source_metadata": (data.source_metadata if data and data.source_metadata else {}),
+            }
+            inserted_title = original_url
 
         response = await db.table("contents").insert(content_data).execute()
 
@@ -138,13 +181,11 @@ async def quick_save_url(
                 error="database_error"
             )
 
-        status_msg = "saved"
-
         return QuickSaveResponse(
             success=True,
-            message=f"URL {status_msg}!",
+            message="URL saved!",
             content_id=response.data[0]["id"],
-            title=fetch_result.title
+            title=inserted_title,
         )
 
     except Exception as e:
