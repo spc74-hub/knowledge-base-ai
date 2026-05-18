@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
-import AppShell from '@/components/AppShell';
     useUnifiedActions,
     useToggleAction,
     useCreateAction,
@@ -15,6 +14,7 @@ import AppShell from '@/components/AppShell';
     GroupedActions,
     UnifiedAction,
 } from '@/hooks/use-actions';
+import AppShell from '@/components/AppShell';
 
 const PARENT_TYPE_LABELS: Record<string, { label: string; labelSingular: string; icon: string; href: string }> = {
     area: { label: 'Áreas', labelSingular: 'Área', icon: '📋', href: '/areas' },

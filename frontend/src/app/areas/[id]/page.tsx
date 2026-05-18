@@ -6,7 +6,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import {
-import AppShell from '@/components/AppShell';
     useAreaDetail,
     useCreateAreaAction,
     useUpdateAreaAction,
@@ -24,6 +23,7 @@ import AppShell from '@/components/AppShell';
     type AreaAction,
     type AreaNote,
 } from '@/hooks/use-areas';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
