@@ -65,16 +65,8 @@ class ContentUpdate(BaseModel):
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
     is_asset: Optional[bool] = None  # Mark as reusable asset/template
-    maturity_level: Optional[str] = None  # captured, processed, connected, integrated
     project_id: Optional[str] = None  # Link to project (can be null to unlink)
-    # User classification overrides (takes priority over AI-generated)
-    user_entities: Optional[dict] = None  # Override entities
-    user_concepts: Optional[List[str]] = None  # Override concepts
-    user_category: Optional[str] = None  # Override iab_tier1 category
-
-
-class MaturityUpdate(BaseModel):
-    maturity_level: str  # captured, processed, connected, integrated
+    user_category: Optional[str] = None  # Strategic-layer category override
 
 
 class ContentResponse(BaseModel):
@@ -83,37 +75,25 @@ class ContentResponse(BaseModel):
     type: str
     title: str
     summary: Optional[str] = None
-    schema_type: Optional[str] = None
-    schema_subtype: Optional[str] = None
-    iab_tier1: Optional[str] = None
-    iab_tier2: Optional[str] = None
-    concepts: List[str] = []
     user_tags: List[str] = []
     is_favorite: bool = False
     is_archived: bool = False
-    is_asset: bool = False  # Reusable asset/template
-    processing_status: str = "pending"
-    maturity_level: str = "captured"
-    project_id: Optional[str] = None  # Linked project
+    is_asset: bool = False
+    project_id: Optional[str] = None
     created_at: str
-    view_count: Optional[int] = None  # YouTube/TikTok views for sorting
+    view_count: Optional[int] = None
+    source_metadata: Optional[dict] = None
 
 
 class ContentDetailResponse(ContentResponse):
-    raw_content: Optional[str] = None
-    entities: Optional[dict] = None
-    language: Optional[str] = None
-    sentiment: Optional[str] = None
-    technical_level: Optional[str] = None
-    content_format: Optional[str] = None
-    reading_time_minutes: Optional[int] = None
-    metadata: Optional[dict] = None
-    last_reviewed_at: Optional[str] = None
-    description: Optional[str] = None  # Original description from source (YouTube/TikTok)
-    # User classification overrides
-    user_entities: Optional[dict] = None
-    user_concepts: Optional[List[str]] = None
+    description: Optional[str] = None
+    user_note: Optional[str] = None
     user_category: Optional[str] = None
+    note_category: Optional[str] = None
+    metadata: Optional[dict] = None
+    folder_id: Optional[str] = None
+    area_id: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 class PaginatedResponse(BaseModel):
@@ -134,12 +114,10 @@ class StatsResponse(BaseModel):
 # =====================================================
 # OPTIMIZED LISTING FIELDS (for faster queries)
 # =====================================================
-# Fields needed for list/card display (NOT raw_content, embedding, description etc.)
+# Fields needed for list/card display
 LIST_FIELDS = (
-    "id, url, type, title, summary, schema_type, schema_subtype, "
-    "iab_tier1, iab_tier2, concepts, user_tags, is_favorite, is_archived, "
-    "is_asset, processing_status, maturity_level, project_id, created_at, "
-    "reading_time_minutes, view_count"
+    "id, url, type, title, summary, user_tags, is_favorite, is_archived, "
+    "is_asset, project_id, created_at, view_count, source_metadata"
 )
 
 
@@ -179,43 +157,32 @@ async def list_contents(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     type: Optional[str] = None,
-    category: Optional[str] = None,
+    category: Optional[str] = None,  # Maps to user_category
     tags: Optional[str] = None,
     favorite: Optional[bool] = None,
     archived: bool = False,
-    asset: Optional[bool] = None,  # Filter by is_asset
-    project_id: Optional[str] = None,  # Filter by project
-    maturity_level: Optional[str] = None,  # Filter by maturity level
-    processing_status: Optional[str] = None,  # Filter by processing status
+    asset: Optional[bool] = None,
+    project_id: Optional[str] = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
     q: Optional[str] = None
 ):
-    """
-    List user's contents with pagination and filters.
-    Uses selective fields for faster queries (no raw_content, embedding).
-    """
+    """List user's contents with pagination and filters."""
     try:
-        # Build query with selective fields (NOT "*" - much faster)
         query = db.table("contents").select(LIST_FIELDS).eq("user_id", current_user["id"])
 
-        # Apply filters
         if type:
             query = query.eq("type", type)
         if category:
-            query = query.eq("iab_tier1", category)
+            query = query.eq("user_category", category)
         if favorite is not None:
             query = query.eq("is_favorite", favorite)
-        if processing_status:
-            query = query.eq("processing_status", processing_status)
         if not archived:
             query = query.eq("is_archived", False)
         if asset is not None:
             query = query.eq("is_asset", asset)
         if project_id:
             query = query.eq("project_id", project_id)
-        if maturity_level:
-            query = query.eq("maturity_level", maturity_level)
         if tags:
             tag_list = tags.split(",")
             query = query.contains("user_tags", tag_list)
@@ -350,21 +317,14 @@ async def create_content(data: ContentCreate, current_user: CurrentUser, db: Dat
                 detail=f"Failed to fetch content: {fetch_result.error}"
             )
 
-        # Estimate reading time (average 200 words per minute)
-        word_count = len(fetch_result.content.split())
-        reading_time = max(1, word_count // 200)
-
-        # AI processing pipeline removed (see CHANGELOG 2026-05-18) — always save as pending.
+        # AI processing pipeline removed (see CHANGELOG 2026-05-18) — store only basics.
         content_data = {
             "user_id": user_id,
             "url": url_str,
             "type": fetch_result.type,
             "title": fetch_result.title,
-            "raw_content": fetch_result.content[:50000],
-            "reading_time_minutes": reading_time,
             "metadata": fetch_result.metadata,
             "user_tags": data.tags,
-            "processing_status": "pending",
             "view_count": fetch_result.view_count,
             "description": fetch_result.description,
         }
@@ -642,35 +602,15 @@ async def reprocess_content(
     content_id: str,
     current_user: CurrentUser,
     db: Database,
-    process_now: bool = Query(default=False, description="Deprecated: AI pipeline removed; param ignored"),
 ):
     """
-    Mark content as pending. The AI processing pipeline has been removed
-    (see CHANGELOG 2026-05-18); this endpoint now only resets the
-    processing_status flag.
+    No-op stub. The AI processing pipeline has been removed
+    (see CHANGELOG 2026-05-18). Kept so existing clients don't 404.
     """
-    try:
-        existing = await db.table("contents").select("id").eq("id", content_id).eq("user_id", current_user["id"]).execute()
-
-        if not existing.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Content not found",
-            )
-
-        await db.table("contents").update({"processing_status": "pending"}).eq("id", content_id).execute()
-        return {
-            "message": "Content marked as pending (AI pipeline removed)",
-            "success": True,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        )
+    return {
+        "message": "Reprocessing disabled — AI pipeline removed",
+        "success": True,
+    }
 
 
 @router.post("/bulk-import", response_model=BulkImportResponse)
@@ -743,36 +683,17 @@ async def bulk_import_urls(
                         error=f"Error al obtener: {fetch_result.error}"
                     )
 
-                # Estimate reading time
-                word_count = len(fetch_result.content.split())
-                reading_time = max(1, word_count // 200)
-
-                # Create content record WITHOUT AI processing (deferred)
+                # AI pipeline removed (CHANGELOG 2026-05-18) — store only basics.
                 content_data = {
                     "user_id": user_id,
                     "url": url_str,
                     "type": fetch_result.type,
                     "title": fetch_result.title,
-                    "raw_content": fetch_result.content[:50000],
                     "summary": None,
-                    "schema_type": None,
-                    "schema_subtype": None,
-                    "iab_tier1": None,
-                    "iab_tier2": None,
-                    "iab_tier3": None,
-                    "concepts": [],
-                    "entities": {},
-                    "language": None,
-                    "sentiment": None,
-                    "technical_level": None,
-                    "content_format": None,
-                    "reading_time_minutes": reading_time,
                     "metadata": fetch_result.metadata,
                     "user_tags": data.tags,
-                    "processing_status": "pending",
-                    "embedding": None,
                     "view_count": fetch_result.view_count,
-                    "description": fetch_result.description
+                    "description": fetch_result.description,
                 }
 
                 response = await db.table("contents").insert(content_data).execute()
@@ -904,10 +825,8 @@ async def queue_urls_for_import(
                 "url": url_str,
                 "type": content_type,
                 "title": url_str[:100],  # Placeholder title
-                "raw_content": None,
                 "summary": None,
                 "user_tags": data.tags,
-                "processing_status": "pending",  # URLs waiting to be fetched
                 "metadata": {"original_url": raw_url}
             }
 
@@ -936,61 +855,27 @@ async def queue_urls_for_import(
 
 
 class ImportStatusResponse(BaseModel):
-    """Status of import queue."""
-    queued: int  # URLs waiting to be fetched
-    pending: int  # Fetched, waiting for AI processing
-    processing: int  # Currently being processed
-    completed: int  # Fully processed
-    failed: int  # Failed processing
+    """Stub — AI processing pipeline removed; all imports are instant now."""
+    queued: int
+    pending: int
+    processing: int
+    completed: int
+    failed: int
     total: int
 
 
 @router.get("/import-status", response_model=ImportStatusResponse)
 async def get_import_status(
     current_user: CurrentUser,
-    db: Database
+    db: Database,
 ):
-    """Get status of URL import queue for current user."""
-    user_id = current_user["id"]
-
+    """AI pipeline removed (CHANGELOG 2026-05-18). All imports are instant."""
     try:
-        # Count by status
-        all_content = db.table("contents").select(
-            "processing_status",
-            count="exact"
-        ).eq("user_id", user_id).execute()
-
-        status_counts = {
-            "queued": 0,
-            "pending": 0,
-            "processing": 0,
-            "completed": 0,
-            "failed": 0
-        }
-
-        for item in all_content.data:
-            s = item.get("processing_status", "pending")
-            if s in status_counts:
-                status_counts[s] += 1
-            elif s == "error":
-                status_counts["failed"] += 1
-            else:
-                status_counts["pending"] += 1
-
-        return ImportStatusResponse(
-            queued=status_counts["queued"],
-            pending=status_counts["pending"],
-            processing=status_counts["processing"],
-            completed=status_counts["completed"],
-            failed=status_counts["failed"],
-            total=sum(status_counts.values())
-        )
-
+        total_resp = await db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).execute()
+        total = total_resp.count or 0
+        return ImportStatusResponse(queued=0, pending=0, processing=0, completed=total, failed=0, total=total)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.post("/import-csv")
@@ -1077,9 +962,7 @@ async def import_from_csv(
                 "url": url_str,
                 "type": content_type,
                 "title": url_str[:100],
-                "raw_content": None,
                 "user_tags": all_tags,
-                "processing_status": "pending",
                 "metadata": {"original_url": raw_url, "source": "csv_import"}
             }
 
@@ -1107,34 +990,15 @@ async def create_note(data: NoteCreate, current_user: CurrentUser, db: Database)
     try:
         user_id = current_user["id"]
 
-        # Estimate reading time (average 200 words per minute)
-        word_count = len(data.content.split())
-        reading_time = max(1, word_count // 200)
-
-        # Create content record WITHOUT AI processing (deferred)
+        # Note content is now stored in `summary` (raw_content column removed).
         content_data = {
             "user_id": user_id,
             "url": f"note://{user_id}/{data.title[:50].replace(' ', '-').lower()}",  # Pseudo-URL for notes
             "type": "note",
             "title": data.title,
-            "raw_content": data.content[:50000],  # Limit stored content
-            "summary": None,
-            "schema_type": None,
-            "schema_subtype": None,
-            "iab_tier1": None,
-            "iab_tier2": None,
-            "iab_tier3": None,
-            "concepts": [],
-            "entities": {},
-            "language": None,
-            "sentiment": None,
-            "technical_level": None,
-            "content_format": None,
-            "reading_time_minutes": reading_time,
+            "summary": data.content[:50000],  # was raw_content
             "metadata": {"source": "manual_note", "created_via": "editor"},
             "user_tags": data.tags,
-            "processing_status": "pending",  # Deferred processing
-            "embedding": None
         }
 
         response = await db.table("contents").insert(content_data).execute()
@@ -1187,42 +1051,21 @@ async def update_note(
                 detail=f"Invalid priority. Must be one of: {', '.join(VALID_NOTE_PRIORITIES)}"
             )
 
-        # Determine what changed
+        # Notes store body in `summary` now (raw_content column removed).
         new_title = data.title if data.title is not None else note["title"]
-        new_content = data.content if data.content is not None else note["raw_content"]
+        new_content = data.content if data.content is not None else note.get("summary")
         new_tags = data.tags if data.tags is not None else note["user_tags"]
         # Handle priority: empty string means clear, None means no change
         new_priority = None if data.priority == "" else (data.priority if data.priority is not None else note.get("priority"))
 
-        # If content or title changed, mark as pending for re-processing
         if data.title is not None or data.content is not None:
-            # Re-calculate reading time
-            word_count = len(new_content.split())
-            reading_time = max(1, word_count // 200)
-
             update_data = {
                 "title": new_title,
-                "raw_content": new_content[:50000],
-                "summary": None,  # Clear for re-processing
-                "schema_type": None,
-                "schema_subtype": None,
-                "iab_tier1": None,
-                "iab_tier2": None,
-                "iab_tier3": None,
-                "concepts": [],
-                "entities": {},
-                "language": None,
-                "sentiment": None,
-                "technical_level": None,
-                "content_format": None,
-                "reading_time_minutes": reading_time,
+                "summary": (new_content or "")[:50000],
                 "user_tags": new_tags,
                 "priority": new_priority,
-                "embedding": None,
-                "processing_status": "pending"  # Mark for re-processing
             }
         else:
-            # Only tags/priority changed, no AI reprocessing needed
             update_data = {"user_tags": new_tags, "priority": new_priority}
 
         response = await db.table("contents").update(update_data).eq("id", content_id).execute()
@@ -1239,170 +1082,21 @@ async def update_note(
 
 
 # =====================================================
-# MATURITY LEVEL ENDPOINTS
+# MATURITY LEVEL ENDPOINTS — stubbed (column dropped in migration 004)
 # =====================================================
-
-VALID_MATURITY_LEVELS = ["captured", "processed", "connected", "integrated"]
-
-MATURITY_LABELS = {
-    "captured": "Capturado",
-    "processed": "Procesado",
-    "connected": "Conectado",
-    "integrated": "Integrado",
-}
-
-
 @router.put("/{content_id}/maturity")
-async def update_maturity_level(
-    content_id: str,
-    data: MaturityUpdate,
-    current_user: CurrentUser,
-    db: Database
-):
-    """
-    Update the maturity level of a content.
-    Valid levels: captured, processed, connected, integrated
-    """
-    try:
-        # Validate maturity level
-        if data.maturity_level not in VALID_MATURITY_LEVELS:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid maturity level. Must be one of: {', '.join(VALID_MATURITY_LEVELS)}"
-            )
-
-        # Check ownership
-        existing = await db.table("contents").select("id, maturity_level").eq(
-            "id", content_id
-        ).eq(
-            "user_id", current_user["id"]
-        ).execute()
-
-        if not existing.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Content not found"
-            )
-
-        from datetime import datetime, timezone
-
-        # Update maturity level and last_reviewed_at
-        response = await db.table("contents").update({
-            "maturity_level": data.maturity_level,
-            "last_reviewed_at": datetime.now(timezone.utc).isoformat()
-        }).eq("id", content_id).execute()
-
-        return {
-            "id": content_id,
-            "maturity_level": data.maturity_level,
-            "previous_level": existing.data[0].get("maturity_level", "captured"),
-            "message": f"Nivel actualizado a {MATURITY_LABELS.get(data.maturity_level, data.maturity_level)}"
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+async def update_maturity_level(content_id: str, current_user: CurrentUser):
+    return {"id": content_id, "message": "maturity_level removed — endpoint stubbed"}
 
 
 @router.get("/maturity/stats")
-async def get_maturity_stats(
-    current_user: CurrentUser,
-    db: Database
-):
-    """
-    Get statistics about content maturity levels.
-    """
-    try:
-        user_id = current_user["id"]
-
-        # Get all non-archived contents with their maturity level
-        response = await db.table("contents").select(
-            "maturity_level"
-        ).eq("user_id", user_id).eq("is_archived", False).execute()
-
-        # Count by level
-        stats = {level: 0 for level in VALID_MATURITY_LEVELS}
-        total = 0
-
-        for item in response.data or []:
-            level = item.get("maturity_level") or "captured"
-            if level in stats:
-                stats[level] += 1
-            else:
-                stats["captured"] += 1  # Default for old content
-            total += 1
-
-        return {
-            "total": total,
-            "by_level": stats,
-            "levels": [
-                {"value": level, "label": MATURITY_LABELS[level], "count": stats[level]}
-                for level in VALID_MATURITY_LEVELS
-            ]
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+async def get_maturity_stats(current_user: CurrentUser):
+    return {"total": 0, "by_level": {}, "levels": []}
 
 
 @router.post("/maturity/bulk")
-async def bulk_update_maturity(
-    content_ids: List[str],
-    maturity_level: str,
-    current_user: CurrentUser,
-    db: Database
-):
-    """
-    Update maturity level for multiple contents at once.
-    """
-    try:
-        if maturity_level not in VALID_MATURITY_LEVELS:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid maturity level. Must be one of: {', '.join(VALID_MATURITY_LEVELS)}"
-            )
-
-        if not content_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No content IDs provided"
-            )
-
-        from datetime import datetime, timezone
-
-        updated = 0
-        for content_id in content_ids:
-            try:
-                result = await db.table("contents").update({
-                    "maturity_level": maturity_level,
-                    "last_reviewed_at": datetime.now(timezone.utc).isoformat()
-                }).eq("id", content_id).eq("user_id", current_user["id"]).execute()
-
-                if result.data:
-                    updated += 1
-            except Exception:
-                continue  # Skip failed updates
-
-        return {
-            "updated": updated,
-            "total": len(content_ids),
-            "maturity_level": maturity_level
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+async def bulk_update_maturity(content_ids: List[str], maturity_level: str, current_user: CurrentUser):
+    return {"updated": 0, "message": "maturity_level removed — endpoint stubbed"}
 
 
 # =====================================================
@@ -1413,39 +1107,31 @@ async def bulk_update_maturity(
 async def get_facets(
     current_user: CurrentUser,
     db: Database,
-    force_refresh: bool = Query(False, description="Force cache refresh")
+    force_refresh: bool = Query(False, description="Force cache refresh"),
 ):
     """
-    Get aggregated facets for filtering (cached for 5 minutes).
-    Returns counts by type, category, maturity level, etc.
-    Much faster than calculating on every request.
+    Aggregated facets for the Explorer sidebar.
+    Post AI-pipeline removal (2026-05-18) only type, favorites, archived and
+    project facets are computed. Category/schema/maturity/processing buckets
+    are kept in the response for frontend compatibility (always empty).
     """
     user_id = current_user["id"]
 
-    # Check cache first
     if not force_refresh:
         cached = get_cached_facets(user_id)
         if cached:
             return {**cached, "cached": True}
 
     try:
-        # Get all non-archived contents with minimal fields for counting
         response = await db.table("contents").select(
-            "type, iab_tier1, iab_tier2, schema_type, maturity_level, "
-            "processing_status, is_favorite, is_archived, project_id"
+            "type, is_favorite, is_archived, project_id, user_category"
         ).eq("user_id", user_id).execute()
 
         contents = response.data or []
 
-        # Calculate facets
         type_counts = {}
-        category_counts = {}  # iab_tier1
-        subcategory_counts = {}  # iab_tier2
-        schema_counts = {}
-        maturity_counts = {level: 0 for level in VALID_MATURITY_LEVELS}
-        status_counts = {"pending": 0, "processing": 0, "completed": 0, "failed": 0}
+        category_counts = {}  # user_category only
         project_counts = {}
-
         total = 0
         archived = 0
         favorites = 0
@@ -1453,44 +1139,15 @@ async def get_facets(
         for item in contents:
             if item.get("is_archived"):
                 archived += 1
-                continue  # Don't count archived in other facets
-
+                continue
             total += 1
-
-            # Type
             t = item.get("type") or "web"
             type_counts[t] = type_counts.get(t, 0) + 1
-
-            # Category (IAB Tier 1)
-            cat = item.get("iab_tier1")
+            cat = item.get("user_category")
             if cat:
                 category_counts[cat] = category_counts.get(cat, 0) + 1
-
-            # Subcategory (IAB Tier 2)
-            subcat = item.get("iab_tier2")
-            if subcat:
-                subcategory_counts[subcat] = subcategory_counts.get(subcat, 0) + 1
-
-            # Schema type
-            schema = item.get("schema_type")
-            if schema:
-                schema_counts[schema] = schema_counts.get(schema, 0) + 1
-
-            # Maturity
-            mat = item.get("maturity_level") or "captured"
-            if mat in maturity_counts:
-                maturity_counts[mat] += 1
-
-            # Processing status
-            ps = item.get("processing_status") or "pending"
-            if ps in status_counts:
-                status_counts[ps] += 1
-
-            # Favorites
             if item.get("is_favorite"):
                 favorites += 1
-
-            # Projects
             proj = item.get("project_id")
             if proj:
                 project_counts[proj] = project_counts.get(proj, 0) + 1
@@ -1501,22 +1158,20 @@ async def get_facets(
             "favorites": favorites,
             "by_type": dict(sorted(type_counts.items(), key=lambda x: -x[1])),
             "by_category": dict(sorted(category_counts.items(), key=lambda x: -x[1])),
-            "by_subcategory": dict(sorted(subcategory_counts.items(), key=lambda x: -x[1])[:20]),  # Top 20
-            "by_schema": dict(sorted(schema_counts.items(), key=lambda x: -x[1])),
-            "by_maturity": maturity_counts,
-            "by_status": status_counts,
+            "by_subcategory": {},
+            "by_schema": {},
+            "by_maturity": {},
+            "by_status": {},
             "by_project": project_counts,
         }
 
-        # Cache the result
         set_cached_facets(user_id, facets)
-
         return {**facets, "cached": False}
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=str(e),
         )
 
 

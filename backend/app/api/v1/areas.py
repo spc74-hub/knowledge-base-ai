@@ -163,7 +163,7 @@ async def get_area(area_id: str, db: Database, current_user: CurrentUser):
         area["habits"] = habits.data or []
 
         # Get linked contents (limit to recent 10)
-        contents = await db.table("contents").select("id, title, type, schema_type, created_at, is_favorite").eq("area_id", area_id).order("created_at", desc=True).limit(10).execute()
+        contents = await db.table("contents").select("id, title, type, created_at, is_favorite").eq("area_id", area_id).order("created_at", desc=True).limit(10).execute()
         area["recent_contents"] = contents.data or []
 
         # Get linked notes (via junction table)

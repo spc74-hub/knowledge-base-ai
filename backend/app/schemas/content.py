@@ -1,54 +1,12 @@
 """
 Content schemas (Pydantic models).
+
+Post AI-pipeline removal: only the user-managed fields stay (no
+classification, no embeddings, no AI-extracted metadata).
 """
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel, HttpUrl, Field
-
-
-class EntityPerson(BaseModel):
-    name: str
-    role: Optional[str] = None
-    organization: Optional[str] = None
-
-
-class EntityOrganization(BaseModel):
-    name: str
-    type: Optional[str] = None
-
-
-class EntityPlace(BaseModel):
-    name: str
-    type: Optional[str] = None
-    country: Optional[str] = None
-
-
-class EntityProduct(BaseModel):
-    name: str
-    type: Optional[str] = None
-    company: Optional[str] = None
-
-
-class Entities(BaseModel):
-    persons: List[EntityPerson] = []
-    organizations: List[EntityOrganization] = []
-    places: List[EntityPlace] = []
-    products: List[EntityProduct] = []
-
-
-class Classification(BaseModel):
-    """Classification result from Claude."""
-    schema_type: str
-    schema_subtype: Optional[str] = None
-    iab_tier1: str
-    iab_tier2: Optional[str] = None
-    iab_tier3: Optional[str] = None
-    concepts: List[str] = []
-    entities: Entities = Entities()
-    language: str = "es"
-    sentiment: str = "neutral"
-    technical_level: str = "intermediate"
-    content_format: str = "article"
+from pydantic import BaseModel, HttpUrl
 
 
 class ContentBase(BaseModel):
@@ -61,44 +19,35 @@ class ContentBase(BaseModel):
 class ContentCreate(BaseModel):
     url: HttpUrl
     tags: List[str] = []
-    process_async: bool = False
+    process_async: bool = False  # Deprecated: AI pipeline removed. Kept for API compat; ignored.
 
 
 class ContentUpdate(BaseModel):
     title: Optional[str] = None
     summary: Optional[str] = None
     user_tags: Optional[List[str]] = None
-    notes: Optional[str] = None
+    user_note: Optional[str] = None
+    user_category: Optional[str] = None
     is_favorite: Optional[bool] = None
     is_archived: Optional[bool] = None
-    para_category: Optional[str] = None  # PARA: projects, areas, resources, archive
     note_category: Optional[str] = None  # For notes: idea, reflection, summary, project, reference
 
 
 class ContentInDB(ContentBase):
     id: str
     user_id: str
-    schema_type: Optional[str] = None
-    schema_subtype: Optional[str] = None
-    iab_tier1: Optional[str] = None
-    iab_tier2: Optional[str] = None
-    iab_tier3: Optional[str] = None
-    raw_content: Optional[str] = None
-    concepts: List[str] = []
-    entities: Optional[dict] = None
-    language: Optional[str] = None
-    sentiment: Optional[str] = None
-    technical_level: Optional[str] = None
-    content_format: Optional[str] = None
-    reading_time_minutes: Optional[int] = None
     user_tags: List[str] = []
-    notes: Optional[str] = None
+    user_note: Optional[str] = None
+    user_category: Optional[str] = None
     is_favorite: bool = False
     is_archived: bool = False
-    processing_status: str = "pending"
-    para_category: Optional[str] = None  # PARA: projects, areas, resources, archive
-    note_category: Optional[str] = None  # For notes: idea, reflection, summary, project, reference
+    note_category: Optional[str] = None
     metadata: Optional[dict] = None
+    source_metadata: Optional[dict] = None
+    folder_id: Optional[str] = None
+    project_id: Optional[str] = None
+    area_id: Optional[str] = None
+    view_count: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -112,30 +61,21 @@ class ContentResponse(BaseModel):
     type: str
     title: str
     summary: Optional[str] = None
-    schema_type: Optional[str] = None
-    iab_tier1: Optional[str] = None
-    concepts: List[str] = []
     user_tags: List[str] = []
     is_favorite: bool = False
-    processing_status: str = "pending"
-    para_category: Optional[str] = None
+    source_metadata: Optional[dict] = None
     created_at: str
 
 
 class ContentDetailResponse(ContentResponse):
-    schema_subtype: Optional[str] = None
-    iab_tier2: Optional[str] = None
-    iab_tier3: Optional[str] = None
-    raw_content: Optional[str] = None
-    entities: Optional[dict] = None
-    language: Optional[str] = None
-    sentiment: Optional[str] = None
-    technical_level: Optional[str] = None
-    content_format: Optional[str] = None
-    reading_time_minutes: Optional[int] = None
-    notes: Optional[str] = None
-    note_category: Optional[str] = None  # For notes: idea, reflection, summary, project, reference
-    inherited_tags: List[str] = []
+    description: Optional[str] = None
+    user_note: Optional[str] = None
+    user_category: Optional[str] = None
+    note_category: Optional[str] = None
     is_archived: bool = False
     metadata: Optional[dict] = None
+    folder_id: Optional[str] = None
+    project_id: Optional[str] = None
+    area_id: Optional[str] = None
+    view_count: Optional[int] = None
     updated_at: str

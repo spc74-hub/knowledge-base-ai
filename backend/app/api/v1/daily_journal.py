@@ -1223,10 +1223,9 @@ async def close_day_and_generate_note(
         new_note = {
             "user_id": user_id,
             "title": note_title,
-            "raw_content": note_content,
+            "summary": note_content,
             "type": "note",
             "url": f"journal://{today.isoformat()}",
-            "processing_status": "completed",
             "user_tags": ["diario", "journal", today.strftime("%Y-%m")],
             "is_favorite": False,
             "is_archived": False,

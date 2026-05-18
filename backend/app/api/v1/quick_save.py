@@ -138,15 +138,11 @@ async def quick_save_url(
             logger.warning(f"Timeout fetching {original_url} — falling back to URL-only save")
 
         if fetch_result and fetch_result.success:
-            word_count = len(fetch_result.content.split())
-            reading_time = max(1, word_count // 200)
             content_data = {
                 "user_id": user_id,
                 "url": url_str,
                 "type": fetch_result.type,
                 "title": fetch_result.title,
-                "raw_content": fetch_result.content[:50000],
-                "reading_time_minutes": reading_time,
                 "metadata": {
                     **fetch_result.metadata,
                     "saved_via": "quick_save"
@@ -255,26 +251,19 @@ async def quick_save_shortcut(
                 "error": fetch_result.error
             })
 
-        # Calculate reading time
-        word_count = len(fetch_result.content.split())
-        reading_time = max(1, word_count // 200)
-
         # Save without AI processing (instant save)
         content_data = {
             "user_id": user_id,
             "url": url_str,
             "type": fetch_result.type,
             "title": fetch_result.title,
-            "raw_content": fetch_result.content[:50000],
-            "reading_time_minutes": reading_time,
             "metadata": {
                 **fetch_result.metadata,
                 "saved_via": "ios_shortcut_v2"
             },
             "user_tags": [],
-            "processing_status": "pending",
             "view_count": fetch_result.view_count,
-            "description": fetch_result.description
+            "description": fetch_result.description,
         }
 
         response = await db.table("contents").insert(content_data).execute()
@@ -407,22 +396,16 @@ async def quick_save_callback(
 </html>
             """)
 
-        word_count = len(fetch_result.content.split())
-        reading_time = max(1, word_count // 200)
-
         content_data = {
             "user_id": user_id,
             "url": url,
             "type": fetch_result.type,
             "title": fetch_result.title,
-            "raw_content": fetch_result.content[:50000],
-            "reading_time_minutes": reading_time,
             "metadata": {
                 **fetch_result.metadata,
                 "saved_via": "ios_shortcut"
             },
             "user_tags": [],
-            "processing_status": "pending",
             "view_count": fetch_result.view_count,
             "description": fetch_result.description,
         }

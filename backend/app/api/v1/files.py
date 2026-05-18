@@ -109,12 +109,10 @@ async def upload_files(
                 "user_id": user_id,
                 "url": file_url,
                 "title": title,
+                "summary": text_content[:1000] if text_content else None,
                 "type": file_type,
-                "raw_content": text_content[:50000] if len(text_content) > 50000 else text_content,  # Limit raw content
                 "metadata": metadata,
                 "user_tags": tags_list,
-                "processing_status": "pending",
-                "maturity_level": "captured",
                 "is_favorite": False,
                 "is_archived": False,
             }

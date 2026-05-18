@@ -219,7 +219,7 @@ async def get_project(
 
         # Get linked contents
         contents_response = await db.table("contents").select(
-            "id, title, type, is_favorite, maturity_level, created_at"
+            "id, title, type, is_favorite, created_at"
         ).eq("project_id", project_id).eq("is_archived", False).order(
             "created_at", desc=True
         ).execute()

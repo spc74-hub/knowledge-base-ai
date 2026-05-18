@@ -199,68 +199,16 @@ async def get_inherited_tags_for_content(
     current_user: CurrentUser,
     db: Database,
 ):
-    """Get all inherited tags for a specific content based on its taxonomy."""
-    # Get content
-    content_result = await db.table("contents").select(
-        "iab_tier1, iab_tier2, iab_tier3, concepts, entities"
-    ).eq("id", content_id).eq("user_id", current_user["id"]).execute()
-
-    if not content_result.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Content not found"
-        )
-
-    content = content_result.data[0]
-    inherited_tags = []
-    tag_sources = []  # Track where each tag comes from
-
-    # Get all taxonomy tags for this user
-    tags_result = await db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).execute()
-    taxonomy_tags = tags_result.data
-
-    for tt in taxonomy_tags:
-        matched = False
-
-        # Check category matches
-        if tt["taxonomy_type"] == "category":
-            if content.get("iab_tier1") == tt["taxonomy_value"]:
-                matched = True
-            elif content.get("iab_tier2") == tt["taxonomy_value"]:
-                matched = True
-            elif content.get("iab_tier3") == tt["taxonomy_value"]:
-                matched = True
-
-        # Check concept matches
-        elif tt["taxonomy_type"] == "concept":
-            concepts = content.get("concepts") or []
-            if tt["taxonomy_value"] in concepts:
-                matched = True
-
-        # Check entity matches
-        elif tt["taxonomy_type"] in ["person", "organization", "product"]:
-            entities = content.get("entities") or {}
-            entity_key = tt["taxonomy_type"] + "s"  # person -> persons
-            entity_list = entities.get(entity_key) or []
-            for entity in entity_list:
-                if entity.get("name") == tt["taxonomy_value"]:
-                    matched = True
-                    break
-
-        if matched:
-            if tt["tag"] not in inherited_tags:
-                inherited_tags.append(tt["tag"])
-                tag_sources.append({
-                    "tag": tt["tag"],
-                    "from_type": tt["taxonomy_type"],
-                    "from_value": tt["taxonomy_value"],
-                    "color": tt.get("color", "#6366f1"),
-                })
-
+    """
+    Inherited-tag inference was driven by the AI taxonomy columns
+    (iab_tier*, concepts, entities). Those have been removed
+    (CHANGELOG 2026-05-18), so this endpoint now always returns an
+    empty set. taxonomy_tags rows remain stored for legacy reference.
+    """
     return {
         "content_id": content_id,
-        "inherited_tags": inherited_tags,
-        "tag_sources": tag_sources,
+        "inherited_tags": [],
+        "tag_sources": [],
     }
 
 
@@ -299,50 +247,25 @@ async def get_taxonomy_values(
     db: Database,
     search: Optional[str] = None,
 ):
-    """Get available values for a taxonomy type from user's contents."""
+    """
+    AI-derived taxonomy values (iab_tier*, concepts, entities) are no
+    longer maintained; returns user_category values for "category"
+    and an empty list for everything else.
+    """
     valid_types = ["category", "person", "organization", "product", "concept"]
     if taxonomy_type not in valid_types:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid taxonomy_type. Must be one of: {', '.join(valid_types)}"
+            detail=f"Invalid taxonomy_type. Must be one of: {', '.join(valid_types)}",
         )
 
     values = set()
-
     if taxonomy_type == "category":
-        # Get unique IAB categories
-        result = await db.table("contents").select(
-            "iab_tier1, iab_tier2, iab_tier3"
-        ).eq("user_id", current_user["id"]).execute()
+        result = await db.table("contents").select("user_category").eq("user_id", current_user["id"]).execute()
+        for row in result.data or []:
+            if row.get("user_category"):
+                values.add(row["user_category"])
 
-        for row in result.data:
-            if row.get("iab_tier1"):
-                values.add(row["iab_tier1"])
-            if row.get("iab_tier2"):
-                values.add(row["iab_tier2"])
-            if row.get("iab_tier3"):
-                values.add(row["iab_tier3"])
-
-    elif taxonomy_type == "concept":
-        # Get unique concepts
-        result = await db.table("contents").select("concepts").eq("user_id", current_user["id"]).execute()
-        for row in result.data:
-            concepts = row.get("concepts") or []
-            for c in concepts:
-                values.add(c)
-
-    else:
-        # Get entities (person, organization, product)
-        entity_key = taxonomy_type + "s"  # person -> persons
-        result = await db.table("contents").select("entities").eq("user_id", current_user["id"]).execute()
-        for row in result.data:
-            entities = row.get("entities") or {}
-            entity_list = entities.get(entity_key) or []
-            for entity in entity_list:
-                if entity.get("name"):
-                    values.add(entity["name"])
-
-    # Filter by search term if provided
     if search:
         search_lower = search.lower()
         values = {v for v in values if search_lower in v.lower()}

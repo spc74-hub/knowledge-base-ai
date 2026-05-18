@@ -267,36 +267,21 @@ async def _import_single_file(
         # Add Google Drive tag
         all_tags = list(set(tags + ["google-drive"]))
 
-        # Create content record with deferred processing
+        # AI pipeline removed (CHANGELOG 2026-05-18) — body goes in `summary`.
         content_data = {
             "user_id": user_id,
             "url": web_link,
             "type": content_type,
             "title": file_name,
-            "raw_content": content,
-            "summary": None,
-            "schema_type": None,
-            "schema_subtype": None,
-            "iab_tier1": None,
-            "iab_tier2": None,
-            "iab_tier3": None,
-            "concepts": [],
-            "entities": {},
-            "language": None,
-            "sentiment": None,
-            "technical_level": None,
-            "content_format": None,
-            "reading_time_minutes": reading_time,
+            "summary": content,
             "metadata": {
                 "source": "google_drive",
                 "google_drive_id": file_id,
                 "mime_type": mime_type,
                 "file_type": file_data.get("fileType", "Unknown"),
-                "modified_time": file_data.get("modifiedTime")
+                "modified_time": file_data.get("modifiedTime"),
             },
             "user_tags": all_tags,
-            "processing_status": "pending",
-            "embedding": None
         }
 
         response = await db.table("contents").insert(content_data).execute()

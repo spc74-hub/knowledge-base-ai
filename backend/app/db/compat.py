@@ -637,93 +637,15 @@ class RPCBuilder:
         self._params = params
 
     async def execute(self) -> RPCResult:
-        """Execute the RPC as a raw SQL function call or Python implementation."""
-        if self._func_name == "match_contents":
-            return await self._match_contents()
-        elif self._func_name == "get_category_counts":
-            return await self._get_category_counts()
-        elif self._func_name == "get_content_type_counts":
+        """Execute the RPC as a Python implementation."""
+        if self._func_name == "get_content_type_counts":
             return await self._get_content_type_counts()
-        else:
-            # Try calling as a PostgreSQL function
-            return await self._call_pg_function()
-
-    async def _match_contents(self) -> RPCResult:
-        """Vector similarity search - replaces the Supabase RPC."""
-        from pgvector.sqlalchemy import Vector
-        query_embedding = self._params.get("query_embedding")
-        threshold = self._params.get("match_threshold", 0.7)
-        match_count = self._params.get("match_count", 10)
-        p_user_id = self._params.get("p_user_id")
-
-        _ensure_registry()
-        Content = _TABLE_MAP["contents"]
-
-        # Build the cosine similarity query
-        embedding_col = Content.embedding
-        similarity = (1 - embedding_col.cosine_distance(query_embedding)).label("similarity")
-
-        stmt = select(
-            Content.id,
-            Content.title,
-            Content.summary,
-            Content.url,
-            Content.type,
-            Content.iab_tier1,
-            Content.concepts,
-            Content.entities,
-            similarity,
-        ).where(
-            Content.embedding.isnot(None)
-        )
-
-        if p_user_id:
-            stmt = stmt.where(Content.user_id == p_user_id)
-
-        stmt = stmt.where(
-            (1 - embedding_col.cosine_distance(query_embedding)) > threshold
-        ).order_by(
-            embedding_col.cosine_distance(query_embedding)
-        ).limit(match_count)
-
-        result = await self._session.execute(stmt)
-        rows = result.all()
-
-        data = []
-        for row in rows:
-            item = {
-                "id": str(row.id),
-                "title": row.title,
-                "summary": row.summary,
-                "url": row.url,
-                "type": row.type,
-                "iab_tier1": row.iab_tier1,
-                "concepts": row.concepts or [],
-                "entities": row.entities or {},
-                "similarity": float(row.similarity),
-            }
-            data.append(item)
-
-        return RPCResult(data=data)
-
-    async def _get_category_counts(self) -> RPCResult:
-        """Category aggregation."""
-        _ensure_registry()
-        Content = _TABLE_MAP["contents"]
-        p_user_id = self._params.get("p_user_id")
-
-        stmt = select(
-            Content.iab_tier1.label("category"),
-            func.count().label("count"),
-        ).where(
-            Content.user_id == p_user_id,
-            Content.is_archived == False,
-        ).group_by(Content.iab_tier1)
-
-        result = await self._session.execute(stmt)
-        rows = result.all()
-        data = [{"category": row.category, "count": row.count} for row in rows]
-        return RPCResult(data=data)
+        # match_contents and get_category_counts were removed with the AI
+        # pipeline (CHANGELOG 2026-05-18). Return empty for compat.
+        if self._func_name in ("match_contents", "get_category_counts"):
+            return RPCResult(data=[])
+        # Try calling as a PostgreSQL function (rarely used)
+        return await self._call_pg_function()
 
     async def _get_content_type_counts(self) -> RPCResult:
         """Content type aggregation."""

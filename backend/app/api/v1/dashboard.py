@@ -97,13 +97,11 @@ async def get_dashboard_summary(
         "id", count="exact"
     ).eq("user_id", user_id).execute())
 
-    pending_result = await safe_query(lambda: db.table("contents").select(
-        "id", count="exact"
-    ).eq("user_id", user_id).eq("processing_status", "pending").execute())
-
-    failed_result = await safe_query(lambda: db.table("contents").select(
-        "id", count="exact"
-    ).eq("user_id", user_id).eq("processing_status", "failed").execute())
+    # AI processing pipeline removed (CHANGELOG 2026-05-18) — these KPIs are stubbed.
+    class _EmptyCount:
+        count = 0
+    pending_result = _EmptyCount()
+    failed_result = _EmptyCount()
 
     # Objectives
     objectives_result = await safe_query(lambda: db.table("objectives").select(
@@ -385,7 +383,7 @@ async def get_object_summary(
         projects_with_contents = []
         for project in safe_data(active):
             linked_contents = await safe_query(lambda pid=project["id"]: db.table("contents").select(
-                "id, title, type, maturity_level"
+                "id, title, type"
             ).eq("project_id", pid).eq("is_archived", False).limit(5).execute())
             project["linked_contents"] = safe_data(linked_contents)
             projects_with_contents.append(project)
@@ -394,7 +392,7 @@ async def get_object_summary(
         favorites_with_contents = []
         for project in safe_data(favorites_query):
             linked_contents = await safe_query(lambda pid=project["id"]: db.table("contents").select(
-                "id, title, type, maturity_level"
+                "id, title, type"
             ).eq("project_id", pid).eq("is_archived", False).limit(5).execute())
             project["linked_contents"] = safe_data(linked_contents)
             favorites_with_contents.append(project)
@@ -425,7 +423,7 @@ async def get_object_summary(
             linked_contents = []
             if content_ids:
                 contents_result = await safe_query(lambda cids=content_ids: db.table("contents").select(
-                    "id, title, type, maturity_level"
+                    "id, title, type"
                 ).in_("id", cids).execute())
                 linked_contents = safe_data(contents_result)
 
@@ -532,11 +530,11 @@ async def get_object_summary(
     elif object_type == "full_notes":
         # Full notes (contents with type='note', excluding apple_notes)
         recent = await safe_query(lambda: db.table("contents").select(
-            "id, title, type, is_favorite, created_at, maturity_level"
+            "id, title, type, is_favorite, created_at"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).neq("metadata->>source", "apple_notes").order("created_at", desc=True).limit(limit).execute())
 
         favorites = await safe_query(lambda: db.table("contents").select(
-            "id, title, type, is_favorite, created_at, maturity_level"
+            "id, title, type, is_favorite, created_at"
         ).eq("user_id", user_id).eq("type", "note").eq("is_archived", False).eq("is_favorite", True).neq("metadata->>source", "apple_notes").order("created_at", desc=True).limit(limit).execute())
 
         return {

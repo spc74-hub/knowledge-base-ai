@@ -253,7 +253,7 @@ async def get_mental_model(
     contents = []
     if content_ids:
         contents_result = await db.table("contents").select(
-            "id, title, url, type, summary, iab_tier1, created_at, is_favorite"
+            "id, title, url, type, summary, created_at, is_favorite"
         ).in_("id", content_ids).execute()
         contents = contents_result.data or []
 

@@ -201,31 +201,9 @@ async def generic_rpc(
     """Generic RPC endpoint for supabase.rpc() calls."""
     body = await request.json()
 
-    if function_name == "match_contents":
-        # Semantic search
-        query_embedding = body.get("query_embedding", [])
-        match_threshold = body.get("match_threshold", 0.5)
-        match_count = body.get("match_count", 10)
-
-        sql = text("""
-            SELECT id, title, url, summary, source,
-                   1 - (embedding <=> :embedding::vector) as similarity
-            FROM contents
-            WHERE embedding IS NOT NULL
-              AND 1 - (embedding <=> :embedding::vector) > :threshold
-            ORDER BY embedding <=> :embedding::vector
-            LIMIT :count
-        """)
-        result = await db.execute(sql, {
-            "embedding": str(query_embedding),
-            "threshold": match_threshold,
-            "count": match_count,
-        })
-        rows = [dict(r._mapping) for r in result.fetchall()]
-        return rows
-
-    elif function_name == "search_contents_semantic":
-        return []  # Stub
+    if function_name in ("match_contents", "search_contents_semantic"):
+        # Vector search removed with the AI pipeline (CHANGELOG 2026-05-18).
+        return []
 
     else:
         raise HTTPException(status_code=404, detail=f"RPC '{function_name}' not found")

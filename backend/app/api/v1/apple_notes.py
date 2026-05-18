@@ -218,36 +218,21 @@ async def _import_single_note(
         # Add Apple Notes folder as a tag
         all_tags = list(set(tags + [f"apple-notes:{note.folder}"]))
 
-        # Create content record WITHOUT AI processing (deferred)
+        # AI pipeline removed (CHANGELOG 2026-05-18) — body goes in `summary`.
         content_data = {
             "user_id": user_id,
             "url": f"apple-notes://{note.id}",
             "type": "note",
             "title": note.name,
-            "raw_content": note.body or text_content,  # Keep HTML for rich content
-            "summary": None,
-            "schema_type": None,
-            "schema_subtype": None,
-            "iab_tier1": None,
-            "iab_tier2": None,
-            "iab_tier3": None,
-            "concepts": [],
-            "entities": {},
-            "language": None,
-            "sentiment": None,
-            "technical_level": None,
-            "content_format": None,
-            "reading_time_minutes": reading_time,
+            "summary": note.body or text_content,
             "metadata": {
                 "source": "apple_notes",
                 "apple_notes_id": note.id,
                 "apple_notes_folder": note.folder,
                 "creation_date": note.creation_date,
-                "modification_date": note.modification_date
+                "modification_date": note.modification_date,
             },
             "user_tags": all_tags,
-            "processing_status": "pending",  # Deferred processing
-            "embedding": None
         }
 
         print(f"[IMPORT] Inserting note: {note.name} from folder {note.folder}")

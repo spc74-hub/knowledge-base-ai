@@ -1,46 +1,32 @@
 """
-Search endpoints.
+Search endpoints (post AI-pipeline removal).
+
+What works now:
+  GET  /            full-text on title + summary
+  GET  /suggestions title + user_tags suggestions
+  POST /global      title + summary + user_tags
+  POST /faceted     types + user_tags + has_comment + is_favorite + date + views
+                    (no concepts/entities/iab_tier* — those columns are gone)
+
+What returns 410 Gone (AI metadata removed):
+  POST /semantic, /hybrid, /facets, /facets/dynamic, /graph
 """
 from typing import List, Optional
+import logging
 import time
+
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.api.deps import Database, CurrentUser
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# =====================================================
-# FACETS CACHE (shared with content.py cache)
-# =====================================================
-_search_facets_cache: dict = {}
-SEARCH_FACETS_CACHE_TTL = 300  # 5 minutes
-
-
-def get_cached_search_facets(user_id: str):
-    """Get cached facets if still valid."""
-    if user_id in _search_facets_cache:
-        cached = _search_facets_cache[user_id]
-        if time.time() - cached["timestamp"] < SEARCH_FACETS_CACHE_TTL:
-            return cached["data"]
-    return None
-
-
-def set_cached_search_facets(user_id: str, data: dict):
-    """Cache facets for user."""
-    _search_facets_cache[user_id] = {
-        "timestamp": time.time(),
-        "data": data
-    }
-
-
-def invalidate_search_facets_cache(user_id: str):
-    """Invalidate facets cache for user."""
-    if user_id in _search_facets_cache:
-        del _search_facets_cache[user_id]
-
-
+# ---------------------------------------------------------------------------
+# Response models
+# ---------------------------------------------------------------------------
 class SearchResult(BaseModel):
     id: str
     title: str
@@ -51,166 +37,161 @@ class SearchResult(BaseModel):
     highlight: Optional[dict] = None
 
 
-class SemanticSearchRequest(BaseModel):
-    query: str
-    limit: int = 10
-    threshold: float = 0.7
-    filters: Optional[dict] = None
-
-
-class HybridSearchRequest(BaseModel):
-    query: str
-    semantic_weight: float = 0.5
-    limit: int = 10
-
-
 class SearchResponse(BaseModel):
     data: List[SearchResult]
     meta: dict
 
 
+# ---------------------------------------------------------------------------
+# GET / — full-text search on title + summary
+# ---------------------------------------------------------------------------
 @router.get("/", response_model=SearchResponse)
 async def search_text(
     current_user: CurrentUser,
     db: Database,
     q: str = Query(..., min_length=1),
     type: Optional[str] = None,
-    category: Optional[str] = None,
-    limit: int = Query(20, ge=1, le=100)
+    limit: int = Query(20, ge=1, le=100),
 ):
-    """
-    Full-text search across user's contents.
-    """
-    try:
-        import time
-        start_time = time.time()
+    start = time.time()
+    query = (
+        db.table("contents")
+        .select("id, title, summary, type, url")
+        .eq("user_id", current_user["id"])
+        .neq("is_archived", True)
+        .or_(f"title.ilike.%{q}%,summary.ilike.%{q}%")
+    )
+    if type:
+        query = query.eq("type", type)
 
-        # Build query - search in title and summary
-        query = db.table("contents").select("id, title, summary, type, url").eq("user_id", current_user["id"]).neq("is_archived", True).or_(f"title.ilike.%{q}%,summary.ilike.%{q}%")
+    response = await query.limit(limit).execute()
 
-        if type:
-            query = query.eq("type", type)
-        if category:
-            query = query.eq("iab_tier1", category)
+    q_lower = q.lower()
+    results = []
+    for item in response.data or []:
+        score = 0.0
+        title = item.get("title") or ""
+        summary = item.get("summary") or ""
+        if q_lower in title.lower():
+            score += 0.6
+        if q_lower in summary.lower():
+            score += 0.4
 
-        query = query.limit(limit)
+        highlight = {}
+        if q_lower in title.lower():
+            highlight["title"] = title.replace(q, f"<mark>{q}</mark>")
+        if q_lower in summary.lower():
+            highlight["summary"] = summary.replace(q, f"<mark>{q}</mark>")
 
-        response = await query.execute()
+        results.append({
+            **item,
+            "relevance_score": score,
+            "highlight": highlight or None,
+        })
 
-        # Calculate relevance scores (simple implementation)
-        results = []
-        for item in response.data:
-            score = 0.0
-            q_lower = q.lower()
+    results.sort(key=lambda x: x["relevance_score"], reverse=True)
 
-            # Title match scores higher
-            if item.get("title") and q_lower in item["title"].lower():
-                score += 0.6
-            # Summary match
-            if item.get("summary") and q_lower in item["summary"].lower():
-                score += 0.4
+    return {
+        "data": results,
+        "meta": {
+            "query": q,
+            "total_results": len(results),
+            "search_time_ms": int((time.time() - start) * 1000),
+        },
+    }
 
-            # Create highlights
-            highlight = {}
-            if item.get("title") and q_lower in item["title"].lower():
-                highlight["title"] = item["title"].replace(q, f"<mark>{q}</mark>")
-            if item.get("summary") and q_lower in item["summary"].lower():
-                highlight["summary"] = item["summary"].replace(q, f"<mark>{q}</mark>")
 
-            results.append({
-                **item,
-                "relevance_score": score,
-                "highlight": highlight if highlight else None
-            })
+# ---------------------------------------------------------------------------
+# 410 Gone endpoints — AI metadata pipeline was removed (CHANGELOG 2026-05-18)
+# ---------------------------------------------------------------------------
+def _gone(feature: str):
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=f"{feature} has been removed. AI metadata pipeline no longer runs in Kbia.",
+    )
 
-        # Sort by relevance
-        results.sort(key=lambda x: x["relevance_score"], reverse=True)
 
-        search_time = int((time.time() - start_time) * 1000)
-
-        return {
-            "data": results,
-            "meta": {
-                "query": q,
-                "total_results": len(results),
-                "search_time_ms": search_time
-            }
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+class _Body(BaseModel):
+    query: Optional[str] = None
+    limit: int = 10
 
 
 @router.post("/semantic")
-async def search_semantic(data: SemanticSearchRequest):
-    """Semantic search disabled — AI embedding pipeline removed."""
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Semantic search has been removed. Use /api/v1/search/global instead.",
-    )
+async def search_semantic(data: _Body):
+    _gone("Semantic search")
 
 
 @router.post("/hybrid")
-async def search_hybrid(data: HybridSearchRequest):
-    """Hybrid search disabled — AI embedding pipeline removed."""
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Hybrid search has been removed. Use /api/v1/search/global instead.",
-    )
+async def search_hybrid(data: _Body):
+    _gone("Hybrid search")
 
 
+@router.get("/facets")
+async def get_facets(current_user: CurrentUser):
+    _gone("Facets aggregation")
+
+
+@router.post("/facets/dynamic")
+async def get_dynamic_facets(current_user: CurrentUser):
+    _gone("Dynamic facets")
+
+
+@router.post("/graph")
+async def get_knowledge_graph(current_user: CurrentUser):
+    _gone("Knowledge graph")
+
+
+# ---------------------------------------------------------------------------
+# GET /suggestions — title + user_tags only
+# ---------------------------------------------------------------------------
 @router.get("/suggestions")
 async def get_suggestions(
     current_user: CurrentUser,
     db: Database,
     q: str = Query(..., min_length=1),
-    limit: int = Query(5, ge=1, le=10)
+    limit: int = Query(5, ge=1, le=10),
 ):
-    """
-    Get search suggestions based on partial query.
-    """
-    try:
-        # Search in titles for suggestions
-        response = await db.table("contents").select("title").eq("user_id", current_user["id"]).neq("is_archived", True).ilike("title", f"%{q}%").limit(limit).execute()
+    response = await (
+        db.table("contents")
+        .select("title")
+        .eq("user_id", current_user["id"])
+        .neq("is_archived", True)
+        .ilike("title", f"%{q}%")
+        .limit(limit)
+        .execute()
+    )
+    suggestions = [item["title"] for item in (response.data or []) if item.get("title")]
 
-        suggestions = [item["title"] for item in response.data if item.get("title")]
-
-        # Also search in concepts/tags (with pagination for large datasets)
-        all_tags = set()
-        offset = 0
-        batch_size = 1000
-        while True:
-            tag_response = await db.table("contents").select("user_tags, concepts").eq("user_id", current_user["id"]).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
-            if not tag_response.data:
-                break
-            for item in tag_response.data:
-                if item.get("user_tags"):
-                    all_tags.update(item["user_tags"])
-                if item.get("concepts"):
-                    all_tags.update(item["concepts"])
-            if len(tag_response.data) < batch_size:
-                break
-            offset += batch_size
-
-        # Filter tags that match query
-        matching_tags = [tag for tag in all_tags if q.lower() in tag.lower()][:limit]
-
-        return {
-            "suggestions": list(set(suggestions + matching_tags))[:limit]
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+    # Also harvest user_tags
+    all_tags = set()
+    offset = 0
+    batch_size = 1000
+    while True:
+        tag_resp = await (
+            db.table("contents")
+            .select("user_tags")
+            .eq("user_id", current_user["id"])
+            .neq("is_archived", True)
+            .range(offset, offset + batch_size - 1)
+            .execute()
         )
+        if not tag_resp.data:
+            break
+        for item in tag_resp.data:
+            for tag in item.get("user_tags") or []:
+                all_tags.add(tag)
+        if len(tag_resp.data) < batch_size:
+            break
+        offset += batch_size
+
+    matching_tags = [t for t in all_tags if q.lower() in t.lower()][:limit]
+    return {"suggestions": list({*suggestions, *matching_tags})[:limit]}
 
 
+# ---------------------------------------------------------------------------
+# POST /global — search title + summary + user_tags
+# ---------------------------------------------------------------------------
 class GlobalSearchRequest(BaseModel):
-    """Request model for global search across all content fields."""
     query: str
     limit: int = 100
     offset: int = 0
@@ -220,1510 +201,207 @@ class GlobalSearchRequest(BaseModel):
 async def search_global(
     data: GlobalSearchRequest,
     current_user: CurrentUser,
-    db: Database
+    db: Database,
 ):
-    """
-    Global search that searches across ALL content fields:
-    - Title and summary (text content)
-    - Concepts
-    - Entities (persons, organizations, products)
-    - Categories (iab_tier1, iab_tier2)
-    - User tags
+    start = time.time()
+    raw = data.query.strip()
+    if not raw:
+        return {"data": [], "meta": {"query": data.query, "total_results": 0}}
 
-    Returns contents that match the query in ANY of these fields.
-    """
-    try:
-        import time
-        import re
-        start_time = time.time()
+    is_phrase = (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'"))
+    if is_phrase:
+        phrase = raw[1:-1].lower().strip()
+        terms = [phrase]
+    else:
+        phrase = raw.lower()
+        terms = [t for t in phrase.split() if t]
 
-        raw_query = data.query.strip()
-        if not raw_query:
-            return {"data": [], "meta": {"query": data.query, "total_results": 0}}
+    def matches_all(text: str) -> bool:
+        text_lower = text.lower()
+        return all(t in text_lower for t in terms)
 
-        # Check if query is wrapped in quotes (exact phrase search)
-        is_exact_phrase = (raw_query.startswith('"') and raw_query.endswith('"')) or \
-                          (raw_query.startswith("'") and raw_query.endswith("'"))
+    def matches_phrase(text: str) -> bool:
+        return phrase in text.lower()
 
-        if is_exact_phrase:
-            # Remove quotes and search for exact phrase
-            search_phrase = raw_query[1:-1].lower().strip()
-            search_terms = [search_phrase]  # Single term = exact phrase
-        else:
-            # Split into individual terms for multi-word search
-            search_phrase = raw_query.lower()
-            search_terms = [t.strip() for t in search_phrase.split() if t.strip()]
+    matcher = matches_phrase if is_phrase else matches_all
 
-        # Helper function to check if ALL terms are present in text
-        def matches_all_terms(text: str, terms: list) -> bool:
-            text_lower = text.lower()
-            return all(term in text_lower for term in terms)
+    response = await (
+        db.table("contents")
+        .select("id, title, summary, url, type, user_tags, source_metadata, is_favorite, view_count, created_at")
+        .eq("user_id", current_user["id"])
+        .neq("is_archived", True)
+        .execute()
+    )
+    all_contents = response.data or []
 
-        # Helper function to check if the exact phrase is present
-        def matches_phrase(text: str, phrase: str) -> bool:
-            return phrase in text.lower()
+    scored = []
+    for c in all_contents:
+        score = 0.0
+        fields = []
+        title = c.get("title") or ""
+        summary = c.get("summary") or ""
 
-        # Get all user contents with searchable fields (include raw_content for deeper search)
-        response = await db.table("contents").select(
-            "id, title, summary, raw_content, url, type, iab_tier1, iab_tier2, iab_tier3, concepts, entities, "
-            "schema_type, content_format, technical_level, language, sentiment, "
-            "reading_time_minutes, processing_status, is_favorite, metadata, user_tags, created_at"
-        ).eq("user_id", current_user["id"]).neq("is_archived", True).execute()
+        if matcher(title):
+            score += 1.0
+            fields.append("title")
+        if matcher(summary):
+            score += 0.5
+            fields.append("summary")
 
-        all_contents = response.data or []
+        for tag in c.get("user_tags") or []:
+            if matcher(tag):
+                score += 0.6
+                fields.append(f"tag:{tag}")
+                break
 
-        # Score and filter contents based on match
-        scored_results = []
+        if score > 0:
+            scored.append({**c, "relevance_score": score, "match_fields": fields})
 
-        for content in all_contents:
-            score = 0.0
-            match_fields = []
-
-            # Search in title (highest weight)
-            title = content.get("title") or ""
-            if is_exact_phrase:
-                if matches_phrase(title, search_phrase):
-                    score += 1.0
-                    match_fields.append("title")
-            else:
-                if matches_all_terms(title, search_terms):
-                    score += 1.0
-                    match_fields.append("title")
-
-            # Search in summary
-            summary = content.get("summary") or ""
-            if is_exact_phrase:
-                if matches_phrase(summary, search_phrase):
-                    score += 0.5
-                    match_fields.append("summary")
-            else:
-                if matches_all_terms(summary, search_terms):
-                    score += 0.5
-                    match_fields.append("summary")
-
-            # Search in concepts
-            concepts = content.get("concepts") or []
-            for concept in concepts:
-                if is_exact_phrase:
-                    if matches_phrase(concept, search_phrase):
-                        score += 0.7
-                        match_fields.append(f"concept:{concept}")
-                        break
-                else:
-                    if matches_all_terms(concept, search_terms):
-                        score += 0.7
-                        match_fields.append(f"concept:{concept}")
-                        break
-
-            # Search in categories
-            for tier in ["iab_tier1", "iab_tier2", "iab_tier3"]:
-                cat = content.get(tier) or ""
-                if cat:
-                    if is_exact_phrase:
-                        if matches_phrase(cat, search_phrase):
-                            score += 0.6
-                            match_fields.append(f"category:{cat}")
-                            break
-                    else:
-                        if matches_all_terms(cat, search_terms):
-                            score += 0.6
-                            match_fields.append(f"category:{cat}")
-                            break
-
-            # Search in entities - handle both dict and string JSON formats
-            entities_raw = content.get("entities")
-            entities = {}
-            entities_str = ""  # Keep string version for fallback search
-
-            if entities_raw:
-                if isinstance(entities_raw, str):
-                    entities_str = entities_raw.lower()
-                    try:
-                        import json
-                        entities = json.loads(entities_raw)
-                    except:
-                        entities = {}
-                elif isinstance(entities_raw, dict):
-                    entities = entities_raw
-                    try:
-                        import json
-                        entities_str = json.dumps(entities_raw).lower()
-                    except:
-                        entities_str = str(entities_raw).lower()
-
-            # Helper function to extract name from entity (handles multiple formats)
-            def get_entity_name(entity):
-                if isinstance(entity, dict):
-                    return entity.get("name") or entity.get("nombre") or ""
-                elif isinstance(entity, str):
-                    return entity
-                return str(entity) if entity else ""
-
-            # Helper to check entity match
-            def entity_matches(entity_name):
-                if not entity_name:
-                    return False
-                if is_exact_phrase:
-                    return matches_phrase(entity_name, search_phrase)
-                else:
-                    return matches_all_terms(entity_name, search_terms)
-
-            # Persons
-            person_found = False
-            persons_list = entities.get("persons") or entities.get("personas") or []
-            for person in persons_list:
-                person_name = get_entity_name(person)
-                if entity_matches(person_name):
-                    score += 0.8
-                    match_fields.append(f"person:{person_name}")
-                    person_found = True
-                    break
-
-            # Organizations
-            org_found = False
-            orgs_list = entities.get("organizations") or entities.get("organizaciones") or []
-            for org in orgs_list:
-                org_name = get_entity_name(org)
-                if entity_matches(org_name):
-                    score += 0.8
-                    match_fields.append(f"organization:{org_name}")
-                    org_found = True
-                    break
-
-            # Products
-            prod_found = False
-            prods_list = entities.get("products") or entities.get("productos") or []
-            for prod in prods_list:
-                prod_name = get_entity_name(prod)
-                if entity_matches(prod_name):
-                    score += 0.8
-                    match_fields.append(f"product:{prod_name}")
-                    prod_found = True
-                    break
-
-            # Fallback: search in raw entities string if no structured match found
-            if not (person_found or org_found or prod_found) and entities_str:
-                if is_exact_phrase:
-                    if search_phrase in entities_str:
-                        score += 0.75
-                        match_fields.append("entities")
-                else:
-                    if all(term in entities_str for term in search_terms):
-                        score += 0.75
-                        match_fields.append("entities")
-
-            # Search in user_tags
-            user_tags = content.get("user_tags") or []
-            for tag in user_tags:
-                if is_exact_phrase:
-                    if matches_phrase(tag, search_phrase):
-                        score += 0.6
-                        match_fields.append(f"tag:{tag}")
-                        break
-                else:
-                    if matches_all_terms(tag, search_terms):
-                        score += 0.6
-                        match_fields.append(f"tag:{tag}")
-                        break
-
-            # Search in raw_content (lower weight, only if no other matches yet)
-            if score == 0:
-                raw_content = content.get("raw_content") or ""
-                if is_exact_phrase:
-                    if matches_phrase(raw_content, search_phrase):
-                        score += 0.3
-                        match_fields.append("content")
-                else:
-                    if matches_all_terms(raw_content, search_terms):
-                        score += 0.3
-                        match_fields.append("content")
-
-            # If any match found, add to results
-            if score > 0:
-                # Don't include raw_content in response (too large)
-                result_content = {k: v for k, v in content.items() if k != "raw_content"}
-                scored_results.append({
-                    **result_content,
-                    "relevance_score": score,
-                    "match_fields": match_fields
-                })
-
-        # Sort by relevance score
-        scored_results.sort(key=lambda x: x["relevance_score"], reverse=True)
-
-        # Apply pagination
-        paginated_results = scored_results[data.offset:data.offset + data.limit]
-
-        search_time = int((time.time() - start_time) * 1000)
-
-        return {
-            "data": paginated_results,
-            "meta": {
-                "query": data.query,
-                "total_results": len(scored_results),
-                "returned_results": len(paginated_results),
-                "search_time_ms": search_time,
-                "offset": data.offset,
-                "limit": data.limit
-            }
-        }
-
-    except Exception as e:
-        import traceback
-        print(f"Global search error: {e}")
-        print(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
-def _aggregate_facets(items: list) -> dict:
-    """Helper function to aggregate facets from a list of content items."""
-    types = {}
-    categories = {}
-    concepts = {}
-    organizations = {}
-    products = {}
-    persons = {}
-    user_tags = {}
-
-    for item in items:
-        # Count types - distinguish apple_notes from regular notes
-        t = item.get("type")
-        if t:
-            # Check if it's an Apple Note
-            if t == "note":
-                metadata = item.get("metadata") or {}
-                if metadata.get("source") == "apple_notes":
-                    types["apple_notes"] = types.get("apple_notes", 0) + 1
-                else:
-                    types[t] = types.get(t, 0) + 1
-            else:
-                types[t] = types.get(t, 0) + 1
-
-        # Count categories - OPTION A: user_category takes priority over iab_tier1
-        user_cat = item.get("user_category")
-        ai_cat = item.get("iab_tier1")
-        effective_cat = user_cat if user_cat else ai_cat
-        if effective_cat:
-            categories[effective_cat] = categories.get(effective_cat, 0) + 1
-
-        # Count concepts
-        for concept in item.get("concepts") or []:
-            concepts[concept] = concepts.get(concept, 0) + 1
-
-        # Count entities - handle both string and dict formats
-        entities = item.get("entities") or {}
-        orgs_list = entities.get("organizations") or []
-        for org in orgs_list:
-            if isinstance(org, dict):
-                org_name = org.get("name")
-            elif isinstance(org, str):
-                org_name = org
-            else:
-                continue
-            if org_name:
-                organizations[org_name] = organizations.get(org_name, 0) + 1
-
-        prods_list = entities.get("products") or []
-        for prod in prods_list:
-            if isinstance(prod, dict):
-                prod_name = prod.get("name")
-            elif isinstance(prod, str):
-                prod_name = prod
-            else:
-                continue
-            if prod_name:
-                products[prod_name] = products.get(prod_name, 0) + 1
-
-        persons_list = entities.get("persons") or []
-        for person in persons_list:
-            if isinstance(person, dict):
-                person_name = person.get("name")
-            elif isinstance(person, str):
-                person_name = person
-            else:
-                continue
-            if person_name:
-                persons[person_name] = persons.get(person_name, 0) + 1
-
-        # Count user_tags
-        for tag in item.get("user_tags") or []:
-            if tag:
-                user_tags[tag] = user_tags.get(tag, 0) + 1
-
-    def to_facet_list(d):
-        sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)
-        return [{"value": k, "count": v} for k, v in sorted_items]
+    scored.sort(key=lambda x: x["relevance_score"], reverse=True)
+    paginated = scored[data.offset:data.offset + data.limit]
 
     return {
-        "types": to_facet_list(types),
-        "categories": to_facet_list(categories),
-        "concepts": to_facet_list(concepts),
-        "organizations": to_facet_list(organizations),
-        "products": to_facet_list(products),
-        "persons": to_facet_list(persons),
-        "user_tags": to_facet_list(user_tags),
-        "total_contents": len(items)
+        "data": paginated,
+        "meta": {
+            "query": data.query,
+            "total_results": len(scored),
+            "returned_results": len(paginated),
+            "search_time_ms": int((time.time() - start) * 1000),
+            "offset": data.offset,
+            "limit": data.limit,
+        },
     }
 
 
-@router.get("/facets")
-async def get_facets(
-    current_user: CurrentUser,
-    db: Database,
-    force_refresh: bool = Query(False, description="Force cache refresh")
-):
-    """
-    Get available facets for filtering (no filters applied).
-    Returns counts for each category, type, concept, and entity.
-    Calculates facets from ALL user contents for accurate filtering.
-    CACHED for 5 minutes to improve Explorer performance.
-    """
-    user_id = current_user["id"]
-
-    # Check cache first (unless force refresh)
-    if not force_refresh:
-        cached = get_cached_search_facets(user_id)
-        if cached:
-            return {**cached, "cached": True}
-
-    try:
-        # Get ALL content data for complete facet calculation
-        # We fetch only the fields needed for facet aggregation
-        # Note: Supabase has a default limit of 1000 rows, so we need pagination
-        all_items = []
-        offset = 0
-        batch_size = 1000
-        while True:
-            batch_response = await db.table("contents").select(
-                "type, metadata, iab_tier1, user_category, concepts, entities, user_tags"
-            ).eq("user_id", user_id).neq("is_archived", True).range(offset, offset + batch_size - 1).execute()
-
-            batch_data = batch_response.data or []
-            if not batch_data:
-                break
-            all_items.extend(batch_data)
-            if len(batch_data) < batch_size:
-                break
-            offset += batch_size
-
-        total_contents = len(all_items)
-
-        # Count types (with apple_notes handling)
-        types = {}
-        categories = {}
-        concepts = {}
-        organizations = {}
-        products = {}
-        persons = {}
-        user_tags = {}
-
-        for item in all_items:
-            # Count types
-            t = item.get("type")
-            if t:
-                if t == "note":
-                    metadata = item.get("metadata") or {}
-                    if metadata.get("source") == "apple_notes":
-                        types["apple_notes"] = types.get("apple_notes", 0) + 1
-                    else:
-                        types[t] = types.get(t, 0) + 1
-                else:
-                    types[t] = types.get(t, 0) + 1
-
-            # Count categories - OPTION A: include both iab_tier1 and user_category
-            # User category takes priority (show it if it exists, otherwise show AI category)
-            user_cat = item.get("user_category")
-            ai_cat = item.get("iab_tier1")
-            # Use user_category if it exists, otherwise fall back to iab_tier1
-            effective_cat = user_cat if user_cat else ai_cat
-            if effective_cat:
-                categories[effective_cat] = categories.get(effective_cat, 0) + 1
-
-            # Count concepts
-            for concept in item.get("concepts") or []:
-                concepts[concept] = concepts.get(concept, 0) + 1
-
-            # Count entities
-            entities = item.get("entities") or {}
-            for org in entities.get("organizations") or []:
-                org_name = org.get("name") if isinstance(org, dict) else org
-                if org_name:
-                    organizations[org_name] = organizations.get(org_name, 0) + 1
-
-            for prod in entities.get("products") or []:
-                prod_name = prod.get("name") if isinstance(prod, dict) else prod
-                if prod_name:
-                    products[prod_name] = products.get(prod_name, 0) + 1
-
-            for person in entities.get("persons") or []:
-                person_name = person.get("name") if isinstance(person, dict) else person
-                if person_name:
-                    persons[person_name] = persons.get(person_name, 0) + 1
-
-            # Count user_tags
-            for tag in item.get("user_tags") or []:
-                if tag:
-                    user_tags[tag] = user_tags.get(tag, 0) + 1
-
-        def to_facet_list(d, limit=None):
-            """Convert dict to sorted facet list. No limit = return all."""
-            sorted_items = sorted(d.items(), key=lambda x: x[1], reverse=True)
-            if limit:
-                sorted_items = sorted_items[:limit]
-            return [{"value": k, "count": v} for k, v in sorted_items]
-
-        facets_data = {
-            "types": to_facet_list(types),
-            "categories": to_facet_list(categories),
-            "concepts": to_facet_list(concepts),
-            "organizations": to_facet_list(organizations),
-            "products": to_facet_list(products),
-            "persons": to_facet_list(persons),
-            "user_tags": to_facet_list(user_tags),
-            "total_contents": total_contents
-        }
-
-        # Cache the result
-        set_cached_search_facets(user_id, facets_data)
-
-        return {**facets_data, "cached": False}
-
-    except Exception as e:
-        import traceback
-        print(f"Facets error: {e}")
-        print(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
-class DynamicFacetsRequest(BaseModel):
-    types: Optional[List[str]] = None
-    categories: Optional[List[str]] = None
-    concepts: Optional[List[str]] = None
-    organizations: Optional[List[str]] = None
-    products: Optional[List[str]] = None
-    persons: Optional[List[str]] = None
-
-
-@router.post("/facets/dynamic")
-async def get_dynamic_facets(
-    data: DynamicFacetsRequest,
-    current_user: CurrentUser,
-    db: Database
-):
-    """
-    Get facets filtered by current selections.
-    Returns counts that reflect what's available given the current filters.
-    """
-    try:
-        # Helper to apply type filter including apple_notes and manual notes handling
-        def apply_type_filter_dynamic(query, types):
-            if not types:
-                return query
-            has_apple_notes = "apple_notes" in types
-            has_manual_notes = "note" in types
-            other_types = [t for t in types if t not in ("apple_notes", "note")]
-
-            if has_apple_notes and has_manual_notes:
-                # Both apple_notes and manual notes - just filter by type="note"
-                if other_types:
-                    return query.in_("type", other_types + ["note"])
-                else:
-                    return query.eq("type", "note")
-            elif has_apple_notes:
-                # Only apple_notes (no manual notes)
-                if other_types:
-                    return query.in_("type", other_types + ["note"])
-                else:
-                    return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
-            elif has_manual_notes:
-                # Only manual notes (exclude apple_notes)
-                if other_types:
-                    return query.in_("type", other_types + ["note"])
-                else:
-                    return query.eq("type", "note").neq("metadata->>source", "apple_notes")
-            else:
-                # No note types at all
-                return query.in_("type", types)
-
-        # Check if we have any entity filters
-        has_entity_filters = data.organizations or data.products or data.persons
-
-        if has_entity_filters:
-            # For entity filters, we need to get IDs first
-            all_ids = set()
-
-            if data.organizations:
-                for org in data.organizations:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
-                    if data.types:
-                        q = apply_type_filter_dynamic(q, data.types)
-                    if data.categories:
-                        q = q.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        q = q.overlaps("concepts", data.concepts)
-                    pattern = json_module.dumps([{"name": org}])
-                    q = q.filter("entities->organizations", "cs", pattern)
-                    resp = await q.execute()
-                    all_ids.update(item["id"] for item in resp.data or [])
-
-            if data.products:
-                for prod in data.products:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
-                    if data.types:
-                        q = apply_type_filter_dynamic(q, data.types)
-                    if data.categories:
-                        q = q.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        q = q.overlaps("concepts", data.concepts)
-                    pattern = json_module.dumps([{"name": prod}])
-                    q = q.filter("entities->products", "cs", pattern)
-                    resp = await q.execute()
-                    all_ids.update(item["id"] for item in resp.data or [])
-
-            if data.persons:
-                for person in data.persons:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
-                    if data.types:
-                        q = apply_type_filter_dynamic(q, data.types)
-                    if data.categories:
-                        q = q.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        q = q.overlaps("concepts", data.concepts)
-                    pattern = json_module.dumps([{"name": person}])
-                    q = q.filter("entities->persons", "cs", pattern)
-                    resp = await q.execute()
-                    all_ids.update(item["id"] for item in resp.data or [])
-
-            if all_ids:
-                response = await db.table("contents").select(
-                    "type, iab_tier1, concepts, entities, metadata"
-                ).in_("id", list(all_ids)).neq("is_archived", True).execute()
-                items = response.data or []
-            else:
-                items = []
-        else:
-            # Standard query without entity filters
-            query = db.table("contents").select(
-                "type, iab_tier1, concepts, entities, metadata"
-            ).eq("user_id", current_user["id"]).neq("is_archived", True)
-
-            if data.types:
-                query = apply_type_filter_dynamic(query, data.types)
-
-            if data.categories:
-                query = query.in_("iab_tier1", data.categories)
-
-            if data.concepts:
-                query = query.overlaps("concepts", data.concepts)
-
-            response = await query.execute()
-            items = response.data or []
-
-        return _aggregate_facets(items)
-
-    except Exception as e:
-        import traceback
-        print(f"Dynamic facets error: {e}")
-        print(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
+# ---------------------------------------------------------------------------
+# POST /faceted — trimmed: types + user_tags + has_comment + is_favorite +
+#                 date + views + sort + query in title/summary
+# ---------------------------------------------------------------------------
 class FacetedSearchRequest(BaseModel):
     query: Optional[str] = None
     types: Optional[List[str]] = None
-    types_exclude: Optional[List[str]] = None  # Types to exclude
-    categories: Optional[List[str]] = None
-    concepts: Optional[List[str]] = None
-    organizations: Optional[List[str]] = None
-    products: Optional[List[str]] = None
-    persons: Optional[List[str]] = None
+    types_exclude: Optional[List[str]] = None
     user_tags: Optional[List[str]] = None
-    inherited_tags: Optional[List[str]] = None
-    processing_status: Optional[List[str]] = None
-    maturity_level: Optional[List[str]] = None
-    maturity_level_exclude: Optional[List[str]] = None  # Maturity levels to exclude
-    has_comment: Optional[bool] = None  # Filter by presence of user_note
-    is_favorite: Optional[bool] = None  # Filter by favorite status
-    # Date range filters (ISO format: YYYY-MM-DD)
-    date_from: Optional[str] = None  # Filter contents created on or after this date
-    date_to: Optional[str] = None  # Filter contents created on or before this date
-    # View count range filters (for YouTube/TikTok popularity)
-    min_views: Optional[int] = None  # Minimum view count
-    max_views: Optional[int] = None  # Maximum view count
-    sort_by: Optional[str] = "created_at"  # created_at, view_count, title
-    sort_order: Optional[str] = "desc"  # asc or desc
-    limit: int = 50  # Reduced from 100 for faster initial load
+    has_comment: Optional[bool] = None
+    is_favorite: Optional[bool] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    min_views: Optional[int] = None
+    max_views: Optional[int] = None
+    sort_by: Optional[str] = "created_at"
+    sort_order: Optional[str] = "desc"
+    limit: int = 50
     offset: int = 0
 
 
-def apply_sql_filters(query, data, db=None, user_id=None):
-    """
-    Apply SQL-level filters that can be efficiently handled by the database.
-    Returns (query, needs_special_maturity_handling) tuple.
-
-    needs_special_maturity_handling is True when maturity_level includes both
-    'captured' (NULL) and other values, requiring two queries due to Supabase OR limitation.
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-    needs_special_maturity_handling = False
-
-    # Filter by processing_status
-    if data.processing_status:
-        query = query.in_("processing_status", data.processing_status)
-
-    # Filter by maturity_level (include)
-    if data.maturity_level:
-        logger.info(f"apply_sql_filters: maturity_level filter = {data.maturity_level}")
-        has_captured = "captured" in data.maturity_level
-        other_levels = [m for m in data.maturity_level if m != "captured"]
-        logger.info(f"apply_sql_filters: has_captured={has_captured}, other_levels={other_levels}")
-
-        if has_captured and other_levels:
-            # Need special handling - can't do OR in single Supabase query
-            # We'll handle this by doing two queries in the caller
-            needs_special_maturity_handling = True
-            logger.info("apply_sql_filters: needs_special_maturity_handling=True")
-        elif has_captured:
-            # "captured" can mean BOTH: NULL maturity_level OR literal string "captured"
-            # Since we can't do OR in supabase-py easily, we need special handling
-            # We'll set a flag to indicate this needs two queries
-            logger.info("apply_sql_filters: filtering for captured (NULL or 'captured' string)")
-            # For now, try to use the .or_ syntax
-            query = query.or_("maturity_level.is.null,maturity_level.eq.captured")
-        elif other_levels:
-            # Only include specific levels
-            logger.info(f"apply_sql_filters: filtering for maturity_levels: {other_levels}")
-            query = query.in_("maturity_level", other_levels)
-
-    # Filter by maturity_level_exclude
-    if data.maturity_level_exclude:
-        has_captured = "captured" in data.maturity_level_exclude
-        other_levels = [m for m in data.maturity_level_exclude if m != "captured"]
-
-        if has_captured and other_levels:
-            # Exclude both NULL and other levels
-            query = query.not_.is_("maturity_level", None)
-            if other_levels:
-                query = query.not_.in_("maturity_level", other_levels)
-        elif has_captured:
-            # Only exclude captured (NULL)
-            query = query.not_.is_("maturity_level", None)
-        elif other_levels:
-            # Only exclude specific levels (keep NULL)
-            query = query.not_.in_("maturity_level", other_levels)
-
-    # Filter by has_comment (presence of user_note)
-    if data.has_comment is not None:
-        if data.has_comment:
-            # Has comment - user_note is not null and not empty
-            query = query.not_.is_("user_note", None).neq("user_note", "")
-        else:
-            # No comment - user_note is null or empty
-            # Supabase can't do OR easily, so we use is_null which covers most cases
-            query = query.or_("user_note.is.null,user_note.eq.")
-
-    # Filter by is_favorite
-    if data.is_favorite is not None:
-        if data.is_favorite:
-            query = query.eq("is_favorite", True)
-        else:
-            # Not favorite - is_favorite is false or null
-            query = query.neq("is_favorite", True)
-
-    # Filter by user_tags
-    if data.user_tags:
-        query = query.overlaps("user_tags", data.user_tags)
-
-    # Filter by date range
-    if data.date_from:
-        query = query.gte("created_at", f"{data.date_from}T00:00:00")
-    if data.date_to:
-        query = query.lte("created_at", f"{data.date_to}T23:59:59")
-
-    # Filter by view count range
-    if data.min_views is not None:
-        query = query.gte("view_count", data.min_views)
-    if data.max_views is not None:
-        query = query.lte("view_count", data.max_views)
-
-    return query, needs_special_maturity_handling
-
-
-# Optimized fields for faceted search list display (no raw_content, embedding)
-FACETED_SEARCH_FIELDS = (
-    "id, title, summary, url, type, iab_tier1, iab_tier2, concepts, entities, "
-    "processing_status, maturity_level, is_favorite, user_note, user_tags, "
-    "user_entities, user_concepts, user_category, "
-    "metadata, created_at, view_count"
+SEARCH_FIELDS = (
+    "id, title, summary, url, type, user_tags, user_note, source_metadata, "
+    "is_favorite, view_count, created_at, metadata"
 )
 
 
-import json as json_module
+def _apply_type_filter(query, types: List[str]):
+    """Apple Notes are stored as type='note' with metadata.source='apple_notes'."""
+    has_apple = "apple_notes" in types
+    has_note = "note" in types
+    other = [t for t in types if t not in ("apple_notes", "note")]
+
+    if has_apple and has_note:
+        return query.in_("type", other + ["note"]) if other else query.eq("type", "note")
+    if has_apple:
+        if other:
+            return query.in_("type", other + ["note"])
+        return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
+    if has_note:
+        if other:
+            return query.in_("type", other + ["note"])
+        return query.eq("type", "note").neq("metadata->>source", "apple_notes")
+    return query.in_("type", types)
 
 
-def apply_sort_to_query(query, sort_by: str = "created_at", sort_order: str = "desc"):
-    """Apply sorting to a Supabase query."""
-    valid_sort_fields = {"created_at", "view_count", "title"}
-    if sort_by not in valid_sort_fields:
+def _apply_sort(query, sort_by: str, sort_order: str):
+    if sort_by not in {"created_at", "view_count", "title"}:
         sort_by = "created_at"
     desc = sort_order == "desc"
-    # For view_count, use nulls last so content with views appears first
     if sort_by == "view_count":
         return query.order(sort_by, desc=desc, nullsfirst=not desc)
     return query.order(sort_by, desc=desc)
-
-
-def sort_results_list(results: list, sort_by: str = "created_at", sort_order: str = "desc") -> list:
-    """Sort a list of results in memory (for combined queries)."""
-    reverse = sort_order == "desc"
-    if sort_by == "view_count":
-        # For view_count, nulls should go last
-        return sorted(results, key=lambda x: (x.get(sort_by) is None, x.get(sort_by, 0)), reverse=reverse)
-    elif sort_by == "title":
-        return sorted(results, key=lambda x: x.get(sort_by, "").lower(), reverse=reverse)
-    else:  # created_at
-        return sorted(results, key=lambda x: x.get(sort_by, ""), reverse=reverse)
-
-
-def _build_jsonb_contains_filter(entity_type: str, values: List[str]) -> str:
-    """
-    Build a JSONB contains filter pattern for Supabase.
-    Format: [{"name": "Value1"}, {"name": "Value2"}] - matches ANY of the values
-    """
-    patterns = [{"name": v} for v in values]
-    return json_module.dumps(patterns)
 
 
 @router.post("/faceted")
 async def search_faceted(
     data: FacetedSearchRequest,
     current_user: CurrentUser,
-    db: Database
+    db: Database,
 ):
-    """
-    Search with facet filters.
-    Combines text search with facet filtering.
-    Uses PostgreSQL JSONB contains operator for efficient entity filtering.
-    """
-    try:
-        import time
-        import logging
-        logger = logging.getLogger(__name__)
-        start_time = time.time()
-
-        logger.info(f"Faceted search request: user={current_user['id']}, data={data}")
-
-        # Quick test: count all contents for this user
-        test_count_all = await db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).execute()
-        test_count_false = await db.table("contents").select("id", count="exact").eq("user_id", current_user["id"]).neq("is_archived", True).execute()
-        logger.info(f"Total contents: {test_count_all.count if test_count_all else 'N/A'}, non-archived (is_archived=false): {test_count_false.count if test_count_false else 'N/A'}")
-
-        # Check if we need entity filtering (requires separate queries for OR logic)
-        has_entity_filters = data.organizations or data.products or data.persons
-        logger.info(f"has_entity_filters={has_entity_filters}")
-
-        # Helper to apply type filter including apple_notes and manual notes handling
-        def apply_type_filter(query, types):
-            if not types:
-                return query
-            has_apple_notes = "apple_notes" in types
-            has_manual_notes = "note" in types
-            other_types = [t for t in types if t not in ("apple_notes", "note")]
-
-            if has_apple_notes and has_manual_notes:
-                # Both apple_notes and manual notes - just filter by type="note"
-                if other_types:
-                    return query.in_("type", other_types + ["note"])
-                else:
-                    return query.eq("type", "note")
-            elif has_apple_notes:
-                # Only apple_notes (no manual notes)
-                if other_types:
-                    # Can't handle in single query, return broad filter
-                    return query.in_("type", other_types + ["note"])
-                else:
-                    return query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
-            elif has_manual_notes:
-                # Only manual notes (exclude apple_notes)
-                if other_types:
-                    # Can't handle in single query, return broad filter
-                    return query.in_("type", other_types + ["note"])
-                else:
-                    return query.eq("type", "note").neq("metadata->>source", "apple_notes")
-            else:
-                # No note types at all
-                return query.in_("type", types)
-
-        if has_entity_filters:
-            # For entity filters, we need to do multiple queries and combine results
-            # because Supabase doesn't support OR across different JSONB paths easily
-            all_ids = set()
-
-            # Query for each entity type filter
-            if data.organizations:
-                for org in data.organizations:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
-                    if data.types:
-                        q = apply_type_filter(q, data.types)
-                    if data.categories:
-                        q = q.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        q = q.overlaps("concepts", data.concepts)
-                    # Apply SQL filters for maturity_level, processing_status, etc.
-                    q, _ = apply_sql_filters(q, data)
-                    # Use filter with 'cs' (contains) for JSONB array matching
-                    pattern = json_module.dumps([{"name": org}])
-                    q = q.filter("entities->organizations", "cs", pattern)
-                    resp = await q.execute()
-                    all_ids.update(item["id"] for item in resp.data or [])
-
-            if data.products:
-                for prod in data.products:
-                    q = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
-                    if data.types:
-                        q = apply_type_filter(q, data.types)
-                    if data.categories:
-                        q = q.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        q = q.overlaps("concepts", data.concepts)
-                    # Apply SQL filters for maturity_level, processing_status, etc.
-                    q, _ = apply_sql_filters(q, data)
-                    pattern = json_module.dumps([{"name": prod}])
-                    q = q.filter("entities->products", "cs", pattern)
-                    resp = await q.execute()
-                    all_ids.update(item["id"] for item in resp.data or [])
-
-            if data.persons:
-                for person in data.persons:
-                    # Search in AI entities (entities->persons)
-                    q1 = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
-                    if data.types:
-                        q1 = apply_type_filter(q1, data.types)
-                    if data.categories:
-                        q1 = q1.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        q1 = q1.overlaps("concepts", data.concepts)
-                    # Apply SQL filters for maturity_level, processing_status, etc.
-                    q1, _ = apply_sql_filters(q1, data)
-                    pattern = json_module.dumps([{"name": person}])
-                    q1 = q1.filter("entities->persons", "cs", pattern)
-                    resp1 = await q1.execute()
-                    all_ids.update(item["id"] for item in resp1.data or [])
-
-                    # Also search in user entities (user_entities->persons)
-                    q2 = db.table("contents").select("id").eq("user_id", current_user["id"]).neq("is_archived", True)
-                    if data.types:
-                        q2 = apply_type_filter(q2, data.types)
-                    if data.categories:
-                        q2 = q2.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        q2 = q2.overlaps("concepts", data.concepts)
-                    # Apply SQL filters for maturity_level, processing_status, etc.
-                    q2, _ = apply_sql_filters(q2, data)
-                    # user_entities stores persons as simple strings array
-                    q2 = q2.contains("user_entities", {"persons": [person]})
-                    resp2 = await q2.execute()
-                    all_ids.update(item["id"] for item in resp2.data or [])
-
-            # If we have matching IDs, fetch full content
-            if all_ids:
-                query = db.table("contents").select(FACETED_SEARCH_FIELDS).in_("id", list(all_ids)).neq("is_archived", True)
-                query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                response = await query.range(data.offset, data.offset + data.limit - 1).execute()
-                results = response.data or []
-            else:
-                results = []
-        else:
-            # Standard query without entity filters
-            # Use FACETED_SEARCH_FIELDS for consistent selective field queries
-            # Use neq(True) instead of eq(False) to also include NULL values
-            query = db.table("contents").select(
-                FACETED_SEARCH_FIELDS
-            ).eq("user_id", current_user["id"]).neq("is_archived", True)
-
-            # Apply facet filters - handle apple_notes as special case
-            if data.types:
-                # Check if apple_notes is in the filter
-                has_apple_notes = "apple_notes" in data.types
-                other_types = [t for t in data.types if t != "apple_notes"]
-
-                if has_apple_notes and other_types:
-                    # Need to combine: (type in other_types) OR (type=note AND metadata.source=apple_notes)
-                    # Supabase doesn't support complex OR, so we do two queries
-                    query1 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).in_("type", other_types)
-                    if data.categories:
-                        query1 = query1.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        query1 = query1.overlaps("concepts", data.concepts)
-                    # Apply SQL filters for maturity_level, processing_status, etc.
-                    query1, _ = apply_sql_filters(query1, data)
-
-                    query2 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).eq("type", "note").filter(
-                        "metadata->>source", "eq", "apple_notes"
-                    )
-                    if data.categories:
-                        query2 = query2.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        query2 = query2.overlaps("concepts", data.concepts)
-                    # Apply SQL filters for maturity_level, processing_status, etc.
-                    query2, _ = apply_sql_filters(query2, data)
-
-                    query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
-                    query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
-                    resp1 = await query1.execute()
-                    resp2 = await query2.execute()
-
-                    # Combine and dedupe
-                    seen_ids = set()
-                    combined = []
-                    for item in (resp1.data or []) + (resp2.data or []):
-                        if item["id"] not in seen_ids:
-                            seen_ids.add(item["id"])
-                            combined.append(item)
-
-                    # Sort combined results and paginate
-                    combined = sort_results_list(combined, data.sort_by, data.sort_order)
-                    results = combined[data.offset:data.offset + data.limit]
-
-                elif has_apple_notes:
-                    # Only apple_notes filter
-                    query = query.eq("type", "note").filter("metadata->>source", "eq", "apple_notes")
-                    if data.categories:
-                        query = query.in_("iab_tier1", data.categories)
-                    if data.concepts:
-                        query = query.overlaps("concepts", data.concepts)
-                    # Apply SQL filters for maturity_level, processing_status, etc.
-                    query, _ = apply_sql_filters(query, data)
-                    query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                    response = await query.range(data.offset, data.offset + data.limit - 1).execute()
-                    results = response.data or []
-                else:
-                    # No apple_notes in filter - need to handle "note" type specially
-                    # to exclude apple_notes (which have type="note" + metadata.source="apple_notes")
-                    has_manual_notes = "note" in data.types
-                    non_note_types = [t for t in data.types if t != "note"]
-
-                    if has_manual_notes and non_note_types:
-                        # Both manual notes and other types - need two queries
-                        # Query 1: other types (web, youtube, etc.)
-                        query1 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).in_("type", non_note_types)
-                        if data.categories:
-                            query1 = query1.in_("iab_tier1", data.categories)
-                        if data.concepts:
-                            query1 = query1.overlaps("concepts", data.concepts)
-                        # Apply SQL filters for maturity_level, processing_status, etc.
-                        query1, _ = apply_sql_filters(query1, data)
-
-                        # Query 2: manual notes (type=note AND metadata.source != apple_notes)
-                        query2 = db.table("contents").select(FACETED_SEARCH_FIELDS).eq("user_id", current_user["id"]).neq("is_archived", True).eq("type", "note").neq("metadata->>source", "apple_notes")
-                        if data.categories:
-                            query2 = query2.in_("iab_tier1", data.categories)
-                        if data.concepts:
-                            query2 = query2.overlaps("concepts", data.concepts)
-                        # Apply SQL filters for maturity_level, processing_status, etc.
-                        query2, _ = apply_sql_filters(query2, data)
-
-                        query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
-                        query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
-                        resp1 = await query1.execute()
-                        resp2 = await query2.execute()
-
-                        # Combine and dedupe
-                        seen_ids = set()
-                        combined = []
-                        for item in (resp1.data or []) + (resp2.data or []):
-                            if item["id"] not in seen_ids:
-                                seen_ids.add(item["id"])
-                                combined.append(item)
-
-                        # Sort combined results and paginate
-                        combined = sort_results_list(combined, data.sort_by, data.sort_order)
-                        results = combined[data.offset:data.offset + data.limit]
-
-                    elif has_manual_notes:
-                        # Only manual notes (exclude apple_notes)
-                        query = query.eq("type", "note").neq("metadata->>source", "apple_notes")
-                        if data.categories:
-                            query = query.in_("iab_tier1", data.categories)
-                        if data.concepts:
-                            query = query.overlaps("concepts", data.concepts)
-                        # Apply SQL filters for maturity_level, processing_status, etc.
-                        query, _ = apply_sql_filters(query, data)
-                        query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                        response = await query.range(data.offset, data.offset + data.limit - 1).execute()
-                        results = response.data or []
-                    else:
-                        # No note type, use standard in_ filter
-                        query = query.in_("type", data.types)
-                        if data.categories:
-                            query = query.in_("iab_tier1", data.categories)
-                        if data.concepts:
-                            query = query.overlaps("concepts", data.concepts)
-                        # Apply SQL filters for maturity_level, processing_status, etc.
-                        query, _ = apply_sql_filters(query, data)
-                        query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                        response = await query.range(data.offset, data.offset + data.limit - 1).execute()
-                        results = response.data or []
-            else:
-                # CORRECTED OPTION A: user_category REPLACES iab_tier1 for filtering
-                # A content matches category X if:
-                # - user_category = X, OR
-                # - user_category IS NULL AND iab_tier1 = X
-                if data.categories:
-                    # Query 1: Contents where user_category matches the filter
-                    query1 = db.table("contents").select(
-                        FACETED_SEARCH_FIELDS
-                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("user_category", data.categories)
-
-                    # Query 2: Contents where iab_tier1 matches AND user_category is NULL
-                    # (user hasn't overridden the category)
-                    query2 = db.table("contents").select(
-                        FACETED_SEARCH_FIELDS
-                    ).eq("user_id", current_user["id"]).neq("is_archived", True).in_("iab_tier1", data.categories).is_("user_category", None)
-
-                    # Apply concepts filter if present
-                    if data.concepts:
-                        query1 = query1.overlaps("concepts", data.concepts)
-                        query2 = query2.overlaps("concepts", data.concepts)
-
-                    # Apply SQL filters for maturity_level, processing_status, etc.
-                    query1, _ = apply_sql_filters(query1, data)
-                    query2, _ = apply_sql_filters(query2, data)
-
-                    query1 = apply_sort_to_query(query1, data.sort_by, data.sort_order)
-                    query2 = apply_sort_to_query(query2, data.sort_by, data.sort_order)
-                    resp1 = await query1.execute()
-                    resp2 = await query2.execute()
-
-                    # Merge and deduplicate
-                    seen_ids = set()
-                    combined = []
-                    # Add user_category matches first
-                    for item in (resp1.data or []):
-                        if item["id"] not in seen_ids:
-                            seen_ids.add(item["id"])
-                            combined.append(item)
-                    # Then add iab_tier1 matches (only those without user_category)
-                    for item in (resp2.data or []):
-                        if item["id"] not in seen_ids:
-                            seen_ids.add(item["id"])
-                            combined.append(item)
-
-                    # Sort combined results
-                    combined = sort_results_list(combined, data.sort_by, data.sort_order)
-
-                    # Apply types_exclude filter before pagination
-                    if data.types_exclude:
-                        def get_effective_type(r):
-                            """Get effective type, handling apple_notes specially."""
-                            content_type = r.get("type")
-                            metadata = r.get("metadata") or {}
-                            if content_type == "note" and metadata.get("source") == "apple_notes":
-                                return "apple_notes"
-                            return content_type
-                        combined = [r for r in combined if get_effective_type(r) not in data.types_exclude]
-
-                    # Apply inherited_tags filter
-                    if data.inherited_tags:
-                        taxonomy_result = await db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
-                        taxonomy_rules = taxonomy_result.data or []
-
-                        def content_matches_inherited_tag(content: dict) -> bool:
-                            for rule in taxonomy_rules:
-                                rule_type = rule.get("taxonomy_type")
-                                rule_value = rule.get("taxonomy_value")
-                                if rule_type == "category":
-                                    if content.get("iab_tier1") == rule_value or \
-                                       content.get("iab_tier2") == rule_value or \
-                                       content.get("iab_tier3") == rule_value:
-                                        return True
-                                elif rule_type == "concept":
-                                    concepts = content.get("concepts") or []
-                                    if rule_value in concepts:
-                                        return True
-                                elif rule_type in ["person", "organization", "product"]:
-                                    entities = content.get("entities") or {}
-                                    entity_key = rule_type + "s"
-                                    entity_list = entities.get(entity_key) or []
-                                    for entity in entity_list:
-                                        if entity.get("name") == rule_value:
-                                            return True
-                            return False
-                        combined = [r for r in combined if content_matches_inherited_tag(r)]
-
-                    # Apply text query filter
-                    if data.query:
-                        query_lower = data.query.lower()
-                        scored_results = []
-                        for item in combined:
-                            score = 0.0
-                            title = (item.get("title") or "").lower()
-                            summary = (item.get("summary") or "").lower()
-                            concepts_list = [c.lower() for c in (item.get("concepts") or [])]
-                            if query_lower in title:
-                                score += 0.5
-                            if query_lower in summary:
-                                score += 0.3
-                            if any(query_lower in c for c in concepts_list):
-                                score += 0.2
-                            if score > 0:
-                                scored_results.append({**item, "relevance_score": score})
-                        combined = sorted(scored_results, key=lambda x: x["relevance_score"], reverse=True)
-
-                    results = combined[data.offset:data.offset + data.limit]
-
-                    # Skip standard query execution since we already have results
-                    search_time = int((time.time() - start_time) * 1000)
-                    logger.info(f"Faceted search (corrected Option A) returning {len(results)} results in {search_time}ms")
-
-                    return {
-                        "data": results,
-                        "meta": {
-                            "query": data.query,
-                            "filters": {
-                                "types": data.types,
-                                "categories": data.categories,
-                                "concepts": data.concepts,
-                                "organizations": data.organizations,
-                                "products": data.products,
-                                "persons": data.persons,
-                                "user_tags": data.user_tags,
-                                "inherited_tags": data.inherited_tags
-                            },
-                            "total_results": len(combined),
-                            "search_time_ms": search_time,
-                            "offset": data.offset,
-                            "limit": data.limit
-                        }
-                    }
-
-                # For concepts, check if any of the filter concepts are in the array
-                if data.concepts:
-                    query = query.overlaps("concepts", data.concepts)
-
-                # Apply SQL filters for maturity_level, processing_status, etc.
-                query, _ = apply_sql_filters(query, data)
-
-                # Execute query with proper pagination and sorting
-                logger.info(f"Executing standard query: offset={data.offset}, limit={data.limit}, sort_by={data.sort_by}, sort_order={data.sort_order}")
-                try:
-                    query = apply_sort_to_query(query, data.sort_by, data.sort_order)
-                    response = await query.range(data.offset, data.offset + data.limit - 1).execute()
-                    results = response.data or []
-                    logger.info(f"Standard query returned {len(results)} results")
-                    if hasattr(response, 'error') and response.error:
-                        logger.error(f"Supabase query error: {response.error}")
-                except Exception as query_error:
-                    logger.error(f"Query execution error: {query_error}", exc_info=True)
-                    results = []
-
-        # POST-QUERY FILTERS (only for complex cases that can't be done in SQL)
-        # Most filters are now applied at SQL level via apply_sql_filters()
-
-        # Filter by types_exclude (post-query due to apple_notes complexity)
-        if data.types_exclude:
-            def get_effective_type(r):
-                """Get effective type, handling apple_notes specially."""
-                content_type = r.get("type")
-                metadata = r.get("metadata") or {}
-                if content_type == "note" and metadata.get("source") == "apple_notes":
-                    return "apple_notes"
-                return content_type
-
-            results = [
-                r for r in results
-                if get_effective_type(r) not in data.types_exclude
-            ]
-
-        # Filter by inherited_tags (requires checking taxonomy rules - complex logic)
-        if data.inherited_tags:
-            # Get taxonomy_tags rules for current user
-            taxonomy_result = await db.table("taxonomy_tags").select("*").eq("user_id", current_user["id"]).in_("tag", data.inherited_tags).execute()
-            taxonomy_rules = taxonomy_result.data or []
-
-            def content_matches_inherited_tag(content: dict) -> bool:
-                """Check if content matches any inherited tag rule."""
-                for rule in taxonomy_rules:
-                    rule_type = rule.get("taxonomy_type")
-                    rule_value = rule.get("taxonomy_value")
-
-                    if rule_type == "category":
-                        if content.get("iab_tier1") == rule_value or \
-                           content.get("iab_tier2") == rule_value or \
-                           content.get("iab_tier3") == rule_value:
-                            return True
-                    elif rule_type == "concept":
-                        concepts = content.get("concepts") or []
-                        if rule_value in concepts:
-                            return True
-                    elif rule_type in ["person", "organization", "product"]:
-                        entities = content.get("entities") or {}
-                        entity_key = rule_type + "s"
-                        entity_list = entities.get(entity_key) or []
-                        for entity in entity_list:
-                            if entity.get("name") == rule_value:
-                                return True
-                return False
-
-            results = [r for r in results if content_matches_inherited_tag(r)]
-
-        # If text query provided, filter and score results
-        if data.query:
-            query_lower = data.query.lower()
-            scored_results = []
-            for item in results:
-                score = 0.0
-                title = (item.get("title") or "").lower()
-                summary = (item.get("summary") or "").lower()
-                concepts_list = [c.lower() for c in (item.get("concepts") or [])]
-
-                if query_lower in title:
-                    score += 0.5
-                if query_lower in summary:
-                    score += 0.3
-                if any(query_lower in c for c in concepts_list):
-                    score += 0.2
-
-                if score > 0:
-                    scored_results.append({**item, "relevance_score": score})
-
-            results = sorted(scored_results, key=lambda x: x["relevance_score"], reverse=True)
-
-        search_time = int((time.time() - start_time) * 1000)
-
-        logger.info(f"Faceted search returning {len(results)} results in {search_time}ms")
-
-        return {
-            "data": results,
-            "meta": {
-                "query": data.query,
-                "filters": {
-                    "types": data.types,
-                    "categories": data.categories,
-                    "concepts": data.concepts,
-                    "organizations": data.organizations,
-                    "products": data.products,
-                    "persons": data.persons,
-                    "user_tags": data.user_tags,
-                    "inherited_tags": data.inherited_tags
-                },
-                "total_results": len(results),
-                "search_time_ms": search_time,
-                "offset": data.offset,
-                "limit": data.limit
-            }
-        }
-
-    except Exception as e:
-        logger.error(f"Faceted search error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
-class GraphRequest(BaseModel):
-    include_persons: bool = True
-    include_organizations: bool = True
-    include_products: bool = True
-    include_concepts: bool = False
-    min_connections: int = 1
-    user_tags: Optional[List[str]] = None
-    inherited_tags: Optional[List[str]] = None
-
-
-@router.post("/graph")
-async def get_knowledge_graph(
-    data: GraphRequest,
-    current_user: CurrentUser,
-    db: Database
-):
-    """
-    Generate a knowledge graph from entities.
-    Returns nodes and edges for visualization.
-    """
-    try:
-        # Get all contents with entities
-        response = await db.table("contents").select(
-            "id, title, entities, concepts, user_tags, iab_tier1, iab_tier2, iab_tier3"
-        ).eq("user_id", current_user["id"]).neq("is_archived", True).execute()
-
-        contents = response.data or []
-
-        # Filter by user_tags if provided
-        if data.user_tags:
-            contents = [
-                c for c in contents
-                if any(tag in (c.get("user_tags") or []) for tag in data.user_tags)
-            ]
-
-        # Filter by inherited_tags if provided
-        if data.inherited_tags:
-            taxonomy_result = await db.table("taxonomy_tags").select("*").eq(
-                "user_id", current_user["id"]
-            ).in_("tag", data.inherited_tags).execute()
-            taxonomy_rules = taxonomy_result.data or []
-
-            def content_matches_inherited_tag(content: dict) -> bool:
-                for rule in taxonomy_rules:
-                    rule_type = rule.get("taxonomy_type")
-                    rule_value = rule.get("taxonomy_value")
-
-                    if rule_type == "category":
-                        if content.get("iab_tier1") == rule_value or \
-                           content.get("iab_tier2") == rule_value or \
-                           content.get("iab_tier3") == rule_value:
-                            return True
-                    elif rule_type == "concept":
-                        concepts = content.get("concepts") or []
-                        if rule_value in concepts:
-                            return True
-                    elif rule_type in ["person", "organization", "product"]:
-                        entities = content.get("entities") or {}
-                        entity_key = rule_type + "s"
-                        entity_list = entities.get(entity_key) or []
-                        for entity in entity_list:
-                            if entity.get("name") == rule_value:
-                                return True
-                return False
-
-            contents = [c for c in contents if content_matches_inherited_tag(c)]
-
-        # Build graph data
-        nodes = {}  # id -> {id, label, type, count, contents}
-        edges = {}  # "source-target" -> {source, target, weight, contents}
-        content_titles = {}  # content_id -> title (for frontend to resolve)
-
-        def get_entity_name(entity):
-            if isinstance(entity, dict):
-                return entity.get("name")
-            return entity
-
-        def add_node(name: str, node_type: str, content_id: str):
-            if not name:
-                return None
-            node_id = f"{node_type}:{name}"
-            if node_id not in nodes:
-                nodes[node_id] = {
-                    "id": node_id,
-                    "label": name,
-                    "type": node_type,
-                    "count": 0,
-                    "contents": []
-                }
-            nodes[node_id]["count"] += 1
-            if content_id not in nodes[node_id]["contents"]:
-                nodes[node_id]["contents"].append(content_id)
-            return node_id
-
-        def add_edge(source_id: str, target_id: str, content_id: str):
-            if not source_id or not target_id or source_id == target_id:
-                return
-            # Ensure consistent ordering for edge key
-            edge_key = tuple(sorted([source_id, target_id]))
-            edge_key_str = f"{edge_key[0]}||{edge_key[1]}"
-            if edge_key_str not in edges:
-                edges[edge_key_str] = {
-                    "source": edge_key[0],
-                    "target": edge_key[1],
-                    "weight": 0,
-                    "contents": []
-                }
-            edges[edge_key_str]["weight"] += 1
-            if content_id not in edges[edge_key_str]["contents"]:
-                edges[edge_key_str]["contents"].append(content_id)
-
-        # Process each content
-        for item in contents:
-            content_id = item["id"]
-            content_title = item.get("title", "Sin titulo")
-            content_titles[content_id] = content_title
-            entities = item.get("entities") or {}
-            concepts = item.get("concepts") or []
-
-            # Collect all entity IDs for this content
-            content_entities = []
-
-            # Persons
-            if data.include_persons:
-                for person in entities.get("persons") or []:
-                    name = get_entity_name(person)
-                    node_id = add_node(name, "person", content_id)
-                    if node_id:
-                        content_entities.append(node_id)
-
-            # Organizations
-            if data.include_organizations:
-                for org in entities.get("organizations") or []:
-                    name = get_entity_name(org)
-                    node_id = add_node(name, "organization", content_id)
-                    if node_id:
-                        content_entities.append(node_id)
-
-            # Products
-            if data.include_products:
-                for prod in entities.get("products") or []:
-                    name = get_entity_name(prod)
-                    node_id = add_node(name, "product", content_id)
-                    if node_id:
-                        content_entities.append(node_id)
-
-            # Concepts
-            if data.include_concepts:
-                for concept in concepts[:5]:  # Limit concepts per content
-                    node_id = add_node(concept, "concept", content_id)
-                    if node_id:
-                        content_entities.append(node_id)
-
-            # Create edges between all entities in this content
-            for i, entity1 in enumerate(content_entities):
-                for entity2 in content_entities[i + 1:]:
-                    add_edge(entity1, entity2, content_id)
-
-        # Filter by min_connections
-        if data.min_connections > 1:
-            # Find nodes that have at least min_connections edges
-            node_edge_count = {}
-            for edge in edges.values():
-                node_edge_count[edge["source"]] = node_edge_count.get(edge["source"], 0) + 1
-                node_edge_count[edge["target"]] = node_edge_count.get(edge["target"], 0) + 1
-
-            valid_nodes = {n for n, c in node_edge_count.items() if c >= data.min_connections}
-            nodes = {k: v for k, v in nodes.items() if k in valid_nodes}
-            edges = {k: v for k, v in edges.items()
-                     if v["source"] in valid_nodes and v["target"] in valid_nodes}
-
-        return {
-            "nodes": list(nodes.values()),
-            "edges": list(edges.values()),
-            "content_titles": content_titles,
-            "stats": {
-                "total_nodes": len(nodes),
-                "total_edges": len(edges),
-                "node_types": {
-                    "persons": len([n for n in nodes.values() if n["type"] == "person"]),
-                    "organizations": len([n for n in nodes.values() if n["type"] == "organization"]),
-                    "products": len([n for n in nodes.values() if n["type"] == "product"]),
-                    "concepts": len([n for n in nodes.values() if n["type"] == "concept"])
-                }
-            }
-        }
-
-    except Exception as e:
-        import traceback
-        print(f"Graph error: {e}")
-        print(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    start = time.time()
+
+    query = (
+        db.table("contents")
+        .select(SEARCH_FIELDS)
+        .eq("user_id", current_user["id"])
+        .neq("is_archived", True)
+    )
+
+    if data.types:
+        query = _apply_type_filter(query, data.types)
+    if data.user_tags:
+        query = query.overlaps("user_tags", data.user_tags)
+    if data.has_comment is True:
+        query = query.not_.is_("user_note", None).neq("user_note", "")
+    elif data.has_comment is False:
+        query = query.or_("user_note.is.null,user_note.eq.")
+    if data.is_favorite is True:
+        query = query.eq("is_favorite", True)
+    elif data.is_favorite is False:
+        query = query.neq("is_favorite", True)
+    if data.date_from:
+        query = query.gte("created_at", f"{data.date_from}T00:00:00")
+    if data.date_to:
+        query = query.lte("created_at", f"{data.date_to}T23:59:59")
+    if data.min_views is not None:
+        query = query.gte("view_count", data.min_views)
+    if data.max_views is not None:
+        query = query.lte("view_count", data.max_views)
+
+    query = _apply_sort(query, data.sort_by, data.sort_order)
+    response = await query.range(data.offset, data.offset + data.limit - 1).execute()
+    results = response.data or []
+
+    # Post-filter: types_exclude (apple_notes distinction lives in metadata.source)
+    if data.types_exclude:
+        def effective(r):
+            if r.get("type") == "note" and (r.get("metadata") or {}).get("source") == "apple_notes":
+                return "apple_notes"
+            return r.get("type")
+        results = [r for r in results if effective(r) not in data.types_exclude]
+
+    # Post-filter: text query on title/summary
+    if data.query:
+        ql = data.query.lower()
+        scored = []
+        for item in results:
+            score = 0.0
+            if ql in (item.get("title") or "").lower():
+                score += 0.5
+            if ql in (item.get("summary") or "").lower():
+                score += 0.3
+            if score > 0:
+                scored.append({**item, "relevance_score": score})
+        results = sorted(scored, key=lambda x: x["relevance_score"], reverse=True)
+
+    return {
+        "data": results,
+        "meta": {
+            "query": data.query,
+            "filters": {
+                "types": data.types,
+                "user_tags": data.user_tags,
+                "is_favorite": data.is_favorite,
+            },
+            "total_results": len(results),
+            "search_time_ms": int((time.time() - start) * 1000),
+            "offset": data.offset,
+            "limit": data.limit,
+        },
+    }
