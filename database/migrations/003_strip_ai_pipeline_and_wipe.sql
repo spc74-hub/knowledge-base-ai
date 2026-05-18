@@ -5,7 +5,7 @@
 -- runner wired into this project; deploys do NOT execute this file.
 --
 -- Run from VPS:
---   docker exec -i spcapps-postgres psql -U kbia -d kbia < 003_strip_ai_pipeline_and_wipe.sql
+--   docker exec -i spcapps-postgres psql -U spcadmin -d kbia < 003_strip_ai_pipeline_and_wipe.sql
 --
 -- The whole script runs inside ONE transaction. Anything fails -> rollback.
 -- Inspect each step's output before COMMIT (kept explicit at the end).
