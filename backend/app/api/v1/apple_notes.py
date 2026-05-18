@@ -1,13 +1,16 @@
 """
-Apple Notes import endpoints.
+Apple Notes endpoints.
 
-NOTE: These endpoints only work when the backend is running locally on macOS.
-They will return a 503 Service Unavailable error when accessed from cloud deployments.
+  - /folders, /notes, /import* — macOS-only import from the local Apple
+    Notes database. Only work when the backend runs on macOS.
+  - /archive — read-only listing of Apple Notes ALREADY imported into
+    Kbia. Works from anywhere (just queries `contents` where
+    metadata.source = 'apple_notes').
 """
 import json
 import asyncio
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -22,6 +25,89 @@ from app.services.apple_notes import (
 from app.services.usage_tracker import usage_tracker
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# /archive — read-only catalog of Apple Notes already imported into Kbia
+# ---------------------------------------------------------------------------
+ARCHIVE_FIELDS = (
+    "id, url, title, summary, user_tags, user_note, "
+    "is_favorite, is_archived, source_metadata, metadata, "
+    "area_id, project_id, folder_id, created_at, updated_at"
+)
+
+
+@router.get("/archive")
+async def list_apple_notes_archive(
+    current_user: CurrentUser,
+    db: Database,
+    q: Optional[str] = Query(None, description="Search in title/summary"),
+    folder: Optional[str] = Query(None, description="Filter by Apple Notes folder name"),
+    limit: int = Query(30, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Paginated list of Apple Notes that have already been imported.
+
+    Filters by url LIKE 'apple-notes://%' to identify them; this is more
+    reliable than relying on metadata->>source because some legacy rows
+    only have the prefixed URL.
+    """
+    user_id = current_user["id"]
+    query = (
+        db.table("contents")
+        .select(ARCHIVE_FIELDS, count="exact")
+        .eq("user_id", user_id)
+        .eq("type", "note")
+        .ilike("url", "apple-notes://%")
+    )
+
+    if q:
+        query = query.or_(f"title.ilike.%{q}%,summary.ilike.%{q}%")
+
+    if folder:
+        # metadata.apple_notes_folder = folder
+        query = query.filter("metadata->>apple_notes_folder", "eq", folder)
+
+    query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+    response = await query.execute()
+
+    total = response.count or 0
+    return {
+        "data": response.data or [],
+        "meta": {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "total_pages": (total + limit - 1) // limit if limit else 1,
+            "page": (offset // limit) + 1 if limit else 1,
+        },
+    }
+
+
+@router.get("/archive/folders")
+async def list_apple_notes_folders(current_user: CurrentUser, db: Database):
+    """Distinct Apple Notes folders present in the imported archive."""
+    response = await (
+        db.table("contents")
+        .select("metadata")
+        .eq("user_id", current_user["id"])
+        .eq("type", "note")
+        .ilike("url", "apple-notes://%")
+        .execute()
+    )
+    folders: dict = {}
+    for row in response.data or []:
+        md = row.get("metadata") or {}
+        f = md.get("apple_notes_folder")
+        if f:
+            folders[f] = folders.get(f, 0) + 1
+    sorted_list = sorted(
+        [{"name": k, "count": v} for k, v in folders.items()],
+        key=lambda x: x["count"],
+        reverse=True,
+    )
+    return {"folders": sorted_list, "total": sum(folders.values())}
 
 
 class FoldersResponse(BaseModel):

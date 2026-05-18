@@ -33,8 +33,13 @@ export default function CapturesPage() {
             <div className="max-w-5xl mx-auto px-12 py-12">
                 <header className="mb-8">
                     <h1 className="font-serif text-4xl text-primary mb-1">Captures</h1>
-                    <p className="text-sm text-muted">
-                        Contenidos enviados desde ContentHub esperando su sitio en PARA.
+                    <p className="text-sm text-muted max-w-2xl">
+                        Cuando envías un contenido desde <strong>ContentHub</strong> con
+                        “Send to Kbia”, aparece aquí. Cada capture lleva un badge
+                        <span className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 rounded bg-primary-soft text-primary text-xs font-medium">
+                            🔗 ContentHub
+                        </span>
+                        para que sepas de dónde viene.
                     </p>
                 </header>
 
@@ -86,10 +91,22 @@ function FilterTab({ label, active, onClick }: { label: string; active: boolean;
 }
 
 function Empty({ status }: { status: InboxStatus }) {
+    if (status === 'all') {
+        return (
+            <div className="rounded-xl border border-dashed border-border p-12 text-center">
+                <div className="text-4xl mb-3">🔗</div>
+                <h3 className="font-serif text-xl text-foreground mb-2">Aún no tienes captures</h3>
+                <p className="text-sm text-muted max-w-md mx-auto">
+                    Desde <strong>ContentHub</strong> pulsa <em>“Send to Kbia”</em> en el
+                    contenido que quieras decidir aquí: aparecerá en este inbox con un
+                    botón para abrirlo de vuelta en ContentHub cuando lo necesites.
+                </p>
+            </div>
+        );
+    }
     const message = {
         untriaged: 'No tienes captures pendientes de triage. Buena señal.',
-        triaged: 'Aún no has asignado ningún capture a PARA.',
-        all: 'No hay captures de ContentHub todavía. Envía uno desde el bridge.',
+        triaged: 'Aún no has asignado ningún capture a tu PARA.',
     }[status];
     return (
         <div className="rounded-xl border border-dashed border-border p-12 text-center">

@@ -12,6 +12,7 @@ import { useHome } from '@/hooks/use-home';
 import AppShell from '@/components/AppShell';
 import AreaTile from '@/components/AreaTile';
 import CaptureRow from '@/components/CaptureRow';
+import BridgeBanner from '@/components/BridgeBanner';
 
 export default function HomePage() {
     const { user, loading: authLoading } = useAuth();
@@ -39,6 +40,8 @@ export default function HomePage() {
                     <h1 className="font-serif text-4xl text-primary mb-1">Tus áreas</h1>
                     <p className="text-sm text-muted">Lo que importa esta semana</p>
                 </header>
+
+                <BridgeBanner untriagedCount={data?.captures_recent_untriaged?.length ?? 0} />
 
                 {isLoading ? (
                     <SkeletonGrid />
