@@ -23,6 +23,7 @@ import {
     JOURNAL_KEYS,
 } from '@/hooks/use-journal';
 import { useQueryClient } from '@tanstack/react-query';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - bypass broken env var system
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -172,10 +173,10 @@ function MiniCalendar({
                     : isToday
                         ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 font-bold ring-2 ring-indigo-400'
                         : isFuture
-                            ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                            ? 'text-gray-300 dark:text-muted cursor-not-allowed'
                             : hasJournal
-                                ? 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500'
+                                ? 'hover:bg-surface-muted text-foreground'
+                                : 'hover:bg-surface-muted text-muted'
                     }`}
                 title={hasJournal && journalData ?
                     `${journalData.is_morning_completed ? '🌅' : ''}${journalData.is_evening_completed ? '🌙' : ''} ${journalData.day_word || ''}`
@@ -197,28 +198,28 @@ function MiniCalendar({
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg">
+        <div className="bg-surface rounded-xl p-4 shadow-lg">
             <div className="flex items-center justify-between mb-4">
                 <button
                     onClick={prevMonth}
-                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                    className="p-1 hover:bg-surface-muted rounded-full"
                 >
-                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
                 <button
                     onClick={goToToday}
-                    className="text-lg font-semibold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400"
+                    className="text-lg font-semibold text-foreground hover:text-indigo-600 dark:hover:text-indigo-400"
                 >
                     {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </button>
                 <button
                     onClick={nextMonth}
                     disabled={currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear()}
-                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-1 hover:bg-surface-muted rounded-full disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                 </button>
@@ -226,7 +227,7 @@ function MiniCalendar({
 
             <div className="grid grid-cols-7 gap-1 mb-2">
                 {dayNames.map((name, i) => (
-                    <div key={name} className={`w-8 h-6 flex items-center justify-center text-xs font-medium ${i === 0 || i === 6 ? 'text-red-400' : 'text-gray-500 dark:text-gray-400'
+                    <div key={name} className={`w-8 h-6 flex items-center justify-center text-xs font-medium ${i === 0 || i === 6 ? 'text-red-400' : 'text-muted'
                         }`}>
                         {name}
                     </div>
@@ -237,20 +238,20 @@ function MiniCalendar({
                 {calendarDays}
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-1 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-4 border-t border-border">
+                <div className="flex items-center gap-1 text-xs text-muted">
                     <span className="w-2 h-2 rounded-full bg-green-500" />
                     <span>Completado</span>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1 text-xs text-muted">
                     <span className="w-2 h-2 rounded-full bg-yellow-500" />
                     <span>Parcial</span>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1 text-xs text-muted">
                     <span className="w-2 h-2 rounded-full bg-gray-400" />
                     <span>Iniciado</span>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1 text-xs text-muted">
                     <span className="w-2 h-2 rounded-full bg-red-500" />
                     <span>Sin diario</span>
                 </div>
@@ -762,7 +763,7 @@ export default function DailyJournalPage() {
     // Loading state
     if (authLoading || journalLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center dark:bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
             </div>
         );
@@ -770,9 +771,9 @@ export default function DailyJournalPage() {
 
     if (!user) {
         return (
-            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center dark:bg-background">
                 <div className="text-center">
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">Por favor, inicia sesión para ver tu diario</p>
+                    <p className="text-muted mb-4">Por favor, inicia sesión para ver tu diario</p>
                     <Link href="/login" className="text-indigo-600 hover:underline">Ir a Login</Link>
                 </div>
             </div>
@@ -797,13 +798,14 @@ export default function DailyJournalPage() {
     const saving = updateJournalPending || addCaptureMutation.isPending;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
             {/* Header */}
-            <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+            <header className="bg-surface/80 dark:bg-surface/80 backdrop-blur-sm border-b border-border sticky top-0 z-10">
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                                 Mi Diario
                                 {viewingPastJournal && (
                                     <span className="text-sm font-normal px-2 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 rounded-full">
@@ -811,13 +813,13 @@ export default function DailyJournalPage() {
                                     </span>
                                 )}
                             </h1>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                            <p className="text-sm text-muted capitalize">
                                 {viewingPastJournal ? journalDisplayDate : today}
                             </p>
                         </div>
                         <div className="flex items-center gap-2">
                             {saving && (
-                                <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                <span className="text-sm text-muted flex items-center gap-1">
                                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -827,14 +829,14 @@ export default function DailyJournalPage() {
                             )}
                             <button
                                 onClick={() => setShowHistory(!showHistory)}
-                                className="p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
+                                className="p-2 text-muted hover:text-indigo-600 dark:text-muted dark:hover:text-indigo-400"
                                 title={showHistory ? 'Volver a Hoy' : 'Ver Historial'}
                             >
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                             </button>
-                            <Link href="/dashboard" className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                            <Link href="/dashboard" className="p-2 text-muted hover:text-gray-700 dark:text-muted dark:hover:text-gray-200">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                                 </svg>
@@ -851,7 +853,7 @@ export default function DailyJournalPage() {
                                     onClick={() => setActiveSection(section)}
                                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeSection === section
                                         ? 'bg-indigo-600 text-white shadow-lg'
-                                        : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                        : 'bg-surface dark:bg-surface-muted text-gray-600 dark:text-foreground hover:bg-surface-muted dark:hover:bg-gray-600'
                                         }`}
                                 >
                                     {section === 'morning' && '🌅 Mañana'}
@@ -873,21 +875,21 @@ export default function DailyJournalPage() {
                         {/* Stats Cards */}
                         {stats && (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg text-center">
+                                <div className="bg-surface rounded-xl p-4 shadow-lg text-center">
                                     <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{stats.current_streak}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Racha actual</p>
+                                    <p className="text-sm text-muted">Racha actual</p>
                                 </div>
-                                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg text-center">
+                                <div className="bg-surface rounded-xl p-4 shadow-lg text-center">
                                     <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{stats.longest_streak}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Mejor racha</p>
+                                    <p className="text-sm text-muted">Mejor racha</p>
                                 </div>
-                                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg text-center">
+                                <div className="bg-surface rounded-xl p-4 shadow-lg text-center">
                                     <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.completed_journals}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Completados</p>
+                                    <p className="text-sm text-muted">Completados</p>
                                 </div>
-                                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg text-center">
-                                    <p className="text-3xl font-bold text-gray-600 dark:text-gray-400">{stats.total_journals}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Total diarios</p>
+                                <div className="bg-surface rounded-xl p-4 shadow-lg text-center">
+                                    <p className="text-3xl font-bold text-muted">{stats.total_journals}</p>
+                                    <p className="text-sm text-muted">Total diarios</p>
                                 </div>
                             </div>
                         )}
@@ -959,7 +961,7 @@ export default function DailyJournalPage() {
                                 <button
                                     onClick={handleRefreshInspirational}
                                     disabled={refreshInspirationalMutation.isPending}
-                                    className="absolute top-4 right-4 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-all disabled:opacity-50"
+                                    className="absolute top-4 right-4 p-2 rounded-full bg-surface/20 hover:bg-surface/30 transition-all disabled:opacity-50"
                                     title="Obtener nuevo contenido inspiracional"
                                 >
                                     <svg
@@ -993,7 +995,7 @@ export default function DailyJournalPage() {
                                 {(activeJournal.inspirational_content.challenge || activeJournal.inspirational_content.question) && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-white/20 pt-4 mt-4">
                                         {activeJournal.inspirational_content.challenge && (
-                                            <div className="bg-white/10 rounded-xl p-4">
+                                            <div className="bg-surface/10 rounded-xl p-4">
                                                 <p className="text-xs uppercase tracking-wider opacity-70 mb-1 flex items-center gap-1">
                                                     <span>🎯</span> Micro-reto del día
                                                 </p>
@@ -1001,7 +1003,7 @@ export default function DailyJournalPage() {
                                             </div>
                                         )}
                                         {activeJournal.inspirational_content.question && (
-                                            <div className="bg-white/10 rounded-xl p-4">
+                                            <div className="bg-surface/10 rounded-xl p-4">
                                                 <p className="text-xs uppercase tracking-wider opacity-70 mb-1 flex items-center gap-1">
                                                     <span>💭</span> Pregunta para reflexionar
                                                 </p>
@@ -1023,10 +1025,10 @@ export default function DailyJournalPage() {
 
                         {/* Morning Habits */}
                         {habits.filter(h => h.time_of_day === 'morning').length > 0 && (
-                            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <div className="bg-surface rounded-xl p-6 shadow-lg">
+                                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                                     🌅 Hábitos de Mañana
-                                    <span className="text-sm font-normal text-gray-500">
+                                    <span className="text-sm font-normal text-muted">
                                         ({habits.filter(h => h.time_of_day === 'morning' && h.is_scheduled && h.is_completed).length}/{habits.filter(h => h.time_of_day === 'morning' && h.is_scheduled).length})
                                     </span>
                                 </h3>
@@ -1038,16 +1040,16 @@ export default function DailyJournalPage() {
                                             className={`p-4 rounded-lg border-2 transition-all relative ${habit.is_completed
                                                 ? 'bg-green-50 border-green-500 dark:bg-green-900/20'
                                                 : habit.is_scheduled
-                                                    ? 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
-                                                    : 'border-dashed border-gray-300 dark:border-gray-600 opacity-60 hover:opacity-100'
+                                                    ? 'border-border dark:border-border hover:border-border'
+                                                    : 'border-dashed border-border opacity-60 hover:opacity-100'
                                                 }`}
                                             title={habit.is_scheduled ? '' : 'No programado para hoy'}
                                         >
                                             {!habit.is_scheduled && (
-                                                <span className="absolute top-1 right-1 text-xs text-gray-400">➕</span>
+                                                <span className="absolute top-1 right-1 text-xs text-muted">➕</span>
                                             )}
                                             <span className="text-2xl">{habit.icon}</span>
-                                            <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                                            <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-muted'}`}>
                                                 {habit.name}
                                             </p>
                                         </button>
@@ -1057,22 +1059,22 @@ export default function DailyJournalPage() {
                         )}
 
                         {/* Morning Intention */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                                 🎯 Intención de Hoy
                             </h3>
                             <textarea
                                 value={localIntention}
                                 onChange={(e) => setLocalIntention(e.target.value)}
                                 placeholder="¿Cuál es tu intención principal para hoy?"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                                className="w-full p-3 border border-border rounded-lg bg-background dark:bg-surface-muted text-foreground resize-none"
                                 rows={3}
                             />
                         </div>
 
                         {/* Morning Energy */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                                 ⚡ Energía al despertar
                             </h3>
                             <div className="flex gap-3">
@@ -1082,7 +1084,7 @@ export default function DailyJournalPage() {
                                         onClick={() => handleSetEnergy('energy_morning', level)}
                                         className={`flex-1 p-4 rounded-lg border-2 transition-all ${activeJournal.energy_morning === level
                                             ? ENERGY_COLORS[level] + ' border-current'
-                                            : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                                            : 'border-border dark:border-border hover:border-border'
                                             }`}
                                     >
                                         <span className="text-2xl">{ENERGY_ICONS[level]}</span>
@@ -1095,19 +1097,19 @@ export default function DailyJournalPage() {
                         </div>
 
                         {/* BIG ROCKS - Multiple Configurable */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                                     🪨 Big Rocks del Día
-                                    <span className="text-sm font-normal text-gray-500">(Tareas más importantes)</span>
+                                    <span className="text-sm font-normal text-muted">(Tareas más importantes)</span>
                                 </h3>
                                 {/* Count selector */}
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm text-gray-500">Cantidad:</span>
+                                    <span className="text-sm text-muted">Cantidad:</span>
                                     <select
                                         value={activeJournal.big_rocks_count || 3}
                                         onChange={(e) => handleSetBigRocksCount(parseInt(e.target.value))}
-                                        className="p-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        className="p-1 border border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground text-sm"
                                     >
                                         {[1, 2, 3, 4, 5].map((n) => (
                                             <option key={n} value={n}>{n}</option>
@@ -1119,19 +1121,19 @@ export default function DailyJournalPage() {
                             {/* Big Rocks list */}
                             <div className="space-y-3">
                                 {(activeJournal.big_rocks || []).map((rock, index) => (
-                                    <div key={rock.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                    <div key={rock.id} className="flex items-center gap-3 p-3 bg-background dark:bg-surface-muted rounded-lg">
                                         <button
                                             onClick={() => handleToggleBigRock(index)}
                                             className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0 ${rock.completed
                                                 ? 'bg-green-500 border-green-500 text-white'
-                                                : 'border-gray-300 dark:border-gray-600 hover:border-green-500'
+                                                : 'border-border hover:border-green-500'
                                                 }`}
                                         >
                                             {rock.completed && '✓'}
                                         </button>
                                         <div className="flex-1">
                                             {rock.text ? (
-                                                <span className={`${rock.completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+                                                <span className={`${rock.completed ? 'line-through text-muted' : 'text-foreground'}`}>
                                                     {rock.type === 'objective' && '🎯 '}
                                                     {rock.type === 'project' && '📂 '}
                                                     {rock.text}
@@ -1142,7 +1144,7 @@ export default function DailyJournalPage() {
                                                         setEditingBigRockIndex(index);
                                                         setBigRockSelectionMode(null);
                                                     }}
-                                                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm"
+                                                    className="text-muted hover:text-gray-600 dark:hover:text-gray-300 text-sm"
                                                 >
                                                     + Definir Big Rock {index + 1}
                                                 </button>
@@ -1151,7 +1153,7 @@ export default function DailyJournalPage() {
                                         {rock.text && (
                                             <button
                                                 onClick={() => handleRemoveBigRock(index)}
-                                                className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                                                className="text-muted hover:text-red-500 flex-shrink-0"
                                             >
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1168,7 +1170,7 @@ export default function DailyJournalPage() {
                                             setEditingBigRockIndex(null);
                                             setBigRockSelectionMode(null);
                                         }}
-                                        className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 hover:border-indigo-400 hover:text-indigo-500 transition-all"
+                                        className="w-full p-3 border-2 border-dashed border-border rounded-lg text-muted hover:border-indigo-400 hover:text-indigo-500 transition-all"
                                     >
                                         + Añadir Big Rock
                                     </button>
@@ -1177,20 +1179,20 @@ export default function DailyJournalPage() {
 
                             {/* Big Rock Selection Panel */}
                             {(editingBigRockIndex !== null || bigRockSelectionMode !== null) && (
-                                <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                <div className="mt-4 p-4 bg-surface-muted dark:bg-surface-muted rounded-lg">
                                     {!bigRockSelectionMode ? (
                                         <div className="space-y-3">
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">Selecciona el tipo de Big Rock:</p>
+                                            <p className="text-sm text-muted">Selecciona el tipo de Big Rock:</p>
                                             <div className="grid grid-cols-3 gap-2">
                                                 <button
                                                     onClick={() => setBigRockSelectionMode('objective')}
-                                                    className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm"
+                                                    className="p-3 border border-border rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm"
                                                 >
                                                     🎯 Objetivo
                                                 </button>
                                                 <button
                                                     onClick={() => setBigRockSelectionMode('project')}
-                                                    className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm"
+                                                    className="p-3 border border-border rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm"
                                                 >
                                                     📂 Proyecto
                                                 </button>
@@ -1199,7 +1201,7 @@ export default function DailyJournalPage() {
                                                         const text = prompt('Escribe tu Big Rock personalizado:');
                                                         if (text) handleAddBigRock('custom', undefined, text);
                                                     }}
-                                                    className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm"
+                                                    className="p-3 border border-border rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm"
                                                 >
                                                     ✏️ Personalizado
                                                 </button>
@@ -1209,7 +1211,7 @@ export default function DailyJournalPage() {
                                                     setEditingBigRockIndex(null);
                                                     setBigRockSelectionMode(null);
                                                 }}
-                                                className="w-full mt-2 text-sm text-gray-500 hover:text-gray-700"
+                                                className="w-full mt-2 text-sm text-muted hover:text-foreground"
                                             >
                                                 Cancelar
                                             </button>
@@ -1217,10 +1219,10 @@ export default function DailyJournalPage() {
                                     ) : bigRockSelectionMode === 'objective' ? (
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between">
-                                                <p className="text-sm text-gray-600 dark:text-gray-400">Selecciona un objetivo:</p>
+                                                <p className="text-sm text-muted">Selecciona un objetivo:</p>
                                                 <button
                                                     onClick={() => setBigRockSelectionMode(null)}
-                                                    className="text-sm text-gray-500 hover:text-gray-700"
+                                                    className="text-sm text-muted hover:text-foreground"
                                                 >
                                                     ← Volver
                                                 </button>
@@ -1231,14 +1233,14 @@ export default function DailyJournalPage() {
                                                         <button
                                                             key={obj.id}
                                                             onClick={() => handleAddBigRock('objective', obj.id, obj.title)}
-                                                            className="w-full p-3 text-left border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-gray-900 dark:text-white"
+                                                            className="w-full p-3 text-left border border-border rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-foreground"
                                                         >
                                                             🎯 {obj.title}
                                                         </button>
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <p className="text-center text-gray-500 py-4">
+                                                <p className="text-center text-muted py-4">
                                                     No hay objetivos activos. <Link href="/objectives" className="text-indigo-600 hover:underline">Crear objetivo</Link>
                                                 </p>
                                             )}
@@ -1246,10 +1248,10 @@ export default function DailyJournalPage() {
                                     ) : (
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between">
-                                                <p className="text-sm text-gray-600 dark:text-gray-400">Selecciona un proyecto:</p>
+                                                <p className="text-sm text-muted">Selecciona un proyecto:</p>
                                                 <button
                                                     onClick={() => setBigRockSelectionMode(null)}
-                                                    className="text-sm text-gray-500 hover:text-gray-700"
+                                                    className="text-sm text-muted hover:text-foreground"
                                                 >
                                                     ← Volver
                                                 </button>
@@ -1260,14 +1262,14 @@ export default function DailyJournalPage() {
                                                         <button
                                                             key={proj.id}
                                                             onClick={() => handleAddBigRock('project', proj.id, proj.name)}
-                                                            className="w-full p-3 text-left border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-gray-900 dark:text-white"
+                                                            className="w-full p-3 text-left border border-border rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-foreground"
                                                         >
                                                             📂 {proj.name}
                                                         </button>
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <p className="text-center text-gray-500 py-4">
+                                                <p className="text-center text-muted py-4">
                                                     No hay proyectos activos. <Link href="/projects" className="text-indigo-600 hover:underline">Crear proyecto</Link>
                                                 </p>
                                             )}
@@ -1310,10 +1312,10 @@ export default function DailyJournalPage() {
                         </div>
 
                         {/* Quick Captures / Inbox */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                                 💡 Capturas del Día
-                                <span className="text-sm font-normal text-gray-500">
+                                <span className="text-sm font-normal text-muted">
                                     ({(activeJournal.quick_captures || []).length})
                                 </span>
                             </h3>
@@ -1327,7 +1329,7 @@ export default function DailyJournalPage() {
                                         onChange={(e) => setNewCapture(e.target.value)}
                                         onKeyPress={(e) => e.key === 'Enter' && handleAddCapture()}
                                         placeholder="¿Qué tienes en mente? Ideas, tareas, pensamientos..."
-                                        className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="flex-1 p-3 border border-border rounded-lg bg-background dark:bg-surface-muted text-foreground"
                                     />
                                     <button
                                         onClick={handleAddCapture}
@@ -1342,7 +1344,7 @@ export default function DailyJournalPage() {
                             {/* Captures list */}
                             <div className="space-y-2">
                                 {(activeJournal.quick_captures || []).length === 0 ? (
-                                    <div className="text-center py-8 text-gray-500">
+                                    <div className="text-center py-8 text-muted">
                                         <span className="text-4xl">📭</span>
                                         <p className="mt-2">Tu inbox está vacío</p>
                                         <p className="text-sm">Captura cualquier idea o pensamiento que surja durante el día</p>
@@ -1356,14 +1358,14 @@ export default function DailyJournalPage() {
                                                     <textarea
                                                         value={editingCaptureText}
                                                         onChange={(e) => setEditingCaptureText(e.target.value)}
-                                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                                                        className="w-full p-2 border border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground resize-none"
                                                         rows={2}
                                                         autoFocus
                                                     />
                                                     <div className="flex gap-2 justify-end">
                                                         <button
                                                             onClick={handleCancelEditCapture}
-                                                            className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                                                            className="px-3 py-1 text-sm text-muted hover:text-gray-800 dark:hover:text-gray-200"
                                                         >
                                                             Cancelar
                                                         </button>
@@ -1379,8 +1381,8 @@ export default function DailyJournalPage() {
                                                 // View mode
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="flex-1">
-                                                        <p className="text-gray-900 dark:text-white">{capture.text}</p>
-                                                        <p className="text-xs text-gray-500 mt-2">
+                                                        <p className="text-foreground">{capture.text}</p>
+                                                        <p className="text-xs text-muted mt-2">
                                                             {new Date(capture.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                                         </p>
                                                     </div>
@@ -1388,14 +1390,14 @@ export default function DailyJournalPage() {
                                                         <div className="flex gap-1 flex-shrink-0">
                                                             <button
                                                                 onClick={() => handleEditCapture(capture.id)}
-                                                                className="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors"
+                                                                className="p-1.5 text-muted hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors"
                                                                 title="Editar"
                                                             >
                                                                 ✏️
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDeleteCapture(capture.id)}
-                                                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                                                className="p-1.5 text-muted hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                                                 title="Eliminar"
                                                             >
                                                                 🗑️
@@ -1411,8 +1413,8 @@ export default function DailyJournalPage() {
                         </div>
 
                         {/* Energy Check-ins */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">⚡ Energía durante el día</h3>
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4">⚡ Energía durante el día</h3>
                             <div className="grid grid-cols-3 gap-4">
                                 {[
                                     { field: 'energy_morning', label: 'Mañana', value: activeJournal.energy_morning },
@@ -1420,7 +1422,7 @@ export default function DailyJournalPage() {
                                     { field: 'energy_night', label: 'Noche', value: activeJournal.energy_night },
                                 ].map(({ field, label, value }) => (
                                     <div key={field} className="text-center">
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{label}</p>
+                                        <p className="text-sm text-muted mb-2">{label}</p>
                                         <div className="flex justify-center gap-1">
                                             {(['high', 'medium', 'low'] as EnergyLevel[]).map((level) => (
                                                 <button
@@ -1428,7 +1430,7 @@ export default function DailyJournalPage() {
                                                     onClick={() => handleSetEnergy(field, level)}
                                                     className={`w-10 h-10 rounded-lg transition-all ${value === level
                                                         ? ENERGY_COLORS[level]
-                                                        : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200'
+                                                        : 'bg-surface-muted dark:bg-surface-muted hover:bg-surface-muted'
                                                         }`}
                                                 >
                                                     {ENERGY_ICONS[level]}
@@ -1442,11 +1444,11 @@ export default function DailyJournalPage() {
 
                         {/* Anytime Habits */}
                         {habits.filter(h => h.time_of_day === 'anytime' || h.time_of_day === 'afternoon').length > 0 && (
-                            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+                            <div className="bg-surface rounded-xl p-6 shadow-lg">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                                         ✅ Hábitos del Día
-                                        <span className="text-sm font-normal text-gray-500">
+                                        <span className="text-sm font-normal text-muted">
                                             ({habits.filter(h => (h.time_of_day === 'anytime' || h.time_of_day === 'afternoon') && h.is_scheduled && h.is_completed).length}/{habits.filter(h => (h.time_of_day === 'anytime' || h.time_of_day === 'afternoon') && h.is_scheduled).length})
                                         </span>
                                     </h3>
@@ -1465,16 +1467,16 @@ export default function DailyJournalPage() {
                                             className={`p-4 rounded-lg border-2 transition-all relative ${habit.is_completed
                                                 ? 'bg-green-50 border-green-500 dark:bg-green-900/20'
                                                 : habit.is_scheduled
-                                                    ? 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
-                                                    : 'border-dashed border-gray-300 dark:border-gray-600 opacity-60 hover:opacity-100'
+                                                    ? 'border-border dark:border-border hover:border-border'
+                                                    : 'border-dashed border-border opacity-60 hover:opacity-100'
                                                 }`}
                                             title={habit.is_scheduled ? '' : 'No programado para hoy'}
                                         >
                                             {!habit.is_scheduled && (
-                                                <span className="absolute top-1 right-1 text-xs text-gray-400">➕</span>
+                                                <span className="absolute top-1 right-1 text-xs text-muted">➕</span>
                                             )}
                                             <span className="text-2xl">{habit.icon}</span>
-                                            <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                                            <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-muted'}`}>
                                                 {habit.name}
                                             </p>
                                         </button>
@@ -1505,23 +1507,23 @@ export default function DailyJournalPage() {
                         </div>
 
                         {/* Big Rocks Review */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                                 🪨 Revisión de Big Rocks
                             </h3>
                             <div className="space-y-2">
                                 {(activeJournal.big_rocks || []).filter(r => r.text).map((rock, index) => (
-                                    <div key={rock.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                    <div key={rock.id} className="flex items-center gap-3 p-3 bg-background dark:bg-surface-muted rounded-lg">
                                         <button
                                             onClick={() => handleToggleBigRock(index)}
                                             className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0 ${rock.completed
                                                 ? 'bg-green-500 border-green-500 text-white'
-                                                : 'border-gray-300 dark:border-gray-600 hover:border-green-500'
+                                                : 'border-border hover:border-green-500'
                                                 }`}
                                         >
                                             {rock.completed && '✓'}
                                         </button>
-                                        <span className={`flex-1 ${rock.completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+                                        <span className={`flex-1 ${rock.completed ? 'line-through text-muted' : 'text-foreground'}`}>
                                             {rock.type === 'objective' && '🎯 '}
                                             {rock.type === 'project' && '📂 '}
                                             {rock.text}
@@ -1529,17 +1531,17 @@ export default function DailyJournalPage() {
                                     </div>
                                 ))}
                                 {(activeJournal.big_rocks || []).filter(r => r.text).length === 0 && (
-                                    <p className="text-center text-gray-500 py-4">No hay Big Rocks definidos para hoy</p>
+                                    <p className="text-center text-muted py-4">No hay Big Rocks definidos para hoy</p>
                                 )}
                             </div>
                         </div>
 
                         {/* Evening Habits */}
                         {habits.filter(h => h.time_of_day === 'evening').length > 0 && (
-                            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <div className="bg-surface rounded-xl p-6 shadow-lg">
+                                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                                     🌙 Hábitos de Noche
-                                    <span className="text-sm font-normal text-gray-500">
+                                    <span className="text-sm font-normal text-muted">
                                         ({habits.filter(h => h.time_of_day === 'evening' && h.is_scheduled && h.is_completed).length}/{habits.filter(h => h.time_of_day === 'evening' && h.is_scheduled).length})
                                     </span>
                                 </h3>
@@ -1551,16 +1553,16 @@ export default function DailyJournalPage() {
                                             className={`p-4 rounded-lg border-2 transition-all relative ${habit.is_completed
                                                 ? 'bg-green-50 border-green-500 dark:bg-green-900/20'
                                                 : habit.is_scheduled
-                                                    ? 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
-                                                    : 'border-dashed border-gray-300 dark:border-gray-600 opacity-60 hover:opacity-100'
+                                                    ? 'border-border dark:border-border hover:border-border'
+                                                    : 'border-dashed border-border opacity-60 hover:opacity-100'
                                                 }`}
                                             title={habit.is_scheduled ? '' : 'No programado para hoy'}
                                         >
                                             {!habit.is_scheduled && (
-                                                <span className="absolute top-1 right-1 text-xs text-gray-400">➕</span>
+                                                <span className="absolute top-1 right-1 text-xs text-muted">➕</span>
                                             )}
                                             <span className="text-2xl">{habit.icon}</span>
-                                            <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                                            <p className={`text-sm mt-1 ${habit.is_completed ? 'text-green-600 dark:text-green-400' : 'text-muted'}`}>
                                                 {habit.name}
                                             </p>
                                         </button>
@@ -1570,59 +1572,59 @@ export default function DailyJournalPage() {
                         )}
 
                         {/* Wins */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">🏆 Logros de Hoy</h3>
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4">🏆 Logros de Hoy</h3>
                             <textarea
                                 value={localLearnings}
                                 onChange={(e) => setLocalLearnings(e.target.value)}
                                 placeholder="¿Qué lograste hoy? ¿Qué aprendiste?"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                                className="w-full p-3 border border-border rounded-lg bg-background dark:bg-surface-muted text-foreground resize-none"
                                 rows={3}
                             />
                         </div>
 
                         {/* Pendientes */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">⏳ Pendientes / No Conseguido</h3>
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4">⏳ Pendientes / No Conseguido</h3>
                             <textarea
                                 value={localFailures}
                                 onChange={(e) => setLocalFailures(e.target.value)}
                                 placeholder="¿Qué quedó pendiente o no salió como esperabas?"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                                className="w-full p-3 border border-border rounded-lg bg-background dark:bg-surface-muted text-foreground resize-none"
                                 rows={3}
                             />
                         </div>
 
                         {/* Reflexión */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">🔮 Reflexión</h3>
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4">🔮 Reflexión</h3>
                             <textarea
                                 value={localDoDifferent}
                                 onChange={(e) => setLocalDoDifferent(e.target.value)}
                                 placeholder="¿Qué harías diferente? ¿Qué te llevas de hoy?"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                                className="w-full p-3 border border-border rounded-lg bg-background dark:bg-surface-muted text-foreground resize-none"
                                 rows={3}
                             />
                         </div>
 
                         {/* Nota para Mañana */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">📝 Nota para Mañana</h3>
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4">📝 Nota para Mañana</h3>
                             <textarea
                                 value={localNoteToTomorrow}
                                 onChange={(e) => setLocalNoteToTomorrow(e.target.value)}
                                 placeholder="¿Qué quieres recordar o hacer mañana?"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                                className="w-full p-3 border border-border rounded-lg bg-background dark:bg-surface-muted text-foreground resize-none"
                                 rows={3}
                             />
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            <p className="text-xs text-muted mt-2">
                                 Esta nota aparecerá en la sección de mañana del día siguiente
                             </p>
                         </div>
 
                         {/* Day Rating */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">⭐ Califica tu día</h3>
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4">⭐ Califica tu día</h3>
                             <div className="flex justify-center gap-2">
                                 {[1, 2, 3, 4, 5].map((rating) => (
                                     <button
@@ -1630,7 +1632,7 @@ export default function DailyJournalPage() {
                                         onClick={() => handleSetDayRating(rating)}
                                         className={`w-12 h-12 rounded-full text-2xl transition-all ${activeJournal.day_rating && rating <= activeJournal.day_rating
                                             ? 'bg-yellow-400 text-white'
-                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+                                            : 'bg-surface-muted dark:bg-surface-muted text-muted'
                                             }`}
                                     >
                                         ★
@@ -1640,14 +1642,14 @@ export default function DailyJournalPage() {
                         </div>
 
                         {/* Day Word */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">💬 Una palabra para hoy</h3>
+                        <div className="bg-surface rounded-xl p-6 shadow-lg">
+                            <h3 className="text-lg font-semibold text-foreground mb-4">💬 Una palabra para hoy</h3>
                             <input
                                 type="text"
                                 value={localDayWord}
                                 onChange={(e) => setLocalDayWord(e.target.value)}
                                 placeholder="Gratitud, Productivo, Cansado, Feliz..."
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-center text-lg"
+                                className="w-full p-3 border border-border rounded-lg bg-background dark:bg-surface-muted text-foreground text-center text-lg"
                             />
                         </div>
 
@@ -1720,13 +1722,13 @@ export default function DailyJournalPage() {
                                     <div className="mt-6 pt-6 border-t border-green-200 dark:border-green-700">
                                         <div className="prose prose-sm dark:prose-invert max-w-none
                                             prose-headings:text-indigo-700 dark:prose-headings:text-indigo-300
-                                            prose-h1:text-2xl prose-h1:font-bold prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-2 prose-h1:mb-4
+                                            prose-h1:text-2xl prose-h1:font-bold prose-h1:border-b prose-h1:border-border prose-h1:pb-2 prose-h1:mb-4
                                             prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-6 prose-h2:mb-3 prose-h2:text-purple-600 dark:prose-h2:text-purple-400
                                             prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:my-2
                                             prose-ul:my-2 prose-li:my-1
                                             prose-strong:text-gray-900 dark:prose-strong:text-white
-                                            prose-em:text-gray-600 dark:prose-em:text-gray-400
-                                            prose-hr:my-6 prose-hr:border-gray-200 dark:prose-hr:border-gray-700
+                                            prose-em:text-gray-600 dark:prose-em:text-muted
+                                            prose-hr:my-6 prose-hr:border-border dark:prose-hr:border-gray-700
                                         ">
                                             {activeJournal.ai_summary.split('\n').map((line, idx) => {
                                                 if (line.startsWith('# ')) {
@@ -1768,7 +1770,7 @@ export default function DailyJournalPage() {
             {/* Generated Note Modal */}
             {generatedNote && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                    <div className="bg-surface rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
                         {/* Modal Header */}
                         <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 text-white">
                             <div className="flex items-center justify-between">
@@ -1781,7 +1783,7 @@ export default function DailyJournalPage() {
                                 </div>
                                 <button
                                     onClick={() => setGeneratedNote(null)}
-                                    className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                                    className="p-2 hover:bg-surface/20 rounded-full transition-colors"
                                 >
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1794,13 +1796,13 @@ export default function DailyJournalPage() {
                         <div className="flex-1 overflow-y-auto p-6">
                             <div className="prose prose-sm dark:prose-invert max-w-none
                                 prose-headings:text-indigo-700 dark:prose-headings:text-indigo-300
-                                prose-h1:text-2xl prose-h1:font-bold prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-2 prose-h1:mb-4
+                                prose-h1:text-2xl prose-h1:font-bold prose-h1:border-b prose-h1:border-border prose-h1:pb-2 prose-h1:mb-4
                                 prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-6 prose-h2:mb-3 prose-h2:text-purple-600 dark:prose-h2:text-purple-400
                                 prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:my-2
                                 prose-ul:my-2 prose-li:my-1
                                 prose-strong:text-gray-900 dark:prose-strong:text-white
-                                prose-em:text-gray-600 dark:prose-em:text-gray-400
-                                prose-hr:my-6 prose-hr:border-gray-200 dark:prose-hr:border-gray-700
+                                prose-em:text-gray-600 dark:prose-em:text-muted
+                                prose-hr:my-6 prose-hr:border-border dark:prose-hr:border-gray-700
                             ">
                                 {generatedNote.noteContent.split('\n').map((line, idx) => {
                                     // Parse markdown-like content
@@ -1836,10 +1838,10 @@ export default function DailyJournalPage() {
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
+                        <div className="border-t border-border p-4 flex justify-between items-center bg-background dark:bg-surface/50">
                             <button
                                 onClick={() => setGeneratedNote(null)}
-                                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                                className="px-4 py-2 text-muted hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                             >
                                 Cerrar
                             </button>
@@ -1857,5 +1859,6 @@ export default function DailyJournalPage() {
                 </div>
             )}
         </div>
+        </AppShell>
     );
 }

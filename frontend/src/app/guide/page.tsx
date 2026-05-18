@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import AppShell from '@/components/AppShell';
 
 // Changelog entries - Add new entries at the top
 const CHANGELOG_ENTRIES = [
@@ -88,7 +89,7 @@ export default function GuidePage() {
 
     if (authLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
@@ -97,9 +98,10 @@ export default function GuidePage() {
     if (!user) return null;
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+            <header className="bg-surface border-b border-border sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-14">
                         <div className="flex items-center gap-4">
@@ -107,16 +109,16 @@ export default function GuidePage() {
                                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                                     <span className="text-white text-sm font-bold">K</span>
                                 </div>
-                                <span className="font-semibold text-gray-900 dark:text-white">KBase</span>
+                                <span className="font-semibold text-foreground">KBase</span>
                             </Link>
-                            <span className="text-gray-300 dark:text-gray-600">/</span>
-                            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Guía de Uso</h1>
+                            <span className="text-gray-300 dark:text-muted">/</span>
+                            <h1 className="text-lg font-semibold text-foreground">Guía de Uso</h1>
                         </div>
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
                             <Link
                                 href="/dashboard"
-                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white"
                             >
                                 Volver
                             </Link>
@@ -184,23 +186,23 @@ export default function GuidePage() {
                             {CHANGELOG_ENTRIES.map((entry, index) => (
                                 <div
                                     key={entry.version}
-                                    className={`${index === 0 ? 'bg-white dark:bg-gray-800 rounded-lg p-4 border border-emerald-200 dark:border-emerald-700' : 'pl-4 border-l-2 border-emerald-200 dark:border-emerald-700'}`}
+                                    className={`${index === 0 ? 'bg-surface rounded-lg p-4 border border-emerald-200 dark:border-emerald-700' : 'pl-4 border-l-2 border-emerald-200 dark:border-emerald-700'}`}
                                 >
                                     <div className="flex items-center gap-2 mb-2">
-                                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${index === 0 ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${index === 0 ? 'bg-emerald-500 text-white' : 'bg-surface-muted dark:bg-surface-muted text-muted'}`}>
                                             v{entry.version}
                                         </span>
-                                        <span className="text-xs text-gray-500 dark:text-gray-400">{entry.date}</span>
+                                        <span className="text-xs text-muted">{entry.date}</span>
                                         {index === 0 && (
                                             <span className="text-xs bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">
                                                 Nuevo
                                             </span>
                                         )}
                                     </div>
-                                    <h4 className={`font-medium mb-2 ${index === 0 ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 text-sm'}`}>
+                                    <h4 className={`font-medium mb-2 ${index === 0 ? 'text-foreground' : 'text-foreground text-sm'}`}>
                                         {entry.title}
                                     </h4>
-                                    <ul className={`space-y-1 ${index === 0 ? 'text-sm text-gray-600 dark:text-gray-400' : 'text-xs text-gray-500 dark:text-gray-500'}`}>
+                                    <ul className={`space-y-1 ${index === 0 ? 'text-sm text-muted' : 'text-xs text-muted'}`}>
                                         {entry.changes.map((change, i) => (
                                             <li key={i} className="flex items-start gap-2">
                                                 <span className="text-emerald-500 mt-0.5">•</span>
@@ -210,7 +212,7 @@ export default function GuidePage() {
                                     </ul>
                                 </div>
                             ))}
-                            <p className="text-xs text-center text-gray-500 dark:text-gray-400 pt-2">
+                            <p className="text-xs text-center text-muted pt-2">
                                 Para documentacion completa de cada funcionalidad, consulta las secciones de la guia.
                             </p>
                         </div>
@@ -218,8 +220,8 @@ export default function GuidePage() {
                 </div>
 
                 {/* Table of Contents */}
-                <nav className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Contenido</h2>
+                <nav className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-lg font-semibold text-foreground mb-4">Contenido</h2>
                     <ol className="space-y-2 text-sm">
                         <li>
                             <a href="#vision" className="text-blue-600 dark:text-blue-400 hover:underline">1. Visión General</a>
@@ -258,17 +260,17 @@ export default function GuidePage() {
                 </nav>
 
                 {/* Section 1: Visión General */}
-                <section id="vision" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="vision" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 text-sm font-bold">1</span>
                         Visión General
                     </h2>
                     <div className="prose dark:prose-invert max-w-none">
-                        <p className="text-gray-600 dark:text-gray-300 mb-4">
+                        <p className="text-gray-600 dark:text-foreground mb-4">
                             KBase es tu <strong>base de conocimiento personal</strong> potenciada por inteligencia artificial.
                             Su objetivo es ayudarte a construir un "segundo cerebro" donde puedas:
                         </p>
-                        <ul className="list-disc list-inside text-gray-600 dark:text-gray-300 space-y-2 mb-4">
+                        <ul className="list-disc list-inside text-gray-600 dark:text-foreground space-y-2 mb-4">
                             <li>Capturar cualquier contenido de internet (artículos, vídeos, tweets, PDFs)</li>
                             <li>Organizar automáticamente con categorías, conceptos y entidades</li>
                             <li>Conectar ideas relacionadas a través del grafo de conocimiento</li>
@@ -284,52 +286,52 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 2: Captura de Contenidos */}
-                <section id="captura" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="captura" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center text-green-600 dark:text-green-400 text-sm font-bold">2</span>
                         Captura de Contenidos
                     </h2>
                     <div className="space-y-6">
                         {/* Métodos de captura */}
                         <div>
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Métodos de captura</h3>
+                            <h3 className="font-semibold text-foreground mb-3">Métodos de captura</h3>
                             <div className="grid gap-4 md:grid-cols-2">
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">🔗</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Añadir URL</h4>
+                                        <h4 className="font-medium text-foreground">Añadir URL</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Desde el dashboard, usa el botón "Añadir" para guardar cualquier URL.
                                         KBase extraerá el contenido automáticamente.
                                     </p>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">📝</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Nueva Nota</h4>
+                                        <h4 className="font-medium text-foreground">Nueva Nota</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Crea notas propias con el editor enriquecido. Perfecto para ideas,
                                         reflexiones o síntesis de lo aprendido.
                                     </p>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">🔖</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Quick Save (Bookmarklet)</h4>
+                                        <h4 className="font-medium text-foreground">Quick Save (Bookmarklet)</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Instala el bookmarklet en tu navegador para guardar páginas con un solo clic.
                                         <Link href="/quick-save" className="text-blue-600 dark:text-blue-400 hover:underline ml-1">Configurar →</Link>
                                     </p>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">🍎</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Apple Notes</h4>
+                                        <h4 className="font-medium text-foreground">Apple Notes</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Importa tus notas de Apple Notes para centralizar todo tu conocimiento.
                                         <Link href="/import-apple-notes" className="text-blue-600 dark:text-blue-400 hover:underline ml-1">Importar →</Link>
                                     </p>
@@ -339,10 +341,10 @@ export default function GuidePage() {
 
                         {/* Tipos soportados */}
                         <div>
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Tipos de contenido soportados</h3>
+                            <h3 className="font-semibold text-foreground mb-3">Tipos de contenido soportados</h3>
                             <div className="flex flex-wrap gap-2">
                                 {['Artículos', 'Vídeos (YouTube)', 'Tweets/Threads', 'PDFs', 'Notas propias', 'Apple Notes'].map((type) => (
-                                    <span key={type} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-sm">
+                                    <span key={type} className="px-3 py-1 bg-surface-muted dark:bg-surface-muted text-foreground rounded-full text-sm">
                                         {type}
                                     </span>
                                 ))}
@@ -352,41 +354,41 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 3: Organización Automática */}
-                <section id="organizacion" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="organizacion" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center text-purple-600 dark:text-purple-400 text-sm font-bold">3</span>
                         Organización Automática
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             Cuando añades contenido, la IA analiza y extrae automáticamente:
                         </p>
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-4">
                                 <div className="border-l-4 border-blue-500 pl-4">
-                                    <h4 className="font-medium text-gray-900 dark:text-white">📂 Categorías IAB</h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <h4 className="font-medium text-foreground">📂 Categorías IAB</h4>
+                                    <p className="text-sm text-muted">
                                         Clasificación jerárquica estándar (Tecnología, Negocios, Ciencia, etc.)
                                     </p>
                                 </div>
                                 <div className="border-l-4 border-green-500 pl-4">
-                                    <h4 className="font-medium text-gray-900 dark:text-white">💡 Conceptos</h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <h4 className="font-medium text-foreground">💡 Conceptos</h4>
+                                    <p className="text-sm text-muted">
                                         Ideas y temas principales del contenido
                                     </p>
                                 </div>
                             </div>
                             <div className="space-y-4">
                                 <div className="border-l-4 border-orange-500 pl-4">
-                                    <h4 className="font-medium text-gray-900 dark:text-white">👤 Entidades</h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <h4 className="font-medium text-foreground">👤 Entidades</h4>
+                                    <p className="text-sm text-muted">
                                         Personas, organizaciones y productos mencionados
                                     </p>
                                 </div>
                                 <div className="border-l-4 border-pink-500 pl-4">
-                                    <h4 className="font-medium text-gray-900 dark:text-white">📝 Resumen</h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <h4 className="font-medium text-foreground">📝 Resumen</h4>
+                                    <p className="text-sm text-muted">
                                         Síntesis automática del contenido
                                     </p>
                                 </div>
@@ -411,13 +413,13 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 4: Exploración */}
-                <section id="exploracion" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="exploracion" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-400 text-sm font-bold">4</span>
                         Exploración
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             KBase ofrece múltiples formas de navegar y descubrir tu conocimiento:
                         </p>
 
@@ -428,21 +430,21 @@ export default function GuidePage() {
                                 El Explorador tiene dos vistas principales accesibles mediante tabs:
                             </p>
                             <div className="grid gap-3 md:grid-cols-2">
-                                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-orange-200 dark:border-orange-700">
+                                <div className="bg-surface rounded-lg p-3 border border-orange-200 dark:border-orange-700">
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-lg">📚</span>
-                                        <span className="font-medium text-gray-900 dark:text-white">Contenidos</span>
+                                        <span className="font-medium text-foreground">Contenidos</span>
                                     </div>
-                                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    <p className="text-xs text-muted">
                                         Todos tus contenidos capturados: artículos, vídeos, Apple Notes. Búsqueda semántica y filtros por tipo, categoría, madurez, etc.
                                     </p>
                                 </div>
-                                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-orange-200 dark:border-orange-700">
+                                <div className="bg-surface rounded-lg p-3 border border-orange-200 dark:border-orange-700">
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-lg">💭</span>
-                                        <span className="font-medium text-gray-900 dark:text-white">Mis Reflexiones</span>
+                                        <span className="font-medium text-foreground">Mis Reflexiones</span>
                                     </div>
-                                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    <p className="text-xs text-muted">
                                         Tus notas personales: reflexiones, ideas, preguntas. Filtra por tipo de nota, estado de vinculación y notas fijadas.
                                     </p>
                                 </div>
@@ -453,45 +455,45 @@ export default function GuidePage() {
                         </div>
 
                         <div className="space-y-4">
-                            <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <div className="flex items-start gap-4 p-4 border border-border rounded-lg">
                                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Búsqueda Semántica</h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <h4 className="font-medium text-foreground">Búsqueda Semántica</h4>
+                                    <p className="text-sm text-muted">
                                         Busca por significado, no solo por palabras exactas. La IA entiende qué estás buscando.
                                     </p>
                                     <Link href="/explore" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">Ir a Explorar →</Link>
                                 </div>
                             </div>
 
-                            <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <div className="flex items-start gap-4 p-4 border border-border rounded-lg">
                                 <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Grafo de Conocimiento</h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <h4 className="font-medium text-foreground">Grafo de Conocimiento</h4>
+                                    <p className="text-sm text-muted">
                                         Visualiza las conexiones entre tus contenidos: qué personas, conceptos y temas están relacionados.
                                     </p>
                                     <Link href="/knowledge-graph" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">Ver Grafo →</Link>
                                 </div>
                             </div>
 
-                            <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <div className="flex items-start gap-4 p-4 border border-border rounded-lg">
                                 <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Explorador de Taxonomía</h4>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <h4 className="font-medium text-foreground">Explorador de Taxonomía</h4>
+                                    <p className="text-sm text-muted">
                                         Navega jerárquicamente: Categoría → Persona → Concepto → Contenidos.
                                         Configura qué niveles quieres ver en cada drill-down.
                                     </p>
@@ -503,14 +505,14 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 5: Mi Diario (Daily Journal) - NEW */}
-                <section id="diario" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border-2 border-emerald-300 dark:border-emerald-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="diario" className="bg-surface rounded-lg shadow-sm border-2 border-emerald-300 dark:border-emerald-700 p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-sm font-bold">5</span>
                         Mi Diario (Daily Journal)
                         <span className="ml-2 px-2 py-0.5 text-xs bg-emerald-500 text-white rounded-full">Nuevo</span>
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             Mi Diario es tu espacio para la reflexión diaria. Registra tus rutinas, gratitudes, victorias y
                             recibe insights generados por IA sobre tus patrones emocionales y de productividad.
                         </p>
@@ -520,9 +522,9 @@ export default function GuidePage() {
                             <div className="border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 bg-emerald-50/50 dark:bg-emerald-900/20">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xl">🌅</span>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Rutinas del Día</h4>
+                                    <h4 className="font-medium text-foreground">Rutinas del Día</h4>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                <p className="text-sm text-muted">
                                     Describe tus actividades por momento: <strong>Mañana</strong>, <strong>Tarde</strong> y <strong>Noche</strong>.
                                     Esto te ayuda a identificar qué actividades te energizan y cuáles te agotan.
                                 </p>
@@ -530,9 +532,9 @@ export default function GuidePage() {
                             <div className="border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-900/20">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xl">🙏</span>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Gratitudes (3 items)</h4>
+                                    <h4 className="font-medium text-foreground">Gratitudes (3 items)</h4>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                <p className="text-sm text-muted">
                                     Escribe 3 cosas por las que estás agradecido hoy. La IA identifica temas
                                     recurrentes en tus gratitudes para mostrarte patrones de felicidad.
                                 </p>
@@ -540,9 +542,9 @@ export default function GuidePage() {
                             <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-blue-50/50 dark:bg-blue-900/20">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xl">🏆</span>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Victorias del Día</h4>
+                                    <h4 className="font-medium text-foreground">Victorias del Día</h4>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                <p className="text-sm text-muted">
                                     Logros pequeños o grandes que conseguiste hoy. Celebra tus éxitos
                                     y observa cómo se acumulan a lo largo del tiempo.
                                 </p>
@@ -550,9 +552,9 @@ export default function GuidePage() {
                             <div className="border border-purple-200 dark:border-purple-800 rounded-lg p-4 bg-purple-50/50 dark:bg-purple-900/20">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xl">💜</span>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Perdón (Forgiveness)</h4>
+                                    <h4 className="font-medium text-foreground">Perdón (Forgiveness)</h4>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                <p className="text-sm text-muted">
                                     Practica el perdón en tres niveles: <strong>a ti mismo</strong>, <strong>a otros</strong>
                                     y <strong>a situaciones</strong>. Una práctica poderosa para el bienestar emocional.
                                 </p>
@@ -596,12 +598,12 @@ export default function GuidePage() {
                         </div>
 
                         {/* Dashboard insights */}
-                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                            <h4 className="font-medium text-gray-900 dark:text-white mb-2">📊 Insights en el Dashboard</h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        <div className="bg-background dark:bg-surface-muted/50 rounded-lg p-4">
+                            <h4 className="font-medium text-foreground mb-2">📊 Insights en el Dashboard</h4>
+                            <p className="text-sm text-muted mb-2">
                                 El panel lateral del Dashboard muestra estadísticas de Mi Diario:
                             </p>
-                            <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <ul className="text-sm text-muted space-y-1">
                                 <li className="flex items-center gap-2">
                                     <span className="text-emerald-500">•</span>
                                     Energía y ánimo promedio (últimos 7 días)
@@ -632,14 +634,14 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 6: Sistema de Hábitos - ENHANCED */}
-                <section id="habitos" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border-2 border-purple-300 dark:border-purple-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="habitos" className="bg-surface rounded-lg shadow-sm border-2 border-purple-300 dark:border-purple-700 p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center text-purple-600 dark:text-purple-400 text-sm font-bold">6</span>
                         Sistema de Hábitos
                         <span className="ml-2 px-2 py-0.5 text-xs bg-purple-500 text-white rounded-full">Mejorado</span>
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             El sistema de hábitos te ayuda a construir rutinas consistentes. Ahora con
                             <strong> momento del día</strong> para organizar mejor tu jornada.
                         </p>
@@ -651,32 +653,32 @@ export default function GuidePage() {
                                 Cada hábito puede asignarse a un momento específico del día:
                             </p>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-purple-200 dark:border-purple-700">
                                     <span className="text-xl">🌅</span>
                                     <div>
-                                        <span className="font-medium text-gray-900 dark:text-white text-sm">Mañana</span>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Antes de las 12:00</p>
+                                        <span className="font-medium text-foreground text-sm">Mañana</span>
+                                        <p className="text-xs text-muted">Antes de las 12:00</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-purple-200 dark:border-purple-700">
                                     <span className="text-xl">☀️</span>
                                     <div>
-                                        <span className="font-medium text-gray-900 dark:text-white text-sm">Tarde</span>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">12:00 - 18:00</p>
+                                        <span className="font-medium text-foreground text-sm">Tarde</span>
+                                        <p className="text-xs text-muted">12:00 - 18:00</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-purple-200 dark:border-purple-700">
                                     <span className="text-xl">🌙</span>
                                     <div>
-                                        <span className="font-medium text-gray-900 dark:text-white text-sm">Noche</span>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Después de 18:00</p>
+                                        <span className="font-medium text-foreground text-sm">Noche</span>
+                                        <p className="text-xs text-muted">Después de 18:00</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-purple-200 dark:border-purple-700">
                                     <span className="text-xl">⏰</span>
                                     <div>
-                                        <span className="font-medium text-gray-900 dark:text-white text-sm">Cualquier</span>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Sin hora fija</p>
+                                        <span className="font-medium text-foreground text-sm">Cualquier</span>
+                                        <p className="text-xs text-muted">Sin hora fija</p>
                                     </div>
                                 </div>
                             </div>
@@ -684,26 +686,26 @@ export default function GuidePage() {
 
                         {/* Crear hábito */}
                         <div>
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Crear un Hábito</h3>
+                            <h3 className="font-semibold text-foreground mb-3">Crear un Hábito</h3>
                             <div className="grid gap-4 md:grid-cols-2">
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">📝</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Configuración básica</h4>
+                                        <h4 className="font-medium text-foreground">Configuración básica</h4>
                                     </div>
-                                    <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                    <ul className="text-sm text-muted space-y-1">
                                         <li>• Nombre descriptivo del hábito</li>
                                         <li>• Frecuencia: diaria, semanal o personalizada</li>
                                         <li>• Área: salud, trabajo, personal, etc.</li>
                                         <li>• Icono y color personalizables</li>
                                     </ul>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">✅</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Estados de completado</h4>
+                                        <h4 className="font-medium text-foreground">Estados de completado</h4>
                                     </div>
-                                    <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                    <ul className="text-sm text-muted space-y-1">
                                         <li className="flex items-center gap-2">
                                             <span className="w-3 h-3 bg-green-500 rounded-full"></span>
                                             Completado: hecho al 100%
@@ -722,10 +724,10 @@ export default function GuidePage() {
                         </div>
 
                         {/* Calendario y estadísticas */}
-                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                            <h4 className="font-medium text-gray-900 dark:text-white mb-2">📅 Calendario y Estadísticas</h4>
+                        <div className="bg-background dark:bg-surface-muted/50 rounded-lg p-4">
+                            <h4 className="font-medium text-foreground mb-2">📅 Calendario y Estadísticas</h4>
                             <div className="grid gap-3 md:grid-cols-2">
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                <div className="text-sm text-muted">
                                     <strong>Calendario visual:</strong>
                                     <ul className="mt-1 space-y-1">
                                         <li>• Historial de completados por día</li>
@@ -733,7 +735,7 @@ export default function GuidePage() {
                                         <li>• Click para ver/editar cualquier día</li>
                                     </ul>
                                 </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                <div className="text-sm text-muted">
                                     <strong>Estadísticas:</strong>
                                     <ul className="mt-1 space-y-1">
                                         <li>• Porcentaje de cumplimiento por hábito</li>
@@ -755,47 +757,47 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 7: Cola de Procesamiento */}
-                <section id="procesamiento" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="procesamiento" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center text-teal-600 dark:text-teal-400 text-sm font-bold">7</span>
                         Cola de Procesamiento
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             Cuando capturas contenido, la IA lo procesa automáticamente para extraer resumen, categorías,
                             conceptos y entidades. La <strong>Cola de Procesamiento</strong> te permite gestionar este flujo.
                         </p>
 
                         {/* Estados de procesamiento */}
                         <div>
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Estados de procesamiento</h3>
+                            <h3 className="font-semibold text-foreground mb-3">Estados de procesamiento</h3>
                             <div className="space-y-3">
                                 <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
                                     <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
                                     <div>
-                                        <span className="font-medium text-gray-900 dark:text-white">Pendiente</span>
-                                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— En cola, esperando ser procesado por la IA</span>
+                                        <span className="font-medium text-foreground">Pendiente</span>
+                                        <span className="text-muted text-sm ml-2">— En cola, esperando ser procesado por la IA</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
                                     <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                     <div>
-                                        <span className="font-medium text-gray-900 dark:text-white">Procesando</span>
-                                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— La IA está analizando el contenido</span>
+                                        <span className="font-medium text-foreground">Procesando</span>
+                                        <span className="text-muted text-sm ml-2">— La IA está analizando el contenido</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
                                     <span className="text-green-500">✓</span>
                                     <div>
-                                        <span className="font-medium text-gray-900 dark:text-white">Completado</span>
-                                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Procesado correctamente, listo para explorar</span>
+                                        <span className="font-medium text-foreground">Completado</span>
+                                        <span className="text-muted text-sm ml-2">— Procesado correctamente, listo para explorar</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-800">
                                     <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                                     <div>
-                                        <span className="font-medium text-gray-900 dark:text-white">Fallido</span>
-                                        <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Error al procesar, puedes reintentar</span>
+                                        <span className="font-medium text-foreground">Fallido</span>
+                                        <span className="text-muted text-sm ml-2">— Error al procesar, puedes reintentar</span>
                                     </div>
                                 </div>
                             </div>
@@ -803,21 +805,21 @@ export default function GuidePage() {
 
                         {/* Acciones disponibles */}
                         <div className="grid gap-4 md:grid-cols-2">
-                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                            <div className="border border-border rounded-lg p-4">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xl">⚡</span>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Procesar Todos</h4>
+                                    <h4 className="font-medium text-foreground">Procesar Todos</h4>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                <p className="text-sm text-muted">
                                     Procesa en lote todos los contenidos pendientes. Útil después de importar muchos items.
                                 </p>
                             </div>
-                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                            <div className="border border-border rounded-lg p-4">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xl">🔄</span>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Reintentar Fallidos</h4>
+                                    <h4 className="font-medium text-foreground">Reintentar Fallidos</h4>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                <p className="text-sm text-muted">
                                     Reintenta el procesamiento de contenidos que fallaron (problemas de red, etc.).
                                 </p>
                             </div>
@@ -836,46 +838,46 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 8: Niveles de Madurez */}
-                <section id="madurez" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="madurez" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm font-bold">8</span>
                         Niveles de Madurez
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             El sistema de <strong>niveles de madurez</strong> te ayuda a evolucionar tu conocimiento
                             desde la captura inicial hasta la integración profunda. Cambia el nivel desde el detalle de cualquier contenido.
                         </p>
 
                         <div className="space-y-3">
-                            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                            <div className="flex items-center gap-3 p-3 bg-background dark:bg-surface-muted/50 rounded-lg">
                                 <span className="text-2xl">📥</span>
                                 <div className="flex-1">
-                                    <span className="font-medium text-gray-900 dark:text-white">Capturado</span>
-                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Contenido guardado, pendiente de revisar</span>
+                                    <span className="font-medium text-foreground">Capturado</span>
+                                    <span className="text-muted text-sm ml-2">— Contenido guardado, pendiente de revisar</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                                 <span className="text-2xl">⚙️</span>
                                 <div className="flex-1">
-                                    <span className="font-medium text-gray-900 dark:text-white">Procesado</span>
-                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Analizado por IA, listo para revisar</span>
+                                    <span className="font-medium text-foreground">Procesado</span>
+                                    <span className="text-muted text-sm ml-2">— Analizado por IA, listo para revisar</span>
                                 </div>
                                 <span className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Auto al añadir nota</span>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
                                 <span className="text-2xl">🔗</span>
                                 <div className="flex-1">
-                                    <span className="font-medium text-gray-900 dark:text-white">Conectado</span>
-                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Vinculado a proyectos o modelos mentales</span>
+                                    <span className="font-medium text-foreground">Conectado</span>
+                                    <span className="text-muted text-sm ml-2">— Vinculado a proyectos o modelos mentales</span>
                                 </div>
                                 <span className="text-xs bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">Auto al vincular</span>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
                                 <span className="text-2xl">✅</span>
                                 <div className="flex-1">
-                                    <span className="font-medium text-gray-900 dark:text-white">Integrado</span>
-                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">— Conocimiento asimilado y sintetizado</span>
+                                    <span className="font-medium text-foreground">Integrado</span>
+                                    <span className="text-muted text-sm ml-2">— Conocimiento asimilado y sintetizado</span>
                                 </div>
                                 <span className="text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">Manual</span>
                             </div>
@@ -904,13 +906,13 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 9: Vinculación a Objetos */}
-                <section id="vinculacion" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="vinculacion" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-sm font-bold">9</span>
                         Vinculación a Objetos
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             Conecta tus contenidos con <strong>Proyectos</strong> y <strong>Modelos Mentales</strong> para
                             darles contexto y facilitar su organización. Esto automáticamente sube el nivel de madurez a "Conectado".
                         </p>
@@ -920,13 +922,13 @@ export default function GuidePage() {
                             <div className="border border-indigo-200 dark:border-indigo-800 rounded-lg p-4 bg-indigo-50/50 dark:bg-indigo-900/20">
                                 <div className="flex items-center gap-2 mb-3">
                                     <span className="text-2xl">📁</span>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Proyectos</h4>
+                                    <h4 className="font-medium text-foreground">Proyectos</h4>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                <p className="text-sm text-muted mb-3">
                                     Agrupa contenidos relacionados con un proyecto específico: investigación,
                                     trabajo, aprendizaje de una habilidad, etc.
                                 </p>
-                                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                <ul className="text-sm text-muted space-y-1">
                                     <li className="flex items-center gap-2">
                                         <span className="text-indigo-500">•</span>
                                         Un contenido puede estar en un solo proyecto
@@ -949,13 +951,13 @@ export default function GuidePage() {
                             <div className="border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 bg-emerald-50/50 dark:bg-emerald-900/20">
                                 <div className="flex items-center gap-2 mb-3">
                                     <span className="text-2xl">🧠</span>
-                                    <h4 className="font-medium text-gray-900 dark:text-white">Modelos Mentales</h4>
+                                    <h4 className="font-medium text-foreground">Modelos Mentales</h4>
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                <p className="text-sm text-muted mb-3">
                                     Frameworks de pensamiento que aplicas a tus contenidos: First Principles,
                                     Pareto, Inversión, etc.
                                 </p>
-                                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                <ul className="text-sm text-muted space-y-1">
                                     <li className="flex items-center gap-2">
                                         <span className="text-emerald-500">•</span>
                                         Un contenido puede tener múltiples modelos
@@ -996,13 +998,13 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 10: Sistema de Notas */}
-                <section id="notas" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="notas" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center text-yellow-600 dark:text-yellow-400 text-sm font-bold">10</span>
                         Sistema de Notas
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             KBase distingue entre diferentes tipos de notas para ayudarte a organizar tu pensamiento.
                             Puedes crearlas desde el <strong>Dashboard</strong>, el <strong>Journal</strong> o directamente desde el detalle de un contenido.
                         </p>
@@ -1027,65 +1029,65 @@ export default function GuidePage() {
 
                         {/* Tipos de notas */}
                         <div className="space-y-4">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Tipos de notas</h3>
+                            <h3 className="font-semibold text-foreground">Tipos de notas</h3>
 
                             <div className="grid gap-4 md:grid-cols-2">
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">💬</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Anotaciones en contenidos</h4>
+                                        <h4 className="font-medium text-foreground">Anotaciones en contenidos</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Comentarios y reflexiones sobre contenido guardado. Añádelos desde el detalle
                                         de cualquier artículo o vídeo. <strong>Auto-avanza</strong> el nivel de madurez a "Procesado".
                                     </p>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">📓</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Diario (Journal)</h4>
+                                        <h4 className="font-medium text-foreground">Diario (Journal)</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Entradas del día a día: lo que aprendiste, reflexiones personales, ideas que surgieron.
                                         Perfecto para llevar un registro de tu evolución.
                                     </p>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">💡</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Ideas</h4>
+                                        <h4 className="font-medium text-foreground">Ideas</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Captura rápida de ideas que surgen. Puedes vincularlas a contenidos relacionados
                                         o crearlas desde el detalle de un contenido.
                                     </p>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">💭</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Reflexiones</h4>
+                                        <h4 className="font-medium text-foreground">Reflexiones</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Análisis más profundos sobre temas que estás estudiando.
                                         Síntesis de lo que has aprendido.
                                     </p>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">❓</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Preguntas</h4>
+                                        <h4 className="font-medium text-foreground">Preguntas</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Dudas que te surgen y quieres investigar. Genial para volver a ellas
                                         cuando tengas tiempo de profundizar.
                                     </p>
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div className="border border-border rounded-lg p-4">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xl">🔗</span>
-                                        <h4 className="font-medium text-gray-900 dark:text-white">Conexiones</h4>
+                                        <h4 className="font-medium text-foreground">Conexiones</h4>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         Notas que vinculan conceptos de diferentes fuentes. Ayudan a construir
                                         mapas mentales de tus conocimientos.
                                     </p>
@@ -1138,21 +1140,21 @@ export default function GuidePage() {
                 </section>
 
                 {/* Section 11: Chat con IA */}
-                <section id="chat" className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <section id="chat" className="bg-surface rounded-lg shadow-sm border border-border p-6 mb-8">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <span className="w-8 h-8 bg-pink-100 dark:bg-pink-900 rounded-lg flex items-center justify-center text-pink-600 dark:text-pink-400 text-sm font-bold">11</span>
                         Chat con IA
                     </h2>
                     <div className="space-y-6">
-                        <p className="text-gray-600 dark:text-gray-300">
+                        <p className="text-gray-600 dark:text-foreground">
                             Conversa con tu base de conocimiento usando lenguaje natural.
                             La IA busca en tus contenidos y genera respuestas basadas en tu información guardada.
                         </p>
 
                         <div className="grid gap-4 md:grid-cols-2">
-                            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Ejemplos de preguntas:</h4>
-                                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <div className="bg-background dark:bg-surface-muted/50 rounded-lg p-4">
+                                <h4 className="font-medium text-foreground mb-2">Ejemplos de preguntas:</h4>
+                                <ul className="text-sm text-muted space-y-2">
                                     <li className="flex items-start gap-2">
                                         <span className="text-blue-500">→</span>
                                         "¿Qué he guardado sobre inteligencia artificial?"
@@ -1171,9 +1173,9 @@ export default function GuidePage() {
                                     </li>
                                 </ul>
                             </div>
-                            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                                <h4 className="font-medium text-gray-900 dark:text-white mb-2">El chat puede:</h4>
-                                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <div className="bg-background dark:bg-surface-muted/50 rounded-lg p-4">
+                                <h4 className="font-medium text-foreground mb-2">El chat puede:</h4>
+                                <ul className="text-sm text-muted space-y-2">
                                     <li className="flex items-center gap-2">
                                         <span className="text-green-500">✓</span>
                                         Buscar en todos tus contenidos
@@ -1207,10 +1209,11 @@ export default function GuidePage() {
                 </section>
 
                 {/* Footer */}
-                <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
+                <div className="text-center text-sm text-muted py-8">
                     <p>¿Tienes dudas o sugerencias? El sistema está en constante evolución.</p>
                 </div>
             </div>
-        </div>
+            </div>
+        </AppShell>
     );
 }

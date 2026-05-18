@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
+import AppShell from '@/components/AppShell';
     useUnifiedActions,
     useToggleAction,
     useCreateAction,
@@ -212,26 +213,27 @@ export default function ActionsPage() {
 
     if (authLoading || !user) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
+            <header className="bg-surface border-b border-border sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         <div className="flex items-center gap-4">
                             <Link
                                 href="/dashboard"
-                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-700 dark:text-muted dark:hover:text-gray-200"
                             >
                                 ← Dashboard
                             </Link>
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                                 <span>⚡</span>
                                 Acciones
                             </h1>
@@ -246,24 +248,24 @@ export default function ActionsPage() {
             {/* Main content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Stats bar */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+                <div className="bg-surface rounded-xl shadow-sm border border-border p-6 mb-6">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div className="flex items-center gap-8">
                             <div>
                                 <div className="text-3xl font-bold text-amber-500">{totalPending}</div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">Pendientes</div>
+                                <div className="text-sm text-muted">Pendientes</div>
                             </div>
                             <div>
                                 <div className="text-3xl font-bold text-green-500">{totalCompleted}</div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">Completadas</div>
+                                <div className="text-sm text-muted">Completadas</div>
                             </div>
                             <div>
-                                <div className="text-3xl font-bold text-gray-400">{totalPending + totalCompleted}</div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">Total</div>
+                                <div className="text-3xl font-bold text-muted">{totalPending + totalCompleted}</div>
+                                <div className="text-sm text-muted">Total</div>
                             </div>
                         </div>
                         <div className="flex-1 max-w-md">
-                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                            <div className="w-full bg-surface-muted dark:bg-surface-muted rounded-full h-3">
                                 <div
                                     className="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all duration-300"
                                     style={{
@@ -280,7 +282,7 @@ export default function ActionsPage() {
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+                <div className="bg-surface rounded-xl shadow-sm border border-border p-4 mb-6">
                     <div className="flex flex-wrap items-center gap-4">
                         {/* Search */}
                         <div className="flex-1 min-w-[200px]">
@@ -289,7 +291,7 @@ export default function ActionsPage() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Buscar acciones..."
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                className="w-full px-4 py-2 rounded-lg border border-border bg-surface dark:bg-surface-muted text-foreground focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                             />
                         </div>
 
@@ -300,7 +302,7 @@ export default function ActionsPage() {
                                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                     filterType === 'all'
                                         ? 'bg-amber-500 text-white'
-                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                        : 'bg-surface-muted dark:bg-surface-muted text-foreground hover:bg-surface-muted dark:hover:bg-gray-600'
                                 }`}
                             >
                                 Todos
@@ -312,7 +314,7 @@ export default function ActionsPage() {
                                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                         filterType === type
                                             ? 'bg-amber-500 text-white'
-                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            : 'bg-surface-muted dark:bg-surface-muted text-foreground hover:bg-surface-muted dark:hover:bg-gray-600'
                                     }`}
                                 >
                                     {PARENT_TYPE_LABELS[type].icon} {PARENT_TYPE_LABELS[type].label}
@@ -322,7 +324,7 @@ export default function ActionsPage() {
 
                         {/* Toggle completed */}
                         <label className="flex items-center gap-2 cursor-pointer">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Mostrar completadas</span>
+                            <span className="text-sm text-muted">Mostrar completadas</span>
                             <button
                                 onClick={() => setIncludeCompleted(!includeCompleted)}
                                 className={`w-12 h-6 rounded-full transition-colors relative ${
@@ -330,7 +332,7 @@ export default function ActionsPage() {
                                 }`}
                             >
                                 <div
-                                    className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                                    className={`w-5 h-5 rounded-full bg-surface absolute top-0.5 transition-transform ${
                                         includeCompleted ? 'translate-x-6' : 'translate-x-0.5'
                                     }`}
                                 />
@@ -350,7 +352,7 @@ export default function ActionsPage() {
                 {!isLoading && Object.keys(groupedByType).length === 0 && (
                     <div className="text-center py-12">
                         <div className="text-6xl mb-4">✓</div>
-                        <p className="text-gray-500 dark:text-gray-400 text-lg">
+                        <p className="text-muted text-lg">
                             {searchQuery ? 'No se encontraron acciones' : 'No hay acciones'}
                         </p>
                     </div>
@@ -365,23 +367,23 @@ export default function ActionsPage() {
                             const groupsWithActions = groups.filter((g) => g.actions.length > 0).length;
 
                             return (
-                                <div key={type} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                <div key={type} className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
                                     {/* Type header - collapsible */}
                                     <button
                                         onClick={() => toggleTypeSection(type)}
-                                        className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                                        className="w-full p-4 flex items-center gap-3 hover:bg-surface-muted/50 transition-colors"
                                     >
                                         <span className="text-2xl">{PARENT_TYPE_LABELS[type].icon}</span>
-                                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        <h2 className="text-lg font-semibold text-foreground">
                                             {PARENT_TYPE_LABELS[type].label}
                                         </h2>
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        <span className="text-sm text-muted">
                                             ({typePendingCount} pendientes)
                                         </span>
-                                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                                        <span className="text-xs text-muted">
                                             · {groupsWithActions}/{groups.length} con acciones
                                         </span>
-                                        <span className="ml-auto text-gray-400">
+                                        <span className="ml-auto text-muted">
                                             {isTypeCollapsed ? '▶' : '▼'}
                                         </span>
                                     </button>
@@ -401,13 +403,13 @@ export default function ActionsPage() {
                                                             key={groupKey}
                                                             className={`rounded-xl border overflow-hidden ${
                                                                 hasActions
-                                                                    ? 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50'
-                                                                    : 'border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 opacity-75'
+                                                                    ? 'border-border dark:border-border bg-background dark:bg-surface-muted/50'
+                                                                    : 'border-gray-100 dark:border-border bg-background/50 dark:bg-surface/50 opacity-75'
                                                             }`}
                                                         >
                                                             {/* Group header */}
                                                             <div
-                                                                className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                                                className="p-3 cursor-pointer hover:bg-surface-muted transition-colors"
                                                                 onClick={() => toggleGroup(groupKey)}
                                                             >
                                                                 <div className="flex items-center gap-3">
@@ -418,10 +420,10 @@ export default function ActionsPage() {
                                                                         {group.parent_icon}
                                                                     </span>
                                                                     <div className="flex-1 min-w-0">
-                                                                        <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm">
+                                                                        <h3 className="font-medium text-foreground truncate text-sm">
                                                                             {group.parent_name}
                                                                         </h3>
-                                                                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                        <div className="flex items-center gap-2 text-xs text-muted">
                                                                             {hasActions ? (
                                                                                 <>
                                                                                     <span>{group.pending_count} pendientes</span>
@@ -435,7 +437,7 @@ export default function ActionsPage() {
                                                                                     )}
                                                                                 </>
                                                                             ) : (
-                                                                                <span className="text-gray-400">Sin acciones</span>
+                                                                                <span className="text-muted">Sin acciones</span>
                                                                             )}
                                                                         </div>
                                                                     </div>
@@ -443,7 +445,7 @@ export default function ActionsPage() {
                                                                         <Link
                                                                             href={`${parentInfo.href}/${group.parent_id}`}
                                                                             onClick={(e) => e.stopPropagation()}
-                                                                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 text-xs"
+                                                                            className="p-1 rounded hover:bg-surface-muted dark:hover:bg-gray-600 text-muted text-xs"
                                                                             title={`Ir a ${parentInfo.labelSingular}`}
                                                                         >
                                                                             ↗
@@ -451,7 +453,7 @@ export default function ActionsPage() {
                                                                         <span
                                                                             className={`transition-transform text-xs ${
                                                                                 isExpanded ? 'rotate-180' : ''
-                                                                            } text-gray-400`}
+                                                                            } text-muted`}
                                                                         >
                                                                             ▼
                                                                         </span>
@@ -461,9 +463,9 @@ export default function ActionsPage() {
 
                                                             {/* Actions list */}
                                                             {isExpanded && (
-                                                                <div className="border-t border-gray-200 dark:border-gray-600">
+                                                                <div className="border-t border-border dark:border-border">
                                                                     {group.actions.length === 0 ? (
-                                                                        <div className="p-3 text-center text-gray-400 dark:text-gray-500 text-xs">
+                                                                        <div className="p-3 text-center text-muted text-xs">
                                                                             No hay acciones
                                                                         </div>
                                                                     ) : (
@@ -471,7 +473,7 @@ export default function ActionsPage() {
                                                                             {group.actions.map((action) => (
                                                                                 <li
                                                                                     key={action.id}
-                                                                                    className="group flex items-center gap-2 p-2 px-3 hover:bg-gray-100 dark:hover:bg-gray-600/50"
+                                                                                    className="group flex items-center gap-2 p-2 px-3 hover:bg-surface-muted dark:hover:bg-gray-600/50"
                                                                                 >
                                                                                     {/* Checkbox */}
                                                                                     <button
@@ -479,7 +481,7 @@ export default function ActionsPage() {
                                                                                         className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                                                                                             action.is_completed
                                                                                                 ? 'bg-green-500 border-green-500 text-white'
-                                                                                                : 'border-gray-300 dark:border-gray-500 hover:border-amber-500'
+                                                                                                : 'border-border dark:border-gray-500 hover:border-amber-500'
                                                                                         }`}
                                                                                     >
                                                                                         {action.is_completed && (
@@ -491,8 +493,8 @@ export default function ActionsPage() {
                                                                                     <span
                                                                                         className={`flex-1 text-xs ${
                                                                                             action.is_completed
-                                                                                                ? 'line-through text-gray-400 dark:text-gray-500'
-                                                                                                : 'text-gray-900 dark:text-white'
+                                                                                                ? 'line-through text-muted'
+                                                                                                : 'text-foreground'
                                                                                         }`}
                                                                                     >
                                                                                         {action.title}
@@ -505,7 +507,7 @@ export default function ActionsPage() {
                                                                                                 e.stopPropagation();
                                                                                                 startEdit(action);
                                                                                             }}
-                                                                                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-500 dark:text-gray-400"
+                                                                                            className="p-1 rounded hover:bg-surface-muted dark:hover:bg-gray-500 text-muted"
                                                                                             title="Editar"
                                                                                         >
                                                                                             <span className="text-xs">✏️</span>
@@ -515,7 +517,7 @@ export default function ActionsPage() {
                                                                                                 e.stopPropagation();
                                                                                                 handleDelete(action);
                                                                                             }}
-                                                                                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-500 dark:text-gray-400"
+                                                                                            className="p-1 rounded hover:bg-surface-muted dark:hover:bg-gray-500 text-muted"
                                                                                             title="Eliminar"
                                                                                         >
                                                                                             <span className="text-xs">🗑️</span>
@@ -529,7 +531,7 @@ export default function ActionsPage() {
                                                                     {/* Add action button */}
                                                                     <button
                                                                         onClick={() => openCreateModal(group)}
-                                                                        className="w-full p-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors border-t border-gray-100 dark:border-gray-600"
+                                                                        className="w-full p-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors border-t border-gray-100 dark:border-border"
                                                                     >
                                                                         <span className="w-4 h-4 rounded-full border border-dashed border-amber-500 flex items-center justify-center text-xs">
                                                                             +
@@ -554,7 +556,7 @@ export default function ActionsPage() {
             {/* Create action modal */}
             {showCreateModal && createForGroup && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
+                    <div className="bg-surface rounded-xl shadow-xl max-w-md w-full p-6">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
                                 <span
@@ -564,8 +566,8 @@ export default function ActionsPage() {
                                     {createForGroup.parent_icon}
                                 </span>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">Nueva acción</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <h3 className="font-semibold text-foreground">Nueva acción</h3>
+                                    <p className="text-sm text-muted">
                                         {createForGroup.parent_name}
                                     </p>
                                 </div>
@@ -575,7 +577,7 @@ export default function ActionsPage() {
                                     setShowCreateModal(false);
                                     setCreateForGroup(null);
                                 }}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                             >
                                 ✕
                             </button>
@@ -586,7 +588,7 @@ export default function ActionsPage() {
                             value={newActionTitle}
                             onChange={(e) => setNewActionTitle(e.target.value)}
                             placeholder="Título de la acción"
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent mb-4"
+                            className="w-full px-4 py-3 rounded-lg border border-border bg-surface dark:bg-surface-muted text-foreground focus:ring-2 focus:ring-amber-500 focus:border-transparent mb-4"
                             autoFocus
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && newActionTitle.trim()) {
@@ -601,7 +603,7 @@ export default function ActionsPage() {
                                     setShowCreateModal(false);
                                     setCreateForGroup(null);
                                 }}
-                                className="px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="px-4 py-2 rounded-lg text-foreground hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -620,15 +622,15 @@ export default function ActionsPage() {
             {/* Edit action modal */}
             {editingAction && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
+                    <div className="bg-surface rounded-xl shadow-xl max-w-md w-full p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Editar acción</h3>
+                            <h3 className="font-semibold text-foreground">Editar acción</h3>
                             <button
                                 onClick={() => {
                                     setEditingAction(null);
                                     setEditTitle('');
                                 }}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                             >
                                 ✕
                             </button>
@@ -639,7 +641,7 @@ export default function ActionsPage() {
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
                             placeholder="Título de la acción"
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent mb-4"
+                            className="w-full px-4 py-3 rounded-lg border border-border bg-surface dark:bg-surface-muted text-foreground focus:ring-2 focus:ring-amber-500 focus:border-transparent mb-4"
                             autoFocus
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && editTitle.trim()) {
@@ -654,7 +656,7 @@ export default function ActionsPage() {
                                     setEditingAction(null);
                                     setEditTitle('');
                                 }}
-                                className="px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                className="px-4 py-2 rounded-lg text-foreground hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -669,6 +671,7 @@ export default function ActionsPage() {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </AppShell>
     );
 }

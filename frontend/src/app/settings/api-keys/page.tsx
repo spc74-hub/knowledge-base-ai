@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -119,7 +120,8 @@ export default function APIKeysPage() {
   }
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "2rem" }}>
+    <AppShell>
+        <div style={{ maxWidth: "800px", margin: "0 auto", padding: "2rem" }}>
       <h1 style={{ fontSize: "1.875rem", fontWeight: "bold", marginBottom: "0.5rem" }}>
         API Keys
       </h1>
@@ -380,5 +382,6 @@ export default function APIKeysPage() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }

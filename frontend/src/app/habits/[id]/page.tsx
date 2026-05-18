@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -233,28 +234,29 @@ export default function HabitDetailPage() {
     const stats = habit.statistics;
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
             <div className="h-2" style={{ backgroundColor: habit.color }}></div>
-            <header className="bg-white dark:bg-gray-800 shadow-sm">
+            <header className="bg-surface shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="flex items-start justify-between">
                         <div className="flex items-center gap-4">
-                            <Link href="/habits" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                            <Link href="/habits" className="text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white">
                                 ← Habitos
                             </Link>
                             <span className="text-4xl">{habit.icon}</span>
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{habit.name}</h1>
+                                <h1 className="text-2xl font-bold text-foreground">{habit.name}</h1>
                                 {habit.description && (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{habit.description}</p>
+                                    <p className="text-sm text-muted mt-1">{habit.description}</p>
                                 )}
                             </div>
                         </div>
                         <span className={`text-xs px-2 py-1 rounded-full ${
                             habit.is_active
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                : 'bg-surface-muted text-gray-800 dark:bg-surface-muted dark:text-foreground'
                         }`}>
                             {habit.is_active ? 'Activo' : 'Inactivo'}
                         </span>
@@ -281,7 +283,7 @@ export default function HabitDetailPage() {
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex gap-1 mt-6 border-b dark:border-gray-700">
+                    <div className="flex gap-1 mt-6 border-b dark:border-border">
                         {[
                             { key: 'overview', label: 'Estadisticas' },
                             { key: 'calendar', label: 'Calendario' },
@@ -293,7 +295,7 @@ export default function HabitDetailPage() {
                                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
                                     activeTab === tab.key
                                         ? 'border-green-500 text-green-600 dark:text-green-400'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                        : 'border-transparent text-muted hover:text-gray-700 dark:hover:text-gray-300'
                                 }`}
                             >
                                 {tab.label}
@@ -309,15 +311,15 @@ export default function HabitDetailPage() {
                 {activeTab === 'overview' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Completion rates */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Tasa de cumplimiento</h3>
+                        <div className="bg-surface rounded-lg shadow-sm p-6">
+                            <h3 className="font-semibold text-foreground mb-4">Tasa de cumplimiento</h3>
                             <div className="space-y-4">
                                 <div>
                                     <div className="flex justify-between text-sm mb-1">
-                                        <span className="text-gray-600 dark:text-gray-400">Esta semana</span>
+                                        <span className="text-muted">Esta semana</span>
                                         <span className="font-medium">{stats.completion_rate_week}%</span>
                                     </div>
-                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                                    <div className="w-full bg-surface-muted dark:bg-surface-muted rounded-full h-3">
                                         <div
                                             className="bg-green-500 h-3 rounded-full transition-all"
                                             style={{ width: `${stats.completion_rate_week}%` }}
@@ -326,10 +328,10 @@ export default function HabitDetailPage() {
                                 </div>
                                 <div>
                                     <div className="flex justify-between text-sm mb-1">
-                                        <span className="text-gray-600 dark:text-gray-400">Este mes</span>
+                                        <span className="text-muted">Este mes</span>
                                         <span className="font-medium">{stats.completion_rate_month}%</span>
                                     </div>
-                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                                    <div className="w-full bg-surface-muted dark:bg-surface-muted rounded-full h-3">
                                         <div
                                             className="bg-blue-500 h-3 rounded-full transition-all"
                                             style={{ width: `${stats.completion_rate_month}%` }}
@@ -338,10 +340,10 @@ export default function HabitDetailPage() {
                                 </div>
                                 <div>
                                     <div className="flex justify-between text-sm mb-1">
-                                        <span className="text-gray-600 dark:text-gray-400">Este ano</span>
+                                        <span className="text-muted">Este ano</span>
                                         <span className="font-medium">{stats.completion_rate_year}%</span>
                                     </div>
-                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                                    <div className="w-full bg-surface-muted dark:bg-surface-muted rounded-full h-3">
                                         <div
                                             className="bg-purple-500 h-3 rounded-full transition-all"
                                             style={{ width: `${stats.completion_rate_year}%` }}
@@ -352,12 +354,12 @@ export default function HabitDetailPage() {
                         </div>
 
                         {/* Day of week stats */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Rendimiento por dia</h3>
+                        <div className="bg-surface rounded-lg shadow-sm p-6">
+                            <h3 className="font-semibold text-foreground mb-4">Rendimiento por dia</h3>
                             <div className="grid grid-cols-7 gap-2">
                                 {stats.day_stats.map((day) => (
                                     <div key={day.day} className="text-center">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{day.name}</div>
+                                        <div className="text-xs text-muted mb-2">{day.name}</div>
                                         <div
                                             className="mx-auto w-10 h-10 rounded-lg flex items-center justify-center text-sm font-medium"
                                             style={{
@@ -367,18 +369,18 @@ export default function HabitDetailPage() {
                                         >
                                             {day.rate}%
                                         </div>
-                                        <div className="text-xs text-gray-400 mt-1">{day.completed}/{day.total}</div>
+                                        <div className="text-xs text-muted mt-1">{day.completed}/{day.total}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
                         {/* Recent activity */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 lg:col-span-2">
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Actividad reciente (30 dias)</h3>
+                        <div className="bg-surface rounded-lg shadow-sm p-6 lg:col-span-2">
+                            <h3 className="font-semibold text-foreground mb-4">Actividad reciente (30 dias)</h3>
                             <div className="flex flex-wrap gap-1">
                                 {habit.recent_logs.length === 0 ? (
-                                    <p className="text-gray-500 dark:text-gray-400">Sin registros recientes</p>
+                                    <p className="text-muted">Sin registros recientes</p>
                                 ) : (
                                     habit.recent_logs.slice(0, 30).reverse().map((log) => (
                                         <div
@@ -397,7 +399,7 @@ export default function HabitDetailPage() {
                                     ))
                                 )}
                             </div>
-                            <div className="flex gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
+                            <div className="flex gap-4 mt-3 text-xs text-muted">
                                 <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-500 rounded"></span> Completado</span>
                                 <span className="flex items-center gap-1"><span className="w-3 h-3 bg-yellow-400 rounded"></span> Omitido</span>
                                 <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-400 rounded"></span> Parcial</span>
@@ -409,21 +411,21 @@ export default function HabitDetailPage() {
 
                 {/* Calendar Tab */}
                 {activeTab === 'calendar' && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                    <div className="bg-surface rounded-lg shadow-sm p-6">
                         {/* Calendar navigation */}
                         <div className="flex items-center justify-between mb-6">
                             <button
                                 onClick={prevMonth}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                className="p-2 hover:bg-surface-muted rounded-lg"
                             >
                                 ←
                             </button>
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            <h3 className="text-lg font-semibold text-foreground">
                                 {MONTHS[calendarMonth - 1]} {calendarYear}
                             </h3>
                             <button
                                 onClick={nextMonth}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                className="p-2 hover:bg-surface-muted rounded-lg"
                             >
                                 →
                             </button>
@@ -433,7 +435,7 @@ export default function HabitDetailPage() {
                         <div className="grid grid-cols-7 gap-1">
                             {/* Header */}
                             {DAYS_OF_WEEK.map((day) => (
-                                <div key={day} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-2">
+                                <div key={day} className="text-center text-xs font-medium text-muted py-2">
                                     {day}
                                 </div>
                             ))}
@@ -464,7 +466,7 @@ export default function HabitDetailPage() {
                                                 ? 'bg-yellow-400 text-yellow-900'
                                                 : status === 'failed'
                                                 ? 'bg-red-500 text-white'
-                                                : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                                : 'bg-background dark:bg-surface-muted hover:bg-surface-muted dark:hover:bg-gray-600'
                                         }`}
                                     >
                                         <span className="font-medium">{day.day}</span>
@@ -478,7 +480,7 @@ export default function HabitDetailPage() {
                         </div>
 
                         {/* Status legend */}
-                        <div className="flex flex-wrap gap-3 mt-4 text-xs text-gray-500 dark:text-gray-400 justify-center">
+                        <div className="flex flex-wrap gap-3 mt-4 text-xs text-muted justify-center">
                             <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-500 rounded"></span> Completado</span>
                             <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-400 rounded"></span> Parcial</span>
                             <span className="flex items-center gap-1"><span className="w-3 h-3 bg-yellow-400 rounded"></span> Omitido</span>
@@ -489,13 +491,13 @@ export default function HabitDetailPage() {
 
                 {/* Logs Tab */}
                 {activeTab === 'logs' && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                        <div className="p-6 border-b dark:border-gray-700">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Historial de registros</h3>
+                    <div className="bg-surface rounded-lg shadow-sm">
+                        <div className="p-6 border-b dark:border-border">
+                            <h3 className="font-semibold text-foreground">Historial de registros</h3>
                         </div>
                         <div className="divide-y dark:divide-gray-700">
                             {habit.recent_logs.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                <div className="p-8 text-center text-muted">
                                     No hay registros todavia
                                 </div>
                             ) : (
@@ -512,7 +514,7 @@ export default function HabitDetailPage() {
                                                  log.status === 'partial' ? '½' : '✗'}
                                             </span>
                                             <div>
-                                                <p className="font-medium text-gray-900 dark:text-white">
+                                                <p className="font-medium text-foreground">
                                                     {new Date(log.date).toLocaleDateString('es-ES', {
                                                         weekday: 'long',
                                                         day: 'numeric',
@@ -520,7 +522,7 @@ export default function HabitDetailPage() {
                                                     })}
                                                 </p>
                                                 {log.notes && (
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400">{log.notes}</p>
+                                                    <p className="text-sm text-muted">{log.notes}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -545,12 +547,12 @@ export default function HabitDetailPage() {
             {/* Status Selection Modal */}
             {showStatusModal && selectedDate && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full">
-                        <div className="p-4 border-b dark:border-gray-700">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    <div className="bg-surface rounded-lg shadow-xl max-w-sm w-full">
+                        <div className="p-4 border-b dark:border-border">
+                            <h3 className="text-lg font-semibold text-foreground">
                                 Registrar estado
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            <p className="text-sm text-muted mt-1">
                                 {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-ES', {
                                     weekday: 'long',
                                     day: 'numeric',
@@ -570,13 +572,13 @@ export default function HabitDetailPage() {
                                 </button>
                             ))}
                         </div>
-                        <div className="p-4 border-t dark:border-gray-700">
+                        <div className="p-4 border-t dark:border-border">
                             <button
                                 onClick={() => {
                                     setShowStatusModal(false);
                                     setSelectedDate(null);
                                 }}
-                                className="w-full py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                className="w-full py-2 text-muted hover:text-gray-900 dark:hover:text-white"
                             >
                                 Cancelar
                             </button>
@@ -584,6 +586,7 @@ export default function HabitDetailPage() {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </AppShell>
     );
 }

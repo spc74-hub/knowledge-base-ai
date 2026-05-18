@@ -54,18 +54,18 @@ export default function NoteEditor({
             Table.configure({
                 resizable: true,
                 HTMLAttributes: {
-                    class: 'border-collapse border border-gray-300 my-4',
+                    class: 'border-collapse border border-border my-4',
                 },
             }),
             TableRow,
             TableCell.configure({
                 HTMLAttributes: {
-                    class: 'border border-gray-300 p-2 min-w-[100px]',
+                    class: 'border border-border p-2 min-w-[100px]',
                 },
             }),
             TableHeader.configure({
                 HTMLAttributes: {
-                    class: 'border border-gray-300 p-2 bg-gray-100 font-bold',
+                    class: 'border border-border p-2 bg-surface-muted font-bold',
                 },
             }),
             TaskList.configure({
@@ -143,7 +143,7 @@ export default function NoteEditor({
     }, []);
 
     return (
-        <div className="border dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+        <div className="border dark:border-border rounded-lg overflow-hidden bg-surface">
             <EditorToolbar
                 editor={editor}
                 onInsertBacklink={handleInsertBacklink}

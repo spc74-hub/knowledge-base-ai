@@ -62,7 +62,7 @@ export function TagFilter({
                 <div className="flex items-center justify-between">
                     <button
                         onClick={() => setIsExpanded(!isExpanded)}
-                        className="flex items-center gap-1 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                        className="flex items-center gap-1 text-sm font-medium text-foreground hover:text-gray-900 dark:hover:text-white"
                     >
                         <svg
                             className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
@@ -82,7 +82,7 @@ export function TagFilter({
                     {hasSelectedTags && (
                         <button
                             onClick={clearAll}
-                            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                            className="text-xs text-muted hover:text-gray-700 dark:hover:text-gray-300"
                         >
                             Limpiar
                         </button>
@@ -93,7 +93,7 @@ export function TagFilter({
                     <div className="space-y-3 pl-4">
                         {userTags.length > 0 && (
                             <div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Manuales</div>
+                                <div className="text-xs text-muted mb-1.5">Manuales</div>
                                 <div className="flex flex-wrap gap-1.5">
                                     {userTags.map((tag) => (
                                         <button
@@ -102,7 +102,7 @@ export function TagFilter({
                                             className={`px-2 py-0.5 rounded-full text-xs transition-colors ${
                                                 selectedUserTags.includes(tag)
                                                     ? 'bg-blue-600 text-white'
-                                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                                    : 'bg-surface-muted dark:bg-surface-muted text-foreground hover:bg-gray-300 dark:hover:bg-gray-600'
                                             }`}
                                         >
                                             {tag}
@@ -114,7 +114,7 @@ export function TagFilter({
 
                         {inheritedTags.length > 0 && (
                             <div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Heredados</div>
+                                <div className="text-xs text-muted mb-1.5">Heredados</div>
                                 <div className="flex flex-wrap gap-1.5">
                                     {inheritedTags.map(({ tag, color }) => (
                                         <button
@@ -127,7 +127,7 @@ export function TagFilter({
                                             className={`px-2 py-0.5 rounded-full text-xs transition-colors border ${
                                                 selectedInheritedTags.includes(tag)
                                                     ? 'text-white'
-                                                    : 'bg-transparent text-gray-700 dark:text-gray-300 hover:opacity-80'
+                                                    : 'bg-transparent text-foreground hover:opacity-80'
                                             }`}
                                         >
                                             {tag}
@@ -145,11 +145,11 @@ export function TagFilter({
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-900 dark:text-white">Filtrar por Tags</h4>
+                <h4 className="text-sm font-medium text-foreground">Filtrar por Tags</h4>
                 {hasSelectedTags && (
                     <button
                         onClick={clearAll}
-                        className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        className="text-xs text-muted hover:text-gray-700 dark:hover:text-gray-300"
                     >
                         Limpiar todos
                     </button>
@@ -158,7 +158,7 @@ export function TagFilter({
 
             {userTags.length > 0 && (
                 <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Tags manuales</div>
+                    <div className="text-xs text-muted mb-2">Tags manuales</div>
                     <div className="flex flex-wrap gap-2">
                         {userTags.map((tag) => (
                             <button
@@ -167,7 +167,7 @@ export function TagFilter({
                                 className={`px-3 py-1 rounded-full text-sm transition-colors ${
                                     selectedUserTags.includes(tag)
                                         ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                        : 'bg-surface-muted dark:bg-surface-muted text-foreground hover:bg-gray-300 dark:hover:bg-gray-600'
                                 }`}
                             >
                                 {tag}
@@ -179,7 +179,7 @@ export function TagFilter({
 
             {inheritedTags.length > 0 && (
                 <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Tags heredados</div>
+                    <div className="text-xs text-muted mb-2">Tags heredados</div>
                     <div className="flex flex-wrap gap-2">
                         {inheritedTags.map(({ tag, color }) => (
                             <button
@@ -192,7 +192,7 @@ export function TagFilter({
                                 className={`px-3 py-1 rounded-full text-sm transition-colors border-2 ${
                                     selectedInheritedTags.includes(tag)
                                         ? 'text-white'
-                                        : 'bg-transparent text-gray-700 dark:text-gray-300 hover:opacity-80'
+                                        : 'bg-transparent text-foreground hover:opacity-80'
                                 }`}
                             >
                                 {tag}

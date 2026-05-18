@@ -374,9 +374,9 @@ export default function MobileHabitsPage() {
     };
 
     const getStatusColor = (status: string | null) => {
-        if (!status) return isDark ? 'bg-gray-600' : 'bg-gray-200';
+        if (!status) return isDark ? 'bg-gray-600' : 'bg-surface-muted';
         const option = STATUS_OPTIONS.find(o => o.value === status);
-        return option?.color || (isDark ? 'bg-gray-600' : 'bg-gray-200');
+        return option?.color || (isDark ? 'bg-gray-600' : 'bg-surface-muted');
     };
 
     const filteredHabits = habits.filter(habit => {
@@ -444,12 +444,12 @@ export default function MobileHabitsPage() {
         );
     }
 
-    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-surface border-gray-100';
     const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
-    const mutedTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+    const mutedTextClass = isDark ? 'text-muted' : 'text-muted';
     const inputClass = isDark
         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400';
+        : 'bg-surface border-border text-foreground placeholder-gray-400';
 
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -485,12 +485,12 @@ export default function MobileHabitsPage() {
 
                 {/* Calendar dropdown */}
                 {showCalendar && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="mt-4 pt-4 border-t border-border">
                         {/* Month navigation */}
                         <div className="flex items-center justify-between mb-4">
                             <button
                                 onClick={() => navigateMonth(-1)}
-                                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-surface-muted'}`}
                             >
                                 ←
                             </button>
@@ -499,7 +499,7 @@ export default function MobileHabitsPage() {
                             </span>
                             <button
                                 onClick={() => navigateMonth(1)}
-                                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-surface-muted'}`}
                             >
                                 →
                             </button>
@@ -537,7 +537,7 @@ export default function MobileHabitsPage() {
                                                     ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
                                                     : isDark
                                                         ? 'hover:bg-gray-700 text-gray-300'
-                                                        : 'hover:bg-gray-100 text-gray-700'
+                                                        : 'hover:bg-surface-muted text-foreground'
                                         }`}
                                     >
                                         {day.getDate()}
@@ -557,7 +557,7 @@ export default function MobileHabitsPage() {
                         {completedCount}/{totalCount}
                     </span>
                 </div>
-                <div className={`w-full rounded-full h-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                <div className={`w-full rounded-full h-3 ${isDark ? 'bg-gray-700' : 'bg-surface-muted'}`}>
                     <div
                         className="bg-gradient-to-r from-amber-500 to-orange-600 h-3 rounded-full transition-all duration-300"
                         style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
@@ -582,7 +582,7 @@ export default function MobileHabitsPage() {
                     className={`px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 ${
                         showManageMode
                             ? 'bg-blue-500 text-white'
-                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
+                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                     }`}
                 >
                     <span>{showManageMode ? '✓' : '⚙️'}</span>
@@ -599,7 +599,7 @@ export default function MobileHabitsPage() {
                                 ? 'bg-amber-500 text-white'
                                 : isDark
                                     ? 'bg-gray-700 text-gray-300'
-                                    : 'bg-gray-200 text-gray-700'
+                                    : 'bg-surface-muted text-foreground'
                         }`}
                     >
                         Todos
@@ -613,7 +613,7 @@ export default function MobileHabitsPage() {
                                     ? 'bg-amber-500 text-white'
                                     : isDark
                                         ? 'bg-gray-700 text-gray-300'
-                                        : 'bg-gray-200 text-gray-700'
+                                        : 'bg-surface-muted text-foreground'
                             }`}
                         >
                             {option.icon} {option.label}
@@ -636,7 +636,7 @@ export default function MobileHabitsPage() {
                             key={habit.id}
                             onClick={() => openDetailModal(habit)}
                             className={`w-full rounded-xl p-4 shadow-sm border flex items-center gap-4 cursor-pointer active:opacity-80 transition-all ${
-                                isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+                                isDark ? 'bg-gray-800 border-gray-700' : 'bg-surface border-gray-100'
                             } ${!habit.is_active ? 'opacity-50' : ''}`}
                         >
                             <span
@@ -702,7 +702,7 @@ export default function MobileHabitsPage() {
 
                             {/* Non-scheduled habits section */}
                             {nonScheduledHabits.filter(h => h.is_active !== false).length > 0 && (
-                                <div className="space-y-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="space-y-2 mt-4 pt-4 border-t border-border">
                                     <h3 className={`text-sm font-medium flex items-center gap-2 ${mutedTextClass}`}>
                                         <span>📅</span>
                                         <span>Otros hábitos ({nonScheduledHabits.filter(h => h.is_active !== false).length})</span>
@@ -741,7 +741,7 @@ export default function MobileHabitsPage() {
                                 />
                             ))}
                             {nonScheduledHabits.filter(h => h.is_active !== false).length > 0 && (
-                                <div className="space-y-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="space-y-2 mt-4 pt-4 border-t border-border">
                                     <h3 className={`text-sm font-medium flex items-center gap-2 ${mutedTextClass}`}>
                                         <span>📅</span>
                                         <span>Otros hábitos ({nonScheduledHabits.filter(h => h.is_active !== false).length})</span>
@@ -771,7 +771,7 @@ export default function MobileHabitsPage() {
             {showStatusModal && statusModalHabit && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-start justify-center pt-4">
                     <div
-                        className={`w-full mx-4 rounded-2xl p-4 animate-slide-down ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full mx-4 rounded-2xl p-4 animate-slide-down ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: 'calc(100vh - 100px)' }}
                     >
                         <div className="flex items-center justify-between mb-4">
@@ -791,7 +791,7 @@ export default function MobileHabitsPage() {
                                     setShowStatusModal(false);
                                     setStatusModalHabit(null);
                                 }}
-                                className={`p-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                                className={`p-2 ${isDark ? 'text-muted' : 'text-muted'}`}
                             >
                                 ✕
                             </button>
@@ -823,7 +823,7 @@ export default function MobileHabitsPage() {
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
                     >
                         <div className="flex items-center justify-between mb-4">
@@ -862,13 +862,13 @@ export default function MobileHabitsPage() {
                                         <button
                                             key={category}
                                             onClick={() => setFormIconCategory(category)}
-                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'}`}
                                         >
                                             {category}
                                         </button>
                                     ))}
                                 </div>
-                                <div className={`flex flex-wrap gap-2 p-2 rounded-lg max-h-24 overflow-y-auto ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                                <div className={`flex flex-wrap gap-2 p-2 rounded-lg max-h-24 overflow-y-auto ${isDark ? 'bg-gray-700/50' : 'bg-surface-muted'}`}>
                                     {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
                                         <button
                                             key={icon}
@@ -904,7 +904,7 @@ export default function MobileHabitsPage() {
                                         <button
                                             key={f.value}
                                             onClick={() => setFormData({ ...formData, frequency_type: f.value })}
-                                            className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_type === f.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_type === f.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'}`}
                                         >
                                             {f.label}
                                         </button>
@@ -926,7 +926,7 @@ export default function MobileHabitsPage() {
                                                         : [...formData.frequency_days, day.value];
                                                     setFormData({ ...formData, frequency_days: newDays });
                                                 }}
-                                                className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_days.includes(day.value) ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                                className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_days.includes(day.value) ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'}`}
                                             >
                                                 {day.label}
                                             </button>
@@ -943,7 +943,7 @@ export default function MobileHabitsPage() {
                                         <button
                                             key={t.value}
                                             onClick={() => setFormData({ ...formData, time_of_day: t.value })}
-                                            className={`py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${formData.time_of_day === t.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                            className={`py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${formData.time_of_day === t.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'}`}
                                         >
                                             <span>{t.icon}</span>
                                             <span>{t.label}</span>
@@ -987,7 +987,7 @@ export default function MobileHabitsPage() {
             {showEditModal && editingHabit && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
                     >
                         <div className="flex items-center justify-between mb-4">
@@ -1024,13 +1024,13 @@ export default function MobileHabitsPage() {
                                         <button
                                             key={category}
                                             onClick={() => setFormIconCategory(category)}
-                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'}`}
                                         >
                                             {category}
                                         </button>
                                     ))}
                                 </div>
-                                <div className={`flex flex-wrap gap-2 p-2 rounded-lg max-h-24 overflow-y-auto ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                                <div className={`flex flex-wrap gap-2 p-2 rounded-lg max-h-24 overflow-y-auto ${isDark ? 'bg-gray-700/50' : 'bg-surface-muted'}`}>
                                     {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
                                         <button
                                             key={icon}
@@ -1066,7 +1066,7 @@ export default function MobileHabitsPage() {
                                         <button
                                             key={f.value}
                                             onClick={() => setFormData({ ...formData, frequency_type: f.value })}
-                                            className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_type === f.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_type === f.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'}`}
                                         >
                                             {f.label}
                                         </button>
@@ -1088,7 +1088,7 @@ export default function MobileHabitsPage() {
                                                         : [...formData.frequency_days, day.value];
                                                     setFormData({ ...formData, frequency_days: newDays });
                                                 }}
-                                                className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_days.includes(day.value) ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                                className={`flex-1 py-2 rounded-lg text-sm font-medium ${formData.frequency_days.includes(day.value) ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'}`}
                                             >
                                                 {day.label}
                                             </button>
@@ -1105,7 +1105,7 @@ export default function MobileHabitsPage() {
                                         <button
                                             key={t.value}
                                             onClick={() => setFormData({ ...formData, time_of_day: t.value })}
-                                            className={`py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${formData.time_of_day === t.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                            className={`py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${formData.time_of_day === t.value ? 'bg-amber-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'}`}
                                         >
                                             <span>{t.icon}</span>
                                             <span>{t.label}</span>
@@ -1148,7 +1148,7 @@ export default function MobileHabitsPage() {
             {showDetailModal && viewingHabit && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: '80vh', overflowY: 'auto' }}
                     >
                         <div className="flex items-center justify-between mb-4">
@@ -1207,7 +1207,7 @@ export default function MobileHabitsPage() {
                                     openEditModal(viewingHabit);
                                 }}
                                 className={`w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 ${
-                                    isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'
+                                    isDark ? 'bg-gray-700 text-gray-200' : 'bg-surface-muted text-foreground'
                                 }`}
                             >
                                 <span>✏️</span>
@@ -1290,7 +1290,7 @@ function HabitCard({
             className={`w-full rounded-xl p-4 shadow-sm border flex items-center gap-4 active:opacity-80 transition-all text-left ${
                 isDark
                     ? 'bg-gray-800 border-gray-700'
-                    : 'bg-white border-gray-100'
+                    : 'bg-surface border-gray-100'
             } ${isNonScheduled ? 'opacity-70' : ''}`}
         >
             <span
@@ -1304,7 +1304,7 @@ function HabitCard({
                     {habit.name}
                 </h4>
                 {habit.description && (
-                    <p className={`text-sm truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <p className={`text-sm truncate ${isDark ? 'text-muted' : 'text-muted'}`}>
                         {habit.description}
                     </p>
                 )}

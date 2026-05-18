@@ -585,12 +585,12 @@ export default function MobileDashboardPage() {
         setEditingActionTitle('');
     };
 
-    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-surface border-gray-100';
     const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
-    const mutedTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+    const mutedTextClass = isDark ? 'text-muted' : 'text-muted';
     const inputClass = isDark
         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400';
+        : 'bg-surface border-border text-foreground placeholder-gray-400';
 
     return (
         <div className="space-y-4">
@@ -603,7 +603,7 @@ export default function MobileDashboardPage() {
                         className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
                             activeTab === tab.key
                                 ? 'bg-blue-500 text-white'
-                                : isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
+                                : isDark ? 'bg-gray-800 text-gray-300' : 'bg-surface-muted text-muted'
                         }`}
                     >
                         <span>{tab.icon}</span>
@@ -696,7 +696,7 @@ export default function MobileDashboardPage() {
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
                     >
                         <div className="flex items-center justify-between mb-4">
@@ -865,7 +865,7 @@ export default function MobileDashboardPage() {
             {showEditModal && editingItem && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: '85vh', overflowY: 'auto' }}
                     >
                         <div className="flex items-center justify-between mb-4">
@@ -1024,7 +1024,7 @@ export default function MobileDashboardPage() {
             {showDetailModal && viewingItem && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: '80vh', overflowY: 'auto' }}
                     >
                         <div className="flex items-center justify-between mb-4">
@@ -1118,14 +1118,14 @@ export default function MobileDashboardPage() {
                                         .map((action) => (
                                             <div
                                                 key={action.id}
-                                                className={`flex items-center gap-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
+                                                className={`flex items-center gap-3 p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-background'}`}
                                             >
                                                 <button
                                                     onClick={() => handleToggleAction(viewingItem.id, action.id, action.is_completed)}
                                                     className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                                                         action.is_completed
                                                             ? 'bg-green-500 border-green-500 text-white'
-                                                            : isDark ? 'border-gray-500' : 'border-gray-300'
+                                                            : isDark ? 'border-gray-500' : 'border-border'
                                                     }`}
                                                 >
                                                     {action.is_completed && '✓'}
@@ -1151,7 +1151,7 @@ export default function MobileDashboardPage() {
                                                         </button>
                                                         <button
                                                             onClick={handleCancelEditAction}
-                                                            className={`px-2 py-1 text-xs rounded ${isDark ? 'bg-gray-600 text-gray-200' : 'bg-gray-300 text-gray-700'}`}
+                                                            className={`px-2 py-1 text-xs rounded ${isDark ? 'bg-gray-600 text-gray-200' : 'bg-gray-300 text-foreground'}`}
                                                         >
                                                             ✕
                                                         </button>
@@ -1209,7 +1209,7 @@ export default function MobileDashboardPage() {
                                     openEditModal(viewingItem);
                                 }}
                                 className={`w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 ${
-                                    isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'
+                                    isDark ? 'bg-gray-700 text-gray-200' : 'bg-surface-muted text-foreground'
                                 }`}
                             >
                                 <span>✏️</span>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -130,8 +131,8 @@ export default function NoteDetailPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-                <div className="text-gray-400">Cargando...</div>
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-muted">Cargando...</div>
             </div>
         );
     }
@@ -142,7 +143,7 @@ export default function NoteDetailPage() {
 
     if (error || !note) {
         return (
-            <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+            <div className="min-h-screen bg-background flex items-center justify-center">
                 <div className="text-center">
                     <p className="text-red-400 mb-4">{error || 'Nota no encontrada'}</p>
                     <Link
@@ -159,17 +160,18 @@ export default function NoteDetailPage() {
     const noteType = NOTE_TYPE_LABELS[note.note_type] || NOTE_TYPE_LABELS.reflection;
 
     return (
-        <div className="min-h-screen bg-gray-950">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
             <header className="border-b border-gray-800 bg-gray-900/50 sticky top-0 z-10">
                 <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/notes" className="text-gray-400 hover:text-white">
+                        <Link href="/notes" className="text-muted hover:text-white">
                             ← Notas
                         </Link>
                         <div className="flex items-center gap-2">
                             <span>{noteType.icon}</span>
-                            <span className="text-sm text-gray-500">{noteType.label}</span>
+                            <span className="text-sm text-muted">{noteType.label}</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -178,7 +180,7 @@ export default function NoteDetailPage() {
                             className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                 note.is_pinned
                                     ? 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30'
-                                    : 'bg-gray-800 text-gray-400 hover:text-white'
+                                    : 'bg-gray-800 text-muted hover:text-white'
                             }`}
                         >
                             {note.is_pinned ? '📌 Fijada' : '📌 Fijar'}
@@ -204,7 +206,7 @@ export default function NoteDetailPage() {
                 <h1 className="text-3xl font-bold text-white mb-4">{note.title}</h1>
 
                 {/* Metadata */}
-                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-8">
+                <div className="flex flex-wrap items-center gap-4 text-sm text-muted mb-8">
                     <span>Creada: {formatDate(note.created_at)}</span>
                     {note.updated_at !== note.created_at && (
                         <span>Actualizada: {formatDate(note.updated_at)}</span>
@@ -229,7 +231,7 @@ export default function NoteDetailPage() {
                 <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 mb-8">
                     <div
                         className="prose prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: note.content || '<p class="text-gray-500">Sin contenido</p>' }}
+                        dangerouslySetInnerHTML={{ __html: note.content || '<p class="text-muted">Sin contenido</p>' }}
                     />
                 </div>
 
@@ -245,7 +247,7 @@ export default function NoteDetailPage() {
                                     className="block bg-gray-900/50 border border-gray-800 rounded-lg p-3 hover:bg-gray-800/50 transition-colors"
                                 >
                                     <div className="text-white">{content.title}</div>
-                                    <div className="text-sm text-gray-500">{content.type}</div>
+                                    <div className="text-sm text-muted">{content.type}</div>
                                 </Link>
                             ))}
                         </div>
@@ -273,6 +275,7 @@ export default function NoteDetailPage() {
                     </div>
                 )}
             </div>
-        </div>
+            </div>
+        </AppShell>
     );
 }

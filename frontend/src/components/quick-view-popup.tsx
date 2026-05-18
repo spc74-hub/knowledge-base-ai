@@ -325,10 +325,10 @@ export function QuickViewPopup({
                         {/* Linked notes for rich data */}
                         {richData?.linked_notes && richData.linked_notes.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700">
-                                <p className="text-xs text-gray-500 mb-1">Notas vinculadas:</p>
+                                <p className="text-xs text-muted mb-1">Notas vinculadas:</p>
                                 <div className="space-y-1">
                                     {richData.linked_notes.slice(0, 2).map((note: any) => (
-                                        <div key={note.id} className="text-xs text-gray-400 truncate">
+                                        <div key={note.id} className="text-xs text-muted truncate">
                                             📝 {note.title}
                                         </div>
                                     ))}
@@ -366,14 +366,14 @@ export function QuickViewPopup({
                             </span>
                         )}
                         {displayData.target_date && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted">
                                 Meta: {new Date(displayData.target_date).toLocaleDateString('es-ES')}
                             </span>
                         )}
                         {/* Linked contents */}
                         {richData?.linked_contents && richData.linked_contents.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700">
-                                <p className="text-xs text-gray-500 mb-1">📄 {richData.linked_contents.length} contenido(s)</p>
+                                <p className="text-xs text-muted mb-1">📄 {richData.linked_contents.length} contenido(s)</p>
                             </div>
                         )}
                     </>
@@ -394,12 +394,12 @@ export function QuickViewPopup({
                             {displayData.status === 'active' ? 'Activo' : displayData.status}
                         </span>
                         {displayData.area_name && (
-                            <span className="text-xs text-gray-500 ml-2">📋 {displayData.area_name}</span>
+                            <span className="text-xs text-muted ml-2">📋 {displayData.area_name}</span>
                         )}
                         {/* Linked contents */}
                         {richData?.linked_contents && richData.linked_contents.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700">
-                                <p className="text-xs text-gray-500 mb-1">📄 {richData.linked_contents.length} contenido(s)</p>
+                                <p className="text-xs text-muted mb-1">📄 {richData.linked_contents.length} contenido(s)</p>
                             </div>
                         )}
                     </>
@@ -416,7 +416,7 @@ export function QuickViewPopup({
                         {/* Linked contents */}
                         {richData?.linked_contents && richData.linked_contents.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-gray-700">
-                                <p className="text-xs text-gray-500 mb-1">Aplicado a {richData.linked_contents.length} contenido(s)</p>
+                                <p className="text-xs text-muted mb-1">Aplicado a {richData.linked_contents.length} contenido(s)</p>
                             </div>
                         )}
                     </>
@@ -446,7 +446,7 @@ export function QuickViewPopup({
                         {/* Linked content for notes */}
                         {richData?.content_id && richData.content_title && (
                             <div className="mt-2 pt-2 border-t border-gray-700">
-                                <p className="text-xs text-gray-500 mb-1">Vinculada a:</p>
+                                <p className="text-xs text-muted mb-1">Vinculada a:</p>
                                 <div className="text-xs text-indigo-400 truncate">
                                     📄 {richData.content_title}
                                 </div>
@@ -463,7 +463,7 @@ export function QuickViewPopup({
                             style={{ backgroundColor: displayData.color || '#6366f1' }}
                         />
                         {displayData.category && (
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-muted">
                                 Categoría: {displayData.category}
                             </span>
                         )}
@@ -480,7 +480,7 @@ export function QuickViewPopup({
                         )}
                         <div className="flex flex-wrap gap-2 mb-2">
                             <span className={`text-xs px-2 py-0.5 rounded ${
-                                displayData.is_active ? 'bg-emerald-600/30 text-emerald-300' : 'bg-gray-700 text-gray-400'
+                                displayData.is_active ? 'bg-emerald-600/30 text-emerald-300' : 'bg-gray-700 text-muted'
                             }`}>
                                 {displayData.is_active ? 'Activo' : 'Inactivo'}
                             </span>
@@ -500,7 +500,7 @@ export function QuickViewPopup({
                         )}
                         {/* Area link */}
                         {displayData.area_name && (
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-xs text-muted mt-1">
                                 📋 {displayData.area_name}
                             </div>
                         )}
@@ -520,7 +520,7 @@ export function QuickViewPopup({
                             style={{ backgroundColor: displayData.color || '#6366f1' }}
                         />
                         {/* Stats */}
-                        <div className="flex flex-wrap gap-3 text-xs text-gray-400">
+                        <div className="flex flex-wrap gap-3 text-xs text-muted">
                             {(richData?.objectives_count !== undefined || displayData.objectives_count !== undefined) && (
                                 <span>🎯 {richData?.objectives_count || displayData.objectives_count || 0} objetivos</span>
                             )}
@@ -563,11 +563,11 @@ export function QuickViewPopup({
                     <span className="text-2xl">{getIcon()}</span>
                     <div className="flex-1 min-w-0">
                         <h3 className="text-white font-medium truncate">{getTitle()}</h3>
-                        <p className="text-xs text-gray-400">{getSubtitle()}</p>
+                        <p className="text-xs text-muted">{getSubtitle()}</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-gray-500 hover:text-gray-300 text-lg"
+                        className="text-muted hover:text-gray-300 text-lg"
                     >
                         ×
                     </button>
@@ -649,7 +649,7 @@ export function QuickViewPopup({
 
                 {/* Timestamp */}
                 {displayData.created_at && (
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-muted mt-2">
                         {new Date(displayData.created_at).toLocaleDateString('es-ES', {
                             day: 'numeric',
                             month: 'short',

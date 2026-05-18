@@ -772,9 +772,9 @@ export function ContentDetailModal({
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-surface rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 flex items-start justify-between">
+                <div className="sticky top-0 bg-surface border-b dark:border-border px-6 py-4 flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                         <span className="text-3xl">{getTypeIcon(content.type)}</span>
                         <div className="flex-1 min-w-0">
@@ -790,13 +790,13 @@ export function ContentDetailModal({
                                     <span className={`text-xs px-2 py-1 rounded ${
                                         content.sentiment === 'positive' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
                                         content.sentiment === 'negative' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
-                                        'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                        'bg-surface-muted text-gray-700 dark:bg-surface-muted dark:text-foreground'
                                     }`}>
                                         {content.sentiment}
                                     </span>
                                 )}
                             </div>
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-2 line-clamp-2">
+                            <h2 className="text-xl font-bold text-foreground mt-2 line-clamp-2">
                                 {content.title || 'Sin titulo'}
                             </h2>
                             {content.source_metadata?.origin === 'contenthub_bridge' && (
@@ -810,7 +810,7 @@ export function ContentDetailModal({
                                 </span>
                             )}
                             {content.url.startsWith('apple-notes://') ? (
-                                <span className="text-sm text-gray-500 dark:text-gray-400 truncate block mt-1">
+                                <span className="text-sm text-muted truncate block mt-1">
                                     🍎 Importado desde Apple Notes · {content.metadata?.apple_notes_folder || 'Sin carpeta'}
                                 </span>
                             ) : (
@@ -827,7 +827,7 @@ export function ContentDetailModal({
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 text-2xl ml-4"
+                        className="text-muted hover:text-gray-600 dark:hover:text-muted text-2xl ml-4"
                     >
                         ×
                     </button>
@@ -836,53 +836,53 @@ export function ContentDetailModal({
                 <div className="p-6">
                     {/* Metadata Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Tipo</p>
-                            <p className="font-medium capitalize text-gray-900 dark:text-white">{content.type}</p>
+                        <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                            <p className="text-xs text-muted uppercase">Tipo</p>
+                            <p className="font-medium capitalize text-foreground">{content.type}</p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Categoria IAB</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{content.iab_tier1 || '-'}</p>
+                        <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                            <p className="text-xs text-muted uppercase">Categoria IAB</p>
+                            <p className="font-medium text-foreground">{content.iab_tier1 || '-'}</p>
                             {content.iab_tier2 && (
-                                <p className="text-sm text-gray-600 dark:text-gray-400">{content.iab_tier2}</p>
+                                <p className="text-sm text-muted">{content.iab_tier2}</p>
                             )}
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Schema.org</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{content.schema_type || '-'}</p>
+                        <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                            <p className="text-xs text-muted uppercase">Schema.org</p>
+                            <p className="font-medium text-foreground">{content.schema_type || '-'}</p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Formato</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{content.content_format || '-'}</p>
+                        <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                            <p className="text-xs text-muted uppercase">Formato</p>
+                            <p className="font-medium text-foreground">{content.content_format || '-'}</p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Nivel Tecnico</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{content.technical_level || '-'}</p>
+                        <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                            <p className="text-xs text-muted uppercase">Nivel Tecnico</p>
+                            <p className="font-medium text-foreground">{content.technical_level || '-'}</p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Idioma</p>
-                            <p className="font-medium uppercase text-gray-900 dark:text-white">{content.language || '-'}</p>
+                        <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                            <p className="text-xs text-muted uppercase">Idioma</p>
+                            <p className="font-medium uppercase text-foreground">{content.language || '-'}</p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Tiempo Lectura</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{content.reading_time_minutes ? `${content.reading_time_minutes} min` : '-'}</p>
+                        <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                            <p className="text-xs text-muted uppercase">Tiempo Lectura</p>
+                            <p className="font-medium text-foreground">{content.reading_time_minutes ? `${content.reading_time_minutes} min` : '-'}</p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">Fecha</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{new Date(content.created_at).toLocaleDateString()}</p>
+                        <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                            <p className="text-xs text-muted uppercase">Fecha</p>
+                            <p className="font-medium text-foreground">{new Date(content.created_at).toLocaleDateString()}</p>
                         </div>
                     </div>
 
                     {/* Maturity Level Selector */}
                     <div className="mb-6">
-                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
+                        <h3 className="text-sm font-semibold text-muted uppercase mb-3">
                             Nivel de Madurez
                         </h3>
                         <div className="grid grid-cols-4 gap-2">
                             {MATURITY_LEVELS.map((level) => {
                                 const isActive = maturityLevel === level.value;
                                 const colorClasses = {
-                                    gray: isActive ? 'bg-gray-200 dark:bg-gray-600 border-gray-400 dark:border-gray-500' : 'hover:bg-gray-100 dark:hover:bg-gray-700',
+                                    gray: isActive ? 'bg-surface-muted dark:bg-gray-600 border-gray-400 dark:border-gray-500' : 'hover:bg-surface-muted',
                                     blue: isActive ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-400 dark:border-blue-600' : 'hover:bg-blue-50 dark:hover:bg-blue-900/30',
                                     purple: isActive ? 'bg-purple-100 dark:bg-purple-900/50 border-purple-400 dark:border-purple-600' : 'hover:bg-purple-50 dark:hover:bg-purple-900/30',
                                     green: isActive ? 'bg-green-100 dark:bg-green-900/50 border-green-400 dark:border-green-600' : 'hover:bg-green-50 dark:hover:bg-green-900/30',
@@ -893,19 +893,19 @@ export function ContentDetailModal({
                                         onClick={() => handleMaturityChange(level.value)}
                                         disabled={updatingMaturity}
                                         className={`p-3 rounded-lg border-2 transition-all ${
-                                            isActive ? colorClasses[level.color as keyof typeof colorClasses] : `border-gray-200 dark:border-gray-700 ${colorClasses[level.color as keyof typeof colorClasses]}`
+                                            isActive ? colorClasses[level.color as keyof typeof colorClasses] : `border-border ${colorClasses[level.color as keyof typeof colorClasses]}`
                                         } ${updatingMaturity ? 'opacity-50 cursor-wait' : ''}`}
                                         title={level.description}
                                     >
                                         <div className="text-2xl mb-1">{level.icon}</div>
-                                        <div className={`text-xs font-medium ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                                        <div className={`text-xs font-medium ${isActive ? 'text-foreground' : 'text-muted'}`}>
                                             {level.label}
                                         </div>
                                     </button>
                                 );
                             })}
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        <p className="text-xs text-muted mt-2">
                             {MATURITY_LEVELS.find(l => l.value === maturityLevel)?.description}
                         </p>
                     </div>
@@ -913,9 +913,9 @@ export function ContentDetailModal({
                     {/* Summary */}
                     {content.summary && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Resumen</h3>
+                            <h3 className="text-sm font-semibold text-muted uppercase mb-2">Resumen</h3>
                             <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-                                <p className="text-gray-800 dark:text-gray-200">{content.summary}</p>
+                                <p className="text-gray-800 dark:text-foreground">{content.summary}</p>
                             </div>
                         </div>
                     )}
@@ -923,16 +923,16 @@ export function ContentDetailModal({
                     {/* Original Description (YouTube/TikTok) */}
                     {content.description && (content.type === 'youtube' || content.type === 'tiktok') && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                            <h3 className="text-sm font-semibold text-muted uppercase mb-2">
                                 Descripcion Original
                                 {content.view_count && (
-                                    <span className="ml-2 text-xs font-normal text-gray-400">
+                                    <span className="ml-2 text-xs font-normal text-muted">
                                         ({content.view_count.toLocaleString()} visualizaciones)
                                     </span>
                                 )}
                             </h3>
-                            <div className="bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-600 rounded-lg p-4 max-h-64 overflow-y-auto">
-                                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-sm">{content.description}</p>
+                            <div className="bg-background dark:bg-surface-muted/30 border border-border dark:border-border rounded-lg p-4 max-h-64 overflow-y-auto">
+                                <p className="text-foreground whitespace-pre-wrap text-sm">{content.description}</p>
                             </div>
                         </div>
                     )}
@@ -940,12 +940,12 @@ export function ContentDetailModal({
                     {/* Original Content for Apple Notes */}
                     {content.raw_content && (content.type === 'note' || content.metadata?.source === 'apple_notes') && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                            <h3 className="text-sm font-semibold text-muted uppercase mb-2">
                                 Contenido Original {content.metadata?.source === 'apple_notes' && '(Apple Notes)'}
                             </h3>
-                            <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 max-h-96 overflow-y-auto">
+                            <div className="bg-background dark:bg-surface-muted border border-border dark:border-border rounded-lg p-4 max-h-96 overflow-y-auto">
                                 <div
-                                    className="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200"
+                                    className="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-foreground"
                                     dangerouslySetInnerHTML={{ __html: content.raw_content }}
                                 />
                             </div>
@@ -955,7 +955,7 @@ export function ContentDetailModal({
                     {/* User Tags */}
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">Mis Tags</h3>
+                            <h3 className="text-sm font-semibold text-muted uppercase">Mis Tags</h3>
                             <button
                                 onClick={() => setEditingTags(!editingTags)}
                                 className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
@@ -981,7 +981,7 @@ export function ContentDetailModal({
                                 </span>
                             ))}
                             {userTags.length === 0 && !editingTags && (
-                                <span className="text-gray-400 text-sm">Sin tags</span>
+                                <span className="text-muted text-sm">Sin tags</span>
                             )}
                         </div>
                         {editingTags && (
@@ -992,7 +992,7 @@ export function ContentDetailModal({
                                     onChange={(e) => setNewTag(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
                                     placeholder="Nuevo tag..."
-                                    className="flex-1 px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                    className="flex-1 px-3 py-2 border dark:border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground text-sm"
                                 />
                                 <button
                                     onClick={handleAddTag}
@@ -1007,7 +1007,7 @@ export function ContentDetailModal({
                     {/* User Note */}
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase">Mis Comentarios</h3>
+                            <h3 className="text-sm font-semibold text-muted uppercase">Mis Comentarios</h3>
                             {!editingNote && (
                                 <button
                                     onClick={() => setEditingNote(true)}
@@ -1024,7 +1024,7 @@ export function ContentDetailModal({
                                     onChange={(e) => setUserNote(e.target.value)}
                                     rows={4}
                                     placeholder="Escribe tu nota sobre este contenido..."
-                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                    className="w-full px-3 py-2 border dark:border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground text-sm"
                                 />
                                 <div className="flex gap-2 justify-end">
                                     <button
@@ -1032,7 +1032,7 @@ export function ContentDetailModal({
                                             setEditingNote(false);
                                             setUserNote(content.user_note || '');
                                         }}
-                                        className="px-3 py-1.5 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                                        className="px-3 py-1.5 border dark:border-border rounded-lg text-sm text-muted"
                                     >
                                         Cancelar
                                     </button>
@@ -1047,20 +1047,20 @@ export function ContentDetailModal({
                             </div>
                         ) : userNote ? (
                             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
-                                <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{userNote}</p>
+                                <p className="text-gray-800 dark:text-foreground whitespace-pre-wrap">{userNote}</p>
                             </div>
                         ) : (
-                            <p className="text-gray-400 text-sm">Sin nota adjunta</p>
+                            <p className="text-muted text-sm">Sin nota adjunta</p>
                         )}
                     </div>
 
                     {/* Unified Notes Section - Mis Notas */}
-                    <div className="mb-6 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div className="mb-6 border border-border rounded-lg overflow-hidden">
                         <button
                             onClick={handleExpandNotes}
-                            className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            className="w-full flex items-center justify-between p-3 bg-background dark:bg-surface hover:bg-surface-muted transition-colors"
                         >
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-muted uppercase flex items-center gap-2">
                                 <span>{notesExpanded ? '▼' : '▶'}</span>
                                 Mis Notas
                                 {notesLoaded && contentNotes.length > 0 && (
@@ -1077,7 +1077,7 @@ export function ContentDetailModal({
                                 {/* Note type buttons */}
                                 {!showNewNoteForm ? (
                                     <div className="mb-4">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Crear nueva nota:</p>
+                                        <p className="text-xs text-muted mb-2">Crear nueva nota:</p>
                                         <div className="flex flex-wrap gap-2">
                                             {NOTE_TYPES.map(type => {
                                                 const colorClasses: Record<string, string> = {
@@ -1103,7 +1103,7 @@ export function ContentDetailModal({
                                             })}
                                         </div>
                                         {/* Project and Mental Model buttons */}
-                                        <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                        <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-border">
                                             <button
                                                 onClick={handleOpenProjectModal}
                                                 className={`px-3 py-2 text-sm rounded-lg border ${
@@ -1128,10 +1128,10 @@ export function ContentDetailModal({
                                     </div>
                                 ) : (
                                     /* Simple note creation form */
-                                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
+                                    <div className="bg-background dark:bg-surface-muted rounded-lg p-4 mb-4">
                                         <div className="flex items-center gap-2 mb-3">
                                             <span className="text-xl">{NOTE_TYPES.find(t => t.value === newNoteType)?.icon}</span>
-                                            <span className="font-medium text-gray-900 dark:text-white">
+                                            <span className="font-medium text-foreground">
                                                 Nueva {NOTE_TYPES.find(t => t.value === newNoteType)?.label}
                                             </span>
                                         </div>
@@ -1140,7 +1140,7 @@ export function ContentDetailModal({
                                             onChange={(e) => setNewNoteContent(e.target.value)}
                                             rows={4}
                                             placeholder={`Escribe tu ${NOTE_TYPES.find(t => t.value === newNoteType)?.label.toLowerCase()}...`}
-                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm mb-3"
+                                            className="w-full px-3 py-2 border dark:border-border rounded-lg bg-surface text-foreground text-sm mb-3"
                                             autoFocus
                                         />
                                         <div className="flex justify-end gap-2">
@@ -1150,7 +1150,7 @@ export function ContentDetailModal({
                                                     setNewNoteContent('');
                                                     setNewNoteType('reflection');
                                                 }}
-                                                className="px-3 py-1.5 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                                                className="px-3 py-1.5 border dark:border-border rounded-lg text-sm text-muted"
                                             >
                                                 Cancelar
                                             </button>
@@ -1167,9 +1167,9 @@ export function ContentDetailModal({
 
                                 {/* Notes list */}
                                 {loadingNotes ? (
-                                    <p className="text-gray-400 text-sm">Cargando notas...</p>
+                                    <p className="text-muted text-sm">Cargando notas...</p>
                                 ) : contentNotes.length === 0 && !showNewNoteForm ? (
-                                    <p className="text-gray-400 text-sm text-center py-2">
+                                    <p className="text-muted text-sm text-center py-2">
                                         Sin notas todavía. Usa los botones de arriba para crear una.
                                     </p>
                                 ) : contentNotes.length > 0 && (
@@ -1177,12 +1177,12 @@ export function ContentDetailModal({
                                         {contentNotes.map(note => (
                                             <div
                                                 key={note.id}
-                                                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-3"
+                                                className="bg-surface border border-border dark:border-border rounded-lg p-3"
                                             >
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="flex items-center gap-2 flex-1 min-w-0">
                                                         <span className="text-lg">{NOTE_TYPE_ICONS[note.note_type] || '📝'}</span>
-                                                        <span className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                                                        <span className="font-medium text-foreground text-sm truncate">
                                                             {note.title}
                                                         </span>
                                                     </div>
@@ -1201,10 +1201,10 @@ export function ContentDetailModal({
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <p className="text-gray-600 dark:text-gray-300 text-sm mt-1 line-clamp-2">
+                                                <p className="text-gray-600 dark:text-foreground text-sm mt-1 line-clamp-2">
                                                     {note.content}
                                                 </p>
-                                                <p className="text-xs text-gray-400 mt-2">
+                                                <p className="text-xs text-muted mt-2">
                                                     {new Date(note.created_at).toLocaleDateString('es-ES', {
                                                         day: 'numeric',
                                                         month: 'short',
@@ -1222,12 +1222,12 @@ export function ContentDetailModal({
                     </div>
 
                     {/* User Classification Edit Section */}
-                    <div className="mb-6 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div className="mb-6 border border-border rounded-lg overflow-hidden">
                         <button
                             onClick={() => setEditingClassification(!editingClassification)}
-                            className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            className="w-full flex items-center justify-between p-3 bg-background dark:bg-surface hover:bg-surface-muted transition-colors"
                         >
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-muted uppercase flex items-center gap-2">
                                 <span>{editingClassification ? '▼' : '▶'}</span>
                                 Editar Clasificacion
                                 {(content.user_category || content.user_concepts || content.user_entities) && (
@@ -1240,16 +1240,16 @@ export function ContentDetailModal({
 
                         {editingClassification && (
                             <div className="p-4 space-y-4">
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className="text-xs text-muted">
                                     Edita la clasificacion generada por IA. Tus cambios tienen prioridad en los filtros.
                                 </p>
 
                                 {/* Category */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-foreground mb-1">
                                         Categoria
                                         {content.iab_tier1 && userCategory !== content.iab_tier1 && (
-                                            <span className="text-xs text-gray-400 ml-2">(IA: {content.iab_tier1})</span>
+                                            <span className="text-xs text-muted ml-2">(IA: {content.iab_tier1})</span>
                                         )}
                                     </label>
                                     <input
@@ -1257,12 +1257,12 @@ export function ContentDetailModal({
                                         value={userCategory}
                                         onChange={(e) => setUserCategory(e.target.value)}
                                         placeholder="Escribe una categoria nueva o selecciona abajo..."
-                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        className="w-full px-3 py-2 border dark:border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground text-sm"
                                     />
                                     {/* AI suggestion button */}
                                     {content.iab_tier1 && !userCategory && (
                                         <div className="mt-2">
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sugerida por IA:</p>
+                                            <p className="text-xs text-muted mb-1">Sugerida por IA:</p>
                                             <button
                                                 onClick={() => setUserCategory(content.iab_tier1!)}
                                                 className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm border border-dashed border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
@@ -1274,8 +1274,8 @@ export function ContentDetailModal({
                                     {/* Available categories dropdown/buttons */}
                                     {availableCategories.length > 0 && (
                                         <div className="mt-2">
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Categorias existentes ({availableCategories.length}):</p>
-                                            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto p-1 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                            <p className="text-xs text-muted mb-1">Categorias existentes ({availableCategories.length}):</p>
+                                            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto p-1 bg-background dark:bg-surface rounded-lg border border-border">
                                                 {availableCategories.map(cat => (
                                                     <button
                                                         key={cat}
@@ -1283,7 +1283,7 @@ export function ContentDetailModal({
                                                         className={`px-2 py-1 rounded text-xs transition-colors ${
                                                             userCategory === cat
                                                                 ? 'bg-indigo-600 text-white'
-                                                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 hover:text-indigo-700 dark:hover:text-indigo-300 hover:border-indigo-300 dark:hover:border-indigo-600'
+                                                                : 'bg-surface dark:bg-surface-muted text-foreground border border-border hover:bg-indigo-100 dark:hover:bg-indigo-900/30 hover:text-indigo-700 dark:hover:text-indigo-300 hover:border-indigo-300 dark:hover:border-indigo-600'
                                                         }`}
                                                     >
                                                         {cat}
@@ -1293,7 +1293,7 @@ export function ContentDetailModal({
                                         </div>
                                     )}
                                     {availableCategories.length === 0 && !content.iab_tier1 && (
-                                        <p className="text-xs text-gray-400 mt-1 italic">
+                                        <p className="text-xs text-muted mt-1 italic">
                                             Escribe una categoria nueva. Las categorias que crees apareceran aqui para reutilizarlas.
                                         </p>
                                     )}
@@ -1301,7 +1301,7 @@ export function ContentDetailModal({
 
                                 {/* Concepts */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-foreground mb-1">
                                         Conceptos
                                     </label>
                                     {/* Current user concepts */}
@@ -1321,19 +1321,19 @@ export function ContentDetailModal({
                                             </span>
                                         ))}
                                         {userConcepts.length === 0 && (
-                                            <span className="text-gray-400 text-sm italic">Sin conceptos</span>
+                                            <span className="text-muted text-sm italic">Sin conceptos</span>
                                         )}
                                     </div>
                                     {/* AI suggested concepts (click to add) */}
                                     {content.concepts && content.concepts.length > 0 && (
                                         <div className="mb-2">
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sugeridos por IA (clic para añadir):</p>
+                                            <p className="text-xs text-muted mb-1">Sugeridos por IA (clic para añadir):</p>
                                             <div className="flex flex-wrap gap-1">
                                                 {content.concepts.filter(c => !userConcepts.includes(c)).map(concept => (
                                                     <button
                                                         key={concept}
                                                         onClick={() => setUserConcepts(prev => [...prev, concept])}
-                                                        className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 border border-dashed border-gray-300 dark:border-gray-600"
+                                                        className="px-2 py-0.5 bg-surface-muted dark:bg-surface-muted text-muted rounded-full text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-300 border border-dashed border-border"
                                                     >
                                                         + {concept}
                                                     </button>
@@ -1356,7 +1356,7 @@ export function ContentDetailModal({
                                                 }
                                             }}
                                             placeholder="Nuevo concepto..."
-                                            className="flex-1 px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                            className="flex-1 px-3 py-2 border dark:border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground text-sm"
                                         />
                                         <button
                                             onClick={() => {
@@ -1374,7 +1374,7 @@ export function ContentDetailModal({
 
                                 {/* Persons (Gurus) */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-foreground mb-1">
                                         Personas / Gurus
                                     </label>
                                     {/* Current user persons */}
@@ -1407,13 +1407,13 @@ export function ContentDetailModal({
                                             </span>
                                         ))}
                                         {userPersons.length === 0 && (
-                                            <span className="text-gray-400 text-sm italic">Sin personas</span>
+                                            <span className="text-muted text-sm italic">Sin personas</span>
                                         )}
                                     </div>
                                     {/* AI suggested persons (click to add) */}
                                     {content.entities?.persons && content.entities.persons.length > 0 && (
                                         <div className="mb-2">
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sugeridos por IA (clic para añadir):</p>
+                                            <p className="text-xs text-muted mb-1">Sugeridos por IA (clic para añadir):</p>
                                             <div className="flex flex-wrap gap-1">
                                                 {content.entities.persons
                                                     .map(p => typeof p === 'string' ? p : p.name)
@@ -1422,7 +1422,7 @@ export function ContentDetailModal({
                                                         <button
                                                             key={person}
                                                             onClick={() => setUserPersons(prev => [...prev, person])}
-                                                            className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs hover:bg-teal-100 dark:hover:bg-teal-900/50 hover:text-teal-700 dark:hover:text-teal-300 border border-dashed border-gray-300 dark:border-gray-600"
+                                                            className="px-2 py-0.5 bg-surface-muted dark:bg-surface-muted text-muted rounded-full text-xs hover:bg-teal-100 dark:hover:bg-teal-900/50 hover:text-teal-700 dark:hover:text-teal-300 border border-dashed border-border"
                                                         >
                                                             + {person}
                                                         </button>
@@ -1447,7 +1447,7 @@ export function ContentDetailModal({
                                                 }
                                             }}
                                             placeholder="Nueva persona..."
-                                            className="flex-1 px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                            className="flex-1 px-3 py-2 border dark:border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground text-sm"
                                         />
                                         <button
                                             onClick={() => {
@@ -1464,7 +1464,7 @@ export function ContentDetailModal({
                                 </div>
 
                                 {/* Save/Cancel buttons */}
-                                <div className="flex justify-end gap-2 pt-2 border-t dark:border-gray-700">
+                                <div className="flex justify-end gap-2 pt-2 border-t dark:border-border">
                                     <button
                                         onClick={() => {
                                             // Reset to original user_* values only (no AI fallback)
@@ -1473,7 +1473,7 @@ export function ContentDetailModal({
                                             setUserPersons(content.user_entities?.persons || []);
                                             setEditingClassification(false);
                                         }}
-                                        className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                                        className="px-4 py-2 border dark:border-border rounded-lg text-sm text-muted"
                                     >
                                         Cancelar
                                     </button>
@@ -1492,7 +1492,7 @@ export function ContentDetailModal({
                     {/* Concepts */}
                     {content.concepts && content.concepts.length > 0 && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Conceptos</h3>
+                            <h3 className="text-sm font-semibold text-muted uppercase mb-2">Conceptos</h3>
                             <div className="flex flex-wrap gap-2">
                                 {content.concepts.map(concept => (
                                     <button
@@ -1510,17 +1510,17 @@ export function ContentDetailModal({
                     {/* Entities */}
                     {content.entities && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Entidades</h3>
+                            <h3 className="text-sm font-semibold text-muted uppercase mb-2">Entidades</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 {content.entities.persons && content.entities.persons.length > 0 && (
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">👤 Personas</p>
+                                    <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                                        <p className="text-xs text-muted mb-2">👤 Personas</p>
                                         <div className="flex flex-wrap gap-1">
                                             {content.entities.persons.map((person, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => onFilterClick?.('persons', getEntityName(person))}
-                                                    className="px-2 py-1 bg-white dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-200 hover:bg-teal-50 dark:hover:bg-teal-900"
+                                                    className="px-2 py-1 bg-surface dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-foreground hover:bg-teal-50 dark:hover:bg-teal-900"
                                                 >
                                                     {getEntityName(person)}
                                                 </button>
@@ -1529,14 +1529,14 @@ export function ContentDetailModal({
                                     </div>
                                 )}
                                 {content.entities.organizations && content.entities.organizations.length > 0 && (
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">🏢 Organizaciones</p>
+                                    <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                                        <p className="text-xs text-muted mb-2">🏢 Organizaciones</p>
                                         <div className="flex flex-wrap gap-1">
                                             {content.entities.organizations.map((org, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => onFilterClick?.('organizations', getEntityName(org))}
-                                                    className="px-2 py-1 bg-white dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900"
+                                                    className="px-2 py-1 bg-surface dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-foreground hover:bg-orange-50 dark:hover:bg-orange-900"
                                                 >
                                                     {getEntityName(org)}
                                                 </button>
@@ -1545,14 +1545,14 @@ export function ContentDetailModal({
                                     </div>
                                 )}
                                 {content.entities.products && content.entities.products.length > 0 && (
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">📦 Productos</p>
+                                    <div className="bg-background dark:bg-surface-muted p-3 rounded-lg">
+                                        <p className="text-xs text-muted mb-2">📦 Productos</p>
                                         <div className="flex flex-wrap gap-1">
                                             {content.entities.products.map((product, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => onFilterClick?.('products', getEntityName(product))}
-                                                    className="px-2 py-1 bg-white dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-200 hover:bg-pink-50 dark:hover:bg-pink-900"
+                                                    className="px-2 py-1 bg-surface dark:bg-gray-600 border dark:border-gray-500 rounded text-sm text-gray-900 dark:text-foreground hover:bg-pink-50 dark:hover:bg-pink-900"
                                                 >
                                                     {getEntityName(product)}
                                                 </button>
@@ -1567,39 +1567,39 @@ export function ContentDetailModal({
                     {/* Metadata (YouTube/TikTok) */}
                     {content.metadata && Object.keys(content.metadata).length > 0 && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                            <h3 className="text-sm font-semibold text-muted uppercase mb-2">
                                 Metadata del {content.type}
                             </h3>
-                            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                            <div className="bg-background dark:bg-surface-muted p-4 rounded-lg">
                                 <dl className="grid grid-cols-2 gap-2 text-sm">
                                     {content.metadata.channel_name && (
                                         <>
-                                            <dt className="text-gray-500 dark:text-gray-400">Canal:</dt>
-                                            <dd className="text-gray-900 dark:text-gray-200">{content.metadata.channel_name}</dd>
+                                            <dt className="text-muted">Canal:</dt>
+                                            <dd className="text-gray-900 dark:text-foreground">{content.metadata.channel_name}</dd>
                                         </>
                                     )}
                                     {content.metadata.view_count && (
                                         <>
-                                            <dt className="text-gray-500 dark:text-gray-400">Vistas:</dt>
-                                            <dd className="text-gray-900 dark:text-gray-200">{content.metadata.view_count.toLocaleString()}</dd>
+                                            <dt className="text-muted">Vistas:</dt>
+                                            <dd className="text-gray-900 dark:text-foreground">{content.metadata.view_count.toLocaleString()}</dd>
                                         </>
                                     )}
                                     {content.metadata.like_count && (
                                         <>
-                                            <dt className="text-gray-500 dark:text-gray-400">Likes:</dt>
-                                            <dd className="text-gray-900 dark:text-gray-200">{content.metadata.like_count.toLocaleString()}</dd>
+                                            <dt className="text-muted">Likes:</dt>
+                                            <dd className="text-gray-900 dark:text-foreground">{content.metadata.like_count.toLocaleString()}</dd>
                                         </>
                                     )}
                                     {content.metadata.duration && (
                                         <>
-                                            <dt className="text-gray-500 dark:text-gray-400">Duracion:</dt>
-                                            <dd className="text-gray-900 dark:text-gray-200">{content.metadata.duration}s</dd>
+                                            <dt className="text-muted">Duracion:</dt>
+                                            <dd className="text-gray-900 dark:text-foreground">{content.metadata.duration}s</dd>
                                         </>
                                     )}
                                     {content.metadata.author && (
                                         <>
-                                            <dt className="text-gray-500 dark:text-gray-400">Autor:</dt>
-                                            <dd className="text-gray-900 dark:text-gray-200">{content.metadata.author}</dd>
+                                            <dt className="text-muted">Autor:</dt>
+                                            <dd className="text-gray-900 dark:text-foreground">{content.metadata.author}</dd>
                                         </>
                                     )}
                                 </dl>
@@ -1610,22 +1610,22 @@ export function ContentDetailModal({
                     {/* Project Selection Modal */}
                     {showProjectModal && (
                         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-                            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md mx-4 max-h-[70vh] overflow-hidden">
-                                <div className="px-4 py-3 border-b dark:border-gray-700 flex justify-between items-center">
-                                    <h3 className="font-medium text-gray-900 dark:text-white">Vincular a Proyecto</h3>
+                            <div className="bg-surface rounded-lg w-full max-w-md mx-4 max-h-[70vh] overflow-hidden">
+                                <div className="px-4 py-3 border-b dark:border-border flex justify-between items-center">
+                                    <h3 className="font-medium text-foreground">Vincular a Proyecto</h3>
                                     <button
                                         onClick={() => setShowProjectModal(false)}
-                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        className="text-muted hover:text-gray-600 dark:hover:text-gray-300"
                                     >
                                         ×
                                     </button>
                                 </div>
                                 <div className="p-4 overflow-y-auto max-h-[50vh]">
                                     {loadingProjects ? (
-                                        <p className="text-gray-500 text-center py-4">Cargando proyectos...</p>
+                                        <p className="text-muted text-center py-4">Cargando proyectos...</p>
                                     ) : projects.length === 0 ? (
                                         <div className="text-center py-4">
-                                            <p className="text-gray-500 mb-2">No tienes proyectos creados</p>
+                                            <p className="text-muted mb-2">No tienes proyectos creados</p>
                                             <a
                                                 href="/projects"
                                                 className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm"
@@ -1658,11 +1658,11 @@ export function ContentDetailModal({
                                                     className={`w-full text-left px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
                                                         currentProjectId === project.id
                                                             ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-400 dark:border-indigo-600'
-                                                            : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                            : 'border-border hover:bg-surface-muted'
                                                     } disabled:opacity-50`}
                                                 >
                                                     <span className="text-lg">{project.icon}</span>
-                                                    <span className="flex-1 text-gray-900 dark:text-white">{project.name}</span>
+                                                    <span className="flex-1 text-foreground">{project.name}</span>
                                                     {currentProjectId === project.id && (
                                                         <span className="text-indigo-600 dark:text-indigo-400 text-sm">✓ Actual</span>
                                                     )}
@@ -1678,22 +1678,22 @@ export function ContentDetailModal({
                     {/* Mental Model Selection Modal */}
                     {showModelModal && (
                         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-                            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md mx-4 max-h-[70vh] overflow-hidden">
-                                <div className="px-4 py-3 border-b dark:border-gray-700 flex justify-between items-center">
-                                    <h3 className="font-medium text-gray-900 dark:text-white">Vincular a Modelos Mentales</h3>
+                            <div className="bg-surface rounded-lg w-full max-w-md mx-4 max-h-[70vh] overflow-hidden">
+                                <div className="px-4 py-3 border-b dark:border-border flex justify-between items-center">
+                                    <h3 className="font-medium text-foreground">Vincular a Modelos Mentales</h3>
                                     <button
                                         onClick={() => setShowModelModal(false)}
-                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        className="text-muted hover:text-gray-600 dark:hover:text-gray-300"
                                     >
                                         ×
                                     </button>
                                 </div>
                                 <div className="p-4 overflow-y-auto max-h-[50vh]">
                                     {loadingModels ? (
-                                        <p className="text-gray-500 text-center py-4">Cargando modelos mentales...</p>
+                                        <p className="text-muted text-center py-4">Cargando modelos mentales...</p>
                                     ) : mentalModels.length === 0 ? (
                                         <div className="text-center py-4">
-                                            <p className="text-gray-500 mb-2">No tienes modelos mentales activos</p>
+                                            <p className="text-muted mb-2">No tienes modelos mentales activos</p>
                                             <a
                                                 href="/mental-models"
                                                 className="text-emerald-600 dark:text-emerald-400 hover:underline text-sm"
@@ -1709,7 +1709,7 @@ export function ContentDetailModal({
                                             >
                                                 + Activar más modelos mentales
                                             </a>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                            <p className="text-xs text-muted mb-2">
                                                 Selecciona los modelos mentales aplicables a este contenido
                                             </p>
                                             {mentalModels.map(model => {
@@ -1722,14 +1722,14 @@ export function ContentDetailModal({
                                                         className={`w-full text-left px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
                                                             isLinked
                                                                 ? 'bg-emerald-100 dark:bg-emerald-900/50 border-emerald-400 dark:border-emerald-600'
-                                                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                                : 'border-border hover:bg-surface-muted'
                                                         } disabled:opacity-50`}
                                                     >
                                                         <span className="text-lg">{model.icon}</span>
                                                         <div className="flex-1">
-                                                            <span className="text-gray-900 dark:text-white block">{model.name}</span>
+                                                            <span className="text-foreground block">{model.name}</span>
                                                             {model.description && (
-                                                                <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">{model.description}</span>
+                                                                <span className="text-xs text-muted line-clamp-1">{model.description}</span>
                                                             )}
                                                         </div>
                                                         {isLinked && (
@@ -1741,10 +1741,10 @@ export function ContentDetailModal({
                                         </div>
                                     )}
                                 </div>
-                                <div className="px-4 py-3 border-t dark:border-gray-700 flex justify-end">
+                                <div className="px-4 py-3 border-t dark:border-border flex justify-end">
                                     <button
                                         onClick={() => setShowModelModal(false)}
-                                        className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600"
+                                        className="px-4 py-2 bg-surface-muted dark:bg-surface-muted text-foreground rounded-lg text-sm hover:bg-surface-muted dark:hover:bg-gray-600"
                                     >
                                         Cerrar
                                     </button>
@@ -1754,7 +1754,7 @@ export function ContentDetailModal({
                     )}
 
                     {/* Actions */}
-                    <div className="flex flex-wrap gap-3 pt-4 border-t dark:border-gray-700">
+                    <div className="flex flex-wrap gap-3 pt-4 border-t dark:border-border">
                         <button
                             onClick={handleReprocess}
                             disabled={reprocessing || processingStatus === 'processing'}
@@ -1777,14 +1777,14 @@ export function ContentDetailModal({
                             className={`px-4 py-2 rounded-lg border ${
                                 isFavorite
                                     ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300'
-                                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                    : 'border-border text-foreground hover:bg-surface-muted'
                             }`}
                         >
                             {isFavorite ? '★ Favorito' : '☆ Anadir a favoritos'}
                         </button>
                         {content.url.startsWith('apple-notes://') ? (
                             <span
-                                className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                className="px-4 py-2 rounded-lg border border-border text-muted cursor-not-allowed"
                                 title="Las notas de Apple Notes no se pueden abrir directamente desde el navegador. El contenido se muestra arriba."
                             >
                                 🍎 Apple Notes (local)
@@ -1794,7 +1794,7 @@ export function ContentDetailModal({
                                 href={content.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-surface-muted"
                             >
                                 🔗 Abrir original
                             </a>

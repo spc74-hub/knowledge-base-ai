@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import {
+import AppShell from '@/components/AppShell';
     useAreaDetail,
     useCreateAreaAction,
     useUpdateAreaAction,
@@ -103,7 +104,7 @@ interface AvailableMentalModel {
 const STATUS_CONFIG = {
     active: { label: 'Activa', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
     paused: { label: 'Pausada', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
-    archived: { label: 'Archivada', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
+    archived: { label: 'Archivada', color: 'bg-surface-muted text-gray-800 dark:bg-surface-muted dark:text-foreground' },
 };
 
 export default function AreaDetailPage() {
@@ -559,25 +560,26 @@ export default function AreaDetailPage() {
     if (!user || !area) return null;
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header with color bar */}
             <div className="h-2" style={{ backgroundColor: area.color }}></div>
-            <header className="bg-white dark:bg-gray-800 shadow-sm">
+            <header className="bg-surface shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="flex items-start justify-between">
                         <div className="flex items-center gap-4">
-                            <Link href="/areas" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                            <Link href="/areas" className="text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white">
                                 ← Areas
                             </Link>
                             <span className="text-4xl">{area.icon}</span>
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{area.name}</h1>
+                                <h1 className="text-2xl font-bold text-foreground">{area.name}</h1>
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_CONFIG[area.status as keyof typeof STATUS_CONFIG]?.color}`}>
                                         {STATUS_CONFIG[area.status as keyof typeof STATUS_CONFIG]?.label}
                                     </span>
                                     {area.description && (
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        <span className="text-sm text-muted">
                                             {area.description}
                                         </span>
                                     )}
@@ -586,14 +588,14 @@ export default function AreaDetailPage() {
                         </div>
                         <Link
                             href="/areas"
-                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                         >
                             ✕
                         </Link>
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex gap-1 mt-6 border-b dark:border-gray-700">
+                    <div className="flex gap-1 mt-6 border-b dark:border-border">
                         {[
                             { key: 'overview', label: 'General', count: null },
                             { key: 'sub-areas', label: 'Sub-areas', count: area.sub_areas.length },
@@ -607,12 +609,12 @@ export default function AreaDetailPage() {
                                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
                                     activeTab === tab.key
                                         ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                        : 'border-transparent text-muted hover:text-gray-700 dark:hover:text-gray-300'
                                 }`}
                             >
                                 {tab.label}
                                 {tab.count !== null && (
-                                    <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700">
+                                    <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-surface-muted dark:bg-surface-muted">
                                         {tab.count}
                                     </span>
                                 )}
@@ -629,31 +631,31 @@ export default function AreaDetailPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Stats */}
                         <div className="lg:col-span-2 space-y-6">
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Resumen</h3>
+                            <div className="bg-surface rounded-lg shadow-sm p-6">
+                                <h3 className="font-semibold text-foreground mb-4">Resumen</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                    <div className="text-center p-4 bg-background dark:bg-surface-muted rounded-lg">
                                         <div className="text-2xl font-bold text-indigo-600">{area.objectives.length}</div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">Objetivos</div>
+                                        <div className="text-sm text-muted">Objetivos</div>
                                     </div>
-                                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                    <div className="text-center p-4 bg-background dark:bg-surface-muted rounded-lg">
                                         <div className="text-2xl font-bold text-green-600">{area.projects.length}</div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">Proyectos</div>
+                                        <div className="text-sm text-muted">Proyectos</div>
                                     </div>
-                                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                    <div className="text-center p-4 bg-background dark:bg-surface-muted rounded-lg">
                                         <div className="text-2xl font-bold text-purple-600">{area.habits.length}</div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">Habitos</div>
+                                        <div className="text-sm text-muted">Habitos</div>
                                     </div>
-                                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                    <div className="text-center p-4 bg-background dark:bg-surface-muted rounded-lg">
                                         <div className="text-2xl font-bold text-orange-600">{area.sub_areas.length}</div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">Sub-areas</div>
+                                        <div className="text-sm text-muted">Sub-areas</div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Actions Section */}
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Acciones</h3>
+                            <div className="bg-surface rounded-lg shadow-sm p-6">
+                                <h3 className="font-semibold text-foreground mb-4">Acciones</h3>
 
                                 {/* Add action input */}
                                 <div className="flex gap-2 mb-4">
@@ -663,7 +665,7 @@ export default function AreaDetailPage() {
                                         onChange={(e) => setNewActionTitle(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleCreateAction()}
                                         placeholder="Nueva accion..."
-                                        className="flex-1 px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                                        className="flex-1 px-3 py-2 text-sm border dark:border-border rounded-lg dark:bg-surface-muted dark:text-foreground"
                                     />
                                     <button
                                         onClick={handleCreateAction}
@@ -676,18 +678,18 @@ export default function AreaDetailPage() {
 
                                 {/* Actions list */}
                                 {(!area.area_actions || area.area_actions.length === 0) ? (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         No hay acciones pendientes
                                     </p>
                                 ) : (
                                     <div className="space-y-2">
                                         {area.area_actions.map((action) => (
-                                            <div key={action.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group">
+                                            <div key={action.id} className="flex items-center gap-3 p-2 hover:bg-surface-muted rounded-lg group">
                                                 <input
                                                     type="checkbox"
                                                     checked={action.is_completed}
                                                     onChange={() => handleToggleAction(action)}
-                                                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500"
                                                 />
                                                 {editingActionId === action.id ? (
                                                     <div className="flex-1 flex gap-2">
@@ -699,7 +701,7 @@ export default function AreaDetailPage() {
                                                                 if (e.key === 'Enter') handleSaveEditAction(action.id);
                                                                 if (e.key === 'Escape') handleCancelEditAction();
                                                             }}
-                                                            className="flex-1 px-2 py-1 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                            className="flex-1 px-2 py-1 text-sm border dark:border-border rounded bg-background dark:bg-surface-muted dark:text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                             autoFocus
                                                         />
                                                         <button
@@ -710,14 +712,14 @@ export default function AreaDetailPage() {
                                                         </button>
                                                         <button
                                                             onClick={handleCancelEditAction}
-                                                            className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+                                                            className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-foreground rounded hover:bg-gray-400 dark:hover:bg-gray-500"
                                                         >
                                                             ✕
                                                         </button>
                                                     </div>
                                                 ) : (
                                                     <span
-                                                        className={`flex-1 text-sm cursor-pointer ${action.is_completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}
+                                                        className={`flex-1 text-sm cursor-pointer ${action.is_completed ? 'line-through text-muted' : 'text-foreground'}`}
                                                         onDoubleClick={() => handleStartEditAction(action.id, action.title)}
                                                         title="Doble clic para editar"
                                                     >
@@ -728,14 +730,14 @@ export default function AreaDetailPage() {
                                                     <>
                                                         <button
                                                             onClick={() => handleStartEditAction(action.id, action.title)}
-                                                            className="p-1 text-gray-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100"
+                                                            className="p-1 text-muted hover:text-indigo-600 opacity-0 group-hover:opacity-100"
                                                             title="Editar acción"
                                                         >
                                                             ✎
                                                         </button>
                                                         <button
                                                             onClick={() => handleDeleteAction(action.id)}
-                                                            className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                            className="p-1 text-muted hover:text-red-600 opacity-0 group-hover:opacity-100"
                                                             title="Eliminar acción"
                                                         >
                                                             ✕
@@ -749,9 +751,9 @@ export default function AreaDetailPage() {
                             </div>
 
                             {/* Notes Section */}
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                            <div className="bg-surface rounded-lg shadow-sm p-6">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">Notas vinculadas</h3>
+                                    <h3 className="font-semibold text-foreground">Notas vinculadas</h3>
                                     <button
                                         onClick={handleOpenNotesSelector}
                                         className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
@@ -761,25 +763,25 @@ export default function AreaDetailPage() {
                                 </div>
 
                                 {(!area.notes || area.notes.length === 0) ? (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         No hay notas vinculadas
                                     </p>
                                 ) : (
                                     <div className="space-y-2">
                                         {area.notes.map((note) => (
-                                            <div key={note.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg group">
+                                            <div key={note.id} className="flex items-center gap-3 p-3 bg-background dark:bg-surface-muted rounded-lg group">
                                                 <span className="text-lg">📝</span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                    <p className="text-sm font-medium text-foreground truncate">
                                                         {note.title}
                                                     </p>
-                                                    <p className="text-xs text-gray-500 truncate">
+                                                    <p className="text-xs text-muted truncate">
                                                         {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
                                                     </p>
                                                 </div>
                                                 <button
                                                     onClick={() => handleUnlinkNote(note.id)}
-                                                    className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                    className="p-1 text-muted hover:text-red-600 opacity-0 group-hover:opacity-100"
                                                     title="Desvincular"
                                                 >
                                                     ✕
@@ -792,24 +794,24 @@ export default function AreaDetailPage() {
 
                             {/* Recent contents */}
                             {area.recent_contents.length > 0 && (
-                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                                    <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Contenidos recientes</h3>
+                                <div className="bg-surface rounded-lg shadow-sm p-6">
+                                    <h3 className="font-semibold text-foreground mb-4">Contenidos recientes</h3>
                                     <div className="space-y-2">
                                         {area.recent_contents.map((content: any) => (
                                             <Link
                                                 key={content.id}
                                                 href={`/explore?id=${content.id}`}
-                                                className="block p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+                                                className="block p-3 hover:bg-surface-muted rounded-lg"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-lg">
                                                         {content.type === 'article' ? '📄' : content.type === 'video' ? '🎬' : '📝'}
                                                     </span>
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                        <p className="text-sm font-medium text-foreground truncate">
                                                             {content.title}
                                                         </p>
-                                                        <p className="text-xs text-gray-500">{content.schema_type}</p>
+                                                        <p className="text-xs text-muted">{content.schema_type}</p>
                                                     </div>
                                                 </div>
                                             </Link>
@@ -821,9 +823,9 @@ export default function AreaDetailPage() {
 
                         {/* Mental models sidebar */}
                         <div className="space-y-6">
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                            <div className="bg-surface rounded-lg shadow-sm p-6">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">Modelos Mentales</h3>
+                                    <h3 className="font-semibold text-foreground">Modelos Mentales</h3>
                                     <div className="flex gap-1">
                                         <button
                                             onClick={handleOpenMentalModelsSelector}
@@ -842,16 +844,16 @@ export default function AreaDetailPage() {
                                     </div>
                                 </div>
                                 {area.mental_models.length === 0 ? (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         No hay modelos mentales vinculados
                                     </p>
                                 ) : (
                                     <div className="space-y-2">
                                         {area.mental_models.map((mm: any) => (
-                                            <div key={mm.id} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg group">
+                                            <div key={mm.id} className="flex items-center gap-2 p-2 bg-background dark:bg-surface-muted rounded-lg group">
                                                 <span>{mm.icon || '🧠'}</span>
                                                 <span
-                                                    className="flex-1 text-sm text-gray-900 dark:text-white cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400"
+                                                    className="flex-1 text-sm text-foreground cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400"
                                                     onClick={() => window.open(`/mental-models?id=${mm.id}`, '_blank')}
                                                     title="Abrir en nueva ventana"
                                                 >
@@ -859,7 +861,7 @@ export default function AreaDetailPage() {
                                                 </span>
                                                 <button
                                                     onClick={() => handleUnlinkMentalModel(mm.id)}
-                                                    className="p-0.5 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 text-xs"
+                                                    className="p-0.5 text-muted hover:text-red-600 opacity-0 group-hover:opacity-100 text-xs"
                                                     title="Desvincular"
                                                 >
                                                     ✕
@@ -875,9 +877,9 @@ export default function AreaDetailPage() {
 
                 {/* Sub-areas Tab */}
                 {activeTab === 'sub-areas' && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                        <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Sub-areas</h3>
+                    <div className="bg-surface rounded-lg shadow-sm">
+                        <div className="p-6 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Sub-areas</h3>
                             <button
                                 onClick={() => setShowSubAreaForm(true)}
                                 className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700"
@@ -887,14 +889,14 @@ export default function AreaDetailPage() {
                         </div>
 
                         {showSubAreaForm && (
-                            <div className="p-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
+                            <div className="p-4 bg-background dark:bg-surface-muted border-b dark:border-border">
                                 <div className="flex gap-3">
                                     <input
                                         type="text"
                                         value={subAreaName}
                                         onChange={(e) => setSubAreaName(e.target.value)}
                                         placeholder="Nombre de la sub-area"
-                                        className="flex-1 px-3 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white"
+                                        className="flex-1 px-3 py-2 border dark:border-border rounded-lg dark:bg-surface dark:text-foreground"
                                     />
                                     <button
                                         onClick={handleCreateSubArea}
@@ -908,7 +910,7 @@ export default function AreaDetailPage() {
                                             setShowSubAreaForm(false);
                                             setSubAreaName('');
                                         }}
-                                        className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg"
+                                        className="px-4 py-2 text-muted hover:bg-surface-muted dark:hover:bg-gray-600 rounded-lg"
                                     >
                                         Cancelar
                                     </button>
@@ -918,24 +920,24 @@ export default function AreaDetailPage() {
 
                         <div className="divide-y dark:divide-gray-700">
                             {area.sub_areas.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                <div className="p-8 text-center text-muted">
                                     No hay sub-areas. Las sub-areas te ayudan a organizar temas dentro de un area.
                                 </div>
                             ) : (
                                 area.sub_areas.map((subArea) => (
-                                    <div key={subArea.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    <div key={subArea.id} className="p-4 flex items-center justify-between hover:bg-surface-muted">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">{subArea.icon}</span>
                                             <div>
-                                                <p className="font-medium text-gray-900 dark:text-white">{subArea.name}</p>
+                                                <p className="font-medium text-foreground">{subArea.name}</p>
                                                 {subArea.description && (
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400">{subArea.description}</p>
+                                                    <p className="text-sm text-muted">{subArea.description}</p>
                                                 )}
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => handleDeleteSubArea(subArea.id)}
-                                            className="p-1.5 text-gray-400 hover:text-red-600"
+                                            className="p-1.5 text-muted hover:text-red-600"
                                         >
                                             🗑️
                                         </button>
@@ -948,9 +950,9 @@ export default function AreaDetailPage() {
 
                 {/* Objectives Tab */}
                 {activeTab === 'objectives' && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                        <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Objetivos vinculados</h3>
+                    <div className="bg-surface rounded-lg shadow-sm">
+                        <div className="p-6 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Objetivos vinculados</h3>
                             <div className="flex gap-2">
                                 <button
                                     onClick={handleOpenObjectivesSelector}
@@ -968,12 +970,12 @@ export default function AreaDetailPage() {
                         </div>
                         <div className="divide-y dark:divide-gray-700">
                             {area.objectives.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                <div className="p-8 text-center text-muted">
                                     No hay objetivos vinculados a esta area.
                                 </div>
                             ) : (
                                 area.objectives.map((obj: any) => (
-                                    <div key={obj.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 group">
+                                    <div key={obj.id} className="p-4 hover:bg-surface-muted group">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">🎯</span>
                                             <div
@@ -981,21 +983,21 @@ export default function AreaDetailPage() {
                                                 onClick={() => window.open(`/objectives?id=${obj.id}`, '_blank')}
                                                 title="Abrir en nueva ventana"
                                             >
-                                                <p className="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">{obj.title}</p>
+                                                <p className="font-medium text-foreground hover:text-indigo-600 dark:hover:text-indigo-400">{obj.title}</p>
                                                 {obj.description && (
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{obj.description}</p>
+                                                    <p className="text-sm text-muted line-clamp-1">{obj.description}</p>
                                                 )}
                                             </div>
                                             <span className={`text-xs px-2 py-0.5 rounded-full ${
                                                 obj.status === 'active' ? 'bg-green-100 text-green-800' :
                                                 obj.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                                                'bg-gray-100 text-gray-800'
+                                                'bg-surface-muted text-gray-800'
                                             }`}>
                                                 {obj.status}
                                             </span>
                                             <button
                                                 onClick={() => handleUnlinkObjective(obj.id)}
-                                                className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                className="p-1 text-muted hover:text-red-600 opacity-0 group-hover:opacity-100"
                                                 title="Desvincular"
                                             >
                                                 ✕
@@ -1010,9 +1012,9 @@ export default function AreaDetailPage() {
 
                 {/* Projects Tab */}
                 {activeTab === 'projects' && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                        <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Proyectos vinculados</h3>
+                    <div className="bg-surface rounded-lg shadow-sm">
+                        <div className="p-6 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Proyectos vinculados</h3>
                             <div className="flex gap-2">
                                 <button
                                     onClick={handleOpenProjectsSelector}
@@ -1030,12 +1032,12 @@ export default function AreaDetailPage() {
                         </div>
                         <div className="divide-y dark:divide-gray-700">
                             {area.projects.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                <div className="p-8 text-center text-muted">
                                     No hay proyectos vinculados a esta area.
                                 </div>
                             ) : (
                                 area.projects.map((proj: any) => (
-                                    <div key={proj.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 group">
+                                    <div key={proj.id} className="p-4 hover:bg-surface-muted group">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">📁</span>
                                             <div
@@ -1043,21 +1045,21 @@ export default function AreaDetailPage() {
                                                 onClick={() => window.open(`/projects?id=${proj.id}`, '_blank')}
                                                 title="Abrir en nueva ventana"
                                             >
-                                                <p className="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">{proj.name}</p>
+                                                <p className="font-medium text-foreground hover:text-indigo-600 dark:hover:text-indigo-400">{proj.name}</p>
                                                 {proj.description && (
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{proj.description}</p>
+                                                    <p className="text-sm text-muted line-clamp-1">{proj.description}</p>
                                                 )}
                                             </div>
                                             <span className={`text-xs px-2 py-0.5 rounded-full ${
                                                 proj.status === 'active' ? 'bg-green-100 text-green-800' :
                                                 proj.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                                                'bg-gray-100 text-gray-800'
+                                                'bg-surface-muted text-gray-800'
                                             }`}>
                                                 {proj.status}
                                             </span>
                                             <button
                                                 onClick={() => handleUnlinkProject(proj.id)}
-                                                className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                className="p-1 text-muted hover:text-red-600 opacity-0 group-hover:opacity-100"
                                                 title="Desvincular"
                                             >
                                                 ✕
@@ -1072,9 +1074,9 @@ export default function AreaDetailPage() {
 
                 {/* Habits Tab */}
                 {activeTab === 'habits' && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                        <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Habitos vinculados</h3>
+                    <div className="bg-surface rounded-lg shadow-sm">
+                        <div className="p-6 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Habitos vinculados</h3>
                             <div className="flex gap-2">
                                 <button
                                     onClick={handleOpenHabitsSelector}
@@ -1092,12 +1094,12 @@ export default function AreaDetailPage() {
                         </div>
                         <div className="divide-y dark:divide-gray-700">
                             {area.habits.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                <div className="p-8 text-center text-muted">
                                     No hay habitos vinculados a esta area.
                                 </div>
                             ) : (
                                 area.habits.map((habit: any) => (
-                                    <div key={habit.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 group">
+                                    <div key={habit.id} className="p-4 hover:bg-surface-muted group">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">{habit.icon || '✅'}</span>
                                             <div
@@ -1105,16 +1107,16 @@ export default function AreaDetailPage() {
                                                 onClick={() => window.open('/habits', '_blank')}
                                                 title="Abrir hábitos en nueva ventana"
                                             >
-                                                <p className="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">{habit.name}</p>
+                                                <p className="font-medium text-foreground hover:text-indigo-600 dark:hover:text-indigo-400">{habit.name}</p>
                                             </div>
                                             <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                habit.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                habit.is_active ? 'bg-green-100 text-green-800' : 'bg-surface-muted text-gray-800'
                                             }`}>
                                                 {habit.is_active ? 'Activo' : 'Inactivo'}
                                             </span>
                                             <button
                                                 onClick={() => handleUnlinkHabit(habit.id)}
-                                                className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                className="p-1 text-muted hover:text-red-600 opacity-0 group-hover:opacity-100"
                                                 title="Desvincular"
                                             >
                                                 ✕
@@ -1131,12 +1133,12 @@ export default function AreaDetailPage() {
             {/* Notes Selector Modal */}
             {showNotesSelector && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
-                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Nota</h3>
+                    <div className="bg-surface rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Vincular Nota</h3>
                             <button
                                 onClick={() => setShowNotesSelector(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                             >
                                 ✕
                             </button>
@@ -1147,7 +1149,7 @@ export default function AreaDetailPage() {
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
                                 </div>
                             ) : availableNotes.length === 0 ? (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <p className="text-center text-muted py-8">
                                     No hay notas disponibles para vincular
                                 </p>
                             ) : (
@@ -1156,15 +1158,15 @@ export default function AreaDetailPage() {
                                         <button
                                             key={note.id}
                                             onClick={() => handleLinkNote(note.id)}
-                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                            className="w-full text-left p-3 hover:bg-surface-muted rounded-lg border dark:border-border"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <span className="text-lg">📝</span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                    <p className="font-medium text-foreground truncate">
                                                         {note.title}
                                                     </p>
-                                                    <p className="text-xs text-gray-500 truncate">
+                                                    <p className="text-xs text-muted truncate">
                                                         {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
                                                     </p>
                                                 </div>
@@ -1181,12 +1183,12 @@ export default function AreaDetailPage() {
             {/* Projects Selector Modal */}
             {showProjectsSelector && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
-                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Proyecto</h3>
+                    <div className="bg-surface rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Vincular Proyecto</h3>
                             <button
                                 onClick={() => setShowProjectsSelector(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                             >
                                 ✕
                             </button>
@@ -1197,7 +1199,7 @@ export default function AreaDetailPage() {
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
                                 </div>
                             ) : availableProjects.length === 0 ? (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <p className="text-center text-muted py-8">
                                     No hay proyectos disponibles para vincular
                                 </p>
                             ) : (
@@ -1206,20 +1208,20 @@ export default function AreaDetailPage() {
                                         <button
                                             key={proj.id}
                                             onClick={() => handleLinkProject(proj.id)}
-                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                            className="w-full text-left p-3 hover:bg-surface-muted rounded-lg border dark:border-border"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <span className="text-lg">{proj.icon || '📁'}</span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                    <p className="font-medium text-foreground truncate">
                                                         {proj.name}
                                                     </p>
                                                     {proj.description && (
-                                                        <p className="text-xs text-gray-500 truncate">{proj.description}</p>
+                                                        <p className="text-xs text-muted truncate">{proj.description}</p>
                                                     )}
                                                 </div>
                                                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                    proj.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                    proj.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-surface-muted text-gray-800'
                                                 }`}>
                                                     {proj.status}
                                                 </span>
@@ -1236,12 +1238,12 @@ export default function AreaDetailPage() {
             {/* Objectives Selector Modal */}
             {showObjectivesSelector && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
-                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Objetivo</h3>
+                    <div className="bg-surface rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Vincular Objetivo</h3>
                             <button
                                 onClick={() => setShowObjectivesSelector(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                             >
                                 ✕
                             </button>
@@ -1252,7 +1254,7 @@ export default function AreaDetailPage() {
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
                                 </div>
                             ) : availableObjectives.length === 0 ? (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <p className="text-center text-muted py-8">
                                     No hay objetivos disponibles para vincular
                                 </p>
                             ) : (
@@ -1261,20 +1263,20 @@ export default function AreaDetailPage() {
                                         <button
                                             key={obj.id}
                                             onClick={() => handleLinkObjective(obj.id)}
-                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                            className="w-full text-left p-3 hover:bg-surface-muted rounded-lg border dark:border-border"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <span className="text-lg">{obj.icon || '🎯'}</span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                    <p className="font-medium text-foreground truncate">
                                                         {obj.title}
                                                     </p>
                                                     {obj.description && (
-                                                        <p className="text-xs text-gray-500 truncate">{obj.description}</p>
+                                                        <p className="text-xs text-muted truncate">{obj.description}</p>
                                                     )}
                                                 </div>
                                                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                    obj.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                    obj.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-surface-muted text-gray-800'
                                                 }`}>
                                                     {obj.status}
                                                 </span>
@@ -1291,12 +1293,12 @@ export default function AreaDetailPage() {
             {/* Habits Selector Modal */}
             {showHabitsSelector && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
-                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Hábito</h3>
+                    <div className="bg-surface rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Vincular Hábito</h3>
                             <button
                                 onClick={() => setShowHabitsSelector(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                             >
                                 ✕
                             </button>
@@ -1307,7 +1309,7 @@ export default function AreaDetailPage() {
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
                                 </div>
                             ) : availableHabits.length === 0 ? (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <p className="text-center text-muted py-8">
                                     No hay hábitos disponibles para vincular
                                 </p>
                             ) : (
@@ -1316,17 +1318,17 @@ export default function AreaDetailPage() {
                                         <button
                                             key={habit.id}
                                             onClick={() => handleLinkHabit(habit.id)}
-                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                            className="w-full text-left p-3 hover:bg-surface-muted rounded-lg border dark:border-border"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <span className="text-lg">{habit.icon || '✅'}</span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                    <p className="font-medium text-foreground truncate">
                                                         {habit.name}
                                                     </p>
                                                 </div>
                                                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                    habit.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                    habit.is_active ? 'bg-green-100 text-green-800' : 'bg-surface-muted text-gray-800'
                                                 }`}>
                                                     {habit.is_active ? 'Activo' : 'Inactivo'}
                                                 </span>
@@ -1343,12 +1345,12 @@ export default function AreaDetailPage() {
             {/* Mental Models Selector Modal */}
             {showMentalModelsSelector && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
-                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Modelo Mental</h3>
+                    <div className="bg-surface rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Vincular Modelo Mental</h3>
                             <button
                                 onClick={() => setShowMentalModelsSelector(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                             >
                                 ✕
                             </button>
@@ -1359,7 +1361,7 @@ export default function AreaDetailPage() {
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
                                 </div>
                             ) : availableMentalModels.length === 0 ? (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <p className="text-center text-muted py-8">
                                     No hay modelos mentales disponibles para vincular
                                 </p>
                             ) : (
@@ -1368,16 +1370,16 @@ export default function AreaDetailPage() {
                                         <button
                                             key={mm.id}
                                             onClick={() => handleLinkMentalModel(mm.id)}
-                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                            className="w-full text-left p-3 hover:bg-surface-muted rounded-lg border dark:border-border"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <span className="text-lg">{mm.icon || '🧠'}</span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                    <p className="font-medium text-foreground truncate">
                                                         {mm.name}
                                                     </p>
                                                     {mm.description && (
-                                                        <p className="text-xs text-gray-500 truncate">{mm.description}</p>
+                                                        <p className="text-xs text-muted truncate">{mm.description}</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -1389,6 +1391,7 @@ export default function AreaDetailPage() {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </AppShell>
     );
 }

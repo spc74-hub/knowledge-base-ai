@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ICON_CATEGORIES, ICON_CATEGORY_NAMES } from '@/lib/icons';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -40,7 +41,7 @@ const STATUS_CONFIG = {
     active: { label: 'Activo', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
     on_hold: { label: 'En espera', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
     completed: { label: 'Completado', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-    archived: { label: 'Archivado', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
+    archived: { label: 'Archivado', color: 'bg-surface-muted text-gray-800 dark:bg-surface-muted dark:text-foreground' },
 } as const;
 
 const COLORS = [
@@ -93,7 +94,7 @@ function TreeNode({
                 onClick={() => onSelect(node.id)}
                 className={`
                     flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors
-                    ${isSelected ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}
+                    ${isSelected ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-surface-muted'}
                     ${isDragOver ? 'ring-2 ring-indigo-500' : ''}
                 `}
                 style={{ paddingLeft: `${level * 16 + 8}px` }}
@@ -104,7 +105,7 @@ function TreeNode({
                             e.stopPropagation();
                             onToggleExpand(node.id);
                         }}
-                        className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                        className="w-4 h-4 flex items-center justify-center text-muted hover:text-gray-700 dark:text-muted"
                     >
                         {isExpanded ? '▼' : '▶'}
                     </button>
@@ -117,11 +118,11 @@ function TreeNode({
                 >
                     {node.icon}
                 </span>
-                <span className={`flex-1 truncate text-sm ${isSelected ? 'font-medium' : ''} dark:text-white`}>
+                <span className={`flex-1 truncate text-sm ${isSelected ? 'font-medium' : ''} dark:text-foreground`}>
                     {node.name}
                 </span>
                 {node.content_count > 0 && (
-                    <span className="text-xs text-gray-400">{node.content_count}</span>
+                    <span className="text-xs text-muted">{node.content_count}</span>
                 )}
             </div>
             {hasChildren && isExpanded && (
@@ -728,22 +729,23 @@ export default function ProjectsPage() {
 
     if (authLoading || loadingTree) {
         return (
-            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center dark:bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <AppShell>
+            <div className="min-h-screen bg-background flex flex-col">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex-shrink-0">
+            <header className="bg-surface border-b dark:border-border flex-shrink-0">
                 <div className="px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                        <Link href="/dashboard" className="text-muted hover:text-gray-900 dark:hover:text-white">
                             ← Dashboard
                         </Link>
-                        <h1 className="text-2xl font-bold dark:text-white">Proyectos</h1>
+                        <h1 className="text-2xl font-bold dark:text-foreground">Proyectos</h1>
                     </div>
                     <div className="flex items-center gap-4">
                         <ThemeToggle />
@@ -764,15 +766,15 @@ export default function ProjectsPage() {
             <div className="flex-1 flex overflow-hidden">
                 {/* Sidebar - Project Tree */}
                 <aside
-                    className="w-72 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col overflow-hidden"
+                    className="w-72 bg-surface border-r dark:border-border flex flex-col overflow-hidden"
                     onDragOver={(e) => {
                         e.preventDefault();
                         if (draggedId) setDragOverId('root');
                     }}
                     onDrop={handleDropToRoot}
                 >
-                    <div className="p-3 border-b dark:border-gray-700">
-                        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    <div className="p-3 border-b dark:border-border">
+                        <h2 className="text-sm font-medium text-muted">
                             Árbol de Proyectos
                         </h2>
                     </div>
@@ -780,7 +782,7 @@ export default function ProjectsPage() {
                         className={`flex-1 overflow-y-auto p-2 ${dragOverId === 'root' ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}
                     >
                         {projectTree.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400 text-sm">
+                            <div className="text-center py-8 text-muted text-sm">
                                 <p>No hay proyectos</p>
                                 <button
                                     onClick={() => setShowCreateModal(true)}
@@ -807,7 +809,7 @@ export default function ProjectsPage() {
                         )}
                     </div>
                     {draggedId && (
-                        <div className="p-2 border-t dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 text-center">
+                        <div className="p-2 border-t dark:border-border text-xs text-muted text-center">
                             Suelta aquí para mover a raíz
                         </div>
                     )}
@@ -816,7 +818,7 @@ export default function ProjectsPage() {
                 {/* Detail Panel */}
                 <main className="flex-1 overflow-y-auto">
                     {!selectedProject ? (
-                        <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+                        <div className="h-full flex items-center justify-center text-muted">
                             <div className="text-center">
                                 <div className="text-6xl mb-4">📁</div>
                                 <p>Selecciona un proyecto del árbol</p>
@@ -838,7 +840,7 @@ export default function ProjectsPage() {
                                         {selectedProject.icon}
                                     </span>
                                     <div>
-                                        <h2 className="text-2xl font-bold dark:text-white">{selectedProject.name}</h2>
+                                        <h2 className="text-2xl font-bold dark:text-foreground">{selectedProject.name}</h2>
                                         <div className="flex items-center gap-2 mt-1">
                                             <select
                                                 value={selectedProject.status}
@@ -859,7 +861,7 @@ export default function ProjectsPage() {
                                         className={`p-2 text-xl rounded-lg transition-colors ${
                                             selectedProject.is_favorite
                                                 ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
-                                                : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                : 'text-muted hover:text-yellow-500 hover:bg-surface-muted'
                                         }`}
                                         title={selectedProject.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
                                     >
@@ -867,14 +869,14 @@ export default function ProjectsPage() {
                                     </button>
                                     <button
                                         onClick={openContentSelector}
-                                        className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        className="px-3 py-2 text-sm border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                                         title="Asociar contenidos existentes"
                                     >
                                         + Contenido
                                     </button>
                                     <button
                                         onClick={openNoteSelector}
-                                        className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        className="px-3 py-2 text-sm border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                                         title="Asociar notas existentes"
                                     >
                                         + Nota
@@ -888,7 +890,7 @@ export default function ProjectsPage() {
                                     </Link>
                                     <button
                                         onClick={() => openCreateSubproject(selectedProject.id)}
-                                        className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        className="px-3 py-2 text-sm border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                                     >
                                         + Subproyecto
                                     </button>
@@ -902,37 +904,37 @@ export default function ProjectsPage() {
                             </div>
 
                             {editMode ? (
-                                <form onSubmit={handleUpdateProject} className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border dark:border-gray-700">
+                                <form onSubmit={handleUpdateProject} className="bg-surface rounded-lg p-6 shadow-sm border dark:border-border">
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Nombre</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Nombre</label>
                                         <input
                                             type="text"
                                             value={formName}
                                             onChange={(e) => setFormName(e.target.value)}
-                                            className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                            className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                             required
                                         />
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Descripción</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Descripción</label>
                                         <textarea
                                             value={formDescription}
                                             onChange={(e) => setFormDescription(e.target.value)}
-                                            className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                            className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                             rows={3}
                                         />
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Fecha límite</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Fecha límite</label>
                                         <input
                                             type="date"
                                             value={formDeadline}
                                             onChange={(e) => setFormDeadline(e.target.value)}
-                                            className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                            className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                         />
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Icono</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Icono</label>
                                         {/* Category tabs */}
                                         <div className="flex flex-wrap gap-1 mb-2">
                                             {ICON_CATEGORY_NAMES.map((category) => (
@@ -940,31 +942,31 @@ export default function ProjectsPage() {
                                                     key={category}
                                                     type="button"
                                                     onClick={() => setFormIconCategory(category)}
-                                                    className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                                    className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-surface-muted dark:bg-surface-muted text-foreground hover:bg-surface-muted dark:hover:bg-gray-600'}`}
                                                 >
                                                     {category}
                                                 </button>
                                             ))}
                                         </div>
                                         {/* Icons grid */}
-                                        <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg max-h-28 overflow-y-auto">
+                                        <div className="flex flex-wrap gap-2 p-2 bg-background dark:bg-surface-muted/50 rounded-lg max-h-28 overflow-y-auto">
                                             {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
                                                 <button
                                                     key={icon}
                                                     type="button"
                                                     onClick={() => setFormIcon(icon)}
-                                                    className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                                    className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-surface-muted dark:hover:bg-gray-600'}`}
                                                 >
                                                     {icon}
                                                 </button>
                                             ))}
                                         </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        <div className="text-xs text-muted mt-1">
                                             Seleccionado: {formIcon}
                                         </div>
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Color</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Color</label>
                                         <div className="flex gap-2 flex-wrap">
                                             {COLORS.map(color => (
                                                 <button
@@ -989,7 +991,7 @@ export default function ProjectsPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => setEditMode(false)}
-                                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg"
+                                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg"
                                             >
                                                 Cancelar
                                             </button>
@@ -1007,7 +1009,7 @@ export default function ProjectsPage() {
                                 <>
                                     {/* Description */}
                                     {selectedProject.description && (
-                                        <p className="text-gray-600 dark:text-gray-400 mb-6">
+                                        <p className="text-muted mb-6">
                                             {selectedProject.description}
                                         </p>
                                     )}
@@ -1015,33 +1017,33 @@ export default function ProjectsPage() {
                                     {/* Metadata */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
                                         {selectedProject.deadline && (
-                                            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                                                <span className="text-gray-500 dark:text-gray-400 block">Fecha límite</span>
-                                                <span className="font-medium dark:text-white">
+                                            <div className="bg-surface p-3 rounded-lg border dark:border-border">
+                                                <span className="text-muted block">Fecha límite</span>
+                                                <span className="font-medium dark:text-foreground">
                                                     {new Date(selectedProject.deadline).toLocaleDateString('es-ES')}
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                                            <span className="text-gray-500 dark:text-gray-400 block">Creado</span>
-                                            <span className="font-medium dark:text-white">
+                                        <div className="bg-surface p-3 rounded-lg border dark:border-border">
+                                            <span className="text-muted block">Creado</span>
+                                            <span className="font-medium dark:text-foreground">
                                                 {new Date(selectedProject.created_at).toLocaleDateString('es-ES')}
                                             </span>
                                         </div>
-                                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                                            <span className="text-gray-500 dark:text-gray-400 block">Contenidos</span>
-                                            <span className="font-medium dark:text-white">{selectedProject.content_count}</span>
+                                        <div className="bg-surface p-3 rounded-lg border dark:border-border">
+                                            <span className="text-muted block">Contenidos</span>
+                                            <span className="font-medium dark:text-foreground">{selectedProject.content_count}</span>
                                         </div>
-                                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                                            <span className="text-gray-500 dark:text-gray-400 block">Subproyectos</span>
-                                            <span className="font-medium dark:text-white">{selectedProject.children?.length || 0}</span>
+                                        <div className="bg-surface p-3 rounded-lg border dark:border-border">
+                                            <span className="text-muted block">Subproyectos</span>
+                                            <span className="font-medium dark:text-foreground">{selectedProject.children?.length || 0}</span>
                                         </div>
                                     </div>
 
                                     {/* Subprojects */}
                                     {selectedProject.children && selectedProject.children.length > 0 && (
                                         <div className="mb-6">
-                                            <h3 className="font-semibold mb-3 dark:text-white">
+                                            <h3 className="font-semibold mb-3 dark:text-foreground">
                                                 Subproyectos ({selectedProject.children.length})
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1049,7 +1051,7 @@ export default function ProjectsPage() {
                                                     <div
                                                         key={child.id}
                                                         onClick={() => handleSelectProject(child.id)}
-                                                        className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 cursor-pointer hover:shadow-md transition-shadow"
+                                                        className="bg-surface p-4 rounded-lg border dark:border-border cursor-pointer hover:shadow-md transition-shadow"
                                                     >
                                                         <div className="flex items-center gap-3">
                                                             <span
@@ -1059,7 +1061,7 @@ export default function ProjectsPage() {
                                                                 {child.icon}
                                                             </span>
                                                             <div>
-                                                                <span className="font-medium dark:text-white">{child.name}</span>
+                                                                <span className="font-medium dark:text-foreground">{child.name}</span>
                                                                 <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${STATUS_CONFIG[child.status as keyof typeof STATUS_CONFIG]?.color}`}>
                                                                     {STATUS_CONFIG[child.status as keyof typeof STATUS_CONFIG]?.label}
                                                                 </span>
@@ -1074,15 +1076,15 @@ export default function ProjectsPage() {
                                     {/* Actions */}
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Acciones ({selectedProject.project_actions?.length || 0})
                                             </h3>
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            <span className="text-xs text-muted">
                                                 {selectedProject.project_actions?.filter(a => a.is_completed).length || 0}/
                                                 {selectedProject.project_actions?.length || 0}
                                             </span>
                                         </div>
-                                        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4">
+                                        <div className="bg-surface border dark:border-border rounded-lg p-4">
                                             {/* Action list */}
                                             {selectedProject.project_actions && selectedProject.project_actions.length > 0 && (
                                                 <div className="space-y-2 mb-4">
@@ -1097,7 +1099,7 @@ export default function ProjectsPage() {
                                                                     type="checkbox"
                                                                     checked={action.is_completed}
                                                                     onChange={() => handleToggleAction(action.id, action.is_completed)}
-                                                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                                                                    className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500"
                                                                 />
                                                                 {editingActionId === action.id ? (
                                                                     <div className="flex-1 flex gap-2">
@@ -1109,7 +1111,7 @@ export default function ProjectsPage() {
                                                                                 if (e.key === 'Enter') handleSaveEditAction(action.id);
                                                                                 if (e.key === 'Escape') handleCancelEditAction();
                                                                             }}
-                                                                            className="flex-1 px-2 py-1 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                            className="flex-1 px-2 py-1 text-sm border dark:border-border rounded bg-background dark:bg-surface-muted dark:text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                                             autoFocus
                                                                         />
                                                                         <button
@@ -1120,14 +1122,14 @@ export default function ProjectsPage() {
                                                                         </button>
                                                                         <button
                                                                             onClick={handleCancelEditAction}
-                                                                            className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+                                                                            className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-foreground rounded hover:bg-gray-400 dark:hover:bg-gray-500"
                                                                         >
                                                                             ✕
                                                                         </button>
                                                                     </div>
                                                                 ) : (
                                                                     <span
-                                                                        className={`flex-1 cursor-pointer ${action.is_completed ? 'line-through text-gray-400' : 'dark:text-white'}`}
+                                                                        className={`flex-1 cursor-pointer ${action.is_completed ? 'line-through text-muted' : 'dark:text-foreground'}`}
                                                                         onDoubleClick={() => handleStartEditAction(action.id, action.title)}
                                                                         title="Doble clic para editar"
                                                                     >
@@ -1138,14 +1140,14 @@ export default function ProjectsPage() {
                                                                     <>
                                                                         <button
                                                                             onClick={() => handleStartEditAction(action.id, action.title)}
-                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-indigo-500 transition-opacity"
+                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-indigo-500 transition-opacity"
                                                                             title="Editar acción"
                                                                         >
                                                                             ✎
                                                                         </button>
                                                                         <button
                                                                             onClick={() => handleDeleteAction(action.id)}
-                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-500 transition-opacity"
                                                                             title="Eliminar acción"
                                                                         >
                                                                             ✕
@@ -1164,7 +1166,7 @@ export default function ProjectsPage() {
                                                     onChange={(e) => setNewActionTitle(e.target.value)}
                                                     onKeyDown={(e) => e.key === 'Enter' && handleAddAction()}
                                                     placeholder="Nueva acción..."
-                                                    className="flex-1 px-3 py-2 text-sm border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    className="flex-1 px-3 py-2 text-sm border dark:border-border rounded-lg bg-background dark:bg-surface-muted dark:text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                 />
                                                 <button
                                                     onClick={handleAddAction}
@@ -1180,7 +1182,7 @@ export default function ProjectsPage() {
                                     {/* Objectives */}
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Objetivos ({selectedProject.objectives?.length || 0})
                                             </h3>
                                             <button
@@ -1191,7 +1193,7 @@ export default function ProjectsPage() {
                                             </button>
                                         </div>
                                         {!selectedProject.objectives || selectedProject.objectives.length === 0 ? (
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-4">
+                                            <p className="text-muted text-sm py-4">
                                                 No hay objetivos vinculados a este proyecto.
                                             </p>
                                         ) : (
@@ -1199,7 +1201,7 @@ export default function ProjectsPage() {
                                                 {selectedProject.objectives.map(objective => (
                                                     <div
                                                         key={objective.id}
-                                                        className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg group"
+                                                        className="p-3 bg-surface border dark:border-border rounded-lg group"
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <Link
@@ -1212,13 +1214,13 @@ export default function ProjectsPage() {
                                                                 >
                                                                     {objective.icon}
                                                                 </span>
-                                                                <span className="dark:text-white">{objective.title}</span>
+                                                                <span className="dark:text-foreground">{objective.title}</span>
                                                             </Link>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-xs text-gray-500">{objective.progress}%</span>
+                                                                <span className="text-xs text-muted">{objective.progress}%</span>
                                                                 <button
                                                                     onClick={() => handleUnlinkObjective(objective.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-500 transition-opacity"
                                                                     title="Desvincular objetivo"
                                                                 >
                                                                     ✕
@@ -1234,7 +1236,7 @@ export default function ProjectsPage() {
                                     {/* Mental Models */}
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Modelos Mentales ({selectedProject.mental_models?.length || 0})
                                             </h3>
                                             <button
@@ -1245,7 +1247,7 @@ export default function ProjectsPage() {
                                             </button>
                                         </div>
                                         {!selectedProject.mental_models || selectedProject.mental_models.length === 0 ? (
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-4">
+                                            <p className="text-muted text-sm py-4">
                                                 No hay modelos mentales vinculados a este proyecto.
                                             </p>
                                         ) : (
@@ -1253,13 +1255,13 @@ export default function ProjectsPage() {
                                                 {selectedProject.mental_models.map(model => (
                                                     <div
                                                         key={model.id}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-full group"
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-surface border dark:border-border rounded-full group"
                                                     >
                                                         <span>{model.icon}</span>
-                                                        <span className="text-sm dark:text-white">{model.name}</span>
+                                                        <span className="text-sm dark:text-foreground">{model.name}</span>
                                                         <button
                                                             onClick={() => handleUnlinkMentalModel(model.id)}
-                                                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+                                                            className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-opacity"
                                                             title="Desvincular modelo"
                                                         >
                                                             ✕
@@ -1273,7 +1275,7 @@ export default function ProjectsPage() {
                                     {/* Standalone Notes */}
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Notas ({selectedProject.notes?.length || 0})
                                             </h3>
                                             <button
@@ -1284,7 +1286,7 @@ export default function ProjectsPage() {
                                             </button>
                                         </div>
                                         {!selectedProject.notes || selectedProject.notes.length === 0 ? (
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-4">
+                                            <p className="text-muted text-sm py-4">
                                                 No hay notas vinculadas a este proyecto.
                                             </p>
                                         ) : (
@@ -1292,7 +1294,7 @@ export default function ProjectsPage() {
                                                 {selectedProject.notes.map(note => (
                                                     <div
                                                         key={note.id}
-                                                        className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg group"
+                                                        className="p-3 bg-surface border dark:border-border rounded-lg group"
                                                     >
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="flex-1 min-w-0">
@@ -1304,18 +1306,18 @@ export default function ProjectsPage() {
                                                                         {note.note_type === 'connection' && '🔗'}
                                                                         {note.note_type === 'journal' && '📓'}
                                                                     </span>
-                                                                    <span className="font-medium dark:text-white truncate">
+                                                                    <span className="font-medium dark:text-foreground truncate">
                                                                         {note.title}
                                                                     </span>
                                                                     {note.is_pinned && <span className="text-xs">📌</span>}
                                                                 </div>
-                                                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                                                                <p className="text-sm text-muted line-clamp-2 mt-1">
                                                                     {note.content.substring(0, 100)}...
                                                                 </p>
                                                             </div>
                                                             <button
                                                                 onClick={() => handleUnlinkNote(note.id)}
-                                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-500 transition-opacity"
                                                                 title="Desvincular nota"
                                                             >
                                                                 ✕
@@ -1330,7 +1332,7 @@ export default function ProjectsPage() {
                                     {/* Contents */}
                                     <div>
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Contenidos ({selectedProject.contents?.length || 0})
                                             </h3>
                                             <button
@@ -1341,7 +1343,7 @@ export default function ProjectsPage() {
                                             </button>
                                         </div>
                                         {!selectedProject.contents || selectedProject.contents.length === 0 ? (
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-4">
+                                            <p className="text-muted text-sm py-4">
                                                 No hay contenidos vinculados a este proyecto.
                                             </p>
                                         ) : (
@@ -1349,23 +1351,23 @@ export default function ProjectsPage() {
                                                 {selectedProject.contents.map(content => (
                                                     <div
                                                         key={content.id}
-                                                        className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg group"
+                                                        className="p-3 bg-surface border dark:border-border rounded-lg group"
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <Link
                                                                 href={`/dashboard?content=${content.id}`}
                                                                 className="flex-1 hover:text-indigo-600 dark:hover:text-indigo-400"
                                                             >
-                                                                <span className="dark:text-white">{content.title}</span>
+                                                                <span className="dark:text-foreground">{content.title}</span>
                                                             </Link>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
+                                                                <span className="text-xs px-2 py-0.5 bg-surface-muted dark:bg-surface-muted text-gray-600 dark:text-foreground rounded">
                                                                     {content.type}
                                                                 </span>
                                                                 {content.is_favorite && <span>⭐</span>}
                                                                 <button
                                                                     onClick={() => handleUnlinkContent(content.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-500 transition-opacity"
                                                                     title="Desvincular contenido"
                                                                 >
                                                                     ✕
@@ -1387,42 +1389,42 @@ export default function ProjectsPage() {
             {/* Create Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-lg p-6 w-full max-w-md">
+                        <h2 className="text-xl font-bold mb-4 dark:text-foreground">
                             {createParentId ? 'Nuevo Subproyecto' : 'Nuevo Proyecto'}
                         </h2>
                         <form onSubmit={handleCreateProject}>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Nombre</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Nombre</label>
                                 <input
                                     type="text"
                                     value={formName}
                                     onChange={(e) => setFormName(e.target.value)}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                    className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                     required
                                     autoFocus
                                 />
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Descripción</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Descripción</label>
                                 <textarea
                                     value={formDescription}
                                     onChange={(e) => setFormDescription(e.target.value)}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                    className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                     rows={3}
                                 />
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Fecha límite</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Fecha límite</label>
                                 <input
                                     type="date"
                                     value={formDeadline}
                                     onChange={(e) => setFormDeadline(e.target.value)}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                    className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                 />
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Icono</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Icono</label>
                                 {/* Category tabs */}
                                 <div className="flex flex-wrap gap-1 mb-2">
                                     {ICON_CATEGORY_NAMES.map((category) => (
@@ -1430,31 +1432,31 @@ export default function ProjectsPage() {
                                             key={category}
                                             type="button"
                                             onClick={() => setFormIconCategory(category)}
-                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-surface-muted dark:bg-surface-muted text-foreground hover:bg-surface-muted dark:hover:bg-gray-600'}`}
                                         >
                                             {category}
                                         </button>
                                     ))}
                                 </div>
                                 {/* Icons grid */}
-                                <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg max-h-28 overflow-y-auto">
+                                <div className="flex flex-wrap gap-2 p-2 bg-background dark:bg-surface-muted/50 rounded-lg max-h-28 overflow-y-auto">
                                     {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
                                         <button
                                             key={icon}
                                             type="button"
                                             onClick={() => setFormIcon(icon)}
-                                            className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                            className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-surface-muted dark:hover:bg-gray-600'}`}
                                         >
                                             {icon}
                                         </button>
                                     ))}
                                 </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                <div className="text-xs text-muted mt-1">
                                     Seleccionado: {formIcon}
                                 </div>
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Color</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Color</label>
                                 <div className="flex gap-2 flex-wrap">
                                     {COLORS.map(color => (
                                         <button
@@ -1474,7 +1476,7 @@ export default function ProjectsPage() {
                                         setShowCreateModal(false);
                                         resetForm();
                                     }}
-                                    className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                                 >
                                     Cancelar
                                 </button>
@@ -1494,8 +1496,8 @@ export default function ProjectsPage() {
             {/* Content Selector Modal */}
             {showContentSelector && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 dark:text-foreground">
                             Asociar contenidos a {selectedProject?.name}
                         </h2>
 
@@ -1504,12 +1506,12 @@ export default function ProjectsPage() {
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                             </div>
                         ) : availableContents.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 py-8 text-center">
+                            <p className="text-muted py-8 text-center">
                                 No hay contenidos disponibles para asociar.
                             </p>
                         ) : (
                             <>
-                                <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                                <div className="mb-3 text-sm text-muted">
                                     Selecciona los contenidos que quieres vincular ({selectedContentIds.length} seleccionados)
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-2 mb-4">
@@ -1519,7 +1521,7 @@ export default function ProjectsPage() {
                                             className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-colors
                                                 ${selectedContentIds.includes(content.id)
                                                     ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                                    : 'border-border hover:bg-surface-muted'}`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -1534,8 +1536,8 @@ export default function ProjectsPage() {
                                                 className="w-4 h-4 text-indigo-600"
                                             />
                                             <div className="flex-1 min-w-0">
-                                                <span className="font-medium dark:text-white block truncate">{content.title}</span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">{content.type}</span>
+                                                <span className="font-medium dark:text-foreground block truncate">{content.title}</span>
+                                                <span className="text-xs text-muted">{content.type}</span>
                                             </div>
                                             {content.is_favorite && <span>⭐</span>}
                                         </label>
@@ -1544,14 +1546,14 @@ export default function ProjectsPage() {
                             </>
                         )}
 
-                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700">
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-border">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowContentSelector(false);
                                     setSelectedContentIds([]);
                                 }}
-                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -1570,8 +1572,8 @@ export default function ProjectsPage() {
             {/* Note Selector Modal */}
             {showNoteSelector && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 dark:text-foreground">
                             Asociar notas a {selectedProject?.name}
                         </h2>
 
@@ -1580,12 +1582,12 @@ export default function ProjectsPage() {
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                             </div>
                         ) : availableNotes.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 py-8 text-center">
+                            <p className="text-muted py-8 text-center">
                                 No hay notas disponibles para asociar.
                             </p>
                         ) : (
                             <>
-                                <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                                <div className="mb-3 text-sm text-muted">
                                     Selecciona las notas que quieres vincular ({selectedNoteIds.length} seleccionadas)
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-2 mb-4">
@@ -1595,7 +1597,7 @@ export default function ProjectsPage() {
                                             className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-colors
                                                 ${selectedNoteIds.includes(note.id)
                                                     ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                                    : 'border-border hover:bg-surface-muted'}`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -1618,10 +1620,10 @@ export default function ProjectsPage() {
                                                         {note.note_type === 'connection' && '🔗'}
                                                         {note.note_type === 'journal' && '📓'}
                                                     </span>
-                                                    <span className="font-medium dark:text-white truncate">{note.title}</span>
+                                                    <span className="font-medium dark:text-foreground truncate">{note.title}</span>
                                                     {note.is_pinned && <span className="text-xs">📌</span>}
                                                 </div>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                                                <p className="text-sm text-muted line-clamp-2 mt-1">
                                                     {note.content.substring(0, 80)}...
                                                 </p>
                                             </div>
@@ -1631,14 +1633,14 @@ export default function ProjectsPage() {
                             </>
                         )}
 
-                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700">
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-border">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowNoteSelector(false);
                                     setSelectedNoteIds([]);
                                 }}
-                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -1657,8 +1659,8 @@ export default function ProjectsPage() {
             {/* Objectives Selector Modal */}
             {showObjectiveSelector && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
-                        <h3 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
+                        <h3 className="text-xl font-bold mb-4 dark:text-foreground">
                             Vincular objetivos a {selectedProject?.name}
                         </h3>
 
@@ -1667,12 +1669,12 @@ export default function ProjectsPage() {
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
                             </div>
                         ) : availableObjectives.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                            <p className="text-muted text-center py-8">
                                 No hay objetivos disponibles para vincular
                             </p>
                         ) : (
                             <>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                <p className="text-sm text-muted mb-4">
                                     Selecciona los objetivos que deseas vincular a este proyecto
                                 </p>
                                 <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -1682,7 +1684,7 @@ export default function ProjectsPage() {
                                             className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors
                                                 ${selectedObjectiveIds.includes(objective.id)
                                                     ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                    : 'border-border hover:bg-surface-muted'
                                                 }`}
                                         >
                                             <input
@@ -1695,7 +1697,7 @@ export default function ProjectsPage() {
                                                         setSelectedObjectiveIds(selectedObjectiveIds.filter(id => id !== objective.id));
                                                     }
                                                 }}
-                                                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500"
                                             />
                                             <span
                                                 className="text-lg w-7 h-7 flex items-center justify-center rounded"
@@ -1704,8 +1706,8 @@ export default function ProjectsPage() {
                                                 {objective.icon}
                                             </span>
                                             <div className="flex-1 min-w-0">
-                                                <span className="font-medium dark:text-white">{objective.title}</span>
-                                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                <span className="font-medium dark:text-foreground">{objective.title}</span>
+                                                <div className="flex items-center gap-2 text-xs text-muted mt-0.5">
                                                     <span>{objective.horizon}</span>
                                                     <span>•</span>
                                                     <span>{objective.progress}%</span>
@@ -1717,14 +1719,14 @@ export default function ProjectsPage() {
                             </>
                         )}
 
-                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700 mt-4">
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-border mt-4">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowObjectiveSelector(false);
                                     setSelectedObjectiveIds([]);
                                 }}
-                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -1743,8 +1745,8 @@ export default function ProjectsPage() {
             {/* Mental Models Selector Modal */}
             {showMentalModelSelector && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
-                        <h3 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
+                        <h3 className="text-xl font-bold mb-4 dark:text-foreground">
                             Vincular modelos mentales a {selectedProject?.name}
                         </h3>
 
@@ -1753,12 +1755,12 @@ export default function ProjectsPage() {
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
                             </div>
                         ) : availableMentalModels.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                            <p className="text-muted text-center py-8">
                                 No hay modelos mentales disponibles para vincular
                             </p>
                         ) : (
                             <>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                <p className="text-sm text-muted mb-4">
                                     Selecciona los modelos mentales que deseas vincular
                                 </p>
                                 <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
@@ -1768,7 +1770,7 @@ export default function ProjectsPage() {
                                             className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors
                                                 ${selectedMentalModelIds.includes(model.id)
                                                     ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                    : 'border-border hover:bg-surface-muted'
                                                 }`}
                                         >
                                             <input
@@ -1781,24 +1783,24 @@ export default function ProjectsPage() {
                                                         setSelectedMentalModelIds(selectedMentalModelIds.filter(id => id !== model.id));
                                                     }
                                                 }}
-                                                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500"
                                             />
                                             <span className="text-lg">{model.icon}</span>
-                                            <span className="text-sm font-medium dark:text-white truncate">{model.name}</span>
+                                            <span className="text-sm font-medium dark:text-foreground truncate">{model.name}</span>
                                         </label>
                                     ))}
                                 </div>
                             </>
                         )}
 
-                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700 mt-4">
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-border mt-4">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowMentalModelSelector(false);
                                     setSelectedMentalModelIds([]);
                                 }}
-                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -1813,6 +1815,7 @@ export default function ProjectsPage() {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </AppShell>
     );
 }

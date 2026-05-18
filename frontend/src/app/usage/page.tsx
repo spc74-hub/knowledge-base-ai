@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { supabase } from '@/lib/supabase'
+import AppShell from '@/components/AppShell';
 
 interface UsageSummary {
   period: string
@@ -126,8 +127,8 @@ export default function UsagePage() {
 
   if (authLoading || (loading && !summary)) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted">Loading...</div>
       </div>
     )
   }
@@ -137,19 +138,20 @@ export default function UsagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <AppShell>
+      <div className="min-h-screen bg-background py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">API Usage</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Monitor your API consumption and costs</p>
+            <h1 className="text-3xl font-bold text-foreground">API Usage</h1>
+            <p className="text-muted mt-1">Monitor your API consumption and costs</p>
           </div>
           <div className="flex items-center gap-4">
             <select
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              className="px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-surface text-foreground"
             >
               <option value={7}>Last 7 days</option>
               <option value={30}>Last 30 days</option>
@@ -158,7 +160,7 @@ export default function UsagePage() {
             </select>
             <button
               onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              className="px-4 py-2 text-foreground hover:text-gray-900 dark:hover:text-white"
             >
               Back to Dashboard
             </button>
@@ -186,11 +188,11 @@ export default function UsagePage() {
         {summary && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {/* Total Cost */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+            <div className="bg-surface rounded-xl shadow-sm p-6 border border-gray-100 dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Total Cost</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-sm text-muted">Total Cost</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
                     {formatCurrency(summary.total_cost_usd)}
                   </p>
                 </div>
@@ -203,11 +205,11 @@ export default function UsagePage() {
             </div>
 
             {/* Total Tokens */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+            <div className="bg-surface rounded-xl shadow-sm p-6 border border-gray-100 dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Total Tokens</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-sm text-muted">Total Tokens</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
                     {formatNumber(summary.total_tokens)}
                   </p>
                 </div>
@@ -220,11 +222,11 @@ export default function UsagePage() {
             </div>
 
             {/* Total Calls */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+            <div className="bg-surface rounded-xl shadow-sm p-6 border border-gray-100 dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">API Calls</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-sm text-muted">API Calls</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
                     {formatNumber(summary.total_calls)}
                   </p>
                 </div>
@@ -237,11 +239,11 @@ export default function UsagePage() {
             </div>
 
             {/* Avg Cost per Call */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+            <div className="bg-surface rounded-xl shadow-sm p-6 border border-gray-100 dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Avg Cost/Call</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-sm text-muted">Avg Cost/Call</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
                     {summary.total_calls > 0
                       ? formatCurrency(summary.total_cost_usd / summary.total_calls)
                       : '$0.00'}
@@ -261,46 +263,46 @@ export default function UsagePage() {
         {summary && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             {/* OpenAI */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+            <div className="bg-surface rounded-xl shadow-sm p-6 border border-gray-100 dark:border-border">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-emerald-500 dark:bg-emerald-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-sm">AI</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">OpenAI</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Embeddings</p>
+                  <h3 className="font-semibold text-foreground">OpenAI</h3>
+                  <p className="text-sm text-muted">Embeddings</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Tokens</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatNumber(summary.openai_tokens)}</p>
+                  <p className="text-sm text-muted">Tokens</p>
+                  <p className="text-lg font-semibold text-foreground">{formatNumber(summary.openai_tokens)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Cost</p>
+                  <p className="text-sm text-muted">Cost</p>
                   <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(summary.openai_cost_usd)}</p>
                 </div>
               </div>
             </div>
 
             {/* Anthropic */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+            <div className="bg-surface rounded-xl shadow-sm p-6 border border-gray-100 dark:border-border">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-orange-500 dark:bg-orange-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-sm">A</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Anthropic</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Claude (Classification, Summarization, Chat)</p>
+                  <h3 className="font-semibold text-foreground">Anthropic</h3>
+                  <p className="text-sm text-muted">Claude (Classification, Summarization, Chat)</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Tokens</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatNumber(summary.anthropic_tokens)}</p>
+                  <p className="text-sm text-muted">Tokens</p>
+                  <p className="text-lg font-semibold text-foreground">{formatNumber(summary.anthropic_tokens)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Cost</p>
+                  <p className="text-sm text-muted">Cost</p>
                   <p className="text-lg font-semibold text-orange-600 dark:text-orange-400">{formatCurrency(summary.anthropic_cost_usd)}</p>
                 </div>
               </div>
@@ -310,12 +312,12 @@ export default function UsagePage() {
 
         {/* Usage by Operation */}
         {operationUsage.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 mb-8">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Usage by Operation</h3>
+          <div className="bg-surface rounded-xl shadow-sm p-6 border border-gray-100 dark:border-border mb-8">
+            <h3 className="font-semibold text-foreground mb-4">Usage by Operation</h3>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-600">
+                  <tr className="text-left text-sm text-muted border-b dark:border-border">
                     <th className="pb-3 font-medium">Operation</th>
                     <th className="pb-3 font-medium text-right">Calls</th>
                     <th className="pb-3 font-medium text-right">Tokens</th>
@@ -324,15 +326,15 @@ export default function UsagePage() {
                 </thead>
                 <tbody>
                   {operationUsage.map((op) => (
-                    <tr key={op.operation} className="border-b dark:border-gray-700 last:border-0">
+                    <tr key={op.operation} className="border-b dark:border-border last:border-0">
                       <td className="py-3">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 capitalize">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-surface-muted dark:bg-surface-muted text-gray-800 dark:text-foreground capitalize">
                           {op.operation.replace('_', ' ')}
                         </span>
                       </td>
-                      <td className="py-3 text-right text-gray-900 dark:text-gray-300">{formatNumber(op.calls)}</td>
-                      <td className="py-3 text-right text-gray-900 dark:text-gray-300">{formatNumber(op.tokens)}</td>
-                      <td className="py-3 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(op.cost_usd)}</td>
+                      <td className="py-3 text-right text-gray-900 dark:text-foreground">{formatNumber(op.calls)}</td>
+                      <td className="py-3 text-right text-gray-900 dark:text-foreground">{formatNumber(op.tokens)}</td>
+                      <td className="py-3 text-right font-medium text-foreground">{formatCurrency(op.cost_usd)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -343,12 +345,12 @@ export default function UsagePage() {
 
         {/* Daily Usage */}
         {dailyUsage.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Daily Usage</h3>
+          <div className="bg-surface rounded-xl shadow-sm p-6 border border-gray-100 dark:border-border">
+            <h3 className="font-semibold text-foreground mb-4">Daily Usage</h3>
             <div className="overflow-x-auto max-h-96">
               <table className="w-full">
-                <thead className="sticky top-0 bg-white dark:bg-gray-800">
-                  <tr className="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-600">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="text-left text-sm text-muted border-b dark:border-border">
                     <th className="pb-3 font-medium">Date</th>
                     <th className="pb-3 font-medium text-right">Calls</th>
                     <th className="pb-3 font-medium text-right">Tokens</th>
@@ -357,11 +359,11 @@ export default function UsagePage() {
                 </thead>
                 <tbody>
                   {dailyUsage.slice().reverse().map((day) => (
-                    <tr key={day.date} className="border-b dark:border-gray-700 last:border-0">
-                      <td className="py-3 text-gray-900 dark:text-gray-300">{day.date}</td>
-                      <td className="py-3 text-right text-gray-900 dark:text-gray-300">{formatNumber(day.calls)}</td>
-                      <td className="py-3 text-right text-gray-900 dark:text-gray-300">{formatNumber(day.tokens)}</td>
-                      <td className="py-3 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(day.cost_usd)}</td>
+                    <tr key={day.date} className="border-b dark:border-border last:border-0">
+                      <td className="py-3 text-gray-900 dark:text-foreground">{day.date}</td>
+                      <td className="py-3 text-right text-gray-900 dark:text-foreground">{formatNumber(day.calls)}</td>
+                      <td className="py-3 text-right text-gray-900 dark:text-foreground">{formatNumber(day.tokens)}</td>
+                      <td className="py-3 text-right font-medium text-foreground">{formatCurrency(day.cost_usd)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -372,17 +374,18 @@ export default function UsagePage() {
 
         {/* Empty State */}
         {!summary && !loading && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-surface rounded-xl shadow-sm p-12 text-center">
+            <div className="w-16 h-16 bg-surface-muted dark:bg-surface-muted rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No usage data yet</h3>
-            <p className="text-gray-500 dark:text-gray-400">Start using the app to see your API consumption metrics here.</p>
+            <h3 className="text-lg font-medium text-foreground mb-2">No usage data yet</h3>
+            <p className="text-muted">Start using the app to see your API consumption metrics here.</p>
           </div>
         )}
       </div>
     </div>
+    </AppShell>
   )
 }

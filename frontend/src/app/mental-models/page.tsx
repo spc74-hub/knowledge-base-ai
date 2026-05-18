@@ -30,6 +30,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -348,7 +349,7 @@ export default function MentalModelsPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
@@ -360,9 +361,10 @@ export default function MentalModelsPage() {
     const availableCatalogModels = catalog.filter(m => !activeModelSlugs.has(m.slug));
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <header className="bg-surface border-b border-border">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-14">
                         <div className="flex items-center gap-4">
@@ -370,10 +372,10 @@ export default function MentalModelsPage() {
                                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                                     <span className="text-white text-sm font-bold">K</span>
                                 </div>
-                                <span className="font-semibold text-gray-900 dark:text-white">KBase</span>
+                                <span className="font-semibold text-foreground">KBase</span>
                             </Link>
-                            <span className="text-gray-300 dark:text-gray-600">/</span>
-                            <h1 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <span className="text-gray-300 dark:text-muted">/</span>
+                            <h1 className="text-lg font-semibold text-foreground flex items-center gap-2">
                                 <span>Modelos Mentales</span>
                             </h1>
                         </div>
@@ -387,7 +389,7 @@ export default function MentalModelsPage() {
                             <ThemeToggle />
                             <Link
                                 href="/dashboard"
-                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white"
                             >
                                 Volver
                             </Link>
@@ -398,10 +400,10 @@ export default function MentalModelsPage() {
 
             <div className="flex">
                 {/* Sidebar - List of models */}
-                <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 min-h-[calc(100vh-56px)] overflow-y-auto">
+                <div className="w-80 bg-surface border-r border-border min-h-[calc(100vh-56px)] overflow-y-auto">
                     {/* My active models */}
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                    <div className="p-4 border-b border-border">
+                        <h2 className="text-sm font-semibold text-foreground mb-3">
                             Mis Modelos Activos ({myModels.filter(m => m.is_active).length})
                         </h2>
                         <div className="space-y-2">
@@ -412,16 +414,16 @@ export default function MentalModelsPage() {
                                     className={`w-full text-left p-3 rounded-lg border transition-colors ${
                                         selectedModel?.id === model.id
                                             ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
-                                            : 'border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-700'
+                                            : 'border-border dark:border-border hover:border-purple-300 dark:hover:border-purple-700'
                                     }`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <span className="text-xl">{model.icon}</span>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-gray-900 dark:text-white truncate">
+                                            <p className="font-medium text-foreground truncate">
                                                 {model.name}
                                             </p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            <p className="text-xs text-muted">
                                                 {model.content_count} contenido{model.content_count !== 1 ? 's' : ''}
                                             </p>
                                         </div>
@@ -429,7 +431,7 @@ export default function MentalModelsPage() {
                                 </button>
                             ))}
                             {myModels.filter(m => m.is_active).length === 0 && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                                <p className="text-sm text-muted text-center py-4">
                                     No tienes modelos activos
                                 </p>
                             )}
@@ -438,22 +440,22 @@ export default function MentalModelsPage() {
 
                     {/* Catalog - Available to add */}
                     <div className="p-4">
-                        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                        <h2 className="text-sm font-semibold text-foreground mb-3">
                             Modelos Disponibles ({availableCatalogModels.length})
                         </h2>
                         <div className="space-y-2">
                             {availableCatalogModels.map(model => (
                                 <div
                                     key={model.slug}
-                                    className="p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-700"
+                                    className="p-3 rounded-lg border border-border dark:border-border hover:border-purple-300 dark:hover:border-purple-700"
                                 >
                                     <div className="flex items-start gap-2">
                                         <span className="text-xl">{model.icon}</span>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-gray-900 dark:text-white">
+                                            <p className="font-medium text-foreground">
                                                 {model.name}
                                             </p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                                            <p className="text-xs text-muted line-clamp-2">
                                                 {model.description}
                                             </p>
                                         </div>
@@ -484,10 +486,10 @@ export default function MentalModelsPage() {
                     {!selectedModel ? (
                         <div className="flex flex-col items-center justify-center h-96 text-center">
                             <div className="text-6xl mb-4">🧠</div>
-                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                            <h2 className="text-2xl font-bold text-foreground mb-2">
                                 Modelos Mentales
                             </h2>
-                            <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
+                            <p className="text-muted max-w-md mb-6">
                                 Los modelos mentales son marcos de pensamiento que te ayudan a analizar
                                 y conectar ideas. Selecciona uno de la lista para ver sus detalles y
                                 contenidos asociados.
@@ -496,7 +498,7 @@ export default function MentalModelsPage() {
                     ) : (
                         <div>
                             {/* Model header */}
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6 mb-6">
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-6 mb-6">
                                 <div className="flex items-start justify-between">
                                     <div className="flex items-center gap-4">
                                         <div
@@ -506,13 +508,13 @@ export default function MentalModelsPage() {
                                             {selectedModel.icon}
                                         </div>
                                         <div>
-                                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                                            <h1 className="text-2xl font-bold text-foreground">
                                                 {selectedModel.name}
                                             </h1>
-                                            <p className="text-gray-500 dark:text-gray-400">
+                                            <p className="text-muted">
                                                 {selectedModel.description}
                                             </p>
-                                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                                            <p className="text-sm text-muted mt-1">
                                                 {selectedModel.content_count} contenido{selectedModel.content_count !== 1 ? 's' : ''} asociado{selectedModel.content_count !== 1 ? 's' : ''}
                                             </p>
                                         </div>
@@ -524,7 +526,7 @@ export default function MentalModelsPage() {
                                             className={`p-2 text-xl rounded-lg transition-colors ${
                                                 selectedModel.is_favorite
                                                     ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
-                                                    : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                    : 'text-muted hover:text-yellow-500 hover:bg-surface-muted'
                                             }`}
                                             title={selectedModel.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
                                         >
@@ -547,9 +549,9 @@ export default function MentalModelsPage() {
                             </div>
 
                             {/* Notes section */}
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6 mb-6">
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-6 mb-6">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    <h2 className="text-lg font-semibold text-foreground">
                                         Notas sobre este modelo
                                     </h2>
                                     {!editingNotes ? (
@@ -566,7 +568,7 @@ export default function MentalModelsPage() {
                                                     setEditingNotes(false);
                                                     setNotesValue(selectedModel.notes || '');
                                                 }}
-                                                className="text-sm text-gray-500 hover:text-gray-700"
+                                                className="text-sm text-muted hover:text-foreground"
                                             >
                                                 Cancelar
                                             </button>
@@ -584,16 +586,16 @@ export default function MentalModelsPage() {
                                         value={notesValue}
                                         onChange={(e) => setNotesValue(e.target.value)}
                                         placeholder="Escribe tus notas sobre este modelo mental... Como aplicarlo, ejemplos, reflexiones..."
-                                        className="w-full h-48 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                                        className="w-full h-48 px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-surface-muted dark:text-foreground"
                                     />
                                 ) : (
                                     <div className="prose dark:prose-invert max-w-none">
                                         {selectedModel.notes ? (
-                                            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                                            <p className="whitespace-pre-wrap text-foreground">
                                                 {selectedModel.notes}
                                             </p>
                                         ) : (
-                                            <p className="text-gray-400 dark:text-gray-500 italic">
+                                            <p className="text-muted italic">
                                                 Sin notas. Haz click en "Editar" para agregar tus reflexiones sobre este modelo.
                                             </p>
                                         )}
@@ -602,8 +604,8 @@ export default function MentalModelsPage() {
                             </div>
 
                             {/* Actions Section */}
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6 mb-6">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Acciones</h2>
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-6 mb-6">
+                                <h2 className="text-lg font-semibold text-foreground mb-4">Acciones</h2>
 
                                 {/* Add action input */}
                                 <div className="flex gap-2 mb-4">
@@ -613,7 +615,7 @@ export default function MentalModelsPage() {
                                         onChange={(e) => setNewActionTitle(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleCreateAction()}
                                         placeholder="Nueva accion..."
-                                        className="flex-1 px-3 py-2 text-sm border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                                        className="flex-1 px-3 py-2 text-sm border dark:border-border rounded-lg dark:bg-surface-muted dark:text-foreground"
                                     />
                                     <button
                                         onClick={handleCreateAction}
@@ -626,18 +628,18 @@ export default function MentalModelsPage() {
 
                                 {/* Actions list */}
                                 {(!modelDetail?.mental_model_actions || modelDetail.mental_model_actions.length === 0) ? (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         No hay acciones pendientes
                                     </p>
                                 ) : (
                                     <div className="space-y-2">
                                         {modelDetail.mental_model_actions.map((action) => (
-                                            <div key={action.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group">
+                                            <div key={action.id} className="flex items-center gap-3 p-2 hover:bg-surface-muted rounded-lg group">
                                                 <input
                                                     type="checkbox"
                                                     checked={action.is_completed}
                                                     onChange={() => handleToggleAction(action)}
-                                                    className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                                    className="w-4 h-4 rounded border-border text-purple-600 focus:ring-purple-500"
                                                 />
                                                 {editingActionId === action.id ? (
                                                     <div className="flex-1 flex gap-2">
@@ -649,7 +651,7 @@ export default function MentalModelsPage() {
                                                                 if (e.key === 'Enter') handleSaveEditAction(action.id);
                                                                 if (e.key === 'Escape') handleCancelEditAction();
                                                             }}
-                                                            className="flex-1 px-2 py-1 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                            className="flex-1 px-2 py-1 text-sm border dark:border-border rounded bg-background dark:bg-surface-muted dark:text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500"
                                                             autoFocus
                                                         />
                                                         <button
@@ -660,14 +662,14 @@ export default function MentalModelsPage() {
                                                         </button>
                                                         <button
                                                             onClick={handleCancelEditAction}
-                                                            className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+                                                            className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-foreground rounded hover:bg-gray-400 dark:hover:bg-gray-500"
                                                         >
                                                             ✕
                                                         </button>
                                                     </div>
                                                 ) : (
                                                     <span
-                                                        className={`flex-1 text-sm cursor-pointer ${action.is_completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}
+                                                        className={`flex-1 text-sm cursor-pointer ${action.is_completed ? 'line-through text-muted' : 'text-foreground'}`}
                                                         onDoubleClick={() => handleStartEditAction(action.id, action.title)}
                                                         title="Doble clic para editar"
                                                     >
@@ -678,14 +680,14 @@ export default function MentalModelsPage() {
                                                     <>
                                                         <button
                                                             onClick={() => handleStartEditAction(action.id, action.title)}
-                                                            className="p-1 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100"
+                                                            className="p-1 text-muted hover:text-purple-600 opacity-0 group-hover:opacity-100"
                                                             title="Editar acción"
                                                         >
                                                             ✎
                                                         </button>
                                                         <button
                                                             onClick={() => handleDeleteAction(action.id)}
-                                                            className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                            className="p-1 text-muted hover:text-red-600 opacity-0 group-hover:opacity-100"
                                                             title="Eliminar acción"
                                                         >
                                                             ✕
@@ -699,9 +701,9 @@ export default function MentalModelsPage() {
                             </div>
 
                             {/* Linked Notes Section */}
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6 mb-6">
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-6 mb-6">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Notas vinculadas</h2>
+                                    <h2 className="text-lg font-semibold text-foreground">Notas vinculadas</h2>
                                     <button
                                         onClick={handleOpenNotesSelector}
                                         className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
@@ -711,25 +713,25 @@ export default function MentalModelsPage() {
                                 </div>
 
                                 {(!modelDetail?.linked_notes || modelDetail.linked_notes.length === 0) ? (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-muted">
                                         No hay notas vinculadas
                                     </p>
                                 ) : (
                                     <div className="space-y-2">
                                         {modelDetail.linked_notes.map((note) => (
-                                            <div key={note.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg group">
+                                            <div key={note.id} className="flex items-center gap-3 p-3 bg-background dark:bg-surface-muted rounded-lg group">
                                                 <span className="text-lg">📝</span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                    <p className="text-sm font-medium text-foreground truncate">
                                                         {note.title}
                                                     </p>
-                                                    <p className="text-xs text-gray-500 truncate">
+                                                    <p className="text-xs text-muted truncate">
                                                         {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
                                                     </p>
                                                 </div>
                                                 <button
                                                     onClick={() => handleUnlinkNote(note.id)}
-                                                    className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                    className="p-1 text-muted hover:text-red-600 opacity-0 group-hover:opacity-100"
                                                     title="Desvincular"
                                                 >
                                                     ✕
@@ -743,20 +745,20 @@ export default function MentalModelsPage() {
                             {/* Linked Entities Section */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                                 {/* Projects */}
-                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4">
-                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Proyectos vinculados</h3>
+                                <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-4">
+                                    <h3 className="text-sm font-semibold text-foreground mb-3">Proyectos vinculados</h3>
                                     {(!modelDetail?.projects || modelDetail.projects.length === 0) ? (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Sin proyectos</p>
+                                        <p className="text-xs text-muted">Sin proyectos</p>
                                     ) : (
                                         <div className="space-y-2">
                                             {modelDetail.projects.map((proj) => (
                                                 <Link
                                                     key={proj.id}
                                                     href={`/projects?id=${proj.id}`}
-                                                    className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+                                                    className="flex items-center gap-2 p-2 hover:bg-surface-muted rounded-lg"
                                                 >
                                                     <span>{proj.icon}</span>
-                                                    <span className="text-sm text-gray-900 dark:text-white truncate">{proj.name}</span>
+                                                    <span className="text-sm text-foreground truncate">{proj.name}</span>
                                                 </Link>
                                             ))}
                                         </div>
@@ -764,20 +766,20 @@ export default function MentalModelsPage() {
                                 </div>
 
                                 {/* Objectives */}
-                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4">
-                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Objetivos vinculados</h3>
+                                <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-4">
+                                    <h3 className="text-sm font-semibold text-foreground mb-3">Objetivos vinculados</h3>
                                     {(!modelDetail?.objectives || modelDetail.objectives.length === 0) ? (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Sin objetivos</p>
+                                        <p className="text-xs text-muted">Sin objetivos</p>
                                     ) : (
                                         <div className="space-y-2">
                                             {modelDetail.objectives.map((obj) => (
                                                 <Link
                                                     key={obj.id}
                                                     href={`/objectives?id=${obj.id}`}
-                                                    className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+                                                    className="flex items-center gap-2 p-2 hover:bg-surface-muted rounded-lg"
                                                 >
                                                     <span>{obj.icon}</span>
-                                                    <span className="text-sm text-gray-900 dark:text-white truncate">{obj.title}</span>
+                                                    <span className="text-sm text-foreground truncate">{obj.title}</span>
                                                 </Link>
                                             ))}
                                         </div>
@@ -785,20 +787,20 @@ export default function MentalModelsPage() {
                                 </div>
 
                                 {/* Areas */}
-                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4">
-                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Areas vinculadas</h3>
+                                <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-4">
+                                    <h3 className="text-sm font-semibold text-foreground mb-3">Areas vinculadas</h3>
                                     {(!modelDetail?.areas || modelDetail.areas.length === 0) ? (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Sin areas</p>
+                                        <p className="text-xs text-muted">Sin areas</p>
                                     ) : (
                                         <div className="space-y-2">
                                             {modelDetail.areas.map((area) => (
                                                 <Link
                                                     key={area.id}
                                                     href={`/areas/${area.id}`}
-                                                    className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+                                                    className="flex items-center gap-2 p-2 hover:bg-surface-muted rounded-lg"
                                                 >
                                                     <span>{area.icon}</span>
-                                                    <span className="text-sm text-gray-900 dark:text-white truncate">{area.name}</span>
+                                                    <span className="text-sm text-foreground truncate">{area.name}</span>
                                                 </Link>
                                             ))}
                                         </div>
@@ -807,8 +809,8 @@ export default function MentalModelsPage() {
                             </div>
 
                             {/* Associated contents */}
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-6">
+                                <h2 className="text-lg font-semibold text-foreground mb-4">
                                     Contenidos asociados
                                 </h2>
                                 {loadingDetail ? (
@@ -817,10 +819,10 @@ export default function MentalModelsPage() {
                                     </div>
                                 ) : modelContents.length === 0 ? (
                                     <div className="text-center py-8">
-                                        <p className="text-gray-500 dark:text-gray-400 mb-2">
+                                        <p className="text-muted mb-2">
                                             No hay contenidos asociados a este modelo
                                         </p>
-                                        <p className="text-sm text-gray-400 dark:text-gray-500">
+                                        <p className="text-sm text-muted">
                                             Puedes asociar contenidos desde la vista de detalle de cada contenido en el Explorer
                                         </p>
                                     </div>
@@ -830,14 +832,14 @@ export default function MentalModelsPage() {
                                             <Link
                                                 key={content.id}
                                                 href={`/explore?content=${content.id}`}
-                                                className="block p-4 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-700 transition-colors"
+                                                className="block p-4 rounded-lg border border-border dark:border-border hover:border-purple-300 dark:hover:border-purple-700 transition-colors"
                                             >
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                        <p className="font-medium text-foreground truncate">
                                                             {content.title}
                                                         </p>
-                                                        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                                                        <p className="text-sm text-muted line-clamp-2 mt-1">
                                                             {content.summary}
                                                         </p>
                                                         {content.application_notes && (
@@ -846,7 +848,7 @@ export default function MentalModelsPage() {
                                                             </p>
                                                         )}
                                                     </div>
-                                                    <span className="text-xs text-gray-400 dark:text-gray-500 ml-4 whitespace-nowrap">
+                                                    <span className="text-xs text-muted ml-4 whitespace-nowrap">
                                                         {content.type}
                                                     </span>
                                                 </div>
@@ -863,16 +865,16 @@ export default function MentalModelsPage() {
             {/* Create/Edit Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md mx-4 overflow-hidden">
-                        <div className="px-6 py-4 border-b dark:border-gray-700">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    <div className="bg-surface rounded-lg w-full max-w-md mx-4 overflow-hidden">
+                        <div className="px-6 py-4 border-b dark:border-border">
+                            <h2 className="text-lg font-semibold text-foreground">
                                 {editingModel ? 'Editar Modelo Mental' : 'Crear Nuevo Modelo Mental'}
                             </h2>
                         </div>
                         <div className="p-6 space-y-4">
                             {/* Name */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-foreground mb-1">
                                     Nombre *
                                 </label>
                                 <input
@@ -880,13 +882,13 @@ export default function MentalModelsPage() {
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder="Ej: Pensamiento Lateral"
-                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                                    className="w-full px-3 py-2 border dark:border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-surface-muted dark:text-foreground"
                                 />
                             </div>
 
                             {/* Description */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-foreground mb-1">
                                     Descripcion
                                 </label>
                                 <textarea
@@ -894,13 +896,13 @@ export default function MentalModelsPage() {
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     placeholder="Describe brevemente este modelo mental..."
                                     rows={3}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                                    className="w-full px-3 py-2 border dark:border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-surface-muted dark:text-foreground"
                                 />
                             </div>
 
                             {/* Icon selector */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-foreground mb-2">
                                     Icono
                                 </label>
                                 <div className="flex flex-wrap gap-2">
@@ -912,7 +914,7 @@ export default function MentalModelsPage() {
                                             className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center text-xl transition-all ${
                                                 formData.icon === icon
                                                     ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
-                                                    : 'border-gray-200 dark:border-gray-600 hover:border-purple-300'
+                                                    : 'border-border dark:border-border hover:border-purple-300'
                                             }`}
                                         >
                                             {icon}
@@ -923,7 +925,7 @@ export default function MentalModelsPage() {
 
                             {/* Color selector */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-foreground mb-2">
                                     Color
                                 </label>
                                 <div className="flex items-center gap-3">
@@ -931,7 +933,7 @@ export default function MentalModelsPage() {
                                         type="color"
                                         value={formData.color}
                                         onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                        className="w-12 h-10 rounded border dark:border-gray-600 cursor-pointer"
+                                        className="w-12 h-10 rounded border dark:border-border cursor-pointer"
                                     />
                                     <div className="grid grid-cols-6 gap-2">
                                         {[
@@ -955,9 +957,9 @@ export default function MentalModelsPage() {
                             </div>
 
                             {/* Preview */}
-                            <div className="pt-4 border-t dark:border-gray-700">
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Vista previa</p>
-                                <div className="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-600">
+                            <div className="pt-4 border-t dark:border-border">
+                                <p className="text-xs text-muted mb-2">Vista previa</p>
+                                <div className="flex items-center gap-3 p-3 rounded-lg border dark:border-border">
                                     <div
                                         className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
                                         style={{ backgroundColor: `${formData.color}20` }}
@@ -965,20 +967,20 @@ export default function MentalModelsPage() {
                                         {formData.icon}
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900 dark:text-white">
+                                        <p className="font-medium text-foreground">
                                             {formData.name || 'Nombre del modelo'}
                                         </p>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        <p className="text-sm text-muted">
                                             {formData.description || 'Descripcion del modelo'}
                                         </p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div className="px-6 py-4 border-t dark:border-gray-700 flex justify-end gap-3">
+                        <div className="px-6 py-4 border-t dark:border-border flex justify-end gap-3">
                             <button
                                 onClick={() => setShowCreateModal(false)}
-                                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                className="px-4 py-2 text-sm text-muted hover:text-gray-900 dark:hover:text-white"
                             >
                                 Cancelar
                             </button>
@@ -997,12 +999,12 @@ export default function MentalModelsPage() {
             {/* Notes Selector Modal */}
             {showNotesSelector && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
-                        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">Vincular Nota</h3>
+                    <div className="bg-surface rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+                        <div className="p-4 border-b dark:border-border flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground">Vincular Nota</h3>
                             <button
                                 onClick={() => setShowNotesSelector(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                             >
                                 ✕
                             </button>
@@ -1013,7 +1015,7 @@ export default function MentalModelsPage() {
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
                                 </div>
                             ) : availableNotes.length === 0 ? (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <p className="text-center text-muted py-8">
                                     No hay notas disponibles para vincular
                                 </p>
                             ) : (
@@ -1022,15 +1024,15 @@ export default function MentalModelsPage() {
                                         <button
                                             key={note.id}
                                             onClick={() => handleLinkNote(note.id)}
-                                            className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border dark:border-gray-600"
+                                            className="w-full text-left p-3 hover:bg-surface-muted rounded-lg border dark:border-border"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <span className="text-lg">📝</span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                                                    <p className="font-medium text-foreground truncate">
                                                         {note.title}
                                                     </p>
-                                                    <p className="text-xs text-gray-500 truncate">
+                                                    <p className="text-xs text-muted truncate">
                                                         {note.note_type} {note.tags?.length > 0 && `• ${note.tags.slice(0, 2).join(', ')}`}
                                                     </p>
                                                 </div>
@@ -1043,6 +1045,7 @@ export default function MentalModelsPage() {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </AppShell>
     );
 }

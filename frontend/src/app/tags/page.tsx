@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -185,7 +186,7 @@ export default function TagsPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
@@ -207,9 +208,10 @@ export default function TagsPage() {
     }, {} as Record<string, TaxonomyTag[]>);
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <header className="bg-surface border-b border-border">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-14">
                         <div className="flex items-center gap-4">
@@ -217,16 +219,16 @@ export default function TagsPage() {
                                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                                     <span className="text-white text-sm font-bold">K</span>
                                 </div>
-                                <span className="font-semibold text-gray-900 dark:text-white">KBase</span>
+                                <span className="font-semibold text-foreground">KBase</span>
                             </Link>
-                            <span className="text-gray-300 dark:text-gray-600">/</span>
-                            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Reglas de Tags</h1>
+                            <span className="text-gray-300 dark:text-muted">/</span>
+                            <h1 className="text-lg font-semibold text-foreground">Reglas de Tags</h1>
                         </div>
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
                             <Link
                                 href="/dashboard"
-                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white"
                             >
                                 Volver
                             </Link>
@@ -282,7 +284,7 @@ export default function TagsPage() {
                         <select
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                            className="px-3 py-2 border border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                         >
                             <option value="all">Todos los tipos</option>
                             {TAXONOMY_TYPES.map(type => (
@@ -291,7 +293,7 @@ export default function TagsPage() {
                                 </option>
                             ))}
                         </select>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <span className="text-sm text-muted">
                             {taxonomyTags.length} regla{taxonomyTags.length !== 1 ? 's' : ''}
                         </span>
                     </div>
@@ -306,13 +308,13 @@ export default function TagsPage() {
 
                 {/* Add form */}
                 {showAddForm && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-6 mb-6">
-                        <h3 className="font-medium text-gray-900 dark:text-white mb-4">Nueva regla de tag</h3>
+                    <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-6 mb-6">
+                        <h3 className="font-medium text-foreground mb-4">Nueva regla de tag</h3>
                         <form onSubmit={handleCreateTag}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 {/* Type selector */}
                                 <div>
-                                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                    <label className="block text-sm text-muted mb-1">
                                         Tipo de taxonomía
                                     </label>
                                     <select
@@ -321,7 +323,7 @@ export default function TagsPage() {
                                             setNewTagType(e.target.value);
                                             setNewTagValue('');
                                         }}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                        className="w-full px-3 py-2 border border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                     >
                                         {TAXONOMY_TYPES.map(type => (
                                             <option key={type.value} value={type.value}>
@@ -333,7 +335,7 @@ export default function TagsPage() {
 
                                 {/* Value selector/input */}
                                 <div>
-                                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                    <label className="block text-sm text-muted mb-1">
                                         Valor (ej: "Elon Musk", "Technology")
                                     </label>
                                     <input
@@ -342,7 +344,7 @@ export default function TagsPage() {
                                         onChange={(e) => setNewTagValue(e.target.value)}
                                         list="taxonomy-values"
                                         placeholder={loadingValues ? 'Cargando...' : 'Escribe o selecciona...'}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                        className="w-full px-3 py-2 border border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                         required
                                     />
                                     <datalist id="taxonomy-values">
@@ -354,7 +356,7 @@ export default function TagsPage() {
 
                                 {/* Tag name */}
                                 <div>
-                                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                    <label className="block text-sm text-muted mb-1">
                                         Nombre del tag
                                     </label>
                                     <input
@@ -362,14 +364,14 @@ export default function TagsPage() {
                                         value={newTagName}
                                         onChange={(e) => setNewTagName(e.target.value)}
                                         placeholder="ej: Gurú, Importante, Seguir"
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                        className="w-full px-3 py-2 border border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                         required
                                     />
                                 </div>
 
                                 {/* Color picker */}
                                 <div>
-                                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                    <label className="block text-sm text-muted mb-1">
                                         Color
                                     </label>
                                     <div className="flex gap-2 flex-wrap">
@@ -392,9 +394,9 @@ export default function TagsPage() {
 
                             {/* Preview */}
                             {newTagValue && newTagName && (
-                                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Vista previa:</p>
-                                    <p className="text-sm dark:text-gray-200">
+                                <div className="mb-4 p-3 bg-background dark:bg-surface-muted rounded-lg">
+                                    <p className="text-sm text-muted mb-2">Vista previa:</p>
+                                    <p className="text-sm dark:text-foreground">
                                         Todos los contenidos con {getTypeInfo(newTagType).label.toLowerCase()}{' '}
                                         <strong>"{newTagValue}"</strong> tendrán el tag{' '}
                                         <span
@@ -415,7 +417,7 @@ export default function TagsPage() {
                                         setNewTagValue('');
                                         setNewTagName('');
                                     }}
-                                    className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                                    className="px-4 py-2 text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white"
                                 >
                                     Cancelar
                                 </button>
@@ -433,8 +435,8 @@ export default function TagsPage() {
 
                 {/* Tags list */}
                 {taxonomyTags.length === 0 ? (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    <div className="bg-surface rounded-lg shadow-sm p-12 text-center">
+                        <p className="text-muted mb-4">
                             No tienes reglas de tags todavía
                         </p>
                         <button
@@ -449,11 +451,11 @@ export default function TagsPage() {
                         {filterType === 'all' ? (
                             // Grouped view
                             Object.entries(groupedTags).map(([type, tags]) => (
-                                <div key={type} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700">
-                                    <div className="px-4 py-3 border-b dark:border-gray-700 flex items-center gap-2">
+                                <div key={type} className="bg-surface rounded-lg shadow-sm border dark:border-border">
+                                    <div className="px-4 py-3 border-b dark:border-border flex items-center gap-2">
                                         <span>{getTypeInfo(type).icon}</span>
-                                        <span className="font-medium dark:text-white">{getTypeInfo(type).label}</span>
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        <span className="font-medium dark:text-foreground">{getTypeInfo(type).label}</span>
+                                        <span className="text-sm text-muted">
                                             ({tags.length})
                                         </span>
                                     </div>
@@ -461,13 +463,13 @@ export default function TagsPage() {
                                         {tags.map(tag => (
                                             <div
                                                 key={tag.id}
-                                                className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                className="px-4 py-3 flex items-center justify-between hover:bg-surface-muted"
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <span className="text-gray-700 dark:text-gray-300">
+                                                    <span className="text-foreground">
                                                         {tag.taxonomy_value}
                                                     </span>
-                                                    <span className="text-gray-400">→</span>
+                                                    <span className="text-muted">→</span>
                                                     <span
                                                         className="px-2 py-0.5 rounded-full text-white text-sm"
                                                         style={{ backgroundColor: tag.color }}
@@ -477,7 +479,7 @@ export default function TagsPage() {
                                                 </div>
                                                 <button
                                                     onClick={() => handleDeleteTag(tag.id)}
-                                                    className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                                    className="text-muted hover:text-red-600 dark:hover:text-red-400"
                                                     title="Eliminar regla"
                                                 >
                                                     ✕
@@ -489,19 +491,19 @@ export default function TagsPage() {
                             ))
                         ) : (
                             // Flat view when filtered
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700">
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border">
                                 <div className="divide-y dark:divide-gray-700">
                                     {taxonomyTags.map(tag => (
                                         <div
                                             key={tag.id}
-                                            className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
+                                            className="px-4 py-3 flex items-center justify-between hover:bg-surface-muted"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <span>{getTypeInfo(tag.taxonomy_type).icon}</span>
-                                                <span className="text-gray-700 dark:text-gray-300">
+                                                <span className="text-foreground">
                                                     {tag.taxonomy_value}
                                                 </span>
-                                                <span className="text-gray-400">→</span>
+                                                <span className="text-muted">→</span>
                                                 <span
                                                     className="px-2 py-0.5 rounded-full text-white text-sm"
                                                     style={{ backgroundColor: tag.color }}
@@ -511,7 +513,7 @@ export default function TagsPage() {
                                             </div>
                                             <button
                                                 onClick={() => handleDeleteTag(tag.id)}
-                                                className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                                className="text-muted hover:text-red-600 dark:hover:text-red-400"
                                                 title="Eliminar regla"
                                             >
                                                 ✕
@@ -524,6 +526,7 @@ export default function TagsPage() {
                     </div>
                 )}
             </main>
-        </div>
+            </div>
+        </AppShell>
     );
 }

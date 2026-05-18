@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -21,7 +22,7 @@ interface SystemNote {
 }
 
 const CATEGORIES = [
-    { value: 'general', label: 'General', icon: '📋', color: 'bg-gray-100 dark:bg-gray-700' },
+    { value: 'general', label: 'General', icon: '📋', color: 'bg-surface-muted dark:bg-surface-muted' },
     { value: 'workflow', label: 'Flujo de Trabajo', icon: '🔄', color: 'bg-blue-100 dark:bg-blue-900/30' },
     { value: 'tips', label: 'Tips y Trucos', icon: '💡', color: 'bg-yellow-100 dark:bg-yellow-900/30' },
     { value: 'reference', label: 'Referencia', icon: '📚', color: 'bg-purple-100 dark:bg-purple-900/30' },
@@ -166,7 +167,7 @@ export default function MyNotesPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
@@ -188,9 +189,9 @@ export default function MyNotesPage() {
     }, {} as Record<string, SystemNote[]>);
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+            <header className="bg-surface border-b border-border sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-14">
                         <div className="flex items-center gap-4">
@@ -198,20 +199,20 @@ export default function MyNotesPage() {
                                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                                     <span className="text-white text-sm font-bold">K</span>
                                 </div>
-                                <span className="font-semibold text-gray-900 dark:text-white">KBase</span>
+                                <span className="font-semibold text-foreground">KBase</span>
                             </Link>
-                            <span className="text-gray-300 dark:text-gray-600">/</span>
-                            <Link href="/guide" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                            <span className="text-gray-300 dark:text-muted">/</span>
+                            <Link href="/guide" className="text-muted hover:text-gray-700 dark:hover:text-gray-200">
                                 Guía
                             </Link>
-                            <span className="text-gray-300 dark:text-gray-600">/</span>
-                            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Mis Notas</h1>
+                            <span className="text-gray-300 dark:text-muted">/</span>
+                            <h1 className="text-lg font-semibold text-foreground">Mis Notas</h1>
                         </div>
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
                             <Link
                                 href="/guide"
-                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white"
                             >
                                 Volver a Guía
                             </Link>
@@ -233,11 +234,11 @@ export default function MyNotesPage() {
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                     {/* Filter */}
                     <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Filtrar:</span>
+                        <span className="text-sm text-muted">Filtrar:</span>
                         <select
                             value={filterCategory}
                             onChange={(e) => setFilterCategory(e.target.value)}
-                            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            className="px-3 py-1.5 text-sm border border-border rounded-lg bg-surface text-foreground"
                         >
                             <option value="all">Todas las categorías</option>
                             {CATEGORIES.map(cat => (
@@ -273,14 +274,14 @@ export default function MyNotesPage() {
                 {/* Editor Modal */}
                 {showEditor && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        <div className="bg-surface rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+                            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+                                <h3 className="text-lg font-semibold text-foreground">
                                     {editingNote ? 'Editar Nota' : 'Nueva Nota'}
                                 </h3>
                                 <button
                                     onClick={resetForm}
-                                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                    className="text-muted hover:text-gray-600 dark:hover:text-gray-200"
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -291,27 +292,27 @@ export default function MyNotesPage() {
                             <form onSubmit={handleSave} className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        <label className="block text-sm font-medium text-foreground mb-1">
                                             Título
                                         </label>
                                         <input
                                             type="text"
                                             value={formTitle}
                                             onChange={(e) => setFormTitle(e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground"
                                             placeholder="Título de la nota"
                                             required
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        <label className="block text-sm font-medium text-foreground mb-1">
                                             Categoría
                                         </label>
                                         <select
                                             value={formCategory}
                                             onChange={(e) => setFormCategory(e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground"
                                         >
                                             {CATEGORIES.map(cat => (
                                                 <option key={cat.value} value={cat.value}>
@@ -322,13 +323,13 @@ export default function MyNotesPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        <label className="block text-sm font-medium text-foreground mb-1">
                                             Contenido
                                         </label>
                                         <textarea
                                             value={formContent}
                                             onChange={(e) => setFormContent(e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-h-[200px] font-mono text-sm"
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface dark:bg-surface-muted text-foreground min-h-[200px] font-mono text-sm"
                                             placeholder="Escribe tu nota aquí... (soporta texto plano)"
                                             required
                                         />
@@ -339,7 +340,7 @@ export default function MyNotesPage() {
                                     <button
                                         type="button"
                                         onClick={resetForm}
-                                        className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                                        className="px-4 py-2 text-sm text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white"
                                     >
                                         Cancelar
                                     </button>
@@ -358,16 +359,16 @@ export default function MyNotesPage() {
 
                 {/* Notes list */}
                 {notes.length === 0 ? (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-                        <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="bg-surface rounded-lg border border-border p-12 text-center">
+                        <div className="w-16 h-16 mx-auto mb-4 bg-surface-muted dark:bg-surface-muted rounded-full flex items-center justify-center">
+                            <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                         </div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                        <h3 className="text-lg font-medium text-foreground mb-2">
                             Sin notas todavía
                         </h3>
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
+                        <p className="text-muted mb-4">
                             Crea tu primera nota para documentar tu flujo de trabajo personal.
                         </p>
                         <button
@@ -392,7 +393,7 @@ export default function MyNotesPage() {
 
                             return (
                                 <div key={category.value}>
-                                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
                                         <span>{category.icon}</span>
                                         {category.label}
                                         <span className="text-xs font-normal">({categoryNotes.length})</span>
@@ -441,21 +442,22 @@ function NoteCard({
     const [expanded, setExpanded] = useState(false);
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <AppShell>
+            <div className="bg-surface rounded-lg border border-border overflow-hidden">
             <div
-                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-surface-muted/50"
                 onClick={() => setExpanded(!expanded)}
             >
                 <div className="flex items-center gap-3">
                     <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                        className={`w-4 h-4 text-muted transition-transform ${expanded ? 'rotate-90' : ''}`}
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                     >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    <h4 className="font-medium text-gray-900 dark:text-white">{note.title}</h4>
+                    <h4 className="font-medium text-foreground">{note.title}</h4>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
@@ -463,7 +465,7 @@ function NoteCard({
                             e.stopPropagation();
                             onEdit(note);
                         }}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                        className="p-1.5 text-muted hover:text-blue-600 dark:hover:text-blue-400"
                         title="Editar"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -475,7 +477,7 @@ function NoteCard({
                             e.stopPropagation();
                             onDelete(note.id);
                         }}
-                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                        className="p-1.5 text-muted hover:text-red-600 dark:hover:text-red-400"
                         title="Eliminar"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -486,11 +488,11 @@ function NoteCard({
             </div>
 
             {expanded && (
-                <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300 font-sans">
+                <div className="px-4 py-3 border-t border-gray-100 dark:border-border bg-background dark:bg-surface/50">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-600 dark:text-foreground font-sans">
                         {note.content}
                     </pre>
-                    <div className="mt-3 text-xs text-gray-400">
+                    <div className="mt-3 text-xs text-muted">
                         Actualizado: {new Date(note.updated_at).toLocaleDateString('es-ES', {
                             day: 'numeric',
                             month: 'short',
@@ -501,6 +503,7 @@ function NoteCard({
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </AppShell>
     );
 }

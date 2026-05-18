@@ -268,12 +268,12 @@ export default function MobileJournalPage() {
         { key: 'evening', label: 'Cierre', icon: '🌙', completed: isEveningCompleted },
     ];
 
-    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-surface border-gray-100';
     const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
-    const mutedTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+    const mutedTextClass = isDark ? 'text-muted' : 'text-muted';
     const inputClass = isDark
         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-500';
+        : 'bg-surface border-border text-foreground placeholder-gray-500';
 
     return (
         <div className="space-y-4">
@@ -332,7 +332,7 @@ export default function MobileJournalPage() {
                         <button
                             onClick={handleRefreshInspirational}
                             disabled={refreshInspirational.isPending}
-                            className="ml-3 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-all disabled:opacity-50"
+                            className="ml-3 p-2 rounded-full bg-surface/20 hover:bg-surface/30 transition-all disabled:opacity-50"
                             title="Obtener nuevo contenido"
                         >
                             <svg
@@ -409,7 +409,7 @@ export default function MobileJournalPage() {
                         className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors relative ${
                             activeSection === section.key
                                 ? 'bg-amber-500 text-white'
-                                : isDark ? 'text-gray-400' : 'text-gray-600'
+                                : isDark ? 'text-muted' : 'text-muted'
                         }`}
                     >
                         <span>{section.icon}</span>
@@ -455,13 +455,13 @@ export default function MobileJournalPage() {
                         {/* Existing Big Rocks */}
                         <div className="space-y-2 mb-3">
                             {bigRocks.map((rock) => (
-                                <div key={rock.id} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                <div key={rock.id} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-background'}`}>
                                     <button
                                         onClick={() => toggleBigRock(rock.id)}
                                         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                                             rock.completed
                                                 ? 'bg-green-500 border-green-500 text-white'
-                                                : isDark ? 'border-gray-500' : 'border-gray-300'
+                                                : isDark ? 'border-gray-500' : 'border-border'
                                         }`}
                                     >
                                         {rock.completed && '✓'}
@@ -493,7 +493,7 @@ export default function MobileJournalPage() {
                             <button
                                 onClick={() => setShowBigRockSelector(true)}
                                 className={`w-full py-2 rounded-lg border-2 border-dashed ${
-                                    isDark ? 'border-gray-600 text-gray-400' : 'border-gray-300 text-gray-500'
+                                    isDark ? 'border-gray-600 text-muted' : 'border-border text-muted'
                                 }`}
                             >
                                 + Añadir roca grande
@@ -513,8 +513,8 @@ export default function MobileJournalPage() {
                                         energyMorning === option.value
                                             ? (isDark ? option.darkColor : option.color) + ' border-current'
                                             : isDark
-                                                ? 'bg-gray-700 border-gray-600 text-gray-400'
-                                                : 'bg-gray-50 border-gray-200 text-gray-600'
+                                                ? 'bg-gray-700 border-gray-600 text-muted'
+                                                : 'bg-background border-border text-muted'
                                     }`}
                                 >
                                     <div className="text-2xl">{option.icon}</div>
@@ -564,7 +564,7 @@ export default function MobileJournalPage() {
                         </div>
                         <div className="space-y-2">
                             {journal?.quick_captures?.map((capture) => (
-                                <div key={capture.id} className={`flex items-start gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                <div key={capture.id} className={`flex items-start gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-background'}`}>
                                     <span className={`flex-1 text-sm ${textClass}`}>{capture.text}</span>
                                     <span className={`text-xs ${mutedTextClass}`}>
                                         {new Date(capture.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
@@ -593,7 +593,7 @@ export default function MobileJournalPage() {
                                             className={`flex-1 py-2 rounded-lg border text-center text-sm ${
                                                 energyNoon === option.value
                                                     ? (isDark ? option.darkColor : option.color)
-                                                    : isDark ? 'bg-gray-700 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-600'
+                                                    : isDark ? 'bg-gray-700 border-gray-600 text-muted' : 'bg-background border-border text-muted'
                                             }`}
                                         >
                                             {option.icon}
@@ -611,7 +611,7 @@ export default function MobileJournalPage() {
                                             className={`flex-1 py-2 rounded-lg border text-center text-sm ${
                                                 energyAfternoon === option.value
                                                     ? (isDark ? option.darkColor : option.color)
-                                                    : isDark ? 'bg-gray-700 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-600'
+                                                    : isDark ? 'bg-gray-700 border-gray-600 text-muted' : 'bg-background border-border text-muted'
                                             }`}
                                         >
                                             {option.icon}
@@ -660,13 +660,13 @@ export default function MobileJournalPage() {
                         {bigRocks.length > 0 ? (
                             <div className="space-y-2">
                                 {bigRocks.map((rock) => (
-                                    <div key={rock.id} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                    <div key={rock.id} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-background'}`}>
                                         <button
                                             onClick={() => toggleBigRock(rock.id)}
                                             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                                                 rock.completed
                                                     ? 'bg-green-500 border-green-500 text-white'
-                                                    : isDark ? 'border-gray-500' : 'border-gray-300'
+                                                    : isDark ? 'border-gray-500' : 'border-border'
                                             }`}
                                         >
                                             {rock.completed && '✓'}
@@ -676,7 +676,7 @@ export default function MobileJournalPage() {
                                         </span>
                                     </div>
                                 ))}
-                                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <div className="pt-2 border-t border-border">
                                     <p className={`text-sm ${mutedTextClass}`}>
                                         Completadas: {bigRocks.filter(r => r.completed).length}/{bigRocks.length}
                                     </p>
@@ -758,8 +758,8 @@ export default function MobileJournalPage() {
                                         energyNight === option.value
                                             ? (isDark ? option.darkColor : option.color) + ' border-current'
                                             : isDark
-                                                ? 'bg-gray-700 border-gray-600 text-gray-400'
-                                                : 'bg-gray-50 border-gray-200 text-gray-600'
+                                                ? 'bg-gray-700 border-gray-600 text-muted'
+                                                : 'bg-background border-border text-muted'
                                     }`}
                                 >
                                     <div className="text-2xl">{option.icon}</div>
@@ -782,7 +782,7 @@ export default function MobileJournalPage() {
                                             ? 'bg-amber-500 text-white'
                                             : isDark
                                                 ? 'bg-gray-700 text-gray-300'
-                                                : 'bg-gray-100 text-gray-700'
+                                                : 'bg-surface-muted text-foreground'
                                     }`}
                                 >
                                     {rating}
@@ -828,10 +828,10 @@ export default function MobileJournalPage() {
             {/* Big Rock Selector Modal */}
             {showBigRockSelector && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-                    <div className={`w-full max-h-[80vh] overflow-y-auto rounded-t-2xl ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-                        <div className="sticky top-0 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-inherit">
+                    <div className={`w-full max-h-[80vh] overflow-y-auto rounded-t-2xl ${isDark ? 'bg-gray-800' : 'bg-surface'}`}>
+                        <div className="sticky top-0 p-4 border-b border-border flex justify-between items-center bg-inherit">
                             <h3 className={`font-semibold ${textClass}`}>Añadir Roca Grande</h3>
-                            <button onClick={() => setShowBigRockSelector(false)} className="text-gray-500">✕</button>
+                            <button onClick={() => setShowBigRockSelector(false)} className="text-muted">✕</button>
                         </div>
 
                         <div className="p-4 space-y-4">
@@ -899,7 +899,7 @@ export default function MobileJournalPage() {
             {/* Close Day Confirmation Modal */}
             {showCloseConfirm && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className={`w-full max-w-sm rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                    <div className={`w-full max-w-sm rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-surface'}`}>
                         <h3 className={`text-lg font-semibold mb-2 ${textClass}`}>🌙 Cerrar el día</h3>
                         <p className={`text-sm mb-4 ${mutedTextClass}`}>
                             Se generará una Full Note con el resumen de tu día usando IA.
@@ -908,7 +908,7 @@ export default function MobileJournalPage() {
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setShowCloseConfirm(false)}
-                                className={`flex-1 py-2 rounded-lg border ${isDark ? 'border-gray-600 text-gray-300' : 'border-gray-300 text-gray-700'}`}
+                                className={`flex-1 py-2 rounded-lg border ${isDark ? 'border-gray-600 text-gray-300' : 'border-border text-foreground'}`}
                             >
                                 Cancelar
                             </button>

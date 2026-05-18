@@ -104,12 +104,12 @@ export default function BacklinkModal({ isOpen, onClose, onSelect, currentNoteId
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
             <div
-                className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4"
+                className="bg-surface rounded-lg shadow-xl w-full max-w-md mx-4"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="p-4 border-b">
                     <div className="flex items-center gap-2">
-                        <span className="text-gray-500 font-mono">[[</span>
+                        <span className="text-muted font-mono">[[</span>
                         <input
                             type="text"
                             value={search}
@@ -118,17 +118,17 @@ export default function BacklinkModal({ isOpen, onClose, onSelect, currentNoteId
                             className="flex-1 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             autoFocus
                         />
-                        <span className="text-gray-500 font-mono">]]</span>
+                        <span className="text-muted font-mono">]]</span>
                     </div>
                 </div>
 
                 <div className="max-h-64 overflow-y-auto">
                     {loading ? (
-                        <div className="p-4 text-center text-gray-500">
+                        <div className="p-4 text-center text-muted">
                             Buscando...
                         </div>
                     ) : notes.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">
+                        <div className="p-4 text-center text-muted">
                             No se encontraron notas
                         </div>
                     ) : (
@@ -138,11 +138,11 @@ export default function BacklinkModal({ isOpen, onClose, onSelect, currentNoteId
                                     <button
                                         type="button"
                                         onClick={() => onSelect(note)}
-                                        className={`w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center gap-2 ${
+                                        className={`w-full px-4 py-3 text-left hover:bg-surface-muted flex items-center gap-2 ${
                                             index === selectedIndex ? 'bg-blue-50' : ''
                                         }`}
                                     >
-                                        <span className="text-gray-400">📝</span>
+                                        <span className="text-muted">📝</span>
                                         <span className="truncate">{note.title}</span>
                                     </button>
                                 </li>
@@ -151,7 +151,7 @@ export default function BacklinkModal({ isOpen, onClose, onSelect, currentNoteId
                     )}
                 </div>
 
-                <div className="p-3 border-t bg-gray-50 text-xs text-gray-500 flex justify-between">
+                <div className="p-3 border-t bg-background text-xs text-muted flex justify-between">
                     <span>↑↓ navegar</span>
                     <span>Enter seleccionar</span>
                     <span>Esc cerrar</span>

@@ -29,6 +29,7 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ICON_CATEGORIES, ICON_CATEGORY_NAMES } from '@/lib/icons';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -43,7 +44,7 @@ const HORIZONS = [
 ];
 
 const STATUSES = [
-    { value: 'future', label: 'Futuro', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
+    { value: 'future', label: 'Futuro', color: 'bg-surface-muted text-gray-800 dark:bg-surface-muted dark:text-foreground' },
     { value: 'pending', label: 'Pendiente', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
     { value: 'active', label: 'Activo', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
     { value: 'completed', label: 'Completado', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
@@ -99,7 +100,7 @@ function TreeNode({
                 onClick={() => onSelect(node.id)}
                 className={`
                     flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors
-                    ${isSelected ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}
+                    ${isSelected ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-surface-muted'}
                     ${isDragOver ? 'ring-2 ring-indigo-500' : ''}
                 `}
                 style={{ paddingLeft: `${level * 16 + 8}px` }}
@@ -110,7 +111,7 @@ function TreeNode({
                             e.stopPropagation();
                             onToggleExpand(node.id);
                         }}
-                        className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                        className="w-4 h-4 flex items-center justify-center text-muted hover:text-gray-700 dark:text-muted"
                     >
                         {isExpanded ? '▼' : '▶'}
                     </button>
@@ -123,11 +124,11 @@ function TreeNode({
                 >
                     {node.icon}
                 </span>
-                <span className={`flex-1 truncate text-sm ${isSelected ? 'font-medium' : ''} dark:text-white`}>
+                <span className={`flex-1 truncate text-sm ${isSelected ? 'font-medium' : ''} dark:text-foreground`}>
                     {node.title}
                 </span>
                 {node.progress > 0 && (
-                    <span className="text-xs text-gray-400">{node.progress}%</span>
+                    <span className="text-xs text-muted">{node.progress}%</span>
                 )}
             </div>
             {hasChildren && isExpanded && (
@@ -776,22 +777,23 @@ export default function ObjectivesPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center dark:bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <AppShell>
+            <div className="min-h-screen bg-background flex flex-col">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex-shrink-0">
+            <header className="bg-surface border-b dark:border-border flex-shrink-0">
                 <div className="px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                        <Link href="/dashboard" className="text-muted hover:text-gray-900 dark:hover:text-white">
                             ← Dashboard
                         </Link>
-                        <h1 className="text-2xl font-bold dark:text-white">🎯 Objetivos</h1>
+                        <h1 className="text-2xl font-bold dark:text-foreground">🎯 Objetivos</h1>
                     </div>
                     <div className="flex items-center gap-4">
                         <ThemeToggle />
@@ -812,15 +814,15 @@ export default function ObjectivesPage() {
             <div className="flex-1 flex overflow-hidden">
                 {/* Sidebar - Objective Tree */}
                 <aside
-                    className="w-72 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col overflow-hidden"
+                    className="w-72 bg-surface border-r dark:border-border flex flex-col overflow-hidden"
                     onDragOver={(e) => {
                         e.preventDefault();
                         if (draggedId) setDragOverId('root');
                     }}
                     onDrop={handleDropToRoot}
                 >
-                    <div className="p-3 border-b dark:border-gray-700">
-                        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    <div className="p-3 border-b dark:border-border">
+                        <h2 className="text-sm font-medium text-muted">
                             Arbol de Objetivos
                         </h2>
                     </div>
@@ -828,7 +830,7 @@ export default function ObjectivesPage() {
                         className={`flex-1 overflow-y-auto p-2 ${dragOverId === 'root' ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}
                     >
                         {objectiveTree.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400 text-sm">
+                            <div className="text-center py-8 text-muted text-sm">
                                 <p>No hay objetivos</p>
                                 <button
                                     onClick={() => setShowCreateModal(true)}
@@ -855,7 +857,7 @@ export default function ObjectivesPage() {
                         )}
                     </div>
                     {draggedId && (
-                        <div className="p-2 border-t dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 text-center">
+                        <div className="p-2 border-t dark:border-border text-xs text-muted text-center">
                             Suelta aqui para mover a raiz
                         </div>
                     )}
@@ -864,7 +866,7 @@ export default function ObjectivesPage() {
                 {/* Detail Panel */}
                 <main className="flex-1 overflow-y-auto">
                     {!selectedObjective ? (
-                        <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+                        <div className="h-full flex items-center justify-center text-muted">
                             <div className="text-center">
                                 <div className="text-6xl mb-4">🎯</div>
                                 <p>Selecciona un objetivo del arbol</p>
@@ -886,7 +888,7 @@ export default function ObjectivesPage() {
                                         {selectedObjective.icon}
                                     </span>
                                     <div>
-                                        <h2 className="text-2xl font-bold dark:text-white">{selectedObjective.title}</h2>
+                                        <h2 className="text-2xl font-bold dark:text-foreground">{selectedObjective.title}</h2>
                                         <div className="flex items-center gap-2 mt-1">
                                             <select
                                                 value={selectedObjective.status}
@@ -897,7 +899,7 @@ export default function ObjectivesPage() {
                                                     <option key={s.value} value={s.value}>{s.label}</option>
                                                 ))}
                                             </select>
-                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                            <span className="text-sm text-muted">
                                                 {HORIZONS.find(h => h.value === selectedObjective.horizon)?.icon} {HORIZONS.find(h => h.value === selectedObjective.horizon)?.label}
                                             </span>
                                         </div>
@@ -910,7 +912,7 @@ export default function ObjectivesPage() {
                                         className={`p-2 text-xl rounded-lg transition-colors ${
                                             selectedObjective.is_favorite
                                                 ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
-                                                : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                : 'text-muted hover:text-yellow-500 hover:bg-surface-muted'
                                         }`}
                                         title={selectedObjective.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
                                     >
@@ -918,7 +920,7 @@ export default function ObjectivesPage() {
                                     </button>
                                     <button
                                         onClick={() => openCreateSubobjective(selectedObjective.id)}
-                                        className="px-3 py-2 text-sm border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        className="px-3 py-2 text-sm border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                                     >
                                         + Subobjetivo
                                     </button>
@@ -932,33 +934,33 @@ export default function ObjectivesPage() {
                             </div>
 
                             {editMode ? (
-                                <form onSubmit={handleUpdateObjective} className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border dark:border-gray-700">
+                                <form onSubmit={handleUpdateObjective} className="bg-surface rounded-lg p-6 shadow-sm border dark:border-border">
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Titulo</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Titulo</label>
                                         <input
                                             type="text"
                                             value={formTitle}
                                             onChange={(e) => setFormTitle(e.target.value)}
-                                            className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                            className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                             required
                                         />
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Descripcion</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Descripcion</label>
                                         <textarea
                                             value={formDescription}
                                             onChange={(e) => setFormDescription(e.target.value)}
-                                            className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                            className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                             rows={3}
                                         />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 mb-4">
                                         <div>
-                                            <label className="block text-sm font-medium mb-1 dark:text-gray-300">Horizonte</label>
+                                            <label className="block text-sm font-medium mb-1 dark:text-foreground">Horizonte</label>
                                             <select
                                                 value={formHorizon}
                                                 onChange={(e) => setFormHorizon(e.target.value)}
-                                                className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                                className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                             >
                                                 {HORIZONS.map(h => (
                                                     <option key={h.value} value={h.value}>{h.icon} {h.label}</option>
@@ -966,17 +968,17 @@ export default function ObjectivesPage() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium mb-1 dark:text-gray-300">Fecha objetivo</label>
+                                            <label className="block text-sm font-medium mb-1 dark:text-foreground">Fecha objetivo</label>
                                             <input
                                                 type="date"
                                                 value={formTargetDate}
                                                 onChange={(e) => setFormTargetDate(e.target.value)}
-                                                className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                                className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                             />
                                         </div>
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Icono</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Icono</label>
                                         {/* Category tabs */}
                                         <div className="flex flex-wrap gap-1 mb-2">
                                             {ICON_CATEGORY_NAMES.map((category) => (
@@ -984,31 +986,31 @@ export default function ObjectivesPage() {
                                                     key={category}
                                                     type="button"
                                                     onClick={() => setFormIconCategory(category)}
-                                                    className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                                    className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-surface-muted dark:bg-surface-muted text-foreground hover:bg-surface-muted dark:hover:bg-gray-600'}`}
                                                 >
                                                     {category}
                                                 </button>
                                             ))}
                                         </div>
                                         {/* Icons grid */}
-                                        <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg max-h-28 overflow-y-auto">
+                                        <div className="flex flex-wrap gap-2 p-2 bg-background dark:bg-surface-muted/50 rounded-lg max-h-28 overflow-y-auto">
                                             {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
                                                 <button
                                                     key={icon}
                                                     type="button"
                                                     onClick={() => setFormIcon(icon)}
-                                                    className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                                    className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-surface-muted dark:hover:bg-gray-600'}`}
                                                 >
                                                     {icon}
                                                 </button>
                                             ))}
                                         </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        <div className="text-xs text-muted mt-1">
                                             Seleccionado: {formIcon}
                                         </div>
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Color</label>
+                                        <label className="block text-sm font-medium mb-1 dark:text-foreground">Color</label>
                                         <div className="flex gap-2 flex-wrap">
                                             {COLORS.map(color => (
                                                 <button
@@ -1033,7 +1035,7 @@ export default function ObjectivesPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => setEditMode(false)}
-                                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg"
+                                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg"
                                             >
                                                 Cancelar
                                             </button>
@@ -1051,7 +1053,7 @@ export default function ObjectivesPage() {
                                 <>
                                     {/* Description */}
                                     {selectedObjective.description && (
-                                        <p className="text-gray-600 dark:text-gray-400 mb-6">
+                                        <p className="text-muted mb-6">
                                             {selectedObjective.description}
                                         </p>
                                     )}
@@ -1059,10 +1061,10 @@ export default function ObjectivesPage() {
                                     {/* Progress */}
                                     <div className="mb-6">
                                         <div className="flex justify-between text-sm mb-2">
-                                            <span className="text-gray-500 dark:text-gray-400">Progreso</span>
+                                            <span className="text-muted">Progreso</span>
                                             <span className="font-bold text-lg" style={{ color: selectedObjective.color }}>{selectedObjective.progress}%</span>
                                         </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                                        <div className="w-full bg-surface-muted dark:bg-surface-muted rounded-full h-3">
                                             <div
                                                 className="h-3 rounded-full transition-all"
                                                 style={{ width: `${selectedObjective.progress}%`, backgroundColor: selectedObjective.color }}
@@ -1073,42 +1075,42 @@ export default function ObjectivesPage() {
                                     {/* Metadata */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
                                         {selectedObjective.target_date && (
-                                            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                                                <span className="text-gray-500 dark:text-gray-400 block">Fecha objetivo</span>
-                                                <span className="font-medium dark:text-white">
+                                            <div className="bg-surface p-3 rounded-lg border dark:border-border">
+                                                <span className="text-muted block">Fecha objetivo</span>
+                                                <span className="font-medium dark:text-foreground">
                                                     {new Date(selectedObjective.target_date).toLocaleDateString()}
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                                            <span className="text-gray-500 dark:text-gray-400 block">Creado</span>
-                                            <span className="font-medium dark:text-white">
+                                        <div className="bg-surface p-3 rounded-lg border dark:border-border">
+                                            <span className="text-muted block">Creado</span>
+                                            <span className="font-medium dark:text-foreground">
                                                 {new Date(selectedObjective.created_at).toLocaleDateString()}
                                             </span>
                                         </div>
-                                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                                            <span className="text-gray-500 dark:text-gray-400 block">Subobjetivos</span>
-                                            <span className="font-medium dark:text-white">{selectedObjective.children?.length || 0}</span>
+                                        <div className="bg-surface p-3 rounded-lg border dark:border-border">
+                                            <span className="text-muted block">Subobjetivos</span>
+                                            <span className="font-medium dark:text-foreground">{selectedObjective.children?.length || 0}</span>
                                         </div>
-                                        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border dark:border-gray-700">
-                                            <span className="text-gray-500 dark:text-gray-400 block">Acciones</span>
-                                            <span className="font-medium dark:text-white">
+                                        <div className="bg-surface p-3 rounded-lg border dark:border-border">
+                                            <span className="text-muted block">Acciones</span>
+                                            <span className="font-medium dark:text-foreground">
                                                 {selectedObjective.objective_actions?.filter(a => a.is_completed).length || 0}/{selectedObjective.objective_actions?.length || 0}
                                             </span>
                                         </div>
                                     </div>
 
                                     {/* Actions (checklist) */}
-                                    <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4">
-                                        <h3 className="font-semibold mb-3 dark:text-white">Acciones</h3>
+                                    <div className="mb-6 bg-surface rounded-lg border dark:border-border p-4">
+                                        <h3 className="font-semibold mb-3 dark:text-foreground">Acciones</h3>
                                         <div className="space-y-2">
                                             {selectedObjective.objective_actions?.map(action => (
-                                                <div key={action.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 group">
+                                                <div key={action.id} className="flex items-center gap-3 p-2 rounded hover:bg-surface-muted group">
                                                     <input
                                                         type="checkbox"
                                                         checked={action.is_completed}
                                                         onChange={() => handleToggleAction(action.id, action.is_completed)}
-                                                        className="rounded border-gray-300 text-indigo-600"
+                                                        className="rounded border-border text-indigo-600"
                                                     />
                                                     {editingActionId === action.id ? (
                                                         <div className="flex-1 flex gap-2">
@@ -1120,7 +1122,7 @@ export default function ObjectivesPage() {
                                                                     if (e.key === 'Enter') handleSaveEditAction(action.id);
                                                                     if (e.key === 'Escape') handleCancelEditAction();
                                                                 }}
-                                                                className="flex-1 px-2 py-1 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                className="flex-1 px-2 py-1 text-sm border dark:border-border rounded bg-background dark:bg-surface-muted dark:text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                                 autoFocus
                                                             />
                                                             <button
@@ -1131,14 +1133,14 @@ export default function ObjectivesPage() {
                                                             </button>
                                                             <button
                                                                 onClick={handleCancelEditAction}
-                                                                className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+                                                                className="px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-foreground rounded hover:bg-gray-400 dark:hover:bg-gray-500"
                                                             >
                                                                 ✕
                                                             </button>
                                                         </div>
                                                     ) : (
                                                         <span
-                                                            className={`flex-1 cursor-pointer ${action.is_completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}
+                                                            className={`flex-1 cursor-pointer ${action.is_completed ? 'line-through text-muted' : 'text-foreground'}`}
                                                             onDoubleClick={() => handleStartEditAction(action.id, action.title)}
                                                             title="Doble clic para editar"
                                                         >
@@ -1149,7 +1151,7 @@ export default function ObjectivesPage() {
                                                         <>
                                                             <button
                                                                 onClick={() => handleStartEditAction(action.id, action.title)}
-                                                                className="text-gray-400 hover:text-indigo-600 text-sm opacity-0 group-hover:opacity-100"
+                                                                className="text-muted hover:text-indigo-600 text-sm opacity-0 group-hover:opacity-100"
                                                                 title="Editar acción"
                                                             >
                                                                 ✎
@@ -1172,7 +1174,7 @@ export default function ObjectivesPage() {
                                                 value={newActionTitle}
                                                 onChange={(e) => setNewActionTitle(e.target.value)}
                                                 placeholder="Nueva accion..."
-                                                className="flex-1 px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                                                className="flex-1 px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg text-sm"
                                                 onKeyDown={(e) => e.key === 'Enter' && handleAddAction()}
                                             />
                                             <button
@@ -1187,7 +1189,7 @@ export default function ObjectivesPage() {
                                     {/* Subobjetivos */}
                                     {selectedObjective.children && selectedObjective.children.length > 0 && (
                                         <div className="mb-6">
-                                            <h3 className="font-semibold mb-3 dark:text-white">
+                                            <h3 className="font-semibold mb-3 dark:text-foreground">
                                                 Subobjetivos ({selectedObjective.children.length})
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1195,7 +1197,7 @@ export default function ObjectivesPage() {
                                                     <div
                                                         key={child.id}
                                                         onClick={() => handleSelectObjective(child.id)}
-                                                        className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 cursor-pointer hover:shadow-md transition-shadow"
+                                                        className="bg-surface p-4 rounded-lg border dark:border-border cursor-pointer hover:shadow-md transition-shadow"
                                                     >
                                                         <div className="flex items-center gap-3">
                                                             <span
@@ -1205,12 +1207,12 @@ export default function ObjectivesPage() {
                                                                 {child.icon}
                                                             </span>
                                                             <div className="flex-1">
-                                                                <span className="font-medium dark:text-white">{child.title}</span>
+                                                                <span className="font-medium dark:text-foreground">{child.title}</span>
                                                                 <div className="flex items-center gap-2 mt-1">
                                                                     <span className={`text-xs px-2 py-0.5 rounded-full ${STATUSES.find(s => s.value === child.status)?.color}`}>
                                                                         {STATUSES.find(s => s.value === child.status)?.label}
                                                                     </span>
-                                                                    <span className="text-xs text-gray-500">{child.progress}%</span>
+                                                                    <span className="text-xs text-muted">{child.progress}%</span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1223,7 +1225,7 @@ export default function ObjectivesPage() {
                                     {/* Linked Projects */}
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Proyectos ({selectedObjective.projects?.length || 0})
                                             </h3>
                                             <button
@@ -1234,7 +1236,7 @@ export default function ObjectivesPage() {
                                             </button>
                                         </div>
                                         {!selectedObjective.projects || selectedObjective.projects.length === 0 ? (
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-2">
+                                            <p className="text-muted text-sm py-2">
                                                 No hay proyectos vinculados.
                                             </p>
                                         ) : (
@@ -1261,7 +1263,7 @@ export default function ObjectivesPage() {
                                     {/* Linked Mental Models */}
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Modelos Mentales ({selectedObjective.mental_models?.length || 0})
                                             </h3>
                                             <button
@@ -1272,7 +1274,7 @@ export default function ObjectivesPage() {
                                             </button>
                                         </div>
                                         {!selectedObjective.mental_models || selectedObjective.mental_models.length === 0 ? (
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-2">
+                                            <p className="text-muted text-sm py-2">
                                                 No hay modelos mentales vinculados.
                                             </p>
                                         ) : (
@@ -1299,7 +1301,7 @@ export default function ObjectivesPage() {
                                     {/* Linked Notes */}
                                     <div className="mb-6">
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Notas ({selectedObjective.notes?.length || 0})
                                             </h3>
                                             <div className="flex items-center gap-2">
@@ -1318,7 +1320,7 @@ export default function ObjectivesPage() {
                                             </div>
                                         </div>
                                         {!selectedObjective.notes || selectedObjective.notes.length === 0 ? (
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-2">
+                                            <p className="text-muted text-sm py-2">
                                                 No hay notas vinculadas.
                                             </p>
                                         ) : (
@@ -1326,7 +1328,7 @@ export default function ObjectivesPage() {
                                                 {selectedObjective.notes.map(note => (
                                                     <div
                                                         key={note.id}
-                                                        className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg group"
+                                                        className="p-3 bg-surface border dark:border-border rounded-lg group"
                                                     >
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="flex-1 min-w-0">
@@ -1338,18 +1340,18 @@ export default function ObjectivesPage() {
                                                                         {note.note_type === 'connection' && '🔗'}
                                                                         {note.note_type === 'journal' && '📓'}
                                                                     </span>
-                                                                    <span className="font-medium dark:text-white truncate">
+                                                                    <span className="font-medium dark:text-foreground truncate">
                                                                         {note.title}
                                                                     </span>
                                                                     {note.is_pinned && <span className="text-xs">📌</span>}
                                                                 </div>
-                                                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                                                                <p className="text-sm text-muted line-clamp-2 mt-1">
                                                                     {note.content.substring(0, 100)}...
                                                                 </p>
                                                             </div>
                                                             <button
                                                                 onClick={() => handleUnlinkNote(note.id)}
-                                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-500 transition-opacity"
                                                             >
                                                                 ✕
                                                             </button>
@@ -1363,7 +1365,7 @@ export default function ObjectivesPage() {
                                     {/* Linked Contents */}
                                     <div>
                                         <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold dark:text-white">
+                                            <h3 className="font-semibold dark:text-foreground">
                                                 Contenidos ({selectedObjective.contents?.length || 0})
                                             </h3>
                                             <button
@@ -1374,7 +1376,7 @@ export default function ObjectivesPage() {
                                             </button>
                                         </div>
                                         {!selectedObjective.contents || selectedObjective.contents.length === 0 ? (
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm py-2">
+                                            <p className="text-muted text-sm py-2">
                                                 No hay contenidos vinculados.
                                             </p>
                                         ) : (
@@ -1382,23 +1384,23 @@ export default function ObjectivesPage() {
                                                 {selectedObjective.contents.map(content => (
                                                     <div
                                                         key={content.id}
-                                                        className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg group"
+                                                        className="p-3 bg-surface border dark:border-border rounded-lg group"
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <Link
                                                                 href={`/dashboard?content=${content.id}`}
                                                                 className="flex-1 hover:text-indigo-600 dark:hover:text-indigo-400"
                                                             >
-                                                                <span className="dark:text-white">{content.title}</span>
+                                                                <span className="dark:text-foreground">{content.title}</span>
                                                             </Link>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
+                                                                <span className="text-xs px-2 py-0.5 bg-surface-muted dark:bg-surface-muted text-gray-600 dark:text-foreground rounded">
                                                                     {content.content_type}
                                                                 </span>
                                                                 {content.is_favorite && <span>⭐</span>}
                                                                 <button
                                                                     onClick={() => handleUnlinkContent(content.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-500 transition-opacity"
                                                                 >
                                                                     ✕
                                                                 </button>
@@ -1419,38 +1421,38 @@ export default function ObjectivesPage() {
             {/* Create Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-xl font-bold mb-4 dark:text-foreground">
                             {createParentId ? 'Nuevo Subobjetivo' : 'Nuevo Objetivo'}
                         </h2>
                         <form onSubmit={handleCreateObjective}>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Titulo</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Titulo</label>
                                 <input
                                     type="text"
                                     value={formTitle}
                                     onChange={(e) => setFormTitle(e.target.value)}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                    className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                     required
                                     autoFocus
                                 />
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Descripcion</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Descripcion</label>
                                 <textarea
                                     value={formDescription}
                                     onChange={(e) => setFormDescription(e.target.value)}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                    className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                     rows={3}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Horizonte</label>
+                                    <label className="block text-sm font-medium mb-1 dark:text-foreground">Horizonte</label>
                                     <select
                                         value={formHorizon}
                                         onChange={(e) => setFormHorizon(e.target.value)}
-                                        className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                        className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                     >
                                         {HORIZONS.map(h => (
                                             <option key={h.value} value={h.value}>{h.icon} {h.label}</option>
@@ -1458,11 +1460,11 @@ export default function ObjectivesPage() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Estado</label>
+                                    <label className="block text-sm font-medium mb-1 dark:text-foreground">Estado</label>
                                     <select
                                         value={formStatus}
                                         onChange={(e) => setFormStatus(e.target.value)}
-                                        className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                        className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                     >
                                         {STATUSES.map(s => (
                                             <option key={s.value} value={s.value}>{s.label}</option>
@@ -1471,16 +1473,16 @@ export default function ObjectivesPage() {
                                 </div>
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Fecha objetivo</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Fecha objetivo</label>
                                 <input
                                     type="date"
                                     value={formTargetDate}
                                     onChange={(e) => setFormTargetDate(e.target.value)}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                    className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                 />
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Icono</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Icono</label>
                                 {/* Category tabs */}
                                 <div className="flex flex-wrap gap-1 mb-2">
                                     {ICON_CATEGORY_NAMES.map((category) => (
@@ -1488,31 +1490,31 @@ export default function ObjectivesPage() {
                                             key={category}
                                             type="button"
                                             onClick={() => setFormIconCategory(category)}
-                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                            className={`px-2 py-1 text-xs rounded ${formIconCategory === category ? 'bg-indigo-600 text-white' : 'bg-surface-muted dark:bg-surface-muted text-foreground hover:bg-surface-muted dark:hover:bg-gray-600'}`}
                                         >
                                             {category}
                                         </button>
                                     ))}
                                 </div>
                                 {/* Icons grid */}
-                                <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg max-h-28 overflow-y-auto">
+                                <div className="flex flex-wrap gap-2 p-2 bg-background dark:bg-surface-muted/50 rounded-lg max-h-28 overflow-y-auto">
                                     {ICON_CATEGORIES[formIconCategory]?.map((icon) => (
                                         <button
                                             key={icon}
                                             type="button"
                                             onClick={() => setFormIcon(icon)}
-                                            className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                            className={`text-2xl p-2 rounded-lg transition-all ${formIcon === icon ? 'bg-indigo-100 dark:bg-indigo-900 ring-2 ring-indigo-500 scale-110' : 'hover:bg-surface-muted dark:hover:bg-gray-600'}`}
                                         >
                                             {icon}
                                         </button>
                                     ))}
                                 </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                <div className="text-xs text-muted mt-1">
                                     Seleccionado: {formIcon}
                                 </div>
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Color</label>
+                                <label className="block text-sm font-medium mb-1 dark:text-foreground">Color</label>
                                 <div className="flex gap-2 flex-wrap">
                                     {COLORS.map(color => (
                                         <button
@@ -1532,7 +1534,7 @@ export default function ObjectivesPage() {
                                         setShowCreateModal(false);
                                         resetForm();
                                     }}
-                                    className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                                 >
                                     Cancelar
                                 </button>
@@ -1552,8 +1554,8 @@ export default function ObjectivesPage() {
             {/* Content Selector Modal */}
             {showContentSelector && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 dark:text-foreground">
                             Asociar contenidos a {selectedObjective?.title}
                         </h2>
 
@@ -1562,12 +1564,12 @@ export default function ObjectivesPage() {
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                             </div>
                         ) : availableContents.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 py-8 text-center">
+                            <p className="text-muted py-8 text-center">
                                 No hay contenidos disponibles para asociar.
                             </p>
                         ) : (
                             <>
-                                <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                                <div className="mb-3 text-sm text-muted">
                                     Selecciona los contenidos que quieres vincular ({selectedIds.length} seleccionados)
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-2 mb-4">
@@ -1577,7 +1579,7 @@ export default function ObjectivesPage() {
                                             className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-colors
                                                 ${selectedIds.includes(content.id)
                                                     ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                                    : 'border-border hover:bg-surface-muted'}`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -1592,8 +1594,8 @@ export default function ObjectivesPage() {
                                                 className="w-4 h-4 text-indigo-600"
                                             />
                                             <div className="flex-1 min-w-0">
-                                                <span className="font-medium dark:text-white block truncate">{content.title}</span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">{content.content_type}</span>
+                                                <span className="font-medium dark:text-foreground block truncate">{content.title}</span>
+                                                <span className="text-xs text-muted">{content.content_type}</span>
                                             </div>
                                             {content.is_favorite && <span>⭐</span>}
                                         </label>
@@ -1602,14 +1604,14 @@ export default function ObjectivesPage() {
                             </>
                         )}
 
-                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700">
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-border">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowContentSelector(false);
                                     setSelectedIds([]);
                                 }}
-                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -1628,8 +1630,8 @@ export default function ObjectivesPage() {
             {/* Note Selector Modal */}
             {showNoteSelector && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 dark:text-foreground">
                             Asociar notas a {selectedObjective?.title}
                         </h2>
 
@@ -1638,12 +1640,12 @@ export default function ObjectivesPage() {
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                             </div>
                         ) : availableNotes.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 py-8 text-center">
+                            <p className="text-muted py-8 text-center">
                                 No hay notas disponibles para asociar.
                             </p>
                         ) : (
                             <>
-                                <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                                <div className="mb-3 text-sm text-muted">
                                     Selecciona las notas que quieres vincular ({selectedIds.length} seleccionadas)
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-2 mb-4">
@@ -1653,7 +1655,7 @@ export default function ObjectivesPage() {
                                             className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-colors
                                                 ${selectedIds.includes(note.id)
                                                     ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                                    : 'border-border hover:bg-surface-muted'}`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -1676,10 +1678,10 @@ export default function ObjectivesPage() {
                                                         {note.note_type === 'connection' && '🔗'}
                                                         {note.note_type === 'journal' && '📓'}
                                                     </span>
-                                                    <span className="font-medium dark:text-white truncate">{note.title}</span>
+                                                    <span className="font-medium dark:text-foreground truncate">{note.title}</span>
                                                     {note.is_pinned && <span className="text-xs">📌</span>}
                                                 </div>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                                                <p className="text-sm text-muted line-clamp-2 mt-1">
                                                     {note.content.substring(0, 80)}...
                                                 </p>
                                             </div>
@@ -1689,14 +1691,14 @@ export default function ObjectivesPage() {
                             </>
                         )}
 
-                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700">
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-border">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowNoteSelector(false);
                                     setSelectedIds([]);
                                 }}
-                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -1715,8 +1717,8 @@ export default function ObjectivesPage() {
             {/* Project Selector Modal */}
             {showProjectSelector && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 dark:text-foreground">
                             Asociar proyectos a {selectedObjective?.title}
                         </h2>
 
@@ -1725,12 +1727,12 @@ export default function ObjectivesPage() {
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                             </div>
                         ) : availableProjects.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 py-8 text-center">
+                            <p className="text-muted py-8 text-center">
                                 No hay proyectos disponibles para asociar.
                             </p>
                         ) : (
                             <>
-                                <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                                <div className="mb-3 text-sm text-muted">
                                     Selecciona los proyectos que quieres vincular ({selectedIds.length} seleccionados)
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-2 mb-4">
@@ -1740,7 +1742,7 @@ export default function ObjectivesPage() {
                                             className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-colors
                                                 ${selectedIds.includes(project.id)
                                                     ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                                    : 'border-border hover:bg-surface-muted'}`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -1761,8 +1763,8 @@ export default function ObjectivesPage() {
                                                 {project.icon}
                                             </span>
                                             <div className="flex-1 min-w-0">
-                                                <span className="font-medium dark:text-white block truncate">{project.name}</span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">{project.status}</span>
+                                                <span className="font-medium dark:text-foreground block truncate">{project.name}</span>
+                                                <span className="text-xs text-muted">{project.status}</span>
                                             </div>
                                         </label>
                                     ))}
@@ -1770,14 +1772,14 @@ export default function ObjectivesPage() {
                             </>
                         )}
 
-                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700">
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-border">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowProjectSelector(false);
                                     setSelectedIds([]);
                                 }}
-                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -1796,8 +1798,8 @@ export default function ObjectivesPage() {
             {/* Mental Model Selector Modal */}
             {showModelSelector && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-                        <h2 className="text-xl font-bold mb-4 dark:text-white">
+                    <div className="bg-surface rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <h2 className="text-xl font-bold mb-4 dark:text-foreground">
                             Asociar modelos mentales a {selectedObjective?.title}
                         </h2>
 
@@ -1806,12 +1808,12 @@ export default function ObjectivesPage() {
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                             </div>
                         ) : availableModels.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 py-8 text-center">
+                            <p className="text-muted py-8 text-center">
                                 No hay modelos mentales disponibles para asociar.
                             </p>
                         ) : (
                             <>
-                                <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                                <div className="mb-3 text-sm text-muted">
                                     Selecciona los modelos mentales que quieres vincular ({selectedIds.length} seleccionados)
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-2 mb-4">
@@ -1821,7 +1823,7 @@ export default function ObjectivesPage() {
                                             className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-colors
                                                 ${selectedIds.includes(model.id)
                                                     ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                                    : 'border-border hover:bg-surface-muted'}`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -1842,7 +1844,7 @@ export default function ObjectivesPage() {
                                                 {model.icon}
                                             </span>
                                             <div className="flex-1 min-w-0">
-                                                <span className="font-medium dark:text-white block truncate">{model.name}</span>
+                                                <span className="font-medium dark:text-foreground block truncate">{model.name}</span>
                                             </div>
                                         </label>
                                     ))}
@@ -1850,14 +1852,14 @@ export default function ObjectivesPage() {
                             </>
                         )}
 
-                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-gray-700">
+                        <div className="flex gap-2 justify-end pt-4 border-t dark:border-border">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowModelSelector(false);
                                     setSelectedIds([]);
                                 }}
-                                className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                             >
                                 Cancelar
                             </button>
@@ -1872,6 +1874,7 @@ export default function ObjectivesPage() {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </AppShell>
     );
 }

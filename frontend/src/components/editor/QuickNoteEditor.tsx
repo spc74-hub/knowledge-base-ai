@@ -82,8 +82,8 @@ export default function QuickNoteEditor({
             type="button"
             onClick={onClick}
             title={title}
-            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ${
-                isActive ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'
+            className={`p-1.5 rounded hover:bg-surface-muted dark:hover:bg-gray-600 transition-colors ${
+                isActive ? 'bg-surface-muted dark:bg-gray-600 text-foreground' : 'text-gray-600 dark:text-foreground'
             }`}
         >
             {children}
@@ -93,9 +93,9 @@ export default function QuickNoteEditor({
     if (!editor) return null;
 
     return (
-        <div className="border dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+        <div className="border dark:border-border rounded-lg overflow-hidden bg-surface">
             {/* Compact Toolbar */}
-            <div className="border-b dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-2 py-1.5 flex flex-wrap items-center gap-0.5">
+            <div className="border-b dark:border-border bg-background dark:bg-surface-muted px-2 py-1.5 flex flex-wrap items-center gap-0.5">
                 {/* Bold, Italic */}
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleBold().run()}
@@ -191,7 +191,7 @@ export default function QuickNoteEditor({
                             key={color}
                             type="button"
                             onClick={() => editor.chain().focus().toggleHighlight({ color }).run()}
-                            className="w-4 h-4 rounded border border-gray-300 dark:border-gray-500 hover:scale-110 transition-transform"
+                            className="w-4 h-4 rounded border border-border dark:border-gray-500 hover:scale-110 transition-transform"
                             style={{ backgroundColor: color }}
                             title="Resaltar"
                         />
@@ -199,7 +199,7 @@ export default function QuickNoteEditor({
                     <button
                         type="button"
                         onClick={() => editor.chain().focus().unsetHighlight().run()}
-                        className="w-4 h-4 rounded border border-gray-300 dark:border-gray-500 flex items-center justify-center text-xs text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600"
+                        className="w-4 h-4 rounded border border-border dark:border-gray-500 flex items-center justify-center text-xs text-muted hover:bg-surface-muted dark:hover:bg-gray-600"
                         title="Quitar resaltado"
                     >
                         x

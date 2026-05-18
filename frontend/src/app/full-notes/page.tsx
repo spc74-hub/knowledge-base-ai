@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useFullNotes, useToggleFullNoteFavorite, type FullNote } from '@/hooks/use-full-notes';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import AppShell from '@/components/AppShell';
 
 const PRIORITIES = {
     important: { label: 'Importante', icon: '🔴', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
@@ -68,25 +69,26 @@ export default function FullNotesPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center dark:bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700">
+            <header className="bg-surface border-b dark:border-border">
                 <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                        <Link href="/dashboard" className="text-muted hover:text-gray-900 dark:hover:text-white">
                             ← Dashboard
                         </Link>
-                        <h1 className="text-2xl font-bold dark:text-white flex items-center gap-2">
+                        <h1 className="text-2xl font-bold dark:text-foreground flex items-center gap-2">
                             <span>📄</span> Full Notes
                         </h1>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <span className="text-sm text-muted">
                             ({totalNotes} notas)
                         </span>
                     </div>
@@ -104,7 +106,7 @@ export default function FullNotesPage() {
 
             <div className="max-w-6xl mx-auto px-4 py-6">
                 {/* Filters bar */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 mb-6">
+                <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-4 mb-6">
                     <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
                         {/* Search */}
                         <div className="flex-1 flex gap-2">
@@ -113,13 +115,13 @@ export default function FullNotesPage() {
                                 placeholder="Buscar en notas... (Enter)"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="flex-1 px-4 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                className="flex-1 px-4 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                             />
                             {appliedSearch && (
                                 <button
                                     type="button"
                                     onClick={() => { setSearchQuery(''); setAppliedSearch(''); }}
-                                    className="px-3 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                    className="px-3 py-2 text-muted hover:text-gray-700 dark:text-muted dark:hover:text-gray-200"
                                 >
                                     ✕
                                 </button>
@@ -130,7 +132,7 @@ export default function FullNotesPage() {
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                                className="px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                className="px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                             >
                                 <option value="updated_at">Última edición</option>
                                 <option value="created_at">Fecha creación</option>
@@ -139,7 +141,7 @@ export default function FullNotesPage() {
                             <button
                                 type="button"
                                 onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-                                className="px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+                                className="px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg hover:bg-background dark:hover:bg-gray-600"
                                 title={sortOrder === 'desc' ? 'Descendente' : 'Ascendente'}
                             >
                                 {sortOrder === 'desc' ? '↓' : '↑'}
@@ -147,7 +149,7 @@ export default function FullNotesPage() {
                         </div>
                     </form>
                     {appliedSearch && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                        <p className="text-sm text-muted mt-2">
                             Buscando: &quot;{appliedSearch}&quot;
                         </p>
                     )}
@@ -155,12 +157,12 @@ export default function FullNotesPage() {
 
                 {/* Notes list */}
                 {notes.length === 0 ? (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-12 text-center">
+                    <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-12 text-center">
                         <div className="text-6xl mb-4">📄</div>
-                        <h2 className="text-xl font-semibold mb-2 dark:text-white">
+                        <h2 className="text-xl font-semibold mb-2 dark:text-foreground">
                             {appliedSearch ? 'No se encontraron notas' : 'No tienes Full Notes'}
                         </h2>
-                        <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        <p className="text-muted mb-4">
                             {appliedSearch
                                 ? 'Intenta con otros términos de búsqueda'
                                 : 'Las Full Notes son notas completas con editor enriquecido que se guardan como contenido.'
@@ -181,10 +183,10 @@ export default function FullNotesPage() {
                             <Link
                                 key={note.id}
                                 href={`/notes/${note.id}/edit`}
-                                className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 hover:shadow-md transition-shadow group"
+                                className="bg-surface rounded-lg shadow-sm border dark:border-border p-4 hover:shadow-md transition-shadow group"
                             >
                                 <div className="flex items-start justify-between mb-2">
-                                    <h3 className="font-semibold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 line-clamp-2">
+                                    <h3 className="font-semibold dark:text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 line-clamp-2">
                                         {note.title || 'Sin título'}
                                     </h3>
                                     <button
@@ -195,7 +197,7 @@ export default function FullNotesPage() {
                                     </button>
                                 </div>
 
-                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3">
+                                <p className="text-sm text-muted line-clamp-3 mb-3">
                                     {note.summary || stripHtmlTags(note.raw_content || '').slice(0, 150) || 'Sin contenido'}
                                 </p>
 
@@ -207,13 +209,13 @@ export default function FullNotesPage() {
                                             </span>
                                         )}
                                         {note.user_tags && note.user_tags.length > 0 && (
-                                            <span className="text-gray-500 dark:text-gray-400">
+                                            <span className="text-muted">
                                                 {note.user_tags.slice(0, 2).join(', ')}
                                                 {note.user_tags.length > 2 && '...'}
                                             </span>
                                         )}
                                     </div>
-                                    <span className="text-gray-400 dark:text-gray-500">
+                                    <span className="text-muted">
                                         {new Date(note.updated_at).toLocaleDateString()}
                                     </span>
                                 </div>
@@ -222,6 +224,7 @@ export default function FullNotesPage() {
                     </div>
                 )}
             </div>
-        </div>
+            </div>
+        </AppShell>
     );
 }

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { NoteEditor } from '@/components/editor';
+import AppShell from '@/components/AppShell';
 
 // Hardcoded API URL - always use HTTPS in production
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -91,20 +92,21 @@ export default function NewNotePage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 shadow-sm">
+            <header className="bg-surface shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                        <Link href="/dashboard" className="text-gray-600 dark:text-foreground hover:text-gray-900 dark:hover:text-white">
                             ← Volver
                         </Link>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Nueva Nota</h1>
+                        <h1 className="text-2xl font-bold text-foreground">Nueva Nota</h1>
                     </div>
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-6 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-6 py-2 bg-gray-900 dark:bg-surface-muted text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {saving ? 'Guardando...' : 'Guardar Nota'}
                     </button>
@@ -113,7 +115,7 @@ export default function NewNotePage() {
 
             {/* Main content */}
             <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                <div className="bg-surface rounded-lg shadow-sm">
                     {error && (
                         <div className="mx-6 mt-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
                             {error}
@@ -121,19 +123,19 @@ export default function NewNotePage() {
                     )}
 
                     {/* Title */}
-                    <div className="p-6 border-b dark:border-gray-600">
+                    <div className="p-6 border-b dark:border-border">
                         <input
                             type="text"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="Titulo de la nota"
-                            className="w-full text-3xl font-bold text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none bg-transparent"
+                            className="w-full text-3xl font-bold text-foreground placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none bg-transparent"
                             disabled={saving}
                         />
                     </div>
 
                     {/* Editor */}
-                    <div className="border-b dark:border-gray-600">
+                    <div className="border-b dark:border-border">
                         <NoteEditor
                             placeholder="Escribe tu nota aqui... Usa la barra de herramientas para dar formato."
                             onChange={handleEditorChange}
@@ -143,7 +145,7 @@ export default function NewNotePage() {
 
                     {/* Tags */}
                     <div className="p-6">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground mb-2">
                             Tags (opcional, separados por coma)
                         </label>
                         <input
@@ -151,7 +153,7 @@ export default function NewNotePage() {
                             value={tags}
                             onChange={(e) => setTags(e.target.value)}
                             placeholder="personal, ideas, proyecto"
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 bg-surface dark:bg-surface-muted text-foreground placeholder-gray-400 dark:placeholder-gray-500"
                             disabled={saving}
                         />
                     </div>
@@ -168,24 +170,25 @@ export default function NewNotePage() {
 
                     {/* Keyboard shortcuts info */}
                     <div className="px-6 pb-6">
-                        <details className="text-sm text-gray-600 dark:text-gray-400">
+                        <details className="text-sm text-muted">
                             <summary className="cursor-pointer hover:text-gray-900 dark:hover:text-white font-medium">
                                 Atajos de teclado
                             </summary>
                             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                                <div><kbd className="px-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+B</kbd> Negrita</div>
-                                <div><kbd className="px-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+I</kbd> Cursiva</div>
-                                <div><kbd className="px-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+U</kbd> Subrayado</div>
-                                <div><kbd className="px-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+Z</kbd> Deshacer</div>
-                                <div><kbd className="px-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+Shift+7</kbd> Lista numerada</div>
-                                <div><kbd className="px-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+Shift+8</kbd> Lista con viñetas</div>
-                                <div><kbd className="px-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+Shift+9</kbd> Lista de tareas</div>
-                                <div><kbd className="px-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+`</kbd> Codigo</div>
+                                <div><kbd className="px-1 bg-surface-muted dark:bg-surface-muted rounded">Ctrl+B</kbd> Negrita</div>
+                                <div><kbd className="px-1 bg-surface-muted dark:bg-surface-muted rounded">Ctrl+I</kbd> Cursiva</div>
+                                <div><kbd className="px-1 bg-surface-muted dark:bg-surface-muted rounded">Ctrl+U</kbd> Subrayado</div>
+                                <div><kbd className="px-1 bg-surface-muted dark:bg-surface-muted rounded">Ctrl+Z</kbd> Deshacer</div>
+                                <div><kbd className="px-1 bg-surface-muted dark:bg-surface-muted rounded">Ctrl+Shift+7</kbd> Lista numerada</div>
+                                <div><kbd className="px-1 bg-surface-muted dark:bg-surface-muted rounded">Ctrl+Shift+8</kbd> Lista con viñetas</div>
+                                <div><kbd className="px-1 bg-surface-muted dark:bg-surface-muted rounded">Ctrl+Shift+9</kbd> Lista de tareas</div>
+                                <div><kbd className="px-1 bg-surface-muted dark:bg-surface-muted rounded">Ctrl+`</kbd> Codigo</div>
                             </div>
                         </details>
                     </div>
                 </div>
             </main>
-        </div>
+            </div>
+        </AppShell>
     );
 }

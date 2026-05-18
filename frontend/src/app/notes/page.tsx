@@ -10,11 +10,12 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ContentDetailModal, ContentDetail } from '@/components/content-detail-modal';
+import AppShell from '@/components/AppShell';
 
 // Dynamic import to avoid SSR issues with TipTap
 const QuickNoteEditor = dynamic(() => import('@/components/editor/QuickNoteEditor'), {
     ssr: false,
-    loading: () => <div className="h-[150px] bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+    loading: () => <div className="h-[150px] bg-surface-muted dark:bg-surface-muted rounded-lg animate-pulse" />
 });
 
 // Note and Facets types imported from @/hooks/use-quick-notes
@@ -47,7 +48,7 @@ const PRIORITIES = {
     important: { label: 'Importante', icon: '🟢', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
     A: { label: 'A', icon: '🟠', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
     B: { label: 'B', icon: '🟡', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
-    C: { label: 'C', icon: '⚫', color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
+    C: { label: 'C', icon: '⚫', color: 'bg-surface-muted text-gray-600 dark:bg-surface-muted dark:text-foreground' },
 } as const;
 
 // Hardcoded API URL - always use HTTPS in production
@@ -545,24 +546,25 @@ export default function NotesPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900">
+            <div className="min-h-screen flex items-center justify-center dark:bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 dark:border-white"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <AppShell>
+            <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700">
+            <header className="bg-surface border-b dark:border-border">
                 <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                        <Link href="/dashboard" className="text-muted hover:text-gray-900 dark:hover:text-white">
                             ← Dashboard
                         </Link>
-                        <h1 className="text-2xl font-bold dark:text-white">Notas</h1>
+                        <h1 className="text-2xl font-bold dark:text-foreground">Notas</h1>
                         {facets && (
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                            <span className="text-sm text-muted">
                                 ({facets.total_notes} total)
                             </span>
                         )}
@@ -589,14 +591,14 @@ export default function NotesPage() {
                         {/* Toggle button */}
                         <button
                             onClick={() => setSidebarOpen(!sidebarOpen)}
-                            className="w-10 h-10 bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 mb-2"
+                            className="w-10 h-10 bg-surface rounded-lg shadow-sm border dark:border-border flex items-center justify-center hover:bg-surface-muted mb-2"
                             title={sidebarOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
                         >
                             {sidebarOpen ? '◀' : '▶'}
                         </button>
 
                         {sidebarOpen && (
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-4 sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
                                 {/* Search */}
                                 <div className="mb-4">
                                     <div className="relative">
@@ -616,7 +618,7 @@ export default function NotesPage() {
                                                     setAppliedSearchQuery(searchQuery);
                                                 }
                                             }}
-                                            className="w-full px-3 py-2 pr-8 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                                            className="w-full px-3 py-2 pr-8 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg text-sm"
                                         />
                                         {appliedSearchQuery && (
                                             <button
@@ -624,7 +626,7 @@ export default function NotesPage() {
                                                     setSearchQuery('');
                                                     setAppliedSearchQuery('');
                                                 }}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-gray-600 dark:hover:text-gray-200"
                                                 title="Limpiar búsqueda"
                                             >
                                                 ✕
@@ -632,20 +634,20 @@ export default function NotesPage() {
                                         )}
                                     </div>
                                     {appliedSearchQuery && (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        <p className="text-xs text-muted mt-1">
                                             Buscando: &quot;{appliedSearchQuery}&quot;
                                         </p>
                                     )}
                                 </div>
 
                                 {/* Sort options */}
-                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
-                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Ordenar por</h3>
+                                <div className="mb-4 pb-4 border-b dark:border-border">
+                                    <h3 className="text-sm font-semibold text-foreground mb-2">Ordenar por</h3>
                                     <div className="flex gap-2 flex-wrap">
                                         <select
                                             value={sortBy}
                                             onChange={(e) => setSortBy(e.target.value)}
-                                            className="flex-1 px-2 py-1.5 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded text-sm"
+                                            className="flex-1 px-2 py-1.5 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded text-sm"
                                         >
                                             <option value="created_at">Fecha</option>
                                             <option value="priority">Prioridad</option>
@@ -653,7 +655,7 @@ export default function NotesPage() {
                                         </select>
                                         <button
                                             onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-                                            className="px-3 py-1.5 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-600"
+                                            className="px-3 py-1.5 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded text-sm hover:bg-background dark:hover:bg-gray-600"
                                             title={sortOrder === 'desc' ? 'Descendente' : 'Ascendente'}
                                         >
                                             {sortOrder === 'desc' ? '↓' : '↑'}
@@ -662,8 +664,8 @@ export default function NotesPage() {
                                 </div>
 
                                 {/* Priority filters */}
-                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
-                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Prioridad</h3>
+                                <div className="mb-4 pb-4 border-b dark:border-border">
+                                    <h3 className="text-sm font-semibold text-foreground mb-2">Prioridad</h3>
                                     <div className="space-y-1">
                                         {facets?.priorities?.map(p => {
                                             const isIncluded = priorityFilter.includes(p.value);
@@ -686,7 +688,7 @@ export default function NotesPage() {
                                                         className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${
                                                             isIncluded ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
                                                             isExcluded ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 line-through' :
-                                                            'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                                            'hover:bg-surface-muted text-foreground'
                                                         }`}
                                                     >
                                                         <span>{icon}</span>
@@ -703,7 +705,7 @@ export default function NotesPage() {
                                                             }
                                                         }}
                                                         className={`ml-1 px-2 py-1.5 rounded text-xs ${
-                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-gray-400'
+                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-muted'
                                                         }`}
                                                         title="Excluir"
                                                     >
@@ -724,8 +726,8 @@ export default function NotesPage() {
                                 </div>
 
                                 {/* Favorites filter */}
-                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
-                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Favoritos</h3>
+                                <div className="mb-4 pb-4 border-b dark:border-border">
+                                    <h3 className="text-sm font-semibold text-foreground mb-2">Favoritos</h3>
                                     <div className="flex gap-1">
                                         {[
                                             { value: 'all' as const, label: 'Todos' },
@@ -738,7 +740,7 @@ export default function NotesPage() {
                                                 className={`flex-1 px-2 py-1.5 rounded text-sm ${
                                                     favoriteFilter === opt.value
                                                         ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200'
-                                                        : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                                        : 'hover:bg-surface-muted text-foreground'
                                                 }`}
                                             >
                                                 {opt.label}
@@ -748,8 +750,8 @@ export default function NotesPage() {
                                 </div>
 
                                 {/* Type filters */}
-                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
-                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tipo de nota</h3>
+                                <div className="mb-4 pb-4 border-b dark:border-border">
+                                    <h3 className="text-sm font-semibold text-foreground mb-2">Tipo de nota</h3>
                                     <div className="space-y-1">
                                         {facets?.note_types.map(type => {
                                             const isIncluded = filterType.includes(type.value);
@@ -769,7 +771,7 @@ export default function NotesPage() {
                                                         className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${
                                                             isIncluded ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
                                                             isExcluded ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 line-through' :
-                                                            'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                                            'hover:bg-surface-muted text-foreground'
                                                         }`}
                                                     >
                                                         <span>{type.icon}</span>
@@ -786,7 +788,7 @@ export default function NotesPage() {
                                                             }
                                                         }}
                                                         className={`ml-1 px-2 py-1.5 rounded text-xs ${
-                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-gray-400'
+                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-muted'
                                                         }`}
                                                         title="Excluir"
                                                     >
@@ -807,8 +809,8 @@ export default function NotesPage() {
                                 </div>
 
                                 {/* Linkage filters */}
-                                <div className="mb-4 pb-4 border-b dark:border-gray-700">
-                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vinculación</h3>
+                                <div className="mb-4 pb-4 border-b dark:border-border">
+                                    <h3 className="text-sm font-semibold text-foreground mb-2">Vinculación</h3>
                                     <div className="space-y-1">
                                         {facets?.linkage.map(link => {
                                             const isIncluded = linkageFilter.includes(link.value);
@@ -828,7 +830,7 @@ export default function NotesPage() {
                                                         className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${
                                                             isIncluded ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
                                                             isExcluded ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 line-through' :
-                                                            'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                                            'hover:bg-surface-muted text-foreground'
                                                         }`}
                                                     >
                                                         <span>{link.icon}</span>
@@ -845,7 +847,7 @@ export default function NotesPage() {
                                                             }
                                                         }}
                                                         className={`ml-1 px-2 py-1.5 rounded text-xs ${
-                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-gray-400'
+                                                            isExcluded ? 'bg-red-500 text-white' : 'hover:bg-red-100 dark:hover:bg-red-900 text-muted'
                                                         }`}
                                                         title="Excluir"
                                                     >
@@ -868,7 +870,7 @@ export default function NotesPage() {
                                 {/* Actions filter */}
                                 {filterType.includes('action') && (
                                     <div className="mb-4">
-                                        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                        <label className="flex items-center gap-2 text-sm text-muted">
                                             <input
                                                 type="checkbox"
                                                 checked={showCompleted}
@@ -886,10 +888,10 @@ export default function NotesPage() {
                     {/* Main content */}
                     <main className="flex-1 min-w-0">
                         {notes.length === 0 ? (
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-12 text-center">
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border p-12 text-center">
                                 <div className="text-6xl mb-4">📝</div>
-                                <h2 className="text-xl font-semibold mb-2 dark:text-white">No tienes notas</h2>
-                                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                <h2 className="text-xl font-semibold mb-2 dark:text-foreground">No tienes notas</h2>
+                                <p className="text-muted mb-4">
                                     Escribe reflexiones, ideas, preguntas, conexiones o acciones.
                                 </p>
                                 <button
@@ -900,7 +902,7 @@ export default function NotesPage() {
                                 </button>
                             </div>
                         ) : (
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 divide-y dark:divide-gray-700">
+                            <div className="bg-surface rounded-lg shadow-sm border dark:border-border divide-y dark:divide-gray-700">
                                 {notes.map(note => {
                                     const typeConfig = NOTE_TYPES[note.note_type as keyof typeof NOTE_TYPES] || NOTE_TYPES.reflection;
                                     const linkedObject = getLinkedObjectDisplay(note);
@@ -910,7 +912,7 @@ export default function NotesPage() {
                                         <div
                                             key={note.id}
                                             onClick={() => openNoteDetail(note)}
-                                            className={`flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${note.is_completed ? 'opacity-60' : ''}`}
+                                            className={`flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-surface-muted/50 transition-colors ${note.is_completed ? 'opacity-60' : ''}`}
                                         >
                                             {/* Checkbox for actions */}
                                             {isAction && (
@@ -938,7 +940,7 @@ export default function NotesPage() {
 
                                             {/* Content preview */}
                                             <div className="flex-1 min-w-0">
-                                                <p className={`text-sm dark:text-gray-200 truncate ${note.is_completed ? 'line-through' : ''}`}>
+                                                <p className={`text-sm dark:text-foreground truncate ${note.is_completed ? 'line-through' : ''}`}>
                                                     {stripHtmlTags(note.title || note.content).slice(0, 100) || 'Sin contenido'}
                                                 </p>
                                             </div>
@@ -977,7 +979,7 @@ export default function NotesPage() {
                                             )}
 
                                             {/* Date - fixed width for alignment */}
-                                            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 w-[70px] text-right">
+                                            <span className="text-xs text-muted flex-shrink-0 w-[70px] text-right">
                                                 {new Date(note.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                             </span>
 
@@ -1001,12 +1003,12 @@ export default function NotesPage() {
             {/* Quick Create Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-lg">
-                        <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
-                            <h2 className="text-lg font-semibold dark:text-white">Quick Note</h2>
+                    <div className="bg-surface rounded-lg w-full max-w-lg">
+                        <div className="p-4 border-b dark:border-border flex items-center justify-between">
+                            <h2 className="text-lg font-semibold dark:text-foreground">Quick Note</h2>
                             <button
                                 onClick={() => setShowCreateModal(false)}
-                                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xl"
+                                className="text-muted hover:text-gray-700 dark:hover:text-gray-300 text-xl"
                             >
                                 ×
                             </button>
@@ -1019,7 +1021,7 @@ export default function NotesPage() {
                                         key={type}
                                         type="button"
                                         onClick={() => setQuickType(type)}
-                                        className={`px-3 py-1 rounded-full text-sm ${quickType === type ? config.color : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}
+                                        className={`px-3 py-1 rounded-full text-sm ${quickType === type ? config.color : 'bg-surface-muted dark:bg-surface-muted dark:text-foreground'}`}
                                     >
                                         {config.icon} {config.label}
                                     </button>
@@ -1040,8 +1042,8 @@ export default function NotesPage() {
                             {/* Link selector */}
                             <div className="mt-4">
                                 {getLinkedItemName() ? (
-                                    <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2">
-                                        <span className="text-sm dark:text-gray-300 truncate">{getLinkedItemName()}</span>
+                                    <div className="flex items-center justify-between bg-surface-muted dark:bg-surface-muted rounded-lg px-3 py-2">
+                                        <span className="text-sm dark:text-foreground truncate">{getLinkedItemName()}</span>
                                         <button
                                             type="button"
                                             onClick={() => { setQuickLinkedId(null); setQuickLinkType(null); }}
@@ -1055,16 +1057,16 @@ export default function NotesPage() {
                                         <button
                                             type="button"
                                             onClick={() => setShowLinkSelector(!showLinkSelector)}
-                                            className="w-full px-3 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded-lg text-left text-sm flex items-center justify-between"
+                                            className="w-full px-3 py-2 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg text-left text-sm flex items-center justify-between"
                                         >
                                             <span>+ Vincular a contenido, proyecto u objetivo</span>
                                             <span>{showLinkSelector ? '▲' : '▼'}</span>
                                         </button>
 
                                         {showLinkSelector && (
-                                            <div className="mt-2 border dark:border-gray-600 rounded-lg overflow-hidden">
+                                            <div className="mt-2 border dark:border-border rounded-lg overflow-hidden">
                                                 {/* Link type tabs */}
-                                                <div className="flex border-b dark:border-gray-600">
+                                                <div className="flex border-b dark:border-border">
                                                     {[
                                                         { type: 'content' as LinkType, label: '📄 Contenido', count: availableContents.length },
                                                         { type: 'project' as LinkType, label: '📁 Proyecto', count: availableProjects.length },
@@ -1074,7 +1076,7 @@ export default function NotesPage() {
                                                             key={tab.type}
                                                             type="button"
                                                             onClick={() => { setQuickLinkType(tab.type); setLinkSearchQuery(''); }}
-                                                            className={`flex-1 px-2 py-2 text-xs ${quickLinkType === tab.type ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}
+                                                            className={`flex-1 px-2 py-2 text-xs ${quickLinkType === tab.type ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200' : 'bg-background dark:bg-surface-muted text-muted'}`}
                                                         >
                                                             {tab.label}
                                                         </button>
@@ -1088,7 +1090,7 @@ export default function NotesPage() {
                                                             value={linkSearchQuery}
                                                             onChange={(e) => setLinkSearchQuery(e.target.value)}
                                                             placeholder="Buscar..."
-                                                            className="w-full px-3 py-2 border-b dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                                            className="w-full px-3 py-2 border-b dark:border-border dark:bg-surface-muted dark:text-foreground text-sm"
                                                         />
                                                         <div className="max-h-40 overflow-y-auto">
                                                             {getFilteredItems().slice(0, 15).map((item: ContentItem | ProjectItem | ObjectiveItem) => (
@@ -1099,13 +1101,13 @@ export default function NotesPage() {
                                                                         setQuickLinkedId(item.id);
                                                                         setShowLinkSelector(false);
                                                                     }}
-                                                                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm dark:text-gray-300"
+                                                                    className="w-full text-left px-3 py-2 hover:bg-surface-muted text-sm dark:text-foreground"
                                                                 >
                                                                     {'title' in item ? item.title : item.name}
                                                                 </button>
                                                             ))}
                                                             {getFilteredItems().length === 0 && (
-                                                                <div className="px-3 py-2 text-sm text-gray-500">No hay items</div>
+                                                                <div className="px-3 py-2 text-sm text-muted">No hay items</div>
                                                             )}
                                                         </div>
                                                     </>
@@ -1117,7 +1119,7 @@ export default function NotesPage() {
                             </div>
 
                             {/* Full note option */}
-                            <div className="mt-4 pt-4 border-t dark:border-gray-700">
+                            <div className="mt-4 pt-4 border-t dark:border-border">
                                 <Link
                                     href="/notes/new"
                                     target="_blank"
@@ -1133,7 +1135,7 @@ export default function NotesPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowCreateModal(false)}
-                                    className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg hover:bg-surface-muted"
                                 >
                                     Cancelar
                                 </button>
@@ -1153,9 +1155,9 @@ export default function NotesPage() {
             {/* Detail Modal */}
             {showDetailModal && selectedNote && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                    <div className="bg-surface rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
                         {/* Header */}
-                        <div className="p-4 border-b dark:border-gray-700 flex items-start justify-between">
+                        <div className="p-4 border-b dark:border-border flex items-start justify-between">
                             <div className="flex items-center gap-2">
                                 {(() => {
                                     const typeConfig = NOTE_TYPES[selectedNote.note_type as keyof typeof NOTE_TYPES] || NOTE_TYPES.reflection;
@@ -1201,7 +1203,7 @@ export default function NotesPage() {
                                             console.error('Error setting priority:', error);
                                         }
                                     }}
-                                    className="text-xs px-2 py-1.5 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                                    className="text-xs px-2 py-1.5 border dark:border-border dark:bg-surface-muted dark:text-foreground rounded-lg"
                                     title="Establecer prioridad"
                                 >
                                     <option value="">Sin prioridad</option>
@@ -1211,7 +1213,7 @@ export default function NotesPage() {
                                 </select>
                                 <button
                                     onClick={() => handleTogglePin(selectedNote)}
-                                    className={`p-2 rounded-lg ${selectedNote.is_pinned ? 'bg-indigo-100 dark:bg-indigo-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                    className={`p-2 rounded-lg ${selectedNote.is_pinned ? 'bg-indigo-100 dark:bg-indigo-900' : 'hover:bg-surface-muted'}`}
                                     title={selectedNote.is_pinned ? 'Desanclar' : 'Anclar'}
                                 >
                                     📌
@@ -1219,7 +1221,7 @@ export default function NotesPage() {
                                 {selectedNote.note_type === 'action' && (
                                     <button
                                         onClick={(e) => handleToggleComplete(selectedNote, e)}
-                                        className={`p-2 rounded-lg ${selectedNote.is_completed ? 'bg-green-100 dark:bg-green-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                        className={`p-2 rounded-lg ${selectedNote.is_completed ? 'bg-green-100 dark:bg-green-900' : 'hover:bg-surface-muted'}`}
                                         title={selectedNote.is_completed ? 'Marcar pendiente' : 'Completar'}
                                     >
                                         ✅
@@ -1231,7 +1233,7 @@ export default function NotesPage() {
                                         setSelectedNote(null);
                                         setEditMode(false);
                                     }}
-                                    className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-2xl"
+                                    className="text-muted hover:text-gray-700 dark:hover:text-gray-300 text-2xl"
                                 >
                                     ×
                                 </button>
@@ -1248,7 +1250,7 @@ export default function NotesPage() {
                                                 key={type}
                                                 type="button"
                                                 onClick={() => setEditType(type)}
-                                                className={`px-3 py-1 rounded-full text-sm ${editType === type ? config.color : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}
+                                                className={`px-3 py-1 rounded-full text-sm ${editType === type ? config.color : 'bg-surface-muted dark:bg-surface-muted dark:text-foreground'}`}
                                             >
                                                 {config.icon} {config.label}
                                             </button>
@@ -1268,7 +1270,7 @@ export default function NotesPage() {
                                         <button
                                             type="button"
                                             onClick={() => setEditMode(false)}
-                                            className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded-lg"
+                                            className="px-4 py-2 border dark:border-border dark:text-foreground rounded-lg"
                                         >
                                             Cancelar
                                         </button>
@@ -1286,11 +1288,11 @@ export default function NotesPage() {
                                     {/* Render HTML content if it contains HTML tags, otherwise plain text */}
                                     {selectedNote.content.includes('<') ? (
                                         <div
-                                            className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300"
+                                            className="prose prose-sm dark:prose-invert max-w-none text-foreground"
                                             dangerouslySetInnerHTML={{ __html: selectedNote.content }}
                                         />
                                     ) : (
-                                        <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 text-sm">
+                                        <pre className="whitespace-pre-wrap font-sans text-foreground text-sm">
                                             {selectedNote.content}
                                         </pre>
                                     )}
@@ -1300,8 +1302,8 @@ export default function NotesPage() {
                                         const linked = getLinkedObjectDisplay(selectedNote);
                                         if (!linked) return null;
                                         return (
-                                            <div className="mt-4 pt-4 border-t dark:border-gray-700">
-                                                <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                            <div className="mt-4 pt-4 border-t dark:border-border">
+                                                <h4 className="text-xs font-medium text-muted mb-2">
                                                     Vinculado a
                                                 </h4>
                                                 {linked.contentId ? (
@@ -1310,7 +1312,7 @@ export default function NotesPage() {
                                                             setShowDetailModal(false);
                                                             openContentModal(linked.contentId!);
                                                         }}
-                                                        className={`inline-flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 ${linked.color}`}
+                                                        className={`inline-flex items-center gap-2 px-3 py-2 bg-surface-muted dark:bg-surface-muted rounded-lg hover:bg-surface-muted dark:hover:bg-gray-600 ${linked.color}`}
                                                     >
                                                         <span>{linked.icon}</span>
                                                         <span className="text-sm">{linked.label}</span>
@@ -1319,7 +1321,7 @@ export default function NotesPage() {
                                                     <Link
                                                         href={linked.href}
                                                         target={linked.newTab ? '_blank' : undefined}
-                                                        className={`inline-flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 ${linked.color}`}
+                                                        className={`inline-flex items-center gap-2 px-3 py-2 bg-surface-muted dark:bg-surface-muted rounded-lg hover:bg-surface-muted dark:hover:bg-gray-600 ${linked.color}`}
                                                     >
                                                         <span>{linked.icon}</span>
                                                         <span className="text-sm">{linked.label}</span>
@@ -1330,7 +1332,7 @@ export default function NotesPage() {
                                     })()}
 
                                     {/* Date */}
-                                    <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                                    <div className="mt-4 text-xs text-muted">
                                         Creada: {new Date(selectedNote.created_at).toLocaleString()}
                                     </div>
                                 </>
@@ -1339,7 +1341,7 @@ export default function NotesPage() {
 
                         {/* Footer */}
                         {!editMode && (
-                            <div className="p-4 border-t dark:border-gray-700 flex justify-between">
+                            <div className="p-4 border-t dark:border-border flex justify-between">
                                 <button
                                     onClick={handleDeleteNote}
                                     className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
@@ -1367,6 +1369,7 @@ export default function NotesPage() {
                     setSelectedContent(null);
                 }}
             />
-        </div>
+            </div>
+        </AppShell>
     );
 }

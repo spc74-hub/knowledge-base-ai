@@ -127,11 +127,11 @@ export default function MobileFullNotesPage() {
         setAppliedSearch(searchQuery);
     };
 
-    const bgClass = isDark ? 'bg-gray-900' : 'bg-gray-50';
-    const cardClass = isDark ? 'bg-gray-800' : 'bg-white';
-    const textClass = isDark ? 'text-white' : 'text-gray-900';
-    const mutedTextClass = isDark ? 'text-gray-400' : 'text-gray-600';
-    const borderClass = isDark ? 'border-gray-700' : 'border-gray-200';
+    const bgClass = isDark ? 'bg-gray-900' : 'bg-background';
+    const cardClass = isDark ? 'bg-gray-800' : 'bg-surface';
+    const textClass = isDark ? 'text-white' : 'text-foreground';
+    const mutedTextClass = isDark ? 'text-muted' : 'text-muted';
+    const borderClass = isDark ? 'border-gray-700' : 'border-border';
 
     if (loading) {
         return (
@@ -160,7 +160,7 @@ export default function MobileFullNotesPage() {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setShowSearch(!showSearch)}
-                            className={`p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
+                            className={`p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-surface-muted'}`}
                         >
                             🔍
                         </button>
@@ -185,7 +185,7 @@ export default function MobileFullNotesPage() {
                             className={`flex-1 px-4 py-2 rounded-lg border ${
                                 isDark
                                     ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                                    : 'bg-surface border-border text-foreground placeholder-gray-400'
                             }`}
                             autoFocus
                         />

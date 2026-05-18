@@ -444,12 +444,12 @@ export default function MobileContentsPage() {
         );
     };
 
-    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-surface border-gray-100';
     const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
-    const mutedTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+    const mutedTextClass = isDark ? 'text-muted' : 'text-muted';
     const inputClass = isDark
         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400';
+        : 'bg-surface border-border text-foreground placeholder-gray-400';
 
     return (
         <div className="space-y-4">
@@ -483,7 +483,7 @@ export default function MobileContentsPage() {
                     className={`p-2.5 rounded-xl border ${
                         showFilters || hasActiveFilters
                             ? 'bg-amber-500 border-amber-500 text-white'
-                            : isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-white border-gray-200 text-gray-600'
+                            : isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-surface border-border text-muted'
                     }`}
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -501,7 +501,7 @@ export default function MobileContentsPage() {
                         className={`w-full flex items-center justify-between p-3 rounded-lg ${
                             showFavoritesOnly
                                 ? 'bg-amber-500 text-white'
-                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                         }`}
                     >
                         <span className="flex items-center gap-2">
@@ -522,7 +522,7 @@ export default function MobileContentsPage() {
                                     className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1 ${
                                         selectedMaturity.includes(key)
                                             ? 'bg-amber-500 text-white'
-                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                     }`}
                                 >
                                     <span>{config.icon}</span>
@@ -546,7 +546,7 @@ export default function MobileContentsPage() {
                                         className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1 ${
                                             selectedTypes.includes(facet.value)
                                                 ? 'bg-amber-500 text-white'
-                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                         }`}
                                     >
                                         <span>{config.icon}</span>
@@ -570,7 +570,7 @@ export default function MobileContentsPage() {
                                     className={`px-3 py-1.5 rounded-full text-sm ${
                                         selectedCategories.includes(facet.value)
                                             ? 'bg-amber-500 text-white'
-                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                     }`}
                                 >
                                     {facet.value} ({facet.count})
@@ -584,7 +584,7 @@ export default function MobileContentsPage() {
                     {hasActiveFilters && (
                         <button
                             onClick={clearFilters}
-                            className={`w-full py-2 rounded-lg text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                            className={`w-full py-2 rounded-lg text-sm ${isDark ? 'text-muted' : 'text-muted'}`}
                         >
                             Limpiar filtros
                         </button>
@@ -647,7 +647,7 @@ export default function MobileContentsPage() {
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                                                isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-muted'
                                             }`}>
                                                 {typeConfig.icon} {typeConfig.label}
                                             </span>
@@ -697,7 +697,7 @@ export default function MobileContentsPage() {
                                         onClick={() => openUrl(content)}
                                         className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform ${
                                             isAppleNotes
-                                                ? 'bg-gray-400/50 text-gray-600 cursor-not-allowed'
+                                                ? 'bg-gray-400/50 text-muted cursor-not-allowed'
                                                 : 'bg-amber-500/70 text-white hover:bg-amber-500/90'
                                         }`}
                                     >
@@ -735,7 +735,7 @@ export default function MobileContentsPage() {
                             onClick={loadMore}
                             disabled={loadingMore}
                             className={`w-full py-3 rounded-xl border ${
-                                isDark ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-600'
+                                isDark ? 'border-gray-700 text-gray-300' : 'border-border text-muted'
                             } font-medium flex items-center justify-center gap-2`}
                         >
                             {loadingMore ? (
@@ -758,7 +758,7 @@ export default function MobileContentsPage() {
             {showActionModal && actionContent && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: '80vh' }}
                     >
                         {/* Header */}
@@ -789,7 +789,7 @@ export default function MobileContentsPage() {
                                         className={`p-3 rounded-lg flex items-center gap-2 ${
                                             actionContent.maturity_level === key
                                                 ? `${config.color} text-white`
-                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                         }`}
                                     >
                                         <span className="text-lg">{config.icon}</span>
@@ -805,7 +805,7 @@ export default function MobileContentsPage() {
                             <button
                                 onClick={openCreateNoteModal}
                                 className={`w-full p-3 rounded-lg flex items-center gap-3 ${
-                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                 }`}
                             >
                                 <span className="text-lg">📝</span>
@@ -815,7 +815,7 @@ export default function MobileContentsPage() {
                             <button
                                 onClick={(e) => toggleFavorite(actionContent, e as unknown as React.MouseEvent)}
                                 className={`w-full p-3 rounded-lg flex items-center gap-3 ${
-                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                 }`}
                             >
                                 <span className="text-lg">{actionContent.is_favorite ? '★' : '☆'}</span>
@@ -825,7 +825,7 @@ export default function MobileContentsPage() {
                             <button
                                 onClick={() => archiveContent(actionContent)}
                                 className={`w-full p-3 rounded-lg flex items-center gap-3 text-red-500 ${
-                                    isDark ? 'bg-gray-700' : 'bg-gray-100'
+                                    isDark ? 'bg-gray-700' : 'bg-surface-muted'
                                 }`}
                             >
                                 <span className="text-lg">📦</span>
@@ -840,7 +840,7 @@ export default function MobileContentsPage() {
             {showCreateNoteModal && actionContent && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                         style={{ maxHeight: '80vh' }}
                     >
                         {/* Header */}
@@ -877,7 +877,7 @@ export default function MobileContentsPage() {
                                         className={`px-3 py-2 rounded-lg text-sm flex items-center gap-1 ${
                                             noteType === type
                                                 ? 'bg-amber-500 text-white'
-                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                         }`}
                                     >
                                         {icon} {label}
@@ -896,7 +896,7 @@ export default function MobileContentsPage() {
                                 className={`w-full p-3 rounded-lg border resize-none ${
                                     isDark
                                         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-                                        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                                        : 'bg-surface border-border text-foreground placeholder-gray-400'
                                 }`}
                             />
                         </div>
@@ -910,7 +910,7 @@ export default function MobileContentsPage() {
                                     setNoteContent('');
                                 }}
                                 className={`flex-1 p-3 rounded-lg font-medium ${
-                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                 }`}
                             >
                                 Cancelar

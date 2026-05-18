@@ -182,12 +182,12 @@ export default function MobileActionsPage() {
         return acc;
     }, {} as Record<string, GroupedActions[]>);
 
-    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
+    const cardClass = isDark ? 'bg-gray-800 border-gray-700' : 'bg-surface border-gray-100';
     const textClass = isDark ? 'text-gray-200' : 'text-gray-800';
-    const mutedTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+    const mutedTextClass = isDark ? 'text-muted' : 'text-muted';
     const inputClass = isDark
         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-        : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400';
+        : 'bg-surface border-border text-foreground placeholder-gray-400';
 
     if (isLoading) {
         return (
@@ -208,7 +208,7 @@ export default function MobileActionsPage() {
                         <span className={mutedTextClass}>pendientes</span>
                     </div>
                 </div>
-                <div className={`w-full rounded-full h-2 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                <div className={`w-full rounded-full h-2 ${isDark ? 'bg-gray-700' : 'bg-surface-muted'}`}>
                     <div
                         className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-300"
                         style={{
@@ -239,7 +239,7 @@ export default function MobileActionsPage() {
                             ? 'bg-amber-500 text-white'
                             : isDark
                                 ? 'bg-gray-700 text-gray-300'
-                                : 'bg-gray-200 text-gray-700'
+                                : 'bg-surface-muted text-foreground'
                     }`}
                 >
                     Todos
@@ -253,7 +253,7 @@ export default function MobileActionsPage() {
                                 ? 'bg-amber-500 text-white'
                                 : isDark
                                     ? 'bg-gray-700 text-gray-300'
-                                    : 'bg-gray-200 text-gray-700'
+                                    : 'bg-surface-muted text-foreground'
                         }`}
                     >
                         {PARENT_TYPE_LABELS[type].icon} {PARENT_TYPE_LABELS[type].label}
@@ -272,7 +272,7 @@ export default function MobileActionsPage() {
                         }`}
                     >
                         <div
-                            className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${
+                            className={`w-4 h-4 rounded-full bg-surface absolute top-1 transition-transform ${
                                 includeCompleted ? 'translate-x-5' : 'translate-x-1'
                             }`}
                         />
@@ -299,7 +299,7 @@ export default function MobileActionsPage() {
                                 <button
                                     onClick={() => toggleTypeSection(type)}
                                     className={`w-full p-3 flex items-center gap-2 ${
-                                        isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'
+                                        isDark ? 'hover:bg-gray-700/50' : 'hover:bg-background'
                                     }`}
                                 >
                                     <span className="text-lg">{PARENT_TYPE_LABELS[type].icon}</span>
@@ -332,17 +332,17 @@ export default function MobileActionsPage() {
                                                         hasActions
                                                             ? isDark
                                                                 ? 'border-gray-600 bg-gray-700/50'
-                                                                : 'border-gray-200 bg-gray-50'
+                                                                : 'border-border bg-background'
                                                             : isDark
                                                                 ? 'border-gray-700 bg-gray-800/50 opacity-60'
-                                                                : 'border-gray-100 bg-gray-50/50 opacity-60'
+                                                                : 'border-gray-100 bg-background/50 opacity-60'
                                                     }`}
                                                 >
                                                     {/* Group header */}
                                                     <button
                                                         onClick={() => toggleGroup(groupKey)}
                                                         className={`w-full p-2.5 flex items-center gap-2 ${
-                                                            isDark ? 'hover:bg-gray-600/50' : 'hover:bg-gray-100'
+                                                            isDark ? 'hover:bg-gray-600/50' : 'hover:bg-surface-muted'
                                                         }`}
                                                     >
                                                         <span
@@ -382,7 +382,7 @@ export default function MobileActionsPage() {
 
                                                     {/* Actions list */}
                                                     {isExpanded && (
-                                                        <div className={`border-t ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                                                        <div className={`border-t ${isDark ? 'border-gray-600' : 'border-border'}`}>
                                                             {group.actions.length === 0 ? (
                                                                 <div className={`p-2 text-center text-xs ${mutedTextClass}`}>
                                                                     No hay acciones
@@ -403,7 +403,7 @@ export default function MobileActionsPage() {
                                                                                     ? 'bg-green-500 border-green-500 text-white'
                                                                                     : isDark
                                                                                         ? 'border-gray-500 hover:border-amber-500'
-                                                                                        : 'border-gray-300 hover:border-amber-500'
+                                                                                        : 'border-border hover:border-amber-500'
                                                                             }`}
                                                                         >
                                                                             {action.is_completed && <span className="text-xs">✓</span>}
@@ -427,7 +427,7 @@ export default function MobileActionsPage() {
                                                                                     e.stopPropagation();
                                                                                     startEdit(action);
                                                                                 }}
-                                                                                className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-600 active:bg-gray-500' : 'hover:bg-gray-200 active:bg-gray-300'}`}
+                                                                                className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-600 active:bg-gray-500' : 'hover:bg-surface-muted active:bg-gray-300'}`}
                                                                             >
                                                                                 <span className="text-sm">✏️</span>
                                                                             </button>
@@ -436,7 +436,7 @@ export default function MobileActionsPage() {
                                                                                     e.stopPropagation();
                                                                                     handleDelete(action);
                                                                                 }}
-                                                                                className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-600 active:bg-gray-500' : 'hover:bg-gray-200 active:bg-gray-300'}`}
+                                                                                className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-600 active:bg-gray-500' : 'hover:bg-surface-muted active:bg-gray-300'}`}
                                                                             >
                                                                                 <span className="text-sm">🗑️</span>
                                                                             </button>
@@ -474,7 +474,7 @@ export default function MobileActionsPage() {
             {showCreateModal && createForGroup && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                     >
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
@@ -532,7 +532,7 @@ export default function MobileActionsPage() {
             {editingAction && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-end justify-center pb-20">
                     <div
-                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+                        className={`w-full rounded-t-2xl p-4 animate-slide-up ${isDark ? 'bg-gray-800' : 'bg-surface'}`}
                     >
                         <div className="flex items-center justify-between mb-4">
                             <h3 className={`font-semibold ${textClass}`}>Editar acción</h3>

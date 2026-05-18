@@ -379,17 +379,17 @@ export default function MobileNotesPage() {
     }
 
     const RichTextToolbar = ({ onCommand, isDark }: { onCommand: (cmd: string, val?: string) => void; isDark: boolean }) => (
-        <div className={`flex flex-wrap gap-1 p-2 border-b ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
-            <button type="button" onClick={() => onCommand('bold')} className={`p-2 rounded font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>B</button>
-            <button type="button" onClick={() => onCommand('italic')} className={`p-2 rounded italic ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>I</button>
-            <button type="button" onClick={() => onCommand('strikeThrough')} className={`p-2 rounded line-through ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>S</button>
+        <div className={`flex flex-wrap gap-1 p-2 border-b ${isDark ? 'border-gray-600 bg-gray-700' : 'border-border bg-background'}`}>
+            <button type="button" onClick={() => onCommand('bold')} className={`p-2 rounded font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-surface-muted'}`}>B</button>
+            <button type="button" onClick={() => onCommand('italic')} className={`p-2 rounded italic ${isDark ? 'hover:bg-gray-600' : 'hover:bg-surface-muted'}`}>I</button>
+            <button type="button" onClick={() => onCommand('strikeThrough')} className={`p-2 rounded line-through ${isDark ? 'hover:bg-gray-600' : 'hover:bg-surface-muted'}`}>S</button>
             <span className={`w-px mx-1 ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`}></span>
-            <button type="button" onClick={() => onCommand('formatBlock', 'h1')} className={`p-2 rounded text-sm font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>H1</button>
-            <button type="button" onClick={() => onCommand('formatBlock', 'h2')} className={`p-2 rounded text-sm font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}>H2</button>
+            <button type="button" onClick={() => onCommand('formatBlock', 'h1')} className={`p-2 rounded text-sm font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-surface-muted'}`}>H1</button>
+            <button type="button" onClick={() => onCommand('formatBlock', 'h2')} className={`p-2 rounded text-sm font-bold ${isDark ? 'hover:bg-gray-600' : 'hover:bg-surface-muted'}`}>H2</button>
             <span className={`w-px mx-1 ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`}></span>
-            <button type="button" onClick={() => onCommand('insertUnorderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`} title="Lista con viñetas">•</button>
-            <button type="button" onClick={() => onCommand('insertOrderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`} title="Lista numerada">1.</button>
-            <button type="button" onClick={() => onCommand('insertCheckbox')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`} title="Checkbox">☑</button>
+            <button type="button" onClick={() => onCommand('insertUnorderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-surface-muted'}`} title="Lista con viñetas">•</button>
+            <button type="button" onClick={() => onCommand('insertOrderedList')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-surface-muted'}`} title="Lista numerada">1.</button>
+            <button type="button" onClick={() => onCommand('insertCheckbox')} className={`p-2 rounded ${isDark ? 'hover:bg-gray-600' : 'hover:bg-surface-muted'}`} title="Checkbox">☑</button>
         </div>
     );
 
@@ -398,7 +398,7 @@ export default function MobileNotesPage() {
             <button
                 type="button"
                 onClick={() => onChange('')}
-                className={`px-2 py-1 rounded text-xs ${!value ? 'bg-gray-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'}`}
+                className={`px-2 py-1 rounded text-xs ${!value ? 'bg-gray-500 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-muted'}`}
             >
                 Sin
             </button>
@@ -407,7 +407,7 @@ export default function MobileNotesPage() {
                     key={key}
                     type="button"
                     onClick={() => onChange(key)}
-                    className={`p-1.5 rounded text-sm ${value === key ? p.color + ' text-white' : isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
+                    className={`p-1.5 rounded text-sm ${value === key ? p.color + ' text-white' : isDark ? 'bg-gray-700' : 'bg-surface-muted'}`}
                     title={p.label}
                 >
                     {p.icon}
@@ -422,7 +422,7 @@ export default function MobileNotesPage() {
             <div className="flex items-center justify-between">
                 <button
                     onClick={() => setShowSidebar(true)}
-                    className={`p-2 rounded-lg ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600'} shadow-sm`}
+                    className={`p-2 rounded-lg ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-surface text-muted'} shadow-sm`}
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -430,12 +430,12 @@ export default function MobileNotesPage() {
                 </button>
                 <div className="flex gap-2">
                     {filterType !== 'all' && (
-                        <span className={`text-xs px-2 py-1 rounded-full ${NOTE_TYPES[filterType as keyof typeof NOTE_TYPES]?.color || 'bg-gray-200'}`}>
+                        <span className={`text-xs px-2 py-1 rounded-full ${NOTE_TYPES[filterType as keyof typeof NOTE_TYPES]?.color || 'bg-surface-muted'}`}>
                             {NOTE_TYPES[filterType as keyof typeof NOTE_TYPES]?.icon} {NOTE_TYPES[filterType as keyof typeof NOTE_TYPES]?.label}
                         </span>
                     )}
                     {filterPriority !== 'all' && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-gray-200">
+                        <span className="text-xs px-2 py-1 rounded-full bg-surface-muted">
                             {PRIORITIES[filterPriority as keyof typeof PRIORITIES]?.icon}
                         </span>
                     )}
@@ -446,7 +446,7 @@ export default function MobileNotesPage() {
             {notes.length === 0 ? (
                 <div className="text-center py-12">
                     <div className="text-5xl mb-4">📝</div>
-                    <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>No hay notas</p>
+                    <p className={isDark ? 'text-muted' : 'text-muted'}>No hay notas</p>
                 </div>
             ) : (
                 <div className="space-y-2">
@@ -464,7 +464,7 @@ export default function MobileNotesPage() {
                                 } ${
                                     isDark
                                         ? 'bg-gray-800 border-gray-700'
-                                        : 'bg-white border-gray-100'
+                                        : 'bg-surface border-gray-100'
                                 }`}
                             >
                                 <div className="flex items-start gap-3">
@@ -480,7 +480,7 @@ export default function MobileNotesPage() {
                                                     ? 'bg-green-500 border-green-500 text-white'
                                                     : isDark
                                                         ? 'border-gray-500'
-                                                        : 'border-gray-300'
+                                                        : 'border-border'
                                             }`}
                                         >
                                             {note.is_completed && '✓'}
@@ -509,7 +509,7 @@ export default function MobileNotesPage() {
                                         </p>
 
                                         {/* Date */}
-                                        <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        <p className={`text-xs mt-2 ${isDark ? 'text-muted' : 'text-muted'}`}>
                                             {new Date(note.created_at).toLocaleDateString('es-ES', {
                                                 day: 'numeric',
                                                 month: 'short',
@@ -536,25 +536,25 @@ export default function MobileNotesPage() {
                 <div className="fixed inset-0 bg-black/50 z-[100]" onClick={() => setShowSidebar(false)}>
                     <div
                         className={`absolute left-0 top-0 bottom-0 w-72 p-4 animate-slide-right ${
-                            isDark ? 'bg-gray-800' : 'bg-white'
+                            isDark ? 'bg-gray-800' : 'bg-surface'
                         }`}
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Filtros</h2>
-                            <button onClick={() => setShowSidebar(false)} className={isDark ? 'text-gray-400' : 'text-gray-500'}>✕</button>
+                            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-foreground'}`}>Filtros</h2>
+                            <button onClick={() => setShowSidebar(false)} className={isDark ? 'text-muted' : 'text-muted'}>✕</button>
                         </div>
 
                         {/* Type filter */}
                         <div className="mb-6">
-                            <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Tipo de nota</h3>
+                            <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-foreground'}`}>Tipo de nota</h3>
                             <div className="space-y-2">
                                 <button
                                     onClick={() => { setFilterType('all'); setShowSidebar(false); }}
                                     className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
                                         filterType === 'all'
                                             ? 'bg-amber-500 text-white'
-                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                     }`}
                                 >
                                     Todas
@@ -566,7 +566,7 @@ export default function MobileNotesPage() {
                                         className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
                                             filterType === type
                                                 ? 'bg-amber-500 text-white'
-                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                         }`}
                                     >
                                         <span>{config.icon}</span>
@@ -578,14 +578,14 @@ export default function MobileNotesPage() {
 
                         {/* Priority filter */}
                         <div>
-                            <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Prioridad</h3>
+                            <h3 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-foreground'}`}>Prioridad</h3>
                             <div className="space-y-2">
                                 <button
                                     onClick={() => { setFilterPriority('all'); setShowSidebar(false); }}
                                     className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
                                         filterPriority === 'all'
                                             ? 'bg-amber-500 text-white'
-                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                            : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                     }`}
                                 >
                                     Todas
@@ -597,7 +597,7 @@ export default function MobileNotesPage() {
                                         className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
                                             filterPriority === key
                                                 ? 'bg-amber-500 text-white'
-                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                                : isDark ? 'bg-gray-700 text-gray-300' : 'bg-surface-muted text-foreground'
                                         }`}
                                     >
                                         <span>{p.icon}</span>
@@ -615,19 +615,19 @@ export default function MobileNotesPage() {
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-start justify-center pt-4 overflow-y-auto pb-20">
                     <div
                         className={`w-full mx-4 my-4 rounded-2xl overflow-hidden animate-slide-down flex flex-col ${
-                            isDark ? 'bg-gray-800' : 'bg-white'
+                            isDark ? 'bg-gray-800' : 'bg-surface'
                         }`}
                         style={{ maxHeight: 'calc(100vh - 32px)' }}
                     >
                         <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${
-                            isDark ? 'border-gray-700' : 'border-gray-200'
+                            isDark ? 'border-gray-700' : 'border-border'
                         }`}>
-                            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-foreground'}`}>
                                 Nueva Nota
                             </h2>
                             <button
                                 onClick={() => setShowCreate(false)}
-                                className={`p-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                                className={`p-2 ${isDark ? 'text-muted' : 'text-muted'}`}
                             >
                                 ✕
                             </button>
@@ -647,7 +647,7 @@ export default function MobileNotesPage() {
                                                     ? config.color
                                                     : isDark
                                                         ? 'bg-gray-700 text-gray-300'
-                                                        : 'bg-gray-100 text-gray-600'
+                                                        : 'bg-surface-muted text-muted'
                                             }`}
                                         >
                                             {config.icon} {config.label}
@@ -657,20 +657,20 @@ export default function MobileNotesPage() {
 
                                 {/* Priority selector */}
                                 <div>
-                                    <label className={`text-sm font-medium mb-2 block ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    <label className={`text-sm font-medium mb-2 block ${isDark ? 'text-gray-300' : 'text-foreground'}`}>
                                         Prioridad
                                     </label>
                                     <PrioritySelector value={quickPriority} onChange={setQuickPriority} isDark={isDark} />
                                 </div>
 
                                 {/* Rich text editor */}
-                                <div className={`border rounded-xl overflow-hidden ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                                <div className={`border rounded-xl overflow-hidden ${isDark ? 'border-gray-600' : 'border-border'}`}>
                                     <RichTextToolbar onCommand={execCommand} isDark={isDark} />
                                     <div
                                         ref={editorRef}
                                         contentEditable
                                         className={`min-h-[150px] p-3 focus:outline-none ${
-                                            isDark ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'
+                                            isDark ? 'bg-gray-700 text-white' : 'bg-surface text-foreground'
                                         }`}
                                         onInput={(e) => setQuickContent(e.currentTarget.innerHTML)}
                                         data-placeholder="Escribe tu nota..."
@@ -679,7 +679,7 @@ export default function MobileNotesPage() {
                             </div>
 
                             {/* Submit */}
-                            <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-border'}`}>
                                 <button
                                     type="submit"
                                     disabled={saving}
@@ -698,13 +698,13 @@ export default function MobileNotesPage() {
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-start justify-center pt-4 overflow-y-auto pb-20">
                     <div
                         className={`w-full mx-4 my-4 rounded-2xl overflow-hidden animate-slide-down flex flex-col ${
-                            isDark ? 'bg-gray-800' : 'bg-white'
+                            isDark ? 'bg-gray-800' : 'bg-surface'
                         }`}
                         style={{ maxHeight: 'calc(100vh - 32px)' }}
                     >
                         {/* Header */}
                         <div className={`p-4 border-b flex items-center justify-between flex-shrink-0 ${
-                            isDark ? 'border-gray-700' : 'border-gray-200'
+                            isDark ? 'border-gray-700' : 'border-border'
                         }`}>
                             <div className="flex items-center gap-2">
                                 {(() => {
@@ -740,7 +740,7 @@ export default function MobileNotesPage() {
                                         setSelectedNote(null);
                                         setEditMode(false);
                                     }}
-                                    className={`p-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                                    className={`p-2 ${isDark ? 'text-muted' : 'text-muted'}`}
                                 >
                                     ✕
                                 </button>
@@ -763,7 +763,7 @@ export default function MobileNotesPage() {
                                                         ? config.color
                                                         : isDark
                                                             ? 'bg-gray-700 text-gray-300'
-                                                            : 'bg-gray-100 text-gray-600'
+                                                            : 'bg-surface-muted text-muted'
                                                 }`}
                                             >
                                                 {config.icon} {config.label}
@@ -773,20 +773,20 @@ export default function MobileNotesPage() {
 
                                     {/* Priority selector */}
                                     <div>
-                                        <label className={`text-sm font-medium mb-2 block ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <label className={`text-sm font-medium mb-2 block ${isDark ? 'text-gray-300' : 'text-foreground'}`}>
                                             Prioridad
                                         </label>
                                         <PrioritySelector value={editPriority} onChange={setEditPriority} isDark={isDark} />
                                     </div>
 
                                     {/* Rich text editor */}
-                                    <div className={`border rounded-xl overflow-hidden ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                                    <div className={`border rounded-xl overflow-hidden ${isDark ? 'border-gray-600' : 'border-border'}`}>
                                         <RichTextToolbar onCommand={execEditCommand} isDark={isDark} />
                                         <div
                                             ref={editEditorRef}
                                             contentEditable
                                             className={`min-h-[200px] p-3 focus:outline-none ${
-                                                isDark ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'
+                                                isDark ? 'bg-gray-700 text-white' : 'bg-surface text-foreground'
                                             }`}
                                             onInput={(e) => setEditContent(e.currentTarget.innerHTML)}
                                         />
@@ -795,10 +795,10 @@ export default function MobileNotesPage() {
                             ) : (
                                 <>
                                     <div
-                                        className={`note-content prose prose-sm max-w-none ${isDark ? 'prose-invert text-gray-200' : 'text-gray-700'}`}
+                                        className={`note-content prose prose-sm max-w-none ${isDark ? 'prose-invert text-gray-200' : 'text-foreground'}`}
                                         dangerouslySetInnerHTML={{ __html: selectedNote.content }}
                                     />
-                                    <p className={`text-xs mt-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    <p className={`text-xs mt-4 ${isDark ? 'text-muted' : 'text-muted'}`}>
                                         {new Date(selectedNote.created_at).toLocaleString('es-ES')}
                                     </p>
                                 </>
@@ -806,7 +806,7 @@ export default function MobileNotesPage() {
                         </div>
 
                         {/* Footer with buttons */}
-                        <div className={`p-4 border-t flex-shrink-0 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <div className={`p-4 border-t flex-shrink-0 ${isDark ? 'border-gray-700' : 'border-border'}`}>
                             {editMode ? (
                                 <div className="flex gap-3">
                                     <button
@@ -814,7 +814,7 @@ export default function MobileNotesPage() {
                                         className={`flex-1 py-3 border rounded-xl font-medium ${
                                             isDark
                                                 ? 'border-gray-600 text-gray-300'
-                                                : 'border-gray-300 text-gray-700'
+                                                : 'border-border text-foreground'
                                         }`}
                                     >
                                         Cancelar

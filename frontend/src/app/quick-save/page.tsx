@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { Copy, Check, Bookmark, Smartphone, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
+import AppShell from '@/components/AppShell';
 
 export default function QuickSavePage() {
   const { user, token } = useAuth()
@@ -29,11 +30,11 @@ export default function QuickSavePage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="bg-surface rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <Bookmark className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Quick Save Setup</h1>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">
+          <h1 className="text-2xl font-bold text-foreground mb-2">Quick Save Setup</h1>
+          <p className="text-gray-600 dark:text-foreground mb-6">
             Please login to set up quick save for your browser and iOS device.
           </p>
           <a
@@ -48,21 +49,22 @@ export default function QuickSavePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4">
+    <AppShell>
+      <div className="min-h-screen bg-background py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+          <h1 className="text-4xl font-bold text-foreground mb-4">
             Quick Save Setup
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 dark:text-foreground max-w-2xl mx-auto">
             Save any webpage to your Knowledge Base with one click from your browser or iOS device.
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Bookmarklet Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-xl overflow-hidden">
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6">
               <Bookmark className="w-12 h-12 text-white mb-3" />
               <h2 className="text-2xl font-bold text-white">Browser Bookmarklet</h2>
@@ -92,8 +94,8 @@ export default function QuickSavePage() {
                     </p>
                   </div>
                   <div className="mb-6">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Quick Setup:</h3>
-                    <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
+                    <h3 className="font-semibold text-foreground mb-3">Quick Setup:</h3>
+                    <p className="text-gray-600 dark:text-foreground text-sm mb-4">
                       Drag this button to your bookmarks bar:
                     </p>
                     <a
@@ -118,8 +120,8 @@ export default function QuickSavePage() {
               </button>
 
               {showBookmarkletInstructions && (
-                <div className="mt-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <ol className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+                <div className="mt-4 bg-background dark:bg-surface-muted rounded-lg p-4">
+                  <ol className="space-y-3 text-sm text-gray-600 dark:text-foreground">
                     <li className="flex gap-3">
                       <span className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full flex items-center justify-center text-xs font-bold">1</span>
                       <span>Show your bookmarks bar (Cmd+Shift+B on Mac, Ctrl+Shift+B on Windows)</span>
@@ -134,20 +136,20 @@ export default function QuickSavePage() {
                     </li>
                   </ol>
 
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Or copy the code manually:</p>
+                  <div className="mt-4 pt-4 border-t border-border dark:border-border">
+                    <p className="text-xs text-muted mb-2">Or copy the code manually:</p>
                     <div className="relative">
-                      <code className="block bg-gray-100 dark:bg-gray-800 p-3 rounded text-xs overflow-x-auto max-h-20 text-gray-700 dark:text-gray-300">
+                      <code className="block bg-surface-muted p-3 rounded text-xs overflow-x-auto max-h-20 text-foreground">
                         {bookmarkletCode.substring(0, 100)}...
                       </code>
                       <button
                         onClick={() => copyToClipboard(bookmarkletCode, 'bookmarklet')}
-                        className="absolute top-2 right-2 p-1.5 bg-white dark:bg-gray-700 rounded shadow hover:bg-gray-50 dark:hover:bg-gray-600"
+                        className="absolute top-2 right-2 p-1.5 bg-surface dark:bg-surface-muted rounded shadow hover:bg-background dark:hover:bg-gray-600"
                       >
                         {copied === 'bookmarklet' ? (
                           <Check className="w-4 h-4 text-green-500" />
                         ) : (
-                          <Copy className="w-4 h-4 text-gray-500" />
+                          <Copy className="w-4 h-4 text-muted" />
                         )}
                       </button>
                     </div>
@@ -158,7 +160,7 @@ export default function QuickSavePage() {
           </div>
 
           {/* iOS Shortcut Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-surface rounded-2xl shadow-xl overflow-hidden">
             <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-6">
               <Smartphone className="w-12 h-12 text-white mb-3" />
               <h2 className="text-2xl font-bold text-white">iOS Shortcut</h2>
@@ -167,24 +169,24 @@ export default function QuickSavePage() {
 
             <div className="p-6">
               <div className="mb-6">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Setup Instructions:</h3>
+                <h3 className="font-semibold text-foreground mb-3">Setup Instructions:</h3>
 
                 <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg p-4 mb-4">
                   <p className="text-sm text-green-800 dark:text-green-200">
                     <strong>API URL base:</strong>
                   </p>
                   <div className="mt-2 flex items-center gap-2">
-                    <code className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded text-xs overflow-x-auto text-gray-700 dark:text-gray-300">
+                    <code className="flex-1 bg-surface px-3 py-2 rounded text-xs overflow-x-auto text-foreground">
                       {shortcutCallbackUrl}
                     </code>
                     <button
                       onClick={() => copyToClipboard(shortcutCallbackUrl, 'apiurl')}
-                      className="p-2 bg-white dark:bg-gray-700 rounded shadow hover:bg-gray-50 dark:hover:bg-gray-600"
+                      className="p-2 bg-surface dark:bg-surface-muted rounded shadow hover:bg-background dark:hover:bg-gray-600"
                     >
                       {copied === 'apiurl' ? (
                         <Check className="w-4 h-4 text-green-500" />
                       ) : (
-                        <Copy className="w-4 h-4 text-gray-500" />
+                        <Copy className="w-4 h-4 text-muted" />
                       )}
                     </button>
                   </div>
@@ -195,17 +197,17 @@ export default function QuickSavePage() {
                     <strong>Your access token:</strong>
                   </p>
                   <div className="mt-2 flex items-center gap-2">
-                    <code className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded text-xs overflow-x-auto text-gray-700 dark:text-gray-300">
+                    <code className="flex-1 bg-surface px-3 py-2 rounded text-xs overflow-x-auto text-foreground">
                       {token ? `${token.substring(0, 20)}...` : 'Loading...'}
                     </code>
                     <button
                       onClick={() => token && copyToClipboard(token, 'token')}
-                      className="p-2 bg-white dark:bg-gray-700 rounded shadow hover:bg-gray-50 dark:hover:bg-gray-600"
+                      className="p-2 bg-surface dark:bg-surface-muted rounded shadow hover:bg-background dark:hover:bg-gray-600"
                     >
                       {copied === 'token' ? (
                         <Check className="w-4 h-4 text-green-500" />
                       ) : (
-                        <Copy className="w-4 h-4 text-gray-500" />
+                        <Copy className="w-4 h-4 text-muted" />
                       )}
                     </button>
                   </div>
@@ -224,8 +226,8 @@ export default function QuickSavePage() {
               </button>
 
               {showShortcutInstructions && (
-                <div className="mt-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <ol className="space-y-4 text-sm text-gray-600 dark:text-gray-300">
+                <div className="mt-4 bg-background dark:bg-surface-muted rounded-lg p-4">
+                  <ol className="space-y-4 text-sm text-gray-600 dark:text-foreground">
                     <li className="flex gap-3">
                       <span className="flex-shrink-0 w-6 h-6 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 rounded-full flex items-center justify-center text-xs font-bold">1</span>
                       <span>Open the <strong>Shortcuts</strong> app on your iPhone/iPad</span>
@@ -245,17 +247,17 @@ export default function QuickSavePage() {
                       <div>
                         <span>Add action: <strong>URL</strong> with this value:</span>
                         <div className="mt-2 relative">
-                          <code className="block bg-white dark:bg-gray-800 p-2 rounded text-xs break-all text-gray-700 dark:text-gray-300">
+                          <code className="block bg-surface p-2 rounded text-xs break-all text-foreground">
                             {shortcutCallbackUrl}?url=[URLs]&token=YOUR_TOKEN
                           </code>
                           <button
                             onClick={() => copyToClipboard(`${shortcutCallbackUrl}?url=`, 'callback')}
-                            className="absolute top-1 right-1 p-1 bg-gray-100 dark:bg-gray-600 rounded"
+                            className="absolute top-1 right-1 p-1 bg-surface-muted dark:bg-gray-600 rounded"
                           >
                             {copied === 'callback' ? (
                               <Check className="w-3 h-3 text-green-500" />
                             ) : (
-                              <Copy className="w-3 h-3 text-gray-500" />
+                              <Copy className="w-3 h-3 text-muted" />
                             )}
                           </button>
                         </div>
@@ -279,8 +281,8 @@ export default function QuickSavePage() {
                     </li>
                   </ol>
 
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="mt-4 pt-4 border-t border-border dark:border-border">
+                    <p className="text-xs text-muted">
                       Now when you tap Share in Safari or any app, you'll see "Save to KBase" as an option!
                     </p>
                   </div>
@@ -291,11 +293,11 @@ export default function QuickSavePage() {
         </div>
 
         {/* Test Section */}
-        <div className="mt-12 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center">
+        <div className="mt-12 bg-surface rounded-2xl shadow-xl p-8">
+          <h2 className="text-2xl font-bold text-foreground mb-4 text-center">
             Test Your Setup
           </h2>
-          <p className="text-gray-600 dark:text-gray-300 text-center mb-6">
+          <p className="text-gray-600 dark:text-foreground text-center mb-6">
             Try saving this test URL to make sure everything works:
           </p>
           <div className="flex justify-center gap-4 flex-wrap">
@@ -303,7 +305,7 @@ export default function QuickSavePage() {
               href="https://example.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+              className="inline-flex items-center gap-2 bg-surface-muted dark:bg-surface-muted text-foreground px-4 py-2 rounded-lg hover:bg-surface-muted dark:hover:bg-gray-600 transition"
             >
               <ExternalLink className="w-4 h-4" />
               Open example.com
@@ -318,5 +320,6 @@ export default function QuickSavePage() {
         </div>
       </div>
     </div>
+    </AppShell>
   )
 }

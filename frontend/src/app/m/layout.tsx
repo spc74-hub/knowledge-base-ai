@@ -45,7 +45,7 @@ export default function MobileLayout({
 
     if (loading) {
         return (
-            <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+            <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-background'}`}>
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-amber-500"></div>
             </div>
         );
@@ -63,7 +63,7 @@ export default function MobileLayout({
     ];
 
     return (
-        <div className={`min-h-screen pb-16 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className={`min-h-screen pb-16 ${darkMode ? 'bg-gray-900' : 'bg-background'}`}>
             {/* Header */}
             <header className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 text-white px-4 py-3 sticky top-0 z-40 safe-area-top">
                 <div className="flex items-center justify-between">
@@ -97,7 +97,7 @@ export default function MobileLayout({
 
             {/* Bottom navigation */}
             <nav className={`fixed bottom-0 left-0 right-0 border-t safe-area-bottom z-50 ${
-                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-surface border-border'
             }`}>
                 <div className="flex justify-around items-center h-14">
                     {navItems.map((item) => {
@@ -110,8 +110,8 @@ export default function MobileLayout({
                                     isActive
                                         ? 'text-blue-500'
                                         : darkMode
-                                            ? 'text-gray-400 hover:text-gray-200'
-                                            : 'text-gray-500 hover:text-gray-700'
+                                            ? 'text-muted hover:text-gray-200'
+                                            : 'text-muted hover:text-foreground'
                                 }`}
                             >
                                 <span className="text-lg mb-0.5">{item.icon}</span>
