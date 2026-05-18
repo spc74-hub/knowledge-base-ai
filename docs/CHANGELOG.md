@@ -1,9 +1,12 @@
 # Changelog
 
 ## 2026-05-18
-- **fix:** `api_keys.py:189` pasa `datetime` (no string ISO) a la columna TIMESTAMP `last_used_at` (asyncpg rechazaba el string)
-- **fix:** `deps.py:47` mismo fix en el middleware de validacion de API keys — antes cualquier request con `kb_...` devolvia 500
-- **refactor:** Cliente OpenAI ahora es lazy (property) en `embeddings.py`, `embedder.py` y `audio_transcriber.py`. Permite arrancar la app sin `OPENAI_API_KEY` configurada (necesario tras subida de version a SDK >=2.0). Las features que necesiten OpenAI lanzan `RuntimeError` solo al usarse, no al importar
+- **fix:** `requirements.txt` anade `email-validator>=2.0.0` (Pydantic `EmailStr` en `auth.py` lo requiere al importar; sin el, el backend quedaba en restart loop)
+- **fix:** `api_keys.py:189` y `deps.py:47` pasan `datetime` (no string ISO) a la columna TIMESTAMP `last_used_at` (asyncpg rechazaba el string). Antes cualquier request con `X-API-Key` o `kb_...` Bearer devolvia 500
+- **feat:** `POST /api/v1/quick-save/` acepta y persiste `source_metadata` en el insert. ContentHub bridge ya envia este campo (`origin: contenthub_bridge`, `contenthub_id`, `contenthub_url`); antes Kbia lo descartaba
+- **feat:** UI: detalle de Content muestra badge "from ContentHub" / "Apple Notes" segun `source_metadata.origin` y boton "Open in ContentHub" cuando aplica
+- **refactor:** Pipeline IA eliminado completamente (fase 3a). Borrados servicios `embeddings`, `embedder`, `audio_transcriber`, `classifier`, `summarizer`, `processor`, `chat`, `batch_processor`. Borrados endpoints `/api/v1/chat`, `/api/v1/process`, `/api/v1/podcasts`. Borrado modelo `ChatSession`/`ChatMessage`. `quick_save` y `content` POST/reprocess ya no procesan con IA — guardan como pending. `/api/v1/search/semantic` y `/api/v1/search/hybrid` devuelven 410 Gone. Dependencia `openai` removida de `requirements.txt`. Total: 20 ficheros, +50/-3192 lineas
+- **docs:** Nuevo `database/migrations/003_strip_ai_pipeline_and_wipe.sql` — script manual (psql) para wipe selectivo de contents redundantes (~6,400 rows tiktok/youtube/web/twitter/pdf/email/docx/audio/podcast) preservando los `type='note'` (~2,006 Apple Notes + journals). Limpia junctions huerfanas y dropea tablas `chat_*`. Phase 3b (drop columns AI) queda comentado pendiente de la reescritura de `search.py`
 
 ## 2026-04-14
 - **docs:** Documentacion completa del proyecto (CLAUDE.md, USER_GUIDE, PROCESSES, CHANGELOG, BACKLOG)
