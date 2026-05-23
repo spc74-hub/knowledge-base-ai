@@ -16,6 +16,8 @@ services:
       - FRONTEND_URL=http://kbia-frontend:3000
     networks:
       - spcapps-network
+    cpus: 1.0
+    mem_limit: 1g
 
   kbia-frontend:
     build:
@@ -29,6 +31,8 @@ services:
       - HOSTNAME=0.0.0.0
     networks:
       - spcapps-network
+    cpus: 0.5
+    mem_limit: 512m
 
 networks:
   spcapps-network:
