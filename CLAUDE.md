@@ -164,13 +164,16 @@ Tablas junction: `project_actions`, `project_mental_models`, `objective_projects
 - **Batch Processor:** Arranca con 5s delay, ejecuta cada 15 min. Fase 1: fetch URLs pendientes. Fase 2: proceso IA (clasificacion, resumen, embedding)
 - **React Query:** Cache de 5 min por defecto para carga instantanea entre paginas
 
-## Deployment
-- Backend: container `kbia-backend` (FastAPI en port 8000)
-- Frontend: container `kbia-frontend` (Next.js en port 3000)
-- Compose: `/opt/spcapps-infra/projects/kbia/docker-compose.yml`
-- Auto-deploy via webhook en `git push`
-- PostgreSQL 16 compartido (container `spcapps-postgres`)
-- Nginx reverse proxy + Cloudflare Tunnel
+## Deployment — modelo CI · ⚠️ NO se construye en el VPS
+- Backend: container `kbia-backend` (FastAPI :8000, Playwright) · Frontend: `kbia-frontend` (Next.js :3000).
+- **Cambio de CÓDIGO:** `git push` a main → GitHub Actions (`.github/workflows/build-and-push.yml`)
+  construye `ghcr.io/spc74-hub/kbia-{backend,frontend}` → GHCR → un webhook dispara
+  `docker compose pull && up -d` en el VPS. NO hagas build ni `git pull` de código en el VPS
+  (corre desde la imagen de GHCR). Los `.md`/docs no disparan el pipeline.
+- **Compose de prod:** `/opt/spcapps-infra/projects/kbia/docker-compose.yml` (NO el de este repo).
+  El backend lee su env de `projects/kbia/.env`. El frontend hornea `NEXT_PUBLIC_API_URL=https://kbia.spcapps.com` en su Dockerfile.
+- PostgreSQL 16 compartido (`spcapps-postgres`, BD `kbia`). Nginx (rutas `/api/` + `/rest/`) + Cloudflare Tunnel.
+- Canónico: `spcapps-infra/docs/DEPLOY-MODEL.md`.
 
 ## Key files
 
