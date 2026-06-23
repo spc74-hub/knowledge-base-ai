@@ -1,6 +1,9 @@
 # Changelog
 
-## 2026-05-18 (tarde) — Reorganizacion PARA-first
+## 2026-06-23 — Auto-login con Cloudflare Access (sin segundo login)
+- **feat(auth):** nuevo endpoint `POST /api/cf-access` que canjea una identidad ya validada por **Cloudflare Access** por un JWT de kbia, **sin pedir contraseña**. Valida el JWT firmado `Cf-Access-Jwt-Assertion` contra las claves del equipo (`spcapps.cloudflareaccess.com`) y comprueba el `aud` de esta app (`CF_ACCESS_AUD`). Vive en `/api` (no `/api/v1`) porque `/api/v1` está en bypass de Cloudflare y ahí no llega la cabecera de identidad.
+- **feat(frontend):** la landing intenta el auto-login de Cloudflare al cargar; si Access ya te autenticó, entras directo a `/dashboard` (se elimina el segundo "Iniciar sesión"). Si falla (no estás tras Access), se muestra el login normal.
+- **chore:** añadido `cryptography` a requirements (necesario para validar RS256). Nueva config `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` (esta última por env en el VPS).
 
 - **feat:** Nueva home `/dashboard` PARA-first — tiles de areas activas con conteos rolled-up (proyectos, objetivos, habitos, captures sin triage); bandas debajo de captures pendientes, hoy (intencion + habitos) y recientes. Antes: 2,070 lineas de KPIs y widgets de pipeline IA. Ahora: 184 lineas
 - **feat:** Nueva pagina `/captures` — inbox de capturas del bridge ContentHub con filtros `Sin triage / Asignados / Todos`. Cada fila muestra badge "from ContentHub", titulo, summary, tipo, fecha relativa, estado de asignacion

@@ -13,6 +13,7 @@ from app.api.v1 import (
     api_keys, areas, habits, daily_journal, actions, rest_compat,
     captures, home,
 )
+from app.api import cf_access
 
 
 @asynccontextmanager
@@ -73,6 +74,9 @@ app.add_middleware(
 )
 
 # Include routers
+# cf-access lives at /api (NOT /api/v1) so it sits outside the Cloudflare bypass
+# of /api/v1 and therefore receives the Cf-Access-Jwt-Assertion header.
+app.include_router(cf_access.router, prefix="/api", tags=["cf-access"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(content.router, prefix="/api/v1/content", tags=["content"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["search"])

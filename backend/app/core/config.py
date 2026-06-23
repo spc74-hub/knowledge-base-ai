@@ -3,7 +3,7 @@ Application configuration using Pydantic Settings.
 Migrated from Supabase to self-hosted PostgreSQL.
 """
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 24 * 7  # 7 days
+
+    # Cloudflare Access auto-login (Option B). When CF_ACCESS_AUD is set, the
+    # /api/cf-access endpoint trades a verified CF Access identity for a kbia JWT
+    # (no password). AUD comes from the Cloudflare app's "AUD tag".
+    CF_ACCESS_TEAM_DOMAIN: str = "https://spcapps.cloudflareaccess.com"
+    CF_ACCESS_AUD: Optional[str] = None
     # Use "*" to allow bookmarklet from any origin
     ALLOWED_ORIGINS: List[str] = ["*"]
 

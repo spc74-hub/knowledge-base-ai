@@ -20,6 +20,7 @@ interface UseAuthReturn {
     token: string | null;
     signIn: (email: string, password: string) => Promise<{ error?: string }>;
     signUp: (email: string, password: string, name?: string) => Promise<{ error?: string }>;
+    signInWithCfAccess: () => Promise<{ error?: string }>;
     signOut: () => Promise<void>;
 }
 
@@ -109,6 +110,28 @@ export function useAuth(): UseAuthReturn {
         }
     }, []);
 
+    // Auto-login from a Cloudflare Access identity (no password). Works only when
+    // behind Cloudflare Access: CF injects the signed assertion on /api/cf-access
+    // (which is outside the bypassed /api/v1), and the backend validates it.
+    const signInWithCfAccess = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_URL}/api/cf-access`, { method: 'POST' });
+            if (!res.ok) return { error: 'cf-access unavailable' };
+
+            const data = await res.json();
+            const accessToken = data.session.access_token;
+            const refreshToken = data.session.refresh_token;
+
+            setTokens(accessToken, refreshToken);
+            setToken(accessToken);
+            setUser({ id: data.user.id, email: data.user.email || '' });
+
+            return {};
+        } catch (err) {
+            return { error: 'cf-access error' };
+        }
+    }, []);
+
     const signOut = useCallback(async () => {
         clearTokens();
         setToken(null);
@@ -121,6 +144,7 @@ export function useAuth(): UseAuthReturn {
         token,
         signIn,
         signUp,
+        signInWithCfAccess,
         signOut,
     };
 }

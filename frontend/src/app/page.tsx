@@ -8,19 +8,33 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 
 export default function Landing() {
-    const { user, loading } = useAuth();
+    const { user, loading, signInWithCfAccess } = useAuth();
     const router = useRouter();
+    // Try Cloudflare Access auto-login before showing the public landing, so a
+    // user who already passed Access goes straight in (no second login).
+    const [cfChecked, setCfChecked] = useState(false);
 
     useEffect(() => {
-        if (!loading && user) {
+        if (loading) return;
+        if (user) {
             router.replace('/dashboard');
+            return;
         }
-    }, [loading, user, router]);
+        if (!cfChecked) {
+            signInWithCfAccess().finally(() => setCfChecked(true));
+        }
+    }, [loading, user, cfChecked, router, signInWithCfAccess]);
+
+    // While deciding (auth loading, CF check pending, or redirecting), stay blank
+    // to avoid flashing the "Iniciar sesión / Crear cuenta" screen.
+    if (loading || !cfChecked || user) {
+        return <main className="min-h-screen bg-background" />;
+    }
 
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-background px-6 py-12">
