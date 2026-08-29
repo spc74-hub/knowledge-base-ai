@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-08-29
+- **fix(pwa):** el icono no aparecia al añadir la app a la pantalla de inicio **en iPad** (en iPhone si). Solo se declaraba `apple-touch-icon` de 180x180: el iPhone encuentra su tamaño exacto, pero el iPad busca 152x152 (retina) o 167x167 (Pro) y no habia ninguno, ni el fallback `/apple-touch-icon.png` en la raiz. Sin candidato valido, Safari pone una captura de la pagina. Añadidos los dos tamaños que faltaban y el fallback de raiz.
+
 ## 2026-06-23 — Auto-login con Cloudflare Access (sin segundo login)
 - **feat(auth):** nuevo endpoint `POST /api/cf-access` que canjea una identidad ya validada por **Cloudflare Access** por un JWT de kbia, **sin pedir contraseña**. Valida el JWT firmado `Cf-Access-Jwt-Assertion` contra las claves del equipo (`spcapps.cloudflareaccess.com`) y comprueba el `aud` de esta app (`CF_ACCESS_AUD`). Vive en `/api` (no `/api/v1`) porque `/api/v1` está en bypass de Cloudflare y ahí no llega la cabecera de identidad.
 - **feat(frontend):** la landing intenta el auto-login de Cloudflare al cargar; si Access ya te autenticó, entras directo a `/dashboard` (se elimina el segundo "Iniciar sesión"). Si falla (no estás tras Access), se muestra el login normal.

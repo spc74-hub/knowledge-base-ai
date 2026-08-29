@@ -25,7 +25,13 @@ export const metadata: Metadata = {
     manifest: '/manifest.json',
     icons: {
         icon: '/icons/icon-192.png',
-        apple: '/icons/apple-touch-icon.png',
+        // 180 = iPhone, 167 = iPad Pro, 152 = iPad retina. Sin los dos últimos
+        // el iPad no encuentra icono y pone una captura de la página.
+        apple: [
+            { url: '/icons/apple-touch-icon-180.png', sizes: '180x180', type: 'image/png' },
+            { url: '/icons/apple-touch-icon-167.png', sizes: '167x167', type: 'image/png' },
+            { url: '/icons/apple-touch-icon-152.png', sizes: '152x152', type: 'image/png' },
+        ],
     },
     appleWebApp: {
         capable: true,
